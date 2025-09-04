@@ -1,0 +1,50 @@
+const rateLimit = require('express-rate-limit');
+/**
+ * Creates a rate limiter middleware with configurable options
+ * @param {Object} options - Rate limiter configuration options
+ * @returns {Function} - Express middleware function
+ */
+function createRateLimiter(options = {}) {
+  const defaultOptions = {
+    windowMs: 15 * 60 * 1000, // 15 minutes by default
+    max: 100, // Limit each IP to 100 requests per windowMs
+    standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
+    legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+    message: {
+      error: 'Too many requests, please try again later.',
+      code: 'RATE_LIMIT_EXCEEDED'
+    }
+  };
+
+  return rateLimit({
+    ...defaultOptions,
+    ...options,
+  });
+}
+
+// Create specific rate limiters for different routes
+const authLimiter = createRateLimiter({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, // 5 attempts per 15 minutes
+  message: {
+    error: 'Too many login attempts, please try again after 15 minutes',
+    code: 'AUTH_RATE_LIMIT_EXCEEDED'
+  }
+});
+
+const apiLimiter = createRateLimiter({
+  windowMs: 60 * 1000, // 1 minute
+  max: 60, // 60 requests per minute
+});
+
+const qrVerificationLimiter = createRateLimiter({
+  windowMs: 60 * 1000, // 1 minute
+  max: 30, // 30 verifications per minute
+});
+
+module.exports = {
+  authLimiter,
+  apiLimiter,
+  qrVerificationLimiter,
+  createRateLimiter
+};
