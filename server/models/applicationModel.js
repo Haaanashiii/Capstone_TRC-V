@@ -3,8 +3,8 @@ const mongoose = require('mongoose');
 const applicationSchema = new mongoose.Schema({
   operatorName: { type: String, required: true },
   operatorContact: { type: String, required: true },
-  operatorEmail: { type: String, required: true },
-  actionType: { type: String, enum: ['NEW', 'RENEWAL', 'AMMENDMENTS'], required: true },
+  operatorEmail: { type: String, required: true , lowercase: true, trim: true, match: [/^\S+@\S+\.\S+$/, 'Invalid email address'] , unique: true , index: true },
+  actionType: { type: String, enum: ['NEW', 'RENEWAL', 'AMMENDMENTS'], required: true, uppercase: true ,trim: true},
   operatorAddress: { type: String, required: true },
 
   driversID: { type: String, required: true },

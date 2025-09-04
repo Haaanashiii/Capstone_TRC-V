@@ -52,7 +52,6 @@ router.get('/verify', sanitizeRequest, async (req, res) => {
     
     // Create ephemeral token with operator data
     const operatorData = {
-      ssn: application.ssn,
       franchiseId: application.franchiseId,
       expiryDate: application.expiryDate
     };
@@ -80,7 +79,7 @@ router.get('/verify', sanitizeRequest, async (req, res) => {
 router.get('/temp/:token', sanitizeRequest, async (req, res) => {
   try {
     const { token } = req.params;
-    const ipAddress = req.ip || req.connection.remoteAddress;
+     const ipAddress = req.ip || req.socket.remoteAddress || req.headers['x-forwarded-for']?.split(',')[0];
     
     // Get operator data from the ephemeral token
     const operatorData = getOperatorDataFromToken(token, ipAddress);
@@ -114,10 +113,10 @@ router.get('/temp/:token', sanitizeRequest, async (req, res) => {
     const isExpired = expiryDate && now > expiryDate;
     
     // Only show safe details, not documents
-    const driver = application.driverId;
+    const operator = application.driverId;
     res.json({
       valid: true,
-      name: driver.name,
+      name: operator.name,
       plateNumber: application.plateNumber,
       franchiseId: application.franchiseId,
       franchiseValidity: application.updatedAt,
@@ -138,7 +137,7 @@ router.get('/temp/:token', sanitizeRequest, async (req, res) => {
 });
 
 // Legacy endpoint for backward compatibility (with ephemeral token generation)
-router.get('/verify/:ssn', async (req, res) => {
+router.get('/verify/:ssn', qrVerificationLimiter, sanitizeRequest, async (req, res) => {
   try {
     const { ssn } = req.params;
     const application = await Application.findOne({ ssn, status: 'approved' }).populate('driverId');

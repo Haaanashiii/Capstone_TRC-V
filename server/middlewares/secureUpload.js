@@ -20,14 +20,16 @@ const MAX_FILE_SIZE = 5 * 1024 * 1024;
 // Storage configuration with randomized filenames
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    const uploadDir = path.join(__dirname, '../../uploads');
+    const uploadDir = path.join(process.cwd(), 'uploads');
     
     // Create directory if it doesn't exist
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-    
-    cb(null, uploadDir);
+    fs.mkdir(uploadDir, { recursive: true }, (err) => {
+      if (err) {
+        console.error('Error creating upload directory:', err);
+        return cb(err);
+      }
+      cb(null, uploadDir);
+    });
   },
   filename: (req, file, cb) => {
     // Generate a secure random filename to prevent path traversal attacks

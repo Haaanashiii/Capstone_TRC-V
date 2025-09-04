@@ -6,16 +6,24 @@ const twilio = require('twilio');
  */
 class NotificationService {
   constructor() {
-    // Initialize email transporter
-    this.emailTransporter = nodemailer.createTransport({
-      host: process.env.EMAIL_HOST,
-      port: process.env.EMAIL_PORT,
-      secure: process.env.EMAIL_SECURE === 'true',
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASSWORD
-      }
-    });
+    //validate email config
+    const requiredEmailVars = ['EMAIL_HOST', 'EMAIL_PORT', 'EMAIL_USER', 'EMAIL_PASSWORD'];
+    const missingEmailVars = requiredEmailVars.filter(v => !process.env[v]);
+    if (missingEmailVars.length > 0) {
+      console.warn(`Warning: Missing email configuration variables: ${missingEmailVars.join(', ')}. Email notifications will be disabled.`);
+      this.emailTransporter = null;
+    }else {
+      // Initialize email transporter
+      this.emailTransporter = nodemailer.createTransport({
+        host: process.env.EMAIL_HOST,
+        port: process.env.EMAIL_PORT,
+        secure: process.env.EMAIL_SECURE === 'true',
+        auth: {
+          user: process.env.EMAIL_USER,
+          pass: process.env.EMAIL_PASSWORD
+        }
+      });
+    }
 
     // Initialize SMS client if credentials are available
     if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN) {
@@ -35,6 +43,9 @@ class NotificationService {
    * @returns {Promise} - Email sending result
    */
   async sendEmail(to, subject, text, html) {
+    if(!this.emailTransporter) {
+      return { success: false, error: 'Email transporter not configured' };
+    }
     try {
       const result = await this.emailTransporter.sendMail({
         from: `"${process.env.EMAIL_FROM_NAME || 'Tricycle Franchising System'}" <${process.env.EMAIL_FROM || 'noreply@solano.gov.ph'}>`,
@@ -62,7 +73,10 @@ class NotificationService {
       if (!this.smsClient) {
         throw new Error('SMS client not configured');
       }
-
+      
+      if(!process.env.TWILIO_PHONE_NUMBER) {
+        throw new Error('Twilio phone number not configured');
+      }
       const result = await this.smsClient.messages.create({
         body: message,
         from: process.env.TWILIO_PHONE_NUMBER,
@@ -103,7 +117,8 @@ class NotificationService {
 
     // SMS notification
     if (driver.phone) {
-      const message = `NOTICE: Your tricycle franchise (${application.franchiseId}) will expire in ${daysRemaining} days on ${new Date(application.expiryDate).toLocaleDateString()}. Please renew at the Tricycle Franchising Office. -Municipality of Solano`;
+      const message = `NOTICE: Tricycle franchise ${application.franchiseId} expires in ${daysRemaining} days (${new Date(application.expiryDate).toLocaleDateString('en-PH')}). Renew at office. -Solano`;
+
       
       results.sms = await this.sendSMS(driver.phone, message);
     }

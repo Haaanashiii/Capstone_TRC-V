@@ -14,7 +14,6 @@ const { auditLogService } = require('./services/auditLogService');
 //routes
 const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
-const urlRoutes = require('./routes/urlRoutes');
 
 
 dotenv.config();
@@ -48,7 +47,7 @@ app.use(cookieParser());
 
 // CORS after parsing but before routes
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || '*',
+  origin: process.env.CORS_ORIGIN || (process.env.NODE_ENV === 'development' ? '*' : false),
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization']
@@ -95,8 +94,15 @@ app.use(errorHandler);
 
 // Connect to MongoDB and start server
 const PORT = process.env.PORT || 5000;
-mongoose.connect(process.env.MONGO_URI)
+mongoose.connect(process.env.MONGO_URI, {
+  serverSelectionTimeoutMS: 5000,
+  maxPoolSize: 10
+})
   .then(() => {
+    console.log('MongoDB connected successfully');
     app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
   })
-  .catch((err) => console.error('MongoDB connection error:', err));
+  .catch((err) => {
+    console.error('MongoDB connection error:', err);
+    process.exit(1);
+  });

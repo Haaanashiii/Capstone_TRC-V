@@ -46,10 +46,11 @@ router.get('/v/:shortId', sanitizeRequest, async (req, res) => {
     }
     
     // Return only the necessary information
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
     return res.status(200).json({
       success: true,
       data: {
-        driverName: application.driver.name,
+        driverName: (application.driver && application.driver.name) ? application.driver.name : null,
         franchiseId: application.franchiseId,
         plateNumber: application.plateNumber,
         expiryDate: application.expiryDate,

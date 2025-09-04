@@ -7,18 +7,36 @@ const crypto = require('crypto');
 class EncryptionService {
   constructor() {
     // Use environment variables for encryption keys or generate secure defaults
-    this.encryptionKey = process.env.ENCRYPTION_KEY || this.generateSecureKey();
+    this.encryptionKey = this.loadEncryptionKey();
     this.algorithm = 'aes-256-gcm';
   }
+
+  loadEncryptionKey() {
+  const raw = process.env.ENCRYPTION_KEY;
+  if (!raw) return this.generateSecureKey();
+
+  let key;
+  if (raw.startsWith('hex:')) key = Buffer.from(raw.slice(4), 'hex');
+  else if (raw.startsWith('base64:')) key = Buffer.from(raw.slice(7), 'base64');
+  else if (/^[0-9a-fA-F]{64}$/.test(raw)) key = Buffer.from(raw, 'hex'); // 32 bytes hex
+  else key = Buffer.from(raw, 'base64'); // assume base64 if unprefixed
+
+  if (key.length !== 32) {
+    throw new Error('ENCRYPTION_KEY must decode to exactly 32 bytes (256 bits).');
+  }
+  return key;
+}
 
   /**
    * Generate a secure encryption key if none is provided
    * @returns {Buffer} - A secure random key
    */
   generateSecureKey() {
-    // Generate a secure random key and store it (in production, this should be in environment variables)
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('ENCRYPTION_KEY is required in production; refusing to auto-generate.');
+    }
     const key = crypto.randomBytes(32); // 256 bits
-    console.warn('WARNING: Using auto-generated encryption key. Set ENCRYPTION_KEY in environment for production.');
+    console.warn('WARNING: Using auto-generated encryption key for non-production only. Set ENCRYPTION_KEY for production.');
     return key;
   }
 
@@ -96,11 +114,13 @@ class EncryptionService {
     if (!text) return text;
     
     try {
-      // Use a secure hashing algorithm with a salt
+      // PBKDF2 with encoded params (algo, iterations, salt, hash)
       const salt = crypto.randomBytes(16).toString('hex');
-      const hash = crypto.pbkdf2Sync(text, salt, 10000, 64, 'sha512').toString('hex');
-      
-      return `${salt}:${hash}`;
+      const iterations = Number(process.env.PBKDF2_ITERATIONS) || 310000;
+      const digest = 'sha512';
+      const derived = crypto.pbkdf2Sync(text, salt, iterations, 64, digest).toString('hex');
+      // Format: pbkdf2$<digest>$<iterations>$<salt>$<hash>
+       return `pbkdf2$${digest}$${iterations}$${salt}$${derived}`;
     } catch (error) {
       console.error('Hashing error:', error);
       throw new Error('Failed to hash data');

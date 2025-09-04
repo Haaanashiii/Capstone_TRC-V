@@ -15,7 +15,8 @@ async function generateQRCode(ssn, franchiseId = null, expiryDate = null) {
   
   // Create a static URL that only contains the franchise ID
   // The actual verification will happen server-side with ephemeral tokens
-  const url = `${process.env.BASE_URL || 'https://trc-v.gov.ph'}/verify?id=${franchiseId}`;
+  const baseUrl = (process.env.BASE_URL || 'https://trc-v.gov.ph').replace(/\/+$/, '');
+  const url = `${baseUrl}/verify?id=${encodeURIComponent(franchiseId)}`;
   
   // Generate QR code
   return await QRCode.toDataURL(url);
@@ -30,12 +31,15 @@ function createDigitalSignature(payload) {
   // Remove any existing signature from the payload before signing
   const { signature, ...dataToSign } = payload;
   
-  // Create string representation of data
-  const dataString = JSON.stringify(dataToSign);
+  // Create string representation of data (canonicalized key order)
+  const dataString = JSON.stringify(dataToSign, Object.keys(dataToSign).sort());
   
   // Create HMAC signature using server's secret key
-  const hmac = crypto.createHmac('sha256', process.env.QR_SIGNATURE_SECRET || process.env.JWT_SECRET);
-  hmac.update(dataString);
+  const secret = process.env.QR_SIGNATURE_SECRET || process.env.JWT_SECRET;
+  if (!secret) {
+    throw new Error('QR signature secret is not configured');
+  }
+  const hmac = crypto.createHmac('sha256', Buffer.from(secret, 'utf8'));
   
   return hmac.digest('hex');
 }
@@ -56,11 +60,12 @@ function verifyQRCodeSignature(payload) {
   // Recreate signature and compare
   const expectedSignature = createDigitalSignature(dataToVerify);
   
-  // Use constant-time comparison to prevent timing attacks
-  return crypto.timingSafeEqual(
-    Buffer.from(signature, 'hex'),
-    Buffer.from(expectedSignature, 'hex')
-  );
+  // Validate hex and compare in constant time without throwing on length mismatch
+  if (!/^[0-9a-f]{64}$/i.test(signature)) return false;
+  const sigBuf = Buffer.from(signature, 'hex');
+  const expBuf = Buffer.from(expectedSignature, 'hex');
+  return sigBuf.length === expBuf.length && crypto.timingSafeEqual(sigBuf, expBuf);
+
 }
 
 module.exports = { generateQRCode, verifyQRCodeSignature };

@@ -31,17 +31,20 @@ module.exports = function authenticateToken(req, res, next) {
   } catch (err) {
     // Handle different JWT errors with specific messages
     if (err.name === 'JsonWebTokenError') {
-      return res.status(403).json({ 
+      res.set('WWW-Authenticate', 'Bearer realm="api", error="invalid_token", error_description="Invalid token."');
+      return res.status(401).json({ 
         error: 'Invalid token', 
         code: 'INVALID_TOKEN'
       });
     } else if (err.name === 'TokenExpiredError') {
+      res.set('WWW-Authenticate', 'Bearer realm="api", error="invalid_token", error_description="Invalid token."');
       return res.status(401).json({ 
         error: 'Token expired', 
         code: 'TOKEN_EXPIRED'
       });
     } else {
-      return res.status(403).json({ 
+      res.set('WWW-Authenticate', 'Bearer realm="api", error="invalid_token", error_description="Invalid token."');
+      return res.status(500).json({ 
         error: 'Token verification failed', 
         code: 'TOKEN_VERIFICATION_FAILED'
       });

@@ -13,7 +13,12 @@ exports.deleteUser = async (id) => {
   return await User.findByIdAndDelete(id);
 };
 
-exports.findByUsername = async (username) => {
-  return await User.findOne({ username });
+exports.findByUsername = async (username, { projection, lean = false, collation } = {}) => {
+ if (typeof username !== 'string' || !username.trim()) {
+   throw new TypeError('username must be a non-empty string');
+ }
+ let query = User.findOne({ username: username.trim() }, projection);
+ if (collation) query = query.collation(collation); // e.g., { locale: 'en', strength: 2 } for case-insensitive+  if (lean) query = query.lean();
+ return await query;
 };
 

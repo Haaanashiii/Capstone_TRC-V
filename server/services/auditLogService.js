@@ -59,55 +59,57 @@ class AuditLogService {
    * @returns {Function} - Express middleware function
    */
   createLogMiddleware(options = {}) {
-    const defaultOptions = {
-      excludePaths: ['/health', '/metrics'],
-      logBody: false
-    };
+  const defaultOptions = {
+    excludePaths: ['/health', '/metrics'],
+    logBody: false,
+    redactFields: []
+  };
 
-    const config = { ...defaultOptions, ...options };
+  const config = { ...defaultOptions, ...options };
 
-    return (req, res, next) => {
-      // Skip logging for excluded paths
-      if (config.excludePaths.some(path => req.path.startsWith(path))) {
-        return next();
-      }
-
-      // Capture the original end method
-      const originalEnd = res.end;
-
-      // Override the end method to log after response is sent
-      res.end = function(...args) {
-        // Restore the original end method
-        res.end = originalEnd;
-
-        // Call the original end method
-        res.end.apply(res, args);
-
-        // Prepare log data
-        const logData = {
-          userId: req.user ? req.user.id : null,
-          action: req.method,
-          resource: req.path,
-          resourceId: req.params.id,
-          details: {
-            query: req.query,
-            body: config.logBody ? req.body : undefined,
-            statusCode: res.statusCode
-          },
-          ipAddress: req.ip || req.connection.remoteAddress,
-          userAgent: req.headers['user-agent'],
-          status: res.statusCode >= 400 ? 'failure' : 'success'
-        };
-
-        // Log the request asynchronously
-        this.log(logData).catch(err => {
-          console.error('Failed to log request:', err);
-        });
-      }.bind(this);
-
-      next();
-    };
+  // Helper to redact sensitive fields if needed
+  function redact(obj, fields = []) {
+    if (!obj || !fields.length) return obj;
+    const clone = { ...obj };
+    for (const field of fields) {
+      if (clone[field]) clone[field] = '[REDACTED]';
+    }
+    return clone;
   }
+
+  return (req, res, next) => {
+    // Skip logging for excluded paths
+    if (config.excludePaths.some(path => req.path.startsWith(path))) {
+      return next();
+    }
+
+    res.once('finish', () => {
+      const logData = {
+        userId: req.user ? (req.user._id || req.user.id) : undefined,
+        action: req.method,
+        resource: req.path,
+        resourceId: req.params?.id || Object.values(req.params || {})[0],
+        details: {
+          query: req.query,
+          body: config.logBody ? redact(req.body, config.redactFields) : undefined,
+          statusCode: res.statusCode
+        },
+        ipAddress:
+          (req.headers['x-forwarded-for']?.split(',')[0]?.trim()) ||
+          req.ip ||
+          req.socket?.remoteAddress,
+        userAgent: req.headers['user-agent'],
+        status: res.statusCode >= 400 ? 'failure' : 'success'
+      };
+      this.log(logData).catch(err => {
+        console.error('Failed to log request:', err);
+      });
+    });
+
+    next();
+  };
+}
+
 
   /**
    * Log authentication events

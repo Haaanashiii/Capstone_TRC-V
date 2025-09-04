@@ -36,8 +36,7 @@ function createStaticQrUrl(franchiseId) {
 /**
  * Create an ephemeral token for temporary access to operator information
  * 
- * @param {Object} operatorData - The operator data to encode in the token
- * @param {string} operatorData.ssn - Social Security Number
+ * @param {Object} operatorData -
  * @param {string} operatorData.franchiseId - Franchise ID
  * @param {string} [operatorData.name] - Operator name (optional)
  * @param {Date} [operatorData.expiryDate] - Franchise expiry date (optional)
@@ -64,11 +63,13 @@ function createEphemeralToken(operatorData) {
   // Encrypt the payload
   const encryptedData = encryptData(JSON.stringify(payload));
   
-  // Generate a short ID
-  const token = generateShortId();
-  
-  // Store the mapping
-  urlMappings.set(token, encryptedData);
+   // Generate a short ID
+   const token = generateShortId();
+   // Store the mapping with expiry
+   urlMappings.set(token, {
+     data: encryptedData,
+     expiresAt: payload.expiresAt
+   });
   
   // Return the ephemeral token information
   return {
@@ -160,18 +161,9 @@ function checkRateLimit(ipAddress) {
  */
 function cleanupExpiredData() {
   const currentTime = Date.now();
-  
-  // Clean up expired tokens
-  for (const [token, encryptedData] of urlMappings.entries()) {
-    try {
-      const decryptedData = decryptData(encryptedData);
-      const payload = JSON.parse(decryptedData);
-      
-      if (currentTime > payload.expiresAt) {
-        urlMappings.delete(token);
-      }
-    } catch (error) {
-      // If we can't decrypt, the data is corrupted, so remove it
+  // Clean up expired tokens without decryption
+  for (const [token, entry] of urlMappings.entries()) {
+    if (currentTime > entry.expiresAt) {
       urlMappings.delete(token);
     }
   }
@@ -185,11 +177,17 @@ function cleanupExpiredData() {
 }
 
 // Schedule cleanup to run every minute
-setInterval(cleanupExpiredData, 60 * 1000);
+const cleanupInterval = setInterval(cleanupExpiredData, 60 * 1000);
+function shutdown() {
+  clearInterval(cleanupInterval);
+  urlMappings.clear();
+  ipAccessCounts.clear();
+};
 
 module.exports = {
   createStaticQrUrl,
   createEphemeralToken,
   getOperatorDataFromToken,
-  checkRateLimit
+  checkRateLimit,
+  shutdown
 };
