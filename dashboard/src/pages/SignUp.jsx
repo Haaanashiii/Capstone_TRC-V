@@ -11,7 +11,7 @@ const poppinsTheme = createTheme({
   },
 });
 
-// Images are referenced from public folder using URLs
+
 
 const SignUp = () => {
   const [showPassword, setShowPassword] = React.useState(false);
