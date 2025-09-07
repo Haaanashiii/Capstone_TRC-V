@@ -19,7 +19,7 @@ const LandingPage = () => {
           <a href="/about" className="nav-link">ABOUT US</a>
           <a href="/verify" className="nav-link">VERIFY TRICYCLE</a>
           <a href="/application" className="nav-link">NEW APPLICATION</a>
-          <button className="nav-login" onClick={() => navigate('/signup')}>LOGIN</button>
+          <button className="nav-login" onClick={() => navigate('/login')}>LOGIN</button>
         </nav>
       </header>
       <main className="landing-main">
