@@ -1,0 +1,70 @@
+.maintenance-container {
+  background: #0A3576;
+  min-height: 100vh;
+  color: #fff;
+  text-align: center;
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.maintenance-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 30px;
+  padding: 0 40px;
+}
+
+.maintenance-logo {
+  width: 100px;
+}
+
+.maintenance-title {
+  background: #F7D358;
+  padding: 10px 30px;
+  border-radius: 8px;
+  font-weight: bold;
+  font-size: 1.5rem;
+  color: #0A3576;
+}
+
+.maintenance-tricycle {
+  width: 250px;
+  margin: 30px auto;
+}
+
+.tricycle-animate {
+  animation: tricycleMove 2s infinite alternate ease-in-out;
+  display: block;
+}
+
+@keyframes tricycleMove {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(60px);
+  }
+}
+}
+
+.maintenance-message {
+  color: #F7D358;
+  margin-top: 30px;
+  font-weight: bold;
+}
+
+.maintenance-footer {
+  position: absolute;
+  bottom: 40px;
+  left: 0;
+  right: 0;
+  font-size: 1.5rem;
+  font-weight: bold;
+  margin: 0;
+}

@@ -1,0 +1,191 @@
+.signup-right-arrows {
+  position: absolute;
+  top: 32px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 120px;
+  z-index: 2;
+}
+.signup-right-accent {
+  position: absolute;
+  top: -120px;
+  right: -120px;
+  width: 400px;
+  height: 400px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 50%;
+  z-index: 1;
+}
+/* SignUp Page Styles */
+.signup-root {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+  background: #fff;
+}
+.signup-left {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background: #fff;
+  padding: 0 48px;
+}
+.signup-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+.signup-logo {
+  width: 64px;
+  height: 64px;
+}
+.signup-qr {
+  width: 48px;
+  height: 48px;
+}
+.signup-title {
+  font-weight: 700;
+  margin-bottom: 24px;
+  text-align: left;
+}
+.signup-input {
+  width: 100%;
+  max-width: 400px;
+  margin: 0 auto 12px auto;
+  display: block;
+}
+.MuiOutlinedInput-root {
+  border-radius: 12px !important;
+  background: #f6f9fc;
+}
+.MuiInputLabel-root {
+  font-weight: 500;
+  color: #0a3570;
+}
+.signup-create-btn {
+  background: #0a3570 !important;
+  color: #fff !important;
+  font-weight: 600;
+  margin: 16px auto 24px auto;
+  border-radius: 16px;
+  height: 48px;
+  width: 90%;
+  max-width: 400px;
+  display: block;
+  box-shadow: none;
+  font-size: 1.08rem;
+  letter-spacing: 0.02em;
+  transition: background 0.2s;
+}
+.signup-create-btn:hover {
+  background: #0C6FDC !important;
+}
+.signup-divider-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin: 24px 0 16px 0;
+}
+.signup-divider-line {
+  flex: 1;
+  border: none;
+  border-top: 1px solid #e0e0e0;
+  background: none;
+  height: 1px;
+}
+.signup-divider-text {
+  font-weight: 500;
+  color: #888;
+  font-size: 1rem;
+}
+.signup-google-btn {
+  border-radius: 24px;
+  height: 48px;
+  font-weight: 500;
+  background: #fff;
+  color: #0a3570;
+  border: 1.5px solid #e0e0e0;
+  width: 90%;
+  max-width: 400px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+  box-shadow: none;
+  font-size: 1.08rem;
+  letter-spacing: 0.02em;
+}
+.signup-google-btn .MuiSvgIcon-root {
+  font-size: 1.6rem;
+}
+.signup-right {
+  flex: 1;
+  background: #0a3570;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  position: relative;
+}
+/* Right panel content styling */
+.signup-right-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  width: 80%;
+  max-width: 500px;
+  height: 100%;
+}
+.signup-right-icons {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  margin-bottom: 32px;
+}
+.signup-right-qr {
+  width: 64px;
+  height: 64px;
+}
+.signup-right-tricy {
+  width: 220px;
+}
+.signup-right-clipboard {
+  width: 48px;
+  height: 48px;
+}
+.signup-right-title {
+  font-weight: 700;
+  margin-bottom: 16px;
+  text-align: center;
+  font-size: 2.5rem;
+  letter-spacing: 2px;
+}
+.signup-right-desc {
+  font-size: 1.1rem;
+  text-align: center;
+  margin-bottom: 0;
+  line-height: 1.5;
+  max-width: 400px;
+}
+@media (max-width: 900px) {
+  .signup-root {
+    flex-direction: column;
+  }
+  .signup-left, .signup-right {
+    flex: none;
+    width: 100vw;
+    height: 50vh;
+  }
+  .signup-right-content {
+    width: 100%;
+    max-width: none;
+  }
+}
