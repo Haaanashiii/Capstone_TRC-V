@@ -27,4 +27,4 @@ const operatorSchema = new mongoose.Schema({
   applications: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Application' }]
 }, { timestamps: true });
 
-module.exports = mongoose.model('Operator', operatorSchema);
+module.exports = mongoose.model('Operator Information', operatorInformationSchema);

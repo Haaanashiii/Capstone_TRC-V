@@ -14,7 +14,7 @@ const userSchema = new mongoose.Schema({
     password: { type: String, required: true },
     role: { 
         type: String, 
-        enum: ['Admin', 'Operator'],
+        enum: ['Sangguiniang Bayan','BPLO', 'Operator'],
         required: true 
     },
     status: {

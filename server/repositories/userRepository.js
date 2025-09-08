@@ -18,7 +18,7 @@ exports.findByUsername = async (username, { projection, lean = false, collation 
    throw new TypeError('username must be a non-empty string');
  }
  let query = User.findOne({ username: username.trim() }, projection);
- if (collation) query = query.collation(collation); // e.g., { locale: 'en', strength: 2 } for case-insensitive+  if (lean) query = query.lean();
+ if (collation) query = query.collation(collation); 
  return await query;
 };
 
