@@ -108,13 +108,12 @@
   }
 }
 .landing-root {
-  min-height: 500px;
+  min-height: 100vh;
   background: #143c6e;
   color: #fff;
   font-family: 'Montserrat', poppins, sans-serif;
   box-sizing: border-box;
   width: 99vw;
-  height: 153vw;
   margin: 5;
   padding: 10;
   overflow-x: hidden;

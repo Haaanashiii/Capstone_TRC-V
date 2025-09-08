@@ -175,7 +175,6 @@ const LandingPage = () => {
       />
     </div>
 
-
     <div style={{ flex: 1, minWidth: "300px" }}>
       <div
         style={{
@@ -235,6 +234,11 @@ const LandingPage = () => {
     </div>
   </div>
 </footer>
+
+ <button 
+            className="text-lg text-white bg-[#143c6e] rounded-full py-2 px-5.5 font-semibold border-2 border-white ml-6 shadow-md transition hover:bg-[#ffe066] hover:text-[#143c6e] hover:border-[#ffe066]"
+            onClick={() => navigate('/login')}
+          ></button>
 
     </div>
   );
