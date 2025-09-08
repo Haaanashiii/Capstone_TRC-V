@@ -8,9 +8,10 @@ const { authLimiter } = require('../middlewares/rateLimiter');
 router.post('/login', authLimiter, authController.login);
 
 // OTP for 2FA and forgot password
-router.post('/request-otp', authController.requestOtp);
+const { otpLimiter } = require('../middlewares/rateLimiter');
+router.post('/request-otp', otpLimiter, authController.requestOtp);
 router.post('/verify-otp', authController.verifyOtp);
-router.post('/forgot-password', authController.forgotPassword);
+router.post('/forgot-password', otpLimiter, authController.forgotPassword);
 router.post('/reset-password', authController.resetPassword);
 
 // Refresh token route
