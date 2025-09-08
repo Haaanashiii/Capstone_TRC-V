@@ -1,7 +1,75 @@
+// OTP/2FA and Forgot Password
+const { generateOTP, setOTP, verifyOTP } = require('../middlewares/otpMiddleware');
+const { sendOTPEmail } = require('../services/emailService');
+
+
 const userRepository = require('../repositories/userRepository');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
+
+// Request OTP for 2FA or forgot password
+exports.requestOtp = async (req, res, next) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ error: 'Email is required' });
+    const user = await userRepository.findByEmail(email);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    const otp = generateOTP();
+    setOTP(email, otp);
+    await sendOTPEmail(email, otp);
+    res.json({ message: 'OTP sent to email' });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Verify OTP for 2FA or forgot password
+exports.verifyOtp = async (req, res, next) => {
+  try {
+    const { email, otp } = req.body;
+    if (!email || !otp) return res.status(400).json({ error: 'Email and OTP are required' });
+    const valid = verifyOTP(email, otp);
+    if (!valid) return res.status(400).json({ error: 'Invalid or expired OTP' });
+    res.json({ message: 'OTP verified' });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Forgot password: send OTP
+exports.forgotPassword = async (req, res, next) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ error: 'Email is required' });
+    const user = await userRepository.findByEmail(email);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    const otp = generateOTP();
+    setOTP(email, otp);
+    await sendOTPEmail(email, otp);
+    res.json({ message: 'OTP sent to email for password reset' });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Reset password using OTP
+exports.resetPassword = async (req, res, next) => {
+  try {
+    const { email, otp, newPassword } = req.body;
+    if (!email || !otp || !newPassword) return res.status(400).json({ error: 'Email, OTP, and new password are required' });
+    const valid = verifyOTP(email, otp);
+    if (!valid) return res.status(400).json({ error: 'Invalid or expired OTP' });
+    const user = await userRepository.findByEmail(email);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    const hashed = await bcrypt.hash(newPassword, 10);
+    await userRepository.updateUser(user._id, { password: hashed });
+    res.json({ message: 'Password reset successful' });
+  } catch (err) {
+    next(err);
+  }
+};
+
 
 // Store refresh tokens (in production, use Redis or a database)
 const refreshTokens = new Map();

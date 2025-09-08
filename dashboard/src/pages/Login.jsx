@@ -13,9 +13,48 @@ const poppinsTheme = createTheme({
 });
 
 
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+
 const Login = () => {
   const [showPassword, setShowPassword] = React.useState(false);
+  const [form, setForm] = React.useState({
+    email: "",
+    password: ""
+  });
+  const [error, setError] = React.useState("");
+  const [success, setSuccess] = React.useState("");
+
   const handleClickShowPassword = () => setShowPassword((show) => !show);
+
+  const handleChange = (e) => {
+    setForm({ ...form, [e.target.name]: e.target.value });
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError("");
+    setSuccess("");
+    try {
+      const res = await fetch(`${API_BASE_URL}/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: form.email,
+          password: form.password
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || "Login failed");
+      } else {
+        setSuccess("Login successful!");
+        // Save token, redirect, etc. here
+      }
+    } catch (err) {
+      setError("Network error. Please try again.");
+    }
+  };
 
   return (
     <ThemeProvider theme={poppinsTheme}>
@@ -26,50 +65,58 @@ const Login = () => {
             <img src="/Logos/TRC-vLogo.png" alt="QR" className="login-qr" />
           </Box>
           <Typography variant="h4" className="login-title">Sign in</Typography>
-          
           <Box className="login-form">
-            <Typography variant="body2" className="login-label">E-mail</Typography>
-            <TextField 
-              placeholder="example@gmail.com" 
-              variant="outlined" 
-              fullWidth 
-              className="login-input"
-              InputProps={{
-                classes: { root: "login-input-root" }
-              }}
-            />
-            
-            <Typography variant="body2" className="login-label">Password</Typography>
-            <TextField
-              placeholder="@#*%"
-              variant="outlined"
-              fullWidth
-              className="login-input"
-              type={showPassword ? "text" : "password"}
-              InputProps={{
-                classes: { root: "login-input-root" },
-                endAdornment: (
-                  <InputAdornment position="end">
-                    <IconButton onClick={handleClickShowPassword} edge="end" size="small">
-                      {showPassword ? <VisibilityOff /> : <Visibility />}
-                    </IconButton>
-                  </InputAdornment>
-                ),
-              }}
-            />
-            
-            <Box className="login-options">
-              <FormControlLabel
-                control={<Checkbox size="small" className="login-checkbox" />}
-                label={<Typography variant="body2" style={{ fontSize: '0.9rem' }}>Remember me</Typography>}
-                className="login-remember"
+            <form onSubmit={handleSubmit}>
+              <Typography variant="body2" className="login-label">E-mail</Typography>
+              <TextField
+                placeholder="example@gmail.com"
+                variant="outlined"
+                fullWidth
+                className="login-input"
+                name="email"
+                value={form.email}
+                onChange={handleChange}
+                InputProps={{
+                  classes: { root: "login-input-root" }
+                }}
+                required
               />
-              <Typography variant="body2" className="login-forgot">
-                <a href="#">Forgot Password?</a>
-              </Typography>
-            </Box>
-            
-            <Button variant="contained" fullWidth className="login-signin-btn">Sign in</Button>
+              <Typography variant="body2" className="login-label">Password</Typography>
+              <TextField
+                placeholder="@#*%"
+                variant="outlined"
+                fullWidth
+                className="login-input"
+                name="password"
+                value={form.password}
+                onChange={handleChange}
+                type={showPassword ? "text" : "password"}
+                InputProps={{
+                  classes: { root: "login-input-root" },
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton onClick={handleClickShowPassword} edge="end" size="small">
+                        {showPassword ? <VisibilityOff /> : <Visibility />}
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                }}
+                required
+              />
+              <Box className="login-options">
+                <FormControlLabel
+                  control={<Checkbox size="small" className="login-checkbox" />}
+                  label={<Typography variant="body2" style={{ fontSize: '0.9rem' }}>Remember me</Typography>}
+                  className="login-remember"
+                />
+                <Typography variant="body2" className="login-forgot">
+                  <a href="#">Forgot Password?</a>
+                </Typography>
+              </Box>
+              {error && <Typography color="error">{error}</Typography>}
+              {success && <Typography color="primary">{success}</Typography>}
+              <Button type="submit" variant="contained" fullWidth className="login-signin-btn">Sign in</Button>
+            </form>
           </Box>
           <Box className="login-divider-box">
             <hr className="login-divider-line" />
