@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, useNavigate } from 'react-router-dom';
 import SignUp from './pages/SignUp';
 import LandingPage from './pages/LandingPage';
+import Login from './pages/Login';
 
 import MaintenancePage from './pages/MaintenancePage';
 
@@ -16,7 +17,10 @@ function App() {
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/signup" element={<SignUp />} />
-  <Route path="/maintenance" element={<MaintenancePage />} />
+        <Route path="/maintenance" element={<MaintenancePage />} />
+        <Route path="/login" element={<Login />} />
+        {/* This route will catch all undefined routes and redirect to MaintenancePage */}
+        <Route path="*" element={<MaintenancePage />} />
       </Routes>
     </Router>
   );
