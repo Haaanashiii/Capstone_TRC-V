@@ -175,7 +175,6 @@ const LandingPage = () => {
       />
     </div>
 
-
     <div style={{ flex: 1, minWidth: "300px" }}>
       <div
         style={{
