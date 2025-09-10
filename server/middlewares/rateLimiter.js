@@ -1,13 +1,6 @@
-// OTP limiter: 5 requests per 15 minutes per IP
-const otpLimiter = createRateLimiter({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 5,
-  message: {
-    error: 'Too many OTP requests, please try again after 15 minutes',
-    code: 'OTP_RATE_LIMIT_EXCEEDED'
-  }
-});
+
 const rateLimit = require('express-rate-limit');
+
 /**
  * Creates a rate limiter middleware with configurable options
  * @param {Object} options - Rate limiter configuration options
@@ -24,12 +17,21 @@ function createRateLimiter(options = {}) {
       code: 'RATE_LIMIT_EXCEEDED'
     }
   };
-
   return rateLimit({
     ...defaultOptions,
     ...options,
   });
 }
+
+// OTP limiter: 5 requests per 15 minutes per IP
+const otpLimiter = createRateLimiter({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5,
+  message: {
+    error: 'Too many OTP requests, please try again after 15 minutes',
+    code: 'OTP_RATE_LIMIT_EXCEEDED'
+  }
+});
 
 // Create specific rate limiters for different routes
 const authLimiter = createRateLimiter({
