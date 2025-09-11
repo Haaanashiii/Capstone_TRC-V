@@ -27,11 +27,13 @@ const LandingPage = () => {
           <h1>Tricycle Verification and<br />Hassle-Free Online<br />Franchise in Solano</h1>
           <p className="main-desc">
               <div className="tricycle-image-wrapper" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', margin: '40px 0' }}>
-                {/* <img
-                  src="/Logos/Tricy (2).png"
-                  alt="Tricycle"
-                  style={{ width: '350px', height: 'auto', borderRadius: '12px', boxShadow: '0 4px 24px rgba(0,0,0,0.15)' }}
-                /> */}
+                  {/*
+                  <img
+                    src="/Logos/Tricy (2).png"
+                    alt="Tricycle"
+                    style={{ width: '350px', height: 'auto', borderRadius: '12px', boxShadow: '0 4px 24px rgba(0,0,0,0.15)' }}
+                  />
+                  */}
               </div>
           </p>
           <div className="main-buttons">
@@ -39,6 +41,7 @@ const LandingPage = () => {
             <a href="/application" className="main-btn yellow">APPLY/RENEW FRANCHISE</a>
           </div>
         </div>
+        {/*
         <div className="main-image">
             <div className="main-image-animated" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', margin: '40px 0' }}>
               <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'center', gap: '32px', position: 'relative', width: '500px', height: '220px' }}>
@@ -63,6 +66,7 @@ const LandingPage = () => {
               </div>
             </div>
         </div>
+        */}
 
       </main>
       {/* Announcements Pageee hehe papi luke  */}
