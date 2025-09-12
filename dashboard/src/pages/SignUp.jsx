@@ -1,5 +1,5 @@
 
-import React from "react";
+import React, { useState } from "react";
 import { Box, Button, TextField, Typography, InputAdornment, IconButton, Divider, Paper, ThemeProvider, createTheme } from "@mui/material";
 import { Visibility, VisibilityOff } from "@mui/icons-material";
 import GoogleIcon from "@mui/icons-material/Google";
@@ -11,13 +11,54 @@ const poppinsTheme = createTheme({
   },
 });
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+
 
 
 const SignUp = () => {
-  const [showPassword, setShowPassword] = React.useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [form, setForm] = useState({
+    fullName: "",
+    username: "",
+    email: "",
+    password: ""
+  });
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
 
   const handleClickShowPassword = () => setShowPassword((show) => !show);
 
+  const handleChange = (e) => {
+    setForm({ ...form, [e.target.name]: e.target.value });
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+        setError("");
+    setSuccess("");
+    try {
+      const res = await fetch(`${API_BASE_URL}/users`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: form.fullName,
+          username: form.username,
+          email: form.email,
+          password: form.password
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || "Registration failed");
+      } else {
+        setSuccess("Account created! You can now log in.");
+        setForm({ fullName: "", username: "", email: "", password: "" });
+      }
+    } catch (err) {
+      setError("Network error. Please try again.");
+    }
+  };
+  
   return (
     <ThemeProvider theme={poppinsTheme}>
       <Box className="signup-root">
@@ -48,12 +89,21 @@ const SignUp = () => {
               ),
             }}
           />
-          <Button variant="contained" color="primary" fullWidth className="signup-create-btn" style={{ fontFamily: 'Poppins, sans-serif' }}>Create</Button>
-          <Box className="signup-divider-box">
-            <hr className="signup-divider-line" />
+                     <Button
+              type="submit"
+              variant="contained"
+              color="primary"
+              fullWidth
+              className="signup-create-btn"
+              style={{ fontFamily: 'Poppins, sans-serif' }}
+            >
+              Create
+            </Button>
+            <Box className="signup-divider-box">
+              <hr className="signup-divider-line" />
             <span className="signup-divider-text">⸻ OR ⸻</span>
             <hr className="signup-divider-line" />
-          </Box>
+                            </Box>
           <Button variant="outlined" startIcon={<GoogleIcon />} fullWidth className="signup-google-btn" style={{ fontFamily: 'Poppins, sans-serif' }}>
             Continue with Google
           </Button>
