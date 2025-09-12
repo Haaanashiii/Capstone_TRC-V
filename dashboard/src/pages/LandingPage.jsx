@@ -25,49 +25,18 @@ const LandingPage = () => {
       <main className="landing-main">
         <div className="main-content">
           <h1>Tricycle Verification and<br />Hassle-Free Online<br />Franchise in Solano</h1>
-          <p className="main-desc">
-              <div className="tricycle-image-wrapper" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', margin: '40px 0' }}>
-                  {/*
-                  <img
-                    src="/Logos/Tricy (2).png"
-                    alt="Tricycle"
-                    style={{ width: '350px', height: 'auto', borderRadius: '12px', boxShadow: '0 4px 24px rgba(0,0,0,0.15)' }}
-                  />
-                  */}
-              </div>
-          </p>
           <div className="main-buttons">
             <a href="/verify" className="main-btn yellow">VERIFY A TRICYCLE</a>
             <a href="/application" className="main-btn yellow">APPLY/RENEW FRANCHISE</a>
           </div>
         </div>
-        {/*
-        <div className="main-image">
-            <div className="main-image-animated" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', margin: '40px 0' }}>
-              <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'center', gap: '32px', position: 'relative', width: '500px', height: '220px' }}>
-                <div style={{ position: 'absolute', left: '10%', top: '-150px', transform: 'translateX(-50%)' }}>
-                    <img
-                      src="/Logos/Qr.gif"
-                      alt="QR Code"
-                      style={{ width: '110px', height: '110px' }}
-                    />
-                </div>
-                <img
-                  src="/Logos/Tricy (2).png"
-                  alt="Tricycle"
-                  className="tricycle-animate"
-                    style={{ width: '350px', height: 'auto', position: 'absolute', left: 30, bottom: 0, background: 'none', padding: 0 }}
-                />
-                <img
-                  src="/Logos/clipboard.gif"
-                  alt="Clipboard"
-                  style={{ width: '110px', height: '110px', borderRadius: '16px', boxShadow: '0 2px 12px rgba(0,0,0,0.10)', position: 'absolute', right: 0, bottom: '20px', background: 'none', padding: 0 }}
-                />
-              </div>
-            </div>
+        <div className="main-image" style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', height: '100%' }}>
+          <img
+            src="/Logos/right-sideLanding.gif"
+            alt="Landing Animation"
+            style={{ width: '90%', maxWidth: '640px', height: 'auto', marginRight: '40px' }}
+          />
         </div>
-        */}
-
       </main>
       {/* Announcements Pageee hehe papi luke  */}
       <section className="announcements-section">
@@ -83,7 +52,7 @@ const LandingPage = () => {
           <div className="announcement-card">
              
             <div className="announcement-card-header">SYSTEM MAINTENANCE ADVISORY</div>
-            <div className="announcement-card-date">SEP 5, 2025</div>
+            <div className="announcement-card-date">SEP 5, 2025</div> 
             <div className="announcement-card-body">
               Please be advised that the TRC-V online portal will undergo scheduled maintenance on September 8, 2025, from 12:00 AM to 6:00 AM. During this period, online services including QR code validation and document submissions will be temporarily unavailable…
             </div>
@@ -97,6 +66,7 @@ const LandingPage = () => {
           </div>
         </div>
       </section>
+      
         {/* FEATURES Hatdog */}
         <div style={{ background: '#F5D76E', padding: '40px 0' }}>
              <div style={{ background: '#174D7A', color: '#F5D76E', display: 'inline-block', padding: '10px 50px', borderRadius: '2px', fontWeight: 'bold', fontSize: '28px', boxShadow: '2px 2px 6px #b3a04a' }}>

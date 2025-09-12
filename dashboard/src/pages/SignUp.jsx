@@ -22,11 +22,11 @@ const SignUp = () => {
     <ThemeProvider theme={poppinsTheme}>
       <Box className="signup-root">
         <Paper elevation={0} className="signup-left">
-          <Box className="signup-header">
+          <Box style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '16px', marginBottom: '16px' }}>
             <img src="/Logos/SBLogo.png" alt="SBLogo" className="signup-logo" />
             <img src="/Logos/TRC-vLogo.png" alt="QR" className="signup-qr" />
           </Box>
-          <Typography variant="h4" className="signup-title">Create your Account</Typography>
+          <Typography variant="h4" className="signup-title" style={{ textAlign: 'center' }}>Create your Account</Typography>
           <TextField label="Full Name" variant="outlined" fullWidth margin="normal" className="signup-input" InputLabelProps={{ style: { fontFamily: 'Poppins, sans-serif' } }} />
           <TextField label="Username" variant="outlined" fullWidth margin="normal" className="signup-input" InputLabelProps={{ style: { fontFamily: 'Poppins, sans-serif' } }} />
           <TextField label="E-mail" variant="outlined" fullWidth margin="normal" className="signup-input" InputLabelProps={{ style: { fontFamily: 'Poppins, sans-serif' } }} />

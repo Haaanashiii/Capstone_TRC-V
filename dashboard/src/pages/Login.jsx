@@ -86,19 +86,7 @@ const Login = () => {
           </Box>
         </Paper>
         <Box className="login-right">
-          <div className="login-right-accent"></div>
-          <Box className="login-right-content">
-            {/* <img src="/Logos/Arrows.png" alt="Arrows" className="login-right-arrows" /> */}
-            <Box className="login-right-icons">
-              {/* <img src="/Logos/Qr.gif" alt="QR" className="login-right-qr" /> */}
-              <img src="/Logos/Tricy (2).png" alt="Tricycle" className="login-right-tricy" />
-              {/* <img src="/Logos/clipboard.gif" alt="Clipboard" className="login-right-clipboard" /> */}
-            </Box>
-            <Typography variant="h3" className="login-right-title">TRC-V</Typography>
-            <Typography variant="body1" className="login-right-desc">
-              TRC-V (Tricycle Verification System) is a digital solution designed to streamline tricycle franchising in the Municipality of Solano. It ensures faster processing, reliable verification, and better service for both drivers and administrators.
-            </Typography>
-          </Box>
+          <img src="/Logos/login-right.gif" alt="Login Right" className="login-right-gif" />
         </Box>
       </Box>
     </ThemeProvider>
