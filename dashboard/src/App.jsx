@@ -6,6 +6,7 @@ import DriverID from './pages/Driver/DriverID';
 import LandingPage from './pages/Landing/LandingPage';
 import Login from './pages/Login/Login';
 import MaintenancePage from './pages/Maintenance/MaintenancePage';
+import Sidebar from './pages/Administration/Sidebar';
 
 function LandingPageWithNav() {
   const navigate = useNavigate();
@@ -17,12 +18,13 @@ function App() {
     <Router>
       <Routes>
         <Route path="/" element={<LandingPage />} />
-  <Route path="/signup" element={<SignUp />} />
-  <Route path="/driver/signup" element={<DriverSignUp />} />
-  <Route path="/driver/id" element={<DriverID />} />
-  <Route path="/maintenance" element={<MaintenancePage />} />
-  <Route path="/login" element={<Login />} />
-  <Route path="*" element={<MaintenancePage />} />
+        <Route path="/signup" element={<SignUp />} />
+        <Route path="/driver/signup" element={<DriverSignUp />} />
+        <Route path="/driver/id" element={<DriverID />} />
+        <Route path="/maintenance" element={<MaintenancePage />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="*" element={<MaintenancePage />} />
+        <Route path="/admin" element={<Sidebar />} />
       </Routes>
     </Router>
   );
