@@ -76,7 +76,7 @@ const LandingPage = () => {
           
             <div style={{ textAlign: 'center', width: '300px' }}>
               <div style={{ background: '#174D7A', borderRadius: '50%', width: '170px', height: '170px', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                {/* <img src="/Logos/Qr.gif" alt="Tricycle Verification" style={{ width: '90px', height: '90px' }} /> */}
+                <img src="/Logos/2.png" alt="Tricycle Verification" style={{ width: '150px', height: '150px' }} />
               </div>
               <h3 style={{ fontWeight: 'bold', marginTop: '20px', color: '#111' }}>TRICYCLE VERIFICATION</h3>
               <p style={{ fontSize: '15px', marginTop: '10px', color: '#111' }}>Instantly check if a tricycle is registered and franchised by scanning its QR code.</p>
@@ -84,7 +84,7 @@ const LandingPage = () => {
            
             <div style={{ textAlign: 'center', width: '300px' }}>
               <div style={{ background: '#174D7A', borderRadius: '50%', width: '170px', height: '170px', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                {/* <img src="/Logos/clipboard.gif" alt="Franchise Application" style={{ width: '90px', height: '90px' }} /> */}
+                <img src="/Logos/4.png" alt="Franchise Application" style={{ width: '150px', height: '150px' }} />
               </div>
               <h3 style={{ fontWeight: 'bold', marginTop: '20px', color: '#111' }}>FRANCHISE APPLICATION AND RENEWAL</h3>
               <p style={{ fontSize: '15px', marginTop: '10px', color: '#111' }}>Submit new franchise applications or renew your existing one online with ease.</p>
@@ -92,7 +92,7 @@ const LandingPage = () => {
            
             <div style={{ textAlign: 'center', width: '300px' }}>
               <div style={{ background: '#174D7A', borderRadius: '50%', width: '170px', height: '170px', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                {/* <img src="/Logos/Arrows.png" alt="Reporting Function" style={{ width: '90px', height: '90px' }} /> */}
+                <img src="/Logos/6.png" alt="Reporting Function" style={{ width: '150px', height: '150px' }} />
               </div>
               <h3 style={{ fontWeight: 'bold', marginTop: '20px', color: '#111' }}>REPORTING FUNCTION</h3>
               <p style={{ fontSize: '15px', marginTop: '10px', color: '#111' }}>Report instances of overpricing or fare disputes, ensuring passengers are charged fairly.</p>
