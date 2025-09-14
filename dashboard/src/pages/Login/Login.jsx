@@ -3,8 +3,6 @@ import React from "react";
 import { Box, Button, TextField, Typography, InputAdornment, IconButton, Divider, Paper, ThemeProvider, createTheme, Checkbox, FormControlLabel } from "@mui/material";
 
 import GoogleIcon from "@mui/icons-material/Google";
-import Visibility from "@mui/icons-material/Visibility";
-import VisibilityOff from "@mui/icons-material/VisibilityOff";
 
 
 import './Login.css';
@@ -16,7 +14,7 @@ const poppinsTheme = createTheme({
   },
 });
 
-//papi luke pogi
+//papi luke pogi sana ma crush back
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
