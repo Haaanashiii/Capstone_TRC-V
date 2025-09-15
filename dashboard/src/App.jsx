@@ -7,6 +7,7 @@ import LandingPage from './pages/Landing/LandingPage';
 import Login from './pages/Login/Login';
 import MaintenancePage from './pages/Maintenance/MaintenancePage';
 import Sidebar from './pages/Administration/Sidebar';
+import UserManagement from './pages/Administration/UserManagement';
 
 function LandingPageWithNav() {
   const navigate = useNavigate();
@@ -25,6 +26,7 @@ function App() {
         <Route path="/login" element={<Login />} />
         <Route path="*" element={<MaintenancePage />} />
         <Route path="/admin" element={<Sidebar />} />
+        <Route path="/user-management" element={<UserManagement />} />
       </Routes>
     </Router>
   );
