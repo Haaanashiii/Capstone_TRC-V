@@ -1,0 +1,95 @@
+.franchise-app-bg {
+  min-height: 100vh;
+  background: #0a3576;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 0;
+}
+
+.franchise-app-paper {
+  width: 900px;
+  border-radius: 16px;
+  padding: 40px 48px 32px 48px;
+  background: #fff;
+  box-shadow: 0 4px 32px rgba(0,0,0,0.10);
+  position: relative;
+  margin: 90px auto 10 auto; 
+}
+
+.franchise-app-title {
+  font-size: 2.5rem;
+  font-weight: 900;
+  margin-bottom: 32px;
+  color: #222;
+}
+
+.franchise-app-date-row {
+  display: flex;
+  gap: 24px;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.franchise-app-field {
+  margin-bottom: 18px;
+}
+
+.franchise-app-section {
+  font-weight: 700;
+  font-size: 1.2rem;
+  margin: 32px 0 12px 0;
+  color: #222;
+  display: flex;
+  align-items: center;
+}
+
+.franchise-app-section-line {
+  flex: 1;
+  height: 2px;
+  background: #222;
+  margin-left: 16px;
+}
+
+.franchise-app-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  margin-bottom: 18px;
+}
+
+.franchise-app-grid-4 {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 1fr;
+  gap: 24px;
+  margin-bottom: 18px;
+}
+
+.franchise-app-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  margin-bottom: 18px;
+}
+
+.franchise-app-input {
+  width: 100%;
+  margin-bottom: 16px;
+}
+
+.franchise-app-logo {
+  position: absolute;
+  top: 32px;
+  right: 48px;
+  display: flex;
+  gap: 16px;
+}
+
+.franchise-app-logo img {
+  height: 64px;
+  width: auto;
+}
+
+.franchise-app-input {
+  width: 100%;
+}

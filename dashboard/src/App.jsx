@@ -5,6 +5,8 @@ import DriverSignUp from './pages/Driver/DriverSignUp';
 import DriverID from './pages/Driver/DriverID';
 import LandingPage from './pages/Landing/LandingPage';
 import Login from './pages/Login/Login';
+import Franchise from './pages/Driver/Franchise';
+import FranchiseApplication from './pages/Driver/FranchiseApplication';
 import MaintenancePage from './pages/Maintenance/MaintenancePage';
 import Sidebar from './pages/Administration/Sidebar';
 
@@ -23,6 +25,8 @@ function App() {
         <Route path="/driver/id" element={<DriverID />} />
         <Route path="/maintenance" element={<MaintenancePage />} />
         <Route path="/login" element={<Login />} />
+        <Route path="/driver/franchise" element={<Franchise />} />
+        <Route path="/driver/franchise/application" element={<FranchiseApplication />} />
         <Route path="*" element={<MaintenancePage />} />
         <Route path="/admin" element={<Sidebar />} />
       </Routes>

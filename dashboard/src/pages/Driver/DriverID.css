@@ -42,6 +42,7 @@
   display: flex;
   gap: 32px;
   margin: 32px;
+  /* margin-right: 0vh; */
 }
 
 .driver-id-profile {

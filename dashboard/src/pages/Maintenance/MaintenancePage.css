@@ -1,61 +1,139 @@
-.maintenance-container {
+
+/* Header Logo Top Left */
+.maintenance-header-logo {
+  position: fixed;
+  top: 24px;
+  left: 32px;
+  display: flex;
+  align-items: center;
   background: #0A3576;
-  min-height: 100vh;
-  color: #fff;
-  text-align: center;
-  position: relative;
-  width: 100vw;
-  height: 100vh;
-  overflow: hidden;
+  padding: 10px 28px 10px 18px;
+  border-radius: 10px;
+  z-index: 10;
+  box-shadow: 0 2px 12px 0 rgba(0,0,0,0.04);
+}
+
+.maintenance-header-logo-img {
+  width: 48px;
+  height: 48px;
+  margin-right: 16px;
+}
+
+.maintenance-header-logo-text {
   display: flex;
   flex-direction: column;
   justify-content: center;
 }
 
-.maintenance-header {
+.maintenance-header-logo-title {
+  font-size: 2.1rem;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: 1px;
+}
+.maintenance-header-logo-title .highlight-c {
+  color: #F7D358;
+}
+.maintenance-header-logo-sub {
+  font-size: 0.85rem;
+  color: #fff;
+  font-weight: 500;
+  letter-spacing: 1.5px;
+  margin-top: -2px;
+}
+
+.maintenance-404-container {
+  background: #0A3576;
+  min-height: 100vh;
+  width: 100vw;
+  height: 100vh;
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  margin-bottom: 30px;
-  padding: 0 40px;
+  justify-content: center;
+  color: #fff;
+  font-family: 'Poppins', Arial, sans-serif;
 }
 
-.maintenance-logo {
-  width: 100px;
+
+.maintenance-404-content {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  width: 100%;
+  max-width: 1200px;
+  padding: 40px 0 40px 6vw;
 }
 
-.maintenance-title {
+.maintenance-404-left {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  min-width: 320px;
+}
+
+.maintenance-404-title {
+  font-size: 11rem;
+  font-weight: 1000;
+  color: #F7D358;
+  margin-bottom: 0.1em;
+  line-height: 1;
+  letter-spacing: -2px;
+}
+
+.maintenance-404-subtitle {
+  font-size: 2.6rem;
+  font-weight: 700;
+  margin-bottom: 1.2em;
+  color: #fff;
+}
+
+.maintenance-404-message {
+  font-size: 1.3rem;
+  color: #F7D358;
+  margin-bottom: 2em;
+  font-weight: 500;
+  max-width: 400px;
+}
+
+.maintenance-404-btn {
   background: #F7D358;
-  padding: 10px 30px;
-  border-radius: 8px;
-  font-weight: bold;
-  font-size: 1.5rem;
+  color: #0A3576;
+  font-weight: 700;
+  border: none;
+  border-radius: 4px;
+  padding: 14px 36px;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+  margin-top: 10px;
+}
+.maintenance-404-btn:hover {
+  background: #fff;
   color: #0A3576;
 }
 
-.maintenance-tricycle {
-  width: 250px;
-  margin: 30px auto;
+.maintenance-404-right {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.tricycle-animate {
-  animation: tricycleMove 2s infinite alternate ease-in-out;
-  display: block;
+.maintenance-404-tricycle {
+  width: 320px;
+  max-width: 100%;
+  animation: tricycleMove404 2s infinite alternate ease-in-out;
 }
 
-@keyframes tricycleMove {
+@keyframes tricycleMove404 {
   0% {
     transform: translateX(0);
   }
   100% {
-    transform: translateX(60px);
+    transform: translateX(40px);
   }
-}
-
-.maintenance-message {
-  color: #F7D358;
-  margin-top: 30px;
-  font-weight: bold;
 }
 
 .maintenance-footer {
