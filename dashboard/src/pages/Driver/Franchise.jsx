@@ -19,7 +19,7 @@ const Franchise = () => {
     <div className="franchise-bg">
       <Sidebar />
 
-      {/* Card section */}
+      {/* Card section yah */}
       <div className="franchise-card-wrapper">
         <div className="franchise-card-centered">
           <div className="franchise-profile-img-outer-centered">

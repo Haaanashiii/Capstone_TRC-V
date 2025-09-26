@@ -38,7 +38,7 @@ const LandingPage = () => {
           />
         </div>
       </main>
-      {/* Announcements Pagee ni papa\pi lukee */}
+      {/* Announcements Pagee ni papa\pi lucas ni jakey */}
       <section className="announcements-section">
         <div className="announcements-title">ANNOUNCEMENTS</div>
         <div className="announcements-list">

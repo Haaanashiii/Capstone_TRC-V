@@ -72,7 +72,7 @@ export default function FranchiseApplication() {
       {/* Main Content */}
       <div className="franchise-app-bg">
         <div className="franchise-app-paper">
-        {/* Upload Modal (Dynamic per document) */}
+        {/* modal yeha */}
         {modalDocKey && (
           <div className="franchise-modal-bg">
             <div className="franchise-modal" style={{ maxWidth: 480, borderRadius: 18, background: '#fff', boxShadow: '0 4px 24px #0002', padding: 36, position: 'relative' }}>

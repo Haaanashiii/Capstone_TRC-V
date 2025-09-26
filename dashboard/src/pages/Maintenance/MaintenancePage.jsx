@@ -3,7 +3,7 @@ import React from 'react';
 import './MaintenancePage.css';
 import { useNavigate } from 'react-router-dom';
 
-
+{/* Updated ver sya yah */}
 const MaintenancePage = () => {
   const navigate = useNavigate();
   return (

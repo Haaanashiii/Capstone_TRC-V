@@ -1,6 +1,6 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import "./Franchise.css"; // Assuming you want to use the same style or adjust as needed
+import "./Franchise.css"; 
 
 const Sidebar = () => {
 	return (
@@ -40,7 +40,7 @@ const Sidebar = () => {
 					fontWeight: 600
 				}}>
 					<span style={{ marginRight: "8px", fontSize: "18px" }}>👤</span>
-					MARLA
+					USER
 				</div>
 			</div>
 		</nav>
