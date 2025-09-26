@@ -9,6 +9,7 @@ import Franchise from './pages/Driver/Franchise';
 import FranchiseApplication from './pages/Driver/FranchiseApplication';
 import MaintenancePage from './pages/Maintenance/MaintenancePage';
 import Sidebar from './pages/Administration/Sidebar';
+import UserManagement from './pages/Administration/UserManagement';
 
 function LandingPageWithNav() {
   const navigate = useNavigate();
@@ -29,6 +30,7 @@ function App() {
         <Route path="/driver/franchise/application" element={<FranchiseApplication />} />
         <Route path="*" element={<MaintenancePage />} />
         <Route path="/admin" element={<Sidebar />} />
+        <Route path="/user-management" element={<UserManagement />} />
       </Routes>
     </Router>
   );
