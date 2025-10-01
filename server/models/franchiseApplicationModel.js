@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 
-const applicationSchema = new mongoose.Schema({
+const franchiseApplicationSchema = new mongoose.Schema({
   operatorName: { type: String, required: true },
   operatorContact: { type: String, required: true },
   operatorEmail: { type: String, required: true , lowercase: true, trim: true, match: [/^\S+@\S+\.\S+$/, 'Invalid email address'] , unique: true , index: true },
@@ -28,4 +28,4 @@ const applicationSchema = new mongoose.Schema({
   submittedAt: { type: Date, default: Date.now },
 });
 
-module.exports = mongoose.model('Application', applicationSchema);
+module.exports = mongoose.model('Franchise Application', franchiseApplicationSchema);

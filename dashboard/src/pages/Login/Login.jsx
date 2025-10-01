@@ -1,9 +1,8 @@
 
 import React from "react";
 import { Box, Button, TextField, Typography, InputAdornment, IconButton, Divider, Paper, ThemeProvider, createTheme, Checkbox, FormControlLabel } from "@mui/material";
-import { Visibility } from "@mui/icons-material";
-import GoogleIcon from "@mui/icons-material/Google";
-import { Visibility } from "@mui/icons-material"; 
+import { Visibility, VisibilityOff } from "@mui/icons-material";
+import GoogleIcon from "@mui/icons-material/Google"; 
 
 
 
@@ -127,7 +126,13 @@ const Login = () => {
             <span className="login-divider-text">OR</span>
             <hr className="login-divider-line" />
           </Box>
-          <Button variant="outlined" startIcon={<GoogleIcon />} fullWidth className="login-google-btn">
+          <Button
+            variant="outlined"
+            startIcon={<GoogleIcon />}
+            fullWidth
+            className="login-google-btn"
+            onClick={() => { window.location.href = `${API_BASE_URL}/auth/google`; }}
+          >
             Continue with Google
           </Button>
           <Box className="login-create-account">

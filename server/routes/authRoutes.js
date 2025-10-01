@@ -4,8 +4,11 @@ const authController = require('../controllers/authController');
 const { authLimiter } = require('../middlewares/rateLimiter');
 
 
-// Login route
+// Login route (identifier can be username or email)
 router.post('/login', authLimiter, authController.login);
+
+// Signup (local) - create a username/email/password account
+router.post('/signup', authController.signup);
 
 // OTP for 2FA and forgot password
 const { otpLimiter } = require('../middlewares/rateLimiter');
@@ -19,5 +22,14 @@ router.post('/refresh-token', authController.refreshToken);
 
 // Logout route
 router.post('/logout', authController.logout);
+
+// Google OAuth (server-side) - redirect to Google and handle callback
+router.get('/google', authController.googleAuth);
+router.get('/google/callback', authController.googleCallback);
+
+// Dev-only test route to create an OAuth user directly (do not enable in production)
+if (process.env.NODE_ENV !== 'production') {
+	router.post('/test-oauth', authController.testCreateOAuth);
+}
 
 module.exports = router;

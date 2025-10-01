@@ -104,7 +104,14 @@ const SignUp = () => {
             <span className="signup-divider-text">⸻ OR ⸻</span>
             <hr className="signup-divider-line" />
                             </Box>
-          <Button variant="outlined" startIcon={<GoogleIcon />} fullWidth className="signup-google-btn" style={{ fontFamily: 'Poppins, sans-serif' }}>
+          <Button
+            variant="outlined"
+            startIcon={<GoogleIcon />}
+            fullWidth
+            className="signup-google-btn"
+            style={{ fontFamily: 'Poppins, sans-serif' }}
+            onClick={() => { window.location.href = `${API_BASE_URL}/auth/google`; }}
+          >
             Continue with Google
           </Button>
         </Paper>

@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, useNavigate } from 'react-router-dom';
 import SignUp from './pages/Login/signup/SignUp';
+import OAuthCallback from './pages/Login/OAuthCallback';
 import DriverSignUp from './pages/Driver/DriverSignUp';
 import DriverID from './pages/Driver/DriverID';
 import LandingPage from './pages/Landing/LandingPage';
@@ -26,6 +27,7 @@ function App() {
         <Route path="/driver/id" element={<DriverID />} />
         <Route path="/maintenance" element={<MaintenancePage />} />
         <Route path="/login" element={<Login />} />
+        <Route path="/oauth-callback" element={<OAuthCallback />} />
         <Route path="/driver/franchise" element={<Franchise />} />
         <Route path="/driver/franchise/application" element={<FranchiseApplication />} />
         <Route path="*" element={<MaintenancePage />} />

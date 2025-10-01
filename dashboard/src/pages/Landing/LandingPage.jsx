@@ -2,8 +2,26 @@ import React from "react";
 import { useNavigate } from 'react-router-dom';
 import './LandingPage.css';
 
+import { useEffect } from 'react';
+
 const LandingPage = () => {
   const navigate = useNavigate();
+  useEffect(() => {
+    try {
+      const hash = window.location.hash || '';
+      if (hash.startsWith('#')) {
+        const params = new URLSearchParams(hash.substring(1));
+        const token = params.get('access_token');
+        if (token) {
+          localStorage.setItem('accessToken', token);
+          // remove token from URL if available
+          if (window.history && typeof window.history.replaceState === 'function') {
+            try { window.history.replaceState(null, '', window.location.pathname); } catch (err) { console.warn('replaceState failed', err); }
+          }
+        }
+      }
+  } catch { /* ignore */ }
+  }, []);
   return (
     <div className="landing-root">
       <header className="landing-header">
@@ -23,6 +41,7 @@ const LandingPage = () => {
         </nav>
       </header>
       <main className="landing-main">
+        
         <div className="main-content">
           <h1>Tricycle Verification and<br />Hassle-Free Online<br />Franchise in Solano</h1>
           <div className="main-buttons">

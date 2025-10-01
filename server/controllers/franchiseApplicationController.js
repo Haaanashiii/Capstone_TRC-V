@@ -1,17 +1,17 @@
-const applicationRepository = require('../repositories/applicationRepository');
+const franchiseApplicationRepository = require('../repositories/applicationRepository');
 
-exports.createApplication = async (req, res, next) => {
+exports.createFranchiseApplication = async (req, res, next) => {
   try {
-    const application = await applicationRepository.createApplication(req.body);
+    const application = await franchiseApplicationRepository.createFranchiseApplication(req.body);
     res.status(201).json(application);
   } catch (error) {
     next(error);
   }
 };
 
-exports.getApplication = async (req, res, next) => {
+exports.getFranchiseApplication = async (req, res, next) => {
   try {
-    const application = await applicationRepository.getApplicationById(req.params.id);
+    const application = await franchiseApplicationRepository.getFranchiseApplicationById(req.params.id);
     if (!application) {
       return res.status(404).json({ error: 'Application not found' });
     }   
@@ -22,10 +22,10 @@ exports.getApplication = async (req, res, next) => {
 };
 
 
-exports.updateApplication = async (req, res, next) => {
+exports.updateFranchiseApplication = async (req, res, next) => {
     try {
         const payload = pick(req.body, process.env.ALLOWED_UPDATE_FIELDS);
-        const application = await applicationRepository.updateApplication(req.params.id, payload);
+        const application = await franchiseApplicationRepository.updateFranchiseApplication(req.params.id, payload);
         if (!application) {
             return res.status(404).json({ error: 'Application not found' });
         }
@@ -35,9 +35,9 @@ exports.updateApplication = async (req, res, next) => {
     }
 };
 
-exports.deleteApplication = async (req, res, next) => {
+exports.deleteFranchiseApplication = async (req, res, next) => {
     try {
-        const application = await applicationRepository.deleteApplication(req.params.id);
+        const application = await franchiseApplicationRepository.deleteFranchiseApplication(req.params.id);
         if (!application) {
             return res.status(404).json({ error: 'Application not found' });
         }
@@ -46,4 +46,3 @@ exports.deleteApplication = async (req, res, next) => {
         next(error);
     }   
 };
-
