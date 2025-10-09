@@ -1,0 +1,379 @@
+.verification-modal-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1300;
+  backdrop-filter: blur(4px);
+  overflow: hidden;
+}
+
+.verification-modal-paper {
+  background: white;
+  border-radius: 20px;
+  padding: 25px 20px;
+  max-width: 500px;
+  width: 90%;
+  max-height: none;
+  overflow: visible;
+  box-shadow: 
+    0 25px 50px rgba(59, 130, 246, 0.15),
+    0 4px 16px rgba(59, 130, 246, 0.2);
+  border: 3px solid #3b82f6;
+  position: relative;
+  z-index: 1301;
+  margin: 20px;
+}
+
+.verification-modal-paper::before {
+  display: none;
+}
+
+.verification-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  position: relative;
+}
+
+.verification-icon-container {
+  margin-bottom: 12px;
+  padding: 12px;
+  background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+  border-radius: 50%;
+  width: 60px;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 8px 25px rgba(59, 130, 246, 0.2);
+  border: 3px solid #3b82f6;
+}
+
+.verification-icon {
+  color: #1e40af !important;
+  font-size: 2rem !important;
+  filter: drop-shadow(0 2px 4px rgba(30, 64, 175, 0.3));
+}
+
+.inline-icon {
+  color: #3b82f6 !important;
+  font-size: 1.2rem !important;
+  margin-right: 8px !important;
+  vertical-align: middle !important;
+}
+
+.verification-title {
+  font-family: 'Poppins', sans-serif !important;
+  font-weight: 700 !important;
+  font-size: 1.7rem !important;
+  background: linear-gradient(135deg, #1e40af 0%, #3b82f6 50%, #2563eb 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin-bottom: 12px !important;
+  text-shadow: 0 2px 4px rgba(59, 130, 246, 0.1);
+}
+
+.verification-subtitle {
+  font-family: 'Poppins', sans-serif !important;
+  font-size: 1.1rem !important;
+  color: #64748b !important;
+  margin-bottom: 8px !important;
+  font-weight: 500 !important;
+}
+
+.verification-email {
+  font-family: 'Poppins', sans-serif !important;
+  font-size: 1.1rem !important;
+  color: #475569 !important;
+  margin-bottom: 8px !important;
+  font-weight: 500 !important;
+}
+
+.verification-email strong {
+  color: #1e40af;
+  font-weight: 700;
+  background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.verification-timer {
+  font-family: 'Poppins', sans-serif !important;
+  font-size: 0.95rem !important;
+  color: #64748b !important;
+  margin-bottom: 32px !important;
+  padding: 12px 20px;
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+  border-radius: 12px;
+  border-left: 4px solid #f59e0b;
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.1);
+}
+
+.verification-timer strong {
+  color: #dc2626;
+  font-weight: 700;
+  font-size: 1.05rem;
+}
+
+.otp-inputs-container {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+  justify-content: center;
+  flex-wrap: nowrap;
+  padding: 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  width: 100%;
+  max-width: 100%;
+  overflow: visible;
+}
+
+.otp-input {
+  width: 45px !important;
+  height: 45px !important;
+  flex-shrink: 0;
+}
+
+.otp-input .MuiOutlinedInput-root {
+  border-radius: 12px;
+  font-family: 'Poppins', sans-serif;
+  background: white;
+  border: 2px solid #e2e8f0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.otp-input .MuiOutlinedInput-root:hover {
+  border-color: #3b82f6;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15);
+  transform: translateY(-1px);
+}
+
+.otp-input .MuiOutlinedInput-root.Mui-focused {
+  border-color: #2563eb;
+  box-shadow: 
+    0 0 0 3px rgba(59, 130, 246, 0.1),
+    0 4px 16px rgba(59, 130, 246, 0.2);
+  transform: translateY(-1px);
+}
+
+.otp-input .MuiOutlinedInput-input {
+  font-size: 1.2rem;
+  font-weight: 700;
+  text-align: center;
+  padding: 8px;
+  color: #1e293b;
+}
+
+.verification-error {
+  font-family: 'Poppins', sans-serif !important;
+  font-size: 0.9rem !important;
+  margin-bottom: 20px !important;
+  color: #dc2626 !important;
+  background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+  border: 1px solid #fecaca;
+  border-left: 4px solid #dc2626;
+  padding: 12px 16px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(220, 38, 38, 0.1);
+}
+
+.verification-actions {
+  margin-bottom: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  background: transparent;
+  border-radius: 0;
+  border: none;
+}
+
+.verification-resend,
+.verification-alternative {
+  font-family: 'Poppins', sans-serif !important;
+  font-size: 0.95rem !important;
+  color: #64748b !important;
+  font-weight: 500 !important;
+}
+
+.link-button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: 'Poppins', sans-serif;
+  font-size: inherit;
+  text-decoration: none;
+  padding: 4px 8px;
+  margin: 0;
+  border-radius: 6px;
+  transition: all 0.3s ease;
+}
+
+.try-again-btn {
+  color: #1d4ed8;
+  font-weight: 700;
+  background: transparent;
+  border: none;
+}
+
+.try-again-btn:hover:not(:disabled) {
+  background: transparent;
+  transform: none;
+  box-shadow: none;
+  text-decoration: underline;
+}
+
+.try-again-btn:disabled {
+  color: #9ca3af;
+  background: transparent;
+  border: none;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.try-another-btn {
+  color: #1d4ed8;
+  font-weight: 700;
+  background: transparent;
+  border: none;
+}
+
+.try-another-btn:hover {
+  background: transparent;
+  transform: none;
+  box-shadow: none;
+  text-decoration: underline;
+}
+
+.verification-submit-btn {
+  background: linear-gradient(135deg, #1e40af 0%, #3b82f6 50%, #2563eb 100%) !important;
+  border-radius: 12px !important;
+  padding: 16px 32px !important;
+  font-family: 'Poppins', sans-serif !important;
+  font-weight: 700 !important;
+  text-transform: none !important;
+  font-size: 1.1rem !important;
+  box-shadow: 
+    0 8px 25px rgba(59, 130, 246, 0.4),
+    0 2px 8px rgba(59, 130, 246, 0.2) !important;
+  border: none !important;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+.verification-submit-btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+  transition: left 0.5s;
+}
+
+.verification-submit-btn:hover {
+  background: linear-gradient(135deg, #1d4ed8 0%, #2563eb 50%, #1e40af 100%) !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 
+    0 12px 35px rgba(59, 130, 246, 0.5),
+    0 4px 16px rgba(59, 130, 246, 0.3) !important;
+}
+
+.verification-submit-btn:hover::before {
+  left: 100%;
+}
+
+.verification-submit-btn:active {
+  transform: translateY(0) !important;
+  box-shadow: 
+    0 4px 15px rgba(59, 130, 246, 0.4),
+    0 2px 8px rgba(59, 130, 246, 0.2) !important;
+}
+
+.verification-submit-btn:disabled {
+  background: linear-gradient(135deg, #e2e8f0 0%, #cbd5e1 100%) !important;
+  color: #94a3b8 !important;
+  box-shadow: none !important;
+  transform: none !important;
+  cursor: not-allowed !important;
+}
+
+/* Responsive design */
+@media (max-width: 600px) {
+  .verification-modal-paper {
+    padding: 30px 20px;
+    margin: 16px;
+    border-radius: 16px;
+  }
+  
+  .verification-modal-paper::before {
+    border-radius: 19px;
+  }
+  
+  .verification-title {
+    font-size: 1.8rem !important;
+  }
+  
+  .verification-icon-container {
+    width: 70px;
+    height: 70px;
+    padding: 15px;
+  }
+  
+  .verification-icon {
+    font-size: 2rem !important;
+  }
+  
+  .otp-inputs-container {
+    gap: 12px;
+    padding: 16px;
+  }
+  
+  .otp-input {
+    width: 55px !important;
+    height: 55px !important;
+  }
+  
+  .otp-input .MuiOutlinedInput-input {
+    font-size: 1.4rem;
+    padding: 10px;
+  }
+  
+  .verification-submit-btn {
+    padding: 14px 28px !important;
+    font-size: 1rem !important;
+  }
+}
+
+@media (max-width: 400px) {
+  .otp-inputs-container {
+    gap: 8px;
+    padding: 12px;
+  }
+  
+  .otp-input {
+    width: 45px !important;
+    height: 45px !important;
+  }
+  
+  .otp-input .MuiOutlinedInput-input {
+    font-size: 1.2rem;
+    padding: 8px;
+  }
+}
