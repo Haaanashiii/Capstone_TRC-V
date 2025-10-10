@@ -4,8 +4,9 @@ const bcrypt = require('bcryptjs');
 exports.createUserAccount = async (userData) => {
   // If this is an OAuth account and username is missing, generate a safe one from the email
   if (!userData.username && userData.email) {
+    const providerTag = userData.oauthProvider ? `${String(userData.oauthProvider).toLowerCase()}_` : '';
     const localPart = String(userData.email).split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '');
-    let base = localPart || 'user';
+    let base = `${providerTag}${(localPart || 'user')}`;
     let candidate = base;
     let suffix = 0;
     // Try to find a unique username (limit attempts)
@@ -67,8 +68,21 @@ exports.findAccountByEmail = async (email, { projection, lean = false, collation
   if (typeof email !== 'string' || !email.trim()) {
     throw new TypeError('email must be a non-empty string');
   }
-  let query = User.findOne({ email: email.trim() }, projection);
+  const normalized = email.trim().toLowerCase();
+  let query = User.findOne({ email: normalized }, projection);
   if (collation) query = query.collation(collation);
+  return await query;
+};
+
+// Return all accounts matching an email (useful when duplicates exist due to earlier schemas)
+exports.findAccountsByEmail = async (email, { projection, lean = false, collation } = {}) => {
+  if (typeof email !== 'string' || !email.trim()) {
+    throw new TypeError('email must be a non-empty string');
+  }
+  const normalized = email.trim().toLowerCase();
+  let query = User.find({ email: normalized }, projection);
+  if (collation) query = query.collation(collation);
+  if (lean) query = query.lean();
   return await query;
 };
 

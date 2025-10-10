@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Modal,
   Box,
@@ -27,7 +27,7 @@ const AccountVerificationModal = ({ open, onClose, email, onVerificationSuccess 
   const [isResending, setIsResending] = useState(false);
 
  
-  console.log('Modal props:', { open, email, hasOnClose: !!onClose, hasOnSuccess: !!onVerificationSuccess });
+  // Do not log sensitive props (email or tokens) in production/development consoles
 
   useEffect(() => {
     if (open && timeLeft > 0) {
@@ -52,7 +52,7 @@ const AccountVerificationModal = ({ open, onClose, email, onVerificationSuccess 
 
       // Auto-focus next input
       if (value !== '' && index < 5) {
-        const nextInput = document.getElementById(`otp-${index + 1}`);
+        const nextInput = inputRefs.current[index + 1];
         if (nextInput) nextInput.focus();
       }
     }
@@ -61,8 +61,47 @@ const AccountVerificationModal = ({ open, onClose, email, onVerificationSuccess 
   const handleKeyDown = (index, e) => {
     
     if (e.key === 'Backspace' && otp[index] === '' && index > 0) {
-      const prevInput = document.getElementById(`otp-${index - 1}`);
+      const prevInput = inputRefs.current[index - 1];
       if (prevInput) prevInput.focus();
+    }
+  };
+
+  // Refs for inputs to avoid DOM queries
+  const inputRefs = useRef([]);
+
+  const handlePaste = (e, startIndex = 0) => {
+    e.preventDefault();
+    const paste = (e.clipboardData || window.clipboardData).getData('text');
+    const digits = paste.replace(/\D/g, '').split('');
+    if (digits.length === 0) return;
+
+    const newOtp = [...otp];
+    let writeIndex = startIndex;
+    for (let i = 0; i < digits.length && writeIndex < 6; i++, writeIndex++) {
+      newOtp[writeIndex] = digits[i];
+    }
+
+    setOtp(newOtp);
+
+    // focus first empty after startIndex, or last filled
+    const firstEmpty = newOtp.findIndex((d, idx) => idx >= startIndex && d === '');
+    const focusIndex = firstEmpty === -1 ? Math.min(writeIndex - 1, 5) : firstEmpty;
+    const ref = inputRefs.current[focusIndex];
+    if (ref) ref.focus();
+  };
+
+  const handleInputFocus = (e) => {
+    // select the content for easy replacement when focusing
+    e.target.select();
+  };
+
+  const handleArrowNavigation = (index, e) => {
+    if (e.key === 'ArrowLeft' && index > 0) {
+      const prev = inputRefs.current[index - 1];
+      if (prev) prev.focus();
+    } else if (e.key === 'ArrowRight' && index < 5) {
+      const next = inputRefs.current[index + 1];
+      if (next) next.focus();
     }
   };
 
@@ -184,13 +223,16 @@ const AccountVerificationModal = ({ open, onClose, email, onVerificationSuccess 
                     id={`otp-${index}`}
                     value={digit}
                     onChange={(e) => handleOtpChange(index, e.target.value)}
-                    onKeyDown={(e) => handleKeyDown(index, e)}
+                    onKeyDown={(e) => { handleKeyDown(index, e); handleArrowNavigation(index, e); }}
+                    onPaste={(e) => handlePaste(e, index)}
+                    onFocus={handleInputFocus}
                     variant="outlined"
                     className="otp-input"
                     inputProps={{
                       maxLength: 1,
                       style: { textAlign: 'center', fontSize: '1.5rem', padding: '12px' }
                     }}
+                    inputRef={(el) => (inputRefs.current[index] = el)}
                   />
                 ))}
               </Box>

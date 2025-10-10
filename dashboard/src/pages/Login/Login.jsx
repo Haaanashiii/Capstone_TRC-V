@@ -4,6 +4,7 @@ import { Box, Button, TextField, Typography, InputAdornment, IconButton, Divider
 import { Visibility, VisibilityOff } from "@mui/icons-material";
 import GoogleIcon from "@mui/icons-material/Google"; 
 import AccountVerificationModal from '../Services/AccountVerificationModal';
+import { useNavigate } from 'react-router-dom';
 
 import '../../Styles/LoginCss/Login.css';
 
@@ -28,6 +29,8 @@ const Login = () => {
   const [success, setSuccess] = React.useState("");
   const [showVerificationModal, setShowVerificationModal] = React.useState(false);
 
+  const navigate = useNavigate();
+
   const handleClickShowPassword = () => setShowPassword((show) => !show);
 
   const handleChange = (e) => {
@@ -39,63 +42,45 @@ const Login = () => {
     setError("");
     setSuccess("");
     
-    console.log("Login form submission started"); 
-    console.log("Login form data:", { email: form.email, hasPassword: !!form.password }); 
+  // login attempt started (no sensitive data logged)
     
     try {
-      console.log("Making login API call to:", `${API_BASE_URL}/auth/login`); 
+  console.log("Making login API call");
       const res = await fetch(`${API_BASE_URL}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: 'include',
         body: JSON.stringify({
           email: form.email,
           password: form.password
         })
       });
-      
-      console.log("Login API Response status:", res.status); 
-      const data = await res.json();
-      console.log("Login API Response data:", data); 
-      
+
+  const data = await res.json().catch(() => ({}));
+
       if (!res.ok) {
         setError(data.error || "Login failed");
-      } else {
-        console.log("Login successful, requesting OTP..."); 
-        
-       
-        try {
-          const otpResponse = await fetch(`${API_BASE_URL}/auth/request-otp`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email: form.email })
-          });
-          console.log("OTP request status:", otpResponse.status); 
-        } catch (otpError) {
-          console.log("OTP request failed:", otpError); 
-          // Continue even if OTP request fails
-        }
-        
-        console.log("Setting login modal to true"); 
-        setShowVerificationModal(true);
+        return;
       }
+
+      // Save accessToken to localStorage for future API calls
+      if (data.accessToken) {
+        try { localStorage.setItem('accessToken', data.accessToken); } catch (err) { console.warn('localStorage unavailable', err); }
+      }
+
+      // Open verification modal. The backend has attempted to send the OTP
+      // to the user's email on record; the modal will POST to /auth/verify-otp.
+      setShowVerificationModal(true);
     } catch (error) {
-      console.error("Login network error details:", error); 
-      
-      // Temporary lang for ui testing
-      if (error.message.includes('fetch')) {
-        console.log("Server seems to be down, showing login modal anyway for testing..."); 
-        setShowVerificationModal(true);
-        setError("Server connection failed, but showing verification modal for testing.");
-      } else {
-        setError("Network error. Please try again.");
-      }
+      console.error("Login network error details:", error);
+      setError("Network error. Please try again.");
     }
   };
 
   const handleVerificationSuccess = () => {
     setSuccess("Login successful!");
-    // redirect na kay dashboard if ever
-   
+    // redirect to dashboard after successful verification
+    navigate('/admin');
   };
 
   return (
