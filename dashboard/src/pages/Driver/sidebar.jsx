@@ -1,6 +1,6 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import "../../Styles/Operator's CSS/Franchise.css"; 
+import "../../Styles/Operator's_CSS/Franchise.css"; 
 
 const Sidebar = () => {
 	return (

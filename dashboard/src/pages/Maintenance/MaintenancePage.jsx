@@ -1,6 +1,6 @@
 
 import React from 'react';
-import '../../styles/Maintenance/MaintenancePage.css';
+import '../../styles/MaintenanceCss/MaintenancePage.css';
 import { useNavigate } from 'react-router-dom';
 
 {/* Updated ver sya yah */}

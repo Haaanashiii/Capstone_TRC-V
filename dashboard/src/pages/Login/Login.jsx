@@ -5,7 +5,7 @@ import { Visibility, VisibilityOff } from "@mui/icons-material";
 import GoogleIcon from "@mui/icons-material/Google"; 
 import AccountVerificationModal from '../Services/AccountVerificationModal';
 
-import '../../Styles/Login/Login.css';
+import '../../Styles/LoginCss/Login.css';
 
 
 const poppinsTheme = createTheme({

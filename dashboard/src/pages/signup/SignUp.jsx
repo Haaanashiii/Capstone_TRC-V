@@ -4,7 +4,7 @@ import { Box, Button, TextField, Typography, InputAdornment, IconButton, Divider
 import { Visibility, VisibilityOff } from "@mui/icons-material";
 import GoogleIcon from "@mui/icons-material/Google";
 import AccountVerificationModal from '../Services/AccountVerificationModal';
-import '../../Styles/Signup/signup.css';
+import '../../Styles/SignupCss/signup.css';
 
 const poppinsTheme = createTheme({
   typography: {
