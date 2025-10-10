@@ -3,8 +3,8 @@ import React, { useState } from "react";
 import { Box, Button, TextField, Typography, InputAdornment, IconButton, Divider, Paper, ThemeProvider, createTheme } from "@mui/material";
 import { Visibility, VisibilityOff } from "@mui/icons-material";
 import GoogleIcon from "@mui/icons-material/Google";
-import AccountVerificationModal from '../AccountVerificationModal';
-import './SignUp.css';
+import AccountVerificationModal from '../Services/AccountVerificationModal';
+import '../../Styles/Signup/signup.css';
 
 const poppinsTheme = createTheme({
   typography: {

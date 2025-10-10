@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Sidebar from "./sidebar";
-import "./Franchise.css";
+import "../../Styles/Operator's_CSS/Franchise.css";
 
 const navLinks = [
   { label: "HOME", href: "/" },

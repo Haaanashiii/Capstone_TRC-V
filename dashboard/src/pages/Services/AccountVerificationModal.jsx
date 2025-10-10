@@ -10,7 +10,7 @@ import {
   createTheme
 } from '@mui/material';
 import { VerifiedUser, Email, Timer } from '@mui/icons-material';
-import './AccountVerificationModal.css';
+import '../../Styles/ServicesCss/AccountVerificationModal.css';
 
 const poppinsTheme = createTheme({
   typography: {
