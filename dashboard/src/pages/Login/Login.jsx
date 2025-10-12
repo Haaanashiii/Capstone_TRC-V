@@ -148,7 +148,7 @@ const Login = () => {
               <Box className="login-options">
                 <FormControlLabel
                   control={<Checkbox size="small" className="login-checkbox" />}
-                  label={<Typography variant="body2" style={{ fontSize: '0.9rem' }}>Remember me</Typography>}
+                  label={<Typography variant="body2" style={{ fontSize: '0.9rem', fontFamily: 'Poppins, sans-serif' }}>Remember me</Typography>}
                   className="login-remember"
                 />
                 <Typography variant="body2" className="login-forgot">

@@ -173,9 +173,29 @@
 }
 
 /* Background and headerrs */
+* {
+  font-family: 'Poppins', sans-serif !important;
+}
+
+body, html {
+  background: #0a3970 !important;
+  margin: 0;
+  padding: 0;
+  font-family: 'Poppins', sans-serif !important;
+}
+
+#root {
+  background: #0a3970 !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  font-family: 'Poppins', sans-serif !important;
+}
+
 .franchise-bg {
   min-height: 100vh;
-  background: #174D7A;
+  background: #0a3970;
+  font-family: 'Poppins', sans-serif !important;
 }
 
 .franchise-header-bar {

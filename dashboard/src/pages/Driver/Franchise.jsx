@@ -72,7 +72,7 @@ const Franchise = () => {
                 placeholder="Enter O.R. Number"
               />
               {orWarning && (
-                <div style={{ color: '#b71c1c', fontWeight: 'bold', marginTop: '4px', fontSize: '14px' }}>
+                <div style={{ color: '#b71c1c', fontWeight: 'bold', marginTop: '4px', fontSize: '14px', fontFamily: 'Poppins, sans-serif' }}>
                   <span style={{ marginRight: '6px' }}>⚠️</span>{orWarning}
                 </div>
               )}

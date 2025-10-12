@@ -171,6 +171,9 @@
   font-weight: 600;
   transition: background 0.2s;
   box-shadow: none;
+  border: none;
+  cursor: pointer;
+  font-family: 'Poppins', sans-serif;
 }
 .nav-link:hover {
   background: #ffe066;
@@ -188,6 +191,8 @@
   margin-left: 24px;
   box-shadow: 0 2px 8px rgba(20,60,110,0.18);
   transition: background 0.2s, color 0.2s;
+  cursor: pointer;
+  font-family: 'Poppins', sans-serif;
 }
 .nav-login:hover {
   background: #ffe066;
@@ -212,7 +217,7 @@
 }
 .main-content h1 {
   font-size: 3.7rem;
-  font-weight: 600;s
+  font-weight: 600;
   margin-bottom: 100px;
   line-height: 1.2;
    margin-left: -100px;
@@ -266,6 +271,12 @@
   transition: background 0.2s, color 0.2s, border 0.2s;
   width: -280px;
   margin: 0 8px;
+  cursor: pointer;
+  font-family: 'Poppins', sans-serif;
+}
+.main-btn:hover {
+  background: #F4D35E;
+  border-color: #F4D35E;
 }
 /* Responsive adjustments */
 @media (max-width: 1100px) {

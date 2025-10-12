@@ -1,5 +1,14 @@
 @import "tailwindcss";
 
+/* Global font family for all elements */
+* {
+  font-family: 'Poppins', sans-serif !important;
+}
+
+body, html {
+  font-family: 'Poppins', sans-serif !important;
+}
+
 /* :root {
   font-family: 'Poppins', system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
