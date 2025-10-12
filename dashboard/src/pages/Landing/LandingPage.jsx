@@ -57,8 +57,6 @@ const LandingPage = () => {
     /* Adjust nyo nalang kung ayaw ko design hehe */ 
 
 
-
-
     <div className="landing-root">
       <header className="landing-header">
         <div className="logo-title">

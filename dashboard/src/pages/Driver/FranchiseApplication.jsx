@@ -1,5 +1,5 @@
 import React, { useState, useRef } from "react";
-import Sidebar from "./sidebar";
+import UnifiedSidebar from "../../components/UnifiedSidebar";
 import { TextField, Button } from "@mui/material";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
@@ -35,9 +35,24 @@ export default function FranchiseApplication() {
     todaMembership: "",
   });
 
+  // State for contact number validation
+  const [contactError, setContactError] = useState("");
 
   const handleChange = (field) => (e) => {
     setFields({ ...fields, [field]: e.target.value });
+  };
+
+  // Special handler for contact number that only allows numbers
+  const handleContactChange = (e) => {
+    const value = e.target.value;
+    const numbersOnly = /^[0-9]*$/;
+    
+    if (value === "" || numbersOnly.test(value)) {
+      setFields({ ...fields, contact: value });
+      setContactError("");
+    } else {
+      setContactError("Only numbers are allowed in the contact field");
+    }
   };
 
   // State for each document upload
@@ -68,7 +83,7 @@ export default function FranchiseApplication() {
   return (
     <div>
 
-      <Sidebar />
+      <UnifiedSidebar userType="driver" />
       {/* Main Content */}
       <div className="franchise-app-bg">
         <div className="franchise-app-paper">
@@ -172,7 +187,21 @@ export default function FranchiseApplication() {
           </div>
           <div className="franchise-app-grid">
             <TextField label="NAME OF OPERATOR" size="small" className="franchise-app-input" value={fields.operatorName} onChange={handleChange('operatorName')} />
-            <TextField label="CONTACT NUMBER" size="small" className="franchise-app-input" value={fields.contact} onChange={handleChange('contact')} />
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <TextField 
+                label="CONTACT NUMBER" 
+                size="small" 
+                className="franchise-app-input" 
+                value={fields.contact} 
+                onChange={handleContactChange}
+                error={!!contactError}
+                helperText={contactError}
+                inputProps={{
+                  inputMode: 'numeric',
+                  pattern: '[0-9]*'
+                }}
+              />
+            </div>
           </div>
           <div className="franchise-app-grid-4">
             <TextField label="BIRTH PLACE" size="small" className="franchise-app-input" value={fields.birthPlace} onChange={handleChange('birthPlace')} />

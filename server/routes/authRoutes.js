@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const authController = require('../controllers/authController');
 const { authLimiter } = require('../middlewares/rateLimiter');
+const authenticate = require('../middlewares/authenticate');
 
 
 // Login route (identifier can be username or email)
@@ -22,6 +23,9 @@ router.post('/refresh-token', authController.refreshToken);
 
 // Logout route
 router.post('/logout', authController.logout);
+
+// Get current user info
+router.get('/me', authenticate, authController.getCurrentUser);
 
 // Google OAuth (server-side) - redirect to Google and handle callback
 router.get('/google', authController.googleAuth);

@@ -1,5 +1,6 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, useNavigate } from 'react-router-dom';
+import { AuthProvider } from './contexts/AuthContext';
 import SignUp from './pages/signup/SignUp';
 import OAuthCallback from './pages/Services/OAuthCallback';
 
@@ -9,7 +10,7 @@ import Login from './pages/Login/Login';
 import Franchise from './pages/Driver/Franchise';
 import FranchiseApplication from './pages/Driver/FranchiseApplication';
 import MaintenancePage from './pages/Maintenance/MaintenancePage';
-import Sidebar from './pages/Administration/Sidebar';
+import AdminDashboard from './pages/Administration/AdminDashboard';
 import UserManagement from './pages/Administration/UserManagement';
 
 function LandingPageWithNav() {
@@ -19,21 +20,23 @@ function LandingPageWithNav() {
 
 function App() {
   return (
-    <Router>
-      <Routes>
-        <Route path="/" element={<LandingPage />} />
-        <Route path="/signup" element={<SignUp />} />
-        <Route path="/driver/id" element={<DriverID />} />
-        <Route path="/maintenance" element={<MaintenancePage />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/oauth-callback" element={<OAuthCallback />} />
-        <Route path="/driver/franchise" element={<Franchise />} />
-        <Route path="/driver/franchise/application" element={<FranchiseApplication />} />
-        <Route path="*" element={<MaintenancePage />} />
-        <Route path="/admin" element={<Sidebar />} />
-        <Route path="/user-management" element={<UserManagement />} />
-      </Routes>
-    </Router>
+    <AuthProvider>
+      <Router>
+        <Routes>
+          <Route path="/" element={<LandingPage />} />
+          <Route path="/signup" element={<SignUp />} />
+          <Route path="/driver/id" element={<DriverID />} />
+          <Route path="/maintenance" element={<MaintenancePage />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/oauth-callback" element={<OAuthCallback />} />
+          <Route path="/driver/franchise" element={<Franchise />} />
+          <Route path="/driver/franchise/application" element={<FranchiseApplication />} />
+          <Route path="*" element={<MaintenancePage />} />
+          <Route path="/admin" element={<AdminDashboard />} />
+          <Route path="/user-management" element={<UserManagement />} />
+        </Routes>
+      </Router>
+    </AuthProvider>
   );
 }
 

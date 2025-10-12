@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import Sidebar from "./sidebar";
+import UnifiedSidebar from "../../components/UnifiedSidebar";
 import "../../Styles/Operator's_CSS/Franchise.css";
 
 const navLinks = [
@@ -17,7 +17,7 @@ const Franchise = () => {
 
   return (
     <div className="franchise-bg">
-      <Sidebar />
+      <UnifiedSidebar userType="driver" />
 
       {/* Card section yah */}
       <div className="franchise-card-wrapper">
