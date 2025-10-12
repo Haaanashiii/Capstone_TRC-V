@@ -19,10 +19,16 @@ async function handleOtpRequest(email, res, next, message) {
     try {
       user = await userAccountRepository.findAccountByEmail(email);
     } catch (e) {}
-    if (user) {
+    // For pre-signup flows we want to be able to send an OTP even when the
+    // account doesn't exist yet. Generate and store an OTP regardless. The
+    // response stays generic to avoid leaking whether the account exists.
+    try {
       const otp = generateOTP();
       setOTP(email, otp);
-      try { await sendOTPEmail(email, otp); } catch (e) {/* log error */}
+      await sendOTPEmail(email, otp);
+    } catch (e) {
+      // Log the error for server operators (do not expose to client)
+      console.error('Failed to generate/send OTP for', email, e && e.message ? e.message : e);
     }
     res.json({ message });
   } catch (err) {
@@ -127,35 +133,78 @@ exports.login = async (req, res, next) => {
     identifier = identifier || email || username;
     if (!identifier || !password) return res.status(400).json({ error: 'Identifier and password are required' });
 
-    // Try by username first, then by email
+    // Try by username first. If not found, try by email.
     let user = null;
-    try { user = await userAccountRepository.findAccountByUsername(identifier); } catch (e) {}
+    try { user = await userAccountRepository.findAccountByUsername(identifier, { projection: '+password' }); } catch (e) {}
     if (!user) {
-      try { user = await userAccountRepository.findAccountByEmail(identifier); } catch (e) {}
+      try {
+        // Request password field explicitly because schema marks it select:false.
+        const accounts = await userAccountRepository.findAccountsByEmail(identifier, { projection: '+password' }).catch(() => []);
+        if (accounts && accounts.length > 0) {
+          // Prefer an account that has a password (local account)
+          user = accounts.find(a => a.password) || accounts[0];
+        } else {
+          user = await userAccountRepository.findAccountByEmail(identifier, { projection: '+password' }).catch(() => null);
+        }
+      } catch (e) {
+        // swallow and let subsequent checks handle null user
+      }
     }
     if (!user) return res.status(401).json({ error: 'Invalid credentials' });
 
-    const validPassword = await bcrypt.compare(password, user.password);
+    // If the account was created via OAuth (no local password), reject password login
+    if (!user.password) {
+      const provider = user.oauthProvider || 'OAuth provider';
+      return res.status(400).json({ error: `This account was registered via ${provider}. Please sign in with ${provider}.` });
+    }
+
+    // Defensive bcrypt compare (ensure we don't pass undefined and crash)
+    let validPassword = false;
+    try {
+      validPassword = await bcrypt.compare(password, user.password);
+    } catch (e) {
+      console.error('bcrypt.compare error for user', user && user._id, e && e.message ? e.message : e);
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
     if (!validPassword) return res.status(401).json({ error: 'Invalid credentials' });
     
     // Generate tokens
     const accessToken = generateAccessToken(user);
     const refreshToken = generateRefreshToken(user);
-    
+
+    // Attempt to generate & send OTP for second-factor/account verification.
+    // This should not block login on email/send failure; we log errors and
+    // still return successful login response. OTP is stored server-side via setOTP.
+    try {
+      const otp = generateOTP();
+      setOTP(user.email || user.username || identifier, otp);
+      // send to the canonical email on file
+      if (user.email) {
+        // fire-and-forget
+        sendOTPEmail(user.email, otp).catch((e) => console.error('sendOTPEmail error:', e && e.message ? e.message : e));
+      }
+    } catch (e) {
+      console.error('Failed to generate/send OTP during login for', user && user.email, e && e.message ? e.message : e);
+    }
+
     // Set refresh token in HTTP-only cookie
     res.cookie('refreshToken', refreshToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production', 
+      secure: process.env.NODE_ENV === 'production',
       sameSite: 'strict',
       maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
     });
-    
+
+    // Return access token and basic user info. Frontend should open the
+    // verification modal and proceed to call verify-otp. The server has
+    // already attempted to send the OTP to the email on file.
     res.json({ 
       accessToken,
       user: {
         id: user._id,
         name: user.name,
-        role: user.role
+        role: user.role,
+        email: user.email
       }
     });
   } catch (err) {

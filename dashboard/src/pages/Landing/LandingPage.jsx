@@ -1,6 +1,6 @@
 import React from "react";
 import { useNavigate } from 'react-router-dom';
-import './LandingPage.css';
+import '../../Styles/LandingCss/LandingPage.css';
 
 import { useEffect, useState } from 'react';
 import { CheckCircle, Building2, GraduationCap, Users, Shield } from 'lucide-react';

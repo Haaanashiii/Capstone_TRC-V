@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import './UserManagement.css';
+import '../../Styles/Administrator_Css/UserManagement.css';
 import Sidebar from './Sidebar';
 
 // Material UI imports

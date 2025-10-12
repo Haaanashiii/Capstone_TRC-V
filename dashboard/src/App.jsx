@@ -1,7 +1,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, useNavigate } from 'react-router-dom';
-import SignUp from './pages/Login/signup/SignUp';
-import OAuthCallback from './pages/Login/OAuthCallback';
+import SignUp from './pages/signup/SignUp';
+import OAuthCallback from './pages/Services/OAuthCallback';
 
 import DriverID from './pages/Driver/DriverID';
 import LandingPage from './pages/Landing/LandingPage';
