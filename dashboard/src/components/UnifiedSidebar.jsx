@@ -37,7 +37,7 @@ const UnifiedSidebar = ({ userType = "driver" }) => {
 
   return (
     <div className="unified-sidebar-container">
-      {/* Single Row Header with Logo, Title, and Navigation */}
+     
       <div className="sidebar-header">
         <div className="logo-section">
           <img src="/Logos/TRC-vLogo.png" alt="TRC-V Logo" className="sidebar-logo" />
@@ -50,7 +50,6 @@ const UnifiedSidebar = ({ userType = "driver" }) => {
           </div>
         </div>
 
-        {/* Navigation in same row */}
         <nav className="unified-sidebar">
           <div className="sidebar-nav-container">
             <div className="nav-items-wrapper">
@@ -64,7 +63,6 @@ const UnifiedSidebar = ({ userType = "driver" }) => {
                 </Link>
               ))}
               
-              {/* User section */}
               <div className="user-section">
                 <span className="user-label">{user?.name || "USER"}</span>
               </div>
