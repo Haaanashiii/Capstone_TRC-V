@@ -15,7 +15,7 @@ const poppinsTheme = createTheme({
   },
 });
 
-//papi luke pogi sana ma crush back sksk
+//papi luke pogi sana ma crush back sksksk
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 

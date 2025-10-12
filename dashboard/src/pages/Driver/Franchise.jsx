@@ -48,7 +48,7 @@ const Franchise = () => {
         </div>
       </div>
 
-      {/* Modal */}
+      {/* For modal, paki adjust nalang if wants nyo   */}
       {showModal && (
         <div className="franchise-modal-bg">
           <div className="franchise-modal">

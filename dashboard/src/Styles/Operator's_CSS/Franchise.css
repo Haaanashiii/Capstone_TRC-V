@@ -72,7 +72,8 @@
   display: inline-block;
   background: none;
 }
-9/* Centered card and profile image styles for Figma match */
+
+
 .franchise-card-wrapper {
   min-height: calc(100vh - 100px);
   display: flex;

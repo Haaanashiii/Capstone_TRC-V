@@ -54,6 +54,11 @@ const LandingPage = () => {
     { name: "Transport Authorities", role: "Regulatory Partners", icon: Shield }
   ];
   return (
+    /* Adjust nyo nalang kung ayaw ko design hehe */ 
+
+
+
+
     <div className="landing-root">
       <header className="landing-header">
         <div className="logo-title">
@@ -90,7 +95,7 @@ const LandingPage = () => {
       </main>
 
       <div className="min-h-screen bg-[#F4D77E]">
-        {/* Hero Section */}
+      
         <section className="relative overflow-hidden pt-20 pb-32 px-6">
           <div 
             className="absolute inset-0 opacity-10"
@@ -121,7 +126,6 @@ const LandingPage = () => {
           </div>
         </section>
 
-        {/* Mission Section */}
         <section className="py-24 px-6 bg-[#1B4B75]">
           <div className="max-w-6xl mx-auto">
             <div className="grid md:grid-cols-2 gap-16 items-center">
