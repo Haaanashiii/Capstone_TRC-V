@@ -5,6 +5,7 @@ import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import dayjs from 'dayjs';
+import UnifiedSidebar from '../../components/UnifiedSidebar';
 
 function DriverID() {
   // Validation state for number-only fields
@@ -45,25 +46,11 @@ function DriverID() {
 
   return (
     <Box sx={{ minHeight: '100vh', width: '100%', maxWidth: '100vw', bgcolor: '#f5f7fa', overflowX: 'hidden' }}>
+      {/* Unified Sidebar */}
+      <UnifiedSidebar userType="driver" />
+      
       {/* Top Blue Bar */}
       <Box sx={{ background: '#0a3576', width: '100vw', minHeight: 340, position: 'relative', pt: 5, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-  <Box sx={{ width: '100vw', px: 6, pt: 0, display: 'flex', alignItems: 'flex-start', justifyContent: 'flex-start' }}>
-          <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, flexDirection: 'row' }}>
-            <img src="/public/Logos/TRC-vLogo.png" alt="TRC-V Logo" style={{ height: 58, marginRight: 2 }} />
-            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
-              <Box sx={{ color: '#ffe600', fontWeight: 900, fontSize: 32, letterSpacing: 2, lineHeight: 1 }}>TRC<span style={{ color: '#fff', fontWeight: 700 }}>-V</span></Box>
-              <Typography sx={{ color: '#fff', fontWeight: 500, fontSize: 13, letterSpacing: 1, mt: 0.5 }}>TRICYCLE VERIFICATION SYSTEM</Typography>
-            </Box>
-          </Box>
-          <Box sx={{ flex: 1, display: 'flex', justifyContent: 'flex-end' }}>
-            <Box sx={{ background: '#fff', borderRadius: 40, boxShadow: '0 4px 12px rgba(0,0,0,0.10)', display: 'flex', alignItems: 'center', p: '6px 32px', gap: 2, minWidth: 420, maxWidth: 500, mr: 8 }}>
-              <Typography sx={{ color: '#222', fontWeight: 700, fontSize: 12, mx: 2 }}>HOME</Typography>
-              <Typography sx={{ color: '#222', fontWeight: 700, fontSize: 12, mx: 2 }}>MY FRANCHISE</Typography>
-              <Button startIcon={<PersonIcon />} sx={{ bgcolor: '#0a3576', color: '#fff', borderRadius: 40, px: 3, fontWeight: 700, boxShadow: 2, textTransform: 'none', mx: 2 }}>Marla Rihana</Button>
-            </Box>
-          </Box>
-        </Box>
-
         <Box sx={{ position: 'relative', width: '100vw', mt: 4, display: 'flex', alignItems: 'flex-start' }}>
           <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 180 }}>
             <Avatar src="/public/Logos/clipboard.gif" alt="Profile" sx={{ width: 120, height: 120, mb: 2, boxShadow: '0 2px 8px rgba(0,0,0,0.10)', border: '6px solid #fff' }} />

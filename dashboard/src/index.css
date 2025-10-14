@@ -1,6 +1,16 @@
 @import "tailwindcss";
 
-/* :root {
+/* Global font family for all elements */
+* {
+  font-family: 'Poppins', sans-serif !important;
+}
+
+body, html {
+  font-family: 'Poppins', sans-serif !important;
+}
+
+/*comment out ko muna
+ :root {
   font-family: 'Poppins', system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
   font-weight: 400;

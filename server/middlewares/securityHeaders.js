@@ -1,11 +1,10 @@
-// Enforce HTTPS in production
-function enforceHttps(req, res, next) {
+// Enforce HTTPS in production (single correct implementation)
 function enforceHttps(req, res, next) {
   const isProd = process.env.NODE_ENV === 'production';
   if (!isProd) return next();
 
   const xfwd = String(req.headers['x-forwarded-proto'] || '');
-  const isHttps = req.secure || xfwd.split(',')[0].trim() === 'https';
+  const isHttps = Boolean(req.secure) || xfwd.split(',')[0].trim() === 'https';
 
   if (!isHttps) {
     const canonicalHost = process.env.CANONICAL_HOST || req.hostname;
@@ -15,7 +14,6 @@ function enforceHttps(req, res, next) {
   }
 
   return next();
-}  next();
 }
 
 module.exports = { enforceHttps };

@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import Sidebar from "./sidebar";
-import "./Franchise.css";
+import UnifiedSidebar from "../../components/UnifiedSidebar";
+import "../../Styles/Operator's_CSS/Franchise.css";
 
 const navLinks = [
   { label: "HOME", href: "/" },
@@ -17,7 +17,7 @@ const Franchise = () => {
 
   return (
     <div className="franchise-bg">
-      <Sidebar />
+      <UnifiedSidebar userType="driver" />
 
       {/* Card section yah */}
       <div className="franchise-card-wrapper">
@@ -48,7 +48,7 @@ const Franchise = () => {
         </div>
       </div>
 
-      {/* Modal */}
+      {/* For modal, paki adjust nalang if wants nyo   */}
       {showModal && (
         <div className="franchise-modal-bg">
           <div className="franchise-modal">
@@ -72,7 +72,7 @@ const Franchise = () => {
                 placeholder="Enter O.R. Number"
               />
               {orWarning && (
-                <div style={{ color: '#b71c1c', fontWeight: 'bold', marginTop: '4px', fontSize: '14px' }}>
+                <div style={{ color: '#b71c1c', fontWeight: 'bold', marginTop: '4px', fontSize: '14px', fontFamily: 'Poppins, sans-serif' }}>
                   <span style={{ marginRight: '6px' }}>⚠️</span>{orWarning}
                 </div>
               )}

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import './UserManagement.css';
-import Sidebar from './Sidebar';
+import '../../Styles/Administrator_Css/UserManagement.css';
+import UnifiedSidebar from '../../components/UnifiedSidebar';
 import {
   Box, 
   Typography, 
@@ -199,7 +199,7 @@ function UserManagement() {
 
   return (
     <div className="user-management-container">
-      <Sidebar />
+      <UnifiedSidebar userType="admin" />
       <div className="content-area">
         <Box p={3}>
           <Typography 

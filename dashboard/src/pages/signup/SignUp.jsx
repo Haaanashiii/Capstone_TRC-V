@@ -1,10 +1,11 @@
 
 import React, { useState } from "react";
+import { useNavigate } from 'react-router-dom';
 import { Box, Button, TextField, Typography, InputAdornment, IconButton, Divider, Paper, ThemeProvider, createTheme } from "@mui/material";
 import { Visibility, VisibilityOff } from "@mui/icons-material";
 import GoogleIcon from "@mui/icons-material/Google";
-import AccountVerificationModal from '../AccountVerificationModal';
-import './SignUp.css';
+import AccountVerificationModal from '../Services/AccountVerificationModal';
+import '../../Styles/SignupCss/signup.css';
 
 const poppinsTheme = createTheme({
   typography: {
@@ -17,6 +18,7 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 
 const SignUp = () => {
+  const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [form, setForm] = useState({
@@ -37,8 +39,8 @@ const SignUp = () => {
 
 
   const validatePassword = (password) => {
-    if (password.length < 12) {
-      return "Password must be at least 12 characters long";
+    if (password.length < 8) {
+      return "Password must be at least 8 characters long";
     }
     if (!/[A-Z]/.test(password)) {
       return "Password must include at least one capital letter";
@@ -109,62 +111,58 @@ const SignUp = () => {
     console.log("All validations passed, making API call"); // Debug log
     
     try {
-      console.log("Making API call to:", `${API_BASE_URL}/users`); // Debug log
-      const res = await fetch(`${API_BASE_URL}/users`, {
+      // Instead of creating the account immediately, request an OTP first
+      // and open the verification modal. Account creation will happen after
+      // the OTP is successfully verified.
+      console.log("Requesting OTP for:", form.email);
+      const otpResponse = await fetch(`${API_BASE_URL}/auth/request-otp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: form.fullName,
-          username: form.username,
-          email: form.email,
-          password: form.password
-        })
+        body: JSON.stringify({ email: form.email })
       });
-      
-      console.log("API Response status:", res.status); // Debug log
-      const data = await res.json();
-      console.log("API Response data:", data); // Debug log
-      
-      if (!res.ok) {
-        setError(data.error || "Registration failed");
-      } else {
-        console.log("Registration successful, requesting OTP..."); // Debug log
-        
-        // If registration is successful, request OTP and show verification modal
-        try {
-          const otpResponse = await fetch(`${API_BASE_URL}/auth/request-otp`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email: form.email })
-          });
-          console.log("OTP request status:", otpResponse.status); // Debug log
-        } catch (otpError) {
-          console.log("OTP request failed:", otpError); // Debug log
-          // Continue even if OTP request fails
-        }
-        
-        console.log("Setting modal to true"); // Debug log
-        setShowVerificationModal(true);
+      const otpData = await otpResponse.json().catch(() => ({}));
+      if (!otpResponse.ok) {
+        // Still open the modal in some cases? For now show error to user
+        setError(otpData.error || 'Failed to request verification code');
+        return;
       }
+      setShowVerificationModal(true);
     } catch (error) {
-      console.error("Network error details:", error); // Debug log
-      
-      // Temporary: Show modal even if server is down (for testing)
-      if (error.message.includes('fetch')) {
-        console.log("Server seems to be down, showing modal anyway for testing..."); // Debug log
-        setShowVerificationModal(true);
-        setError("Server connection failed, but showing verification modal for testing.");
-      } else {
-        setError("Network error. Please try again.");
-      }
+      console.error("OTP request network error:", error);
+      setError("Network error. Please try again.");
     }
   };
 
   const handleVerificationSuccess = () => {
-    setSuccess("Account created and verified! You can now log in.");
-    setForm({ fullName: "", username: "", email: "", password: "", confirmPassword: "" });
-    setPasswordError("");
-    setConfirmPasswordError("");
+    // After OTP verification, create the actual user account
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/users`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: form.fullName,
+            username: form.username,
+            email: form.email,
+            password: form.password
+          })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          setError(data.error || 'Registration failed');
+          } else {
+            setSuccess('Account created and verified! You can now log in.');
+            setForm({ fullName: '', username: '', email: '', password: '', confirmPassword: '' });
+            setPasswordError('');
+            setConfirmPasswordError('');
+            // Sarap ni luke po, best green flag nang bayan
+            navigate('/login');
+          }
+      } catch (err) {
+        console.error('Create user network error:', err);
+        setError('Network error. Please try again.');
+      }
+    })();
     // Optionally redirect to login page
     // window.location.href = '/login';
   };

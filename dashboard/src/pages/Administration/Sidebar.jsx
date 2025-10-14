@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import './Sidebar.css'
+import '../../Styles/Administrator_Css/Sidebar.css'
 import logoImage from '../../assets/TRC-vLogo.png'
 import DashboardIcon from '@mui/icons-material/Dashboard'
 import ListAltIcon from '@mui/icons-material/ListAlt'

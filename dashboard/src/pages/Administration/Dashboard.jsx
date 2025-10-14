@@ -1,5 +1,5 @@
 import React from 'react'
-import './Dashboard.css'
+import '../../Styles/Administrator_Css/Dashboard.css'
 import Sidebar from './Sidebar'
 
 function Dashboard() {
