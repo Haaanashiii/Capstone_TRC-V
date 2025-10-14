@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import './UserManagement.css';
 import Sidebar from './Sidebar';
-
-// Material UI imports
 import {
   Box, 
   Typography, 
@@ -211,7 +209,8 @@ function UserManagement() {
               mb: 3, 
               fontFamily: 'Poppins, sans-serif',
               color: 'black',
-              fontWeight: 500
+              fontWeight: 'bold',
+              fontSize: '32px'
             }}
           >
             User Management

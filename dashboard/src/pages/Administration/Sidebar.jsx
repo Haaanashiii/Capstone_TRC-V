@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import './Sidebar.css'
 import logoImage from '../../assets/TRC-vLogo.png'
@@ -11,13 +11,22 @@ import AccountCircleIcon from '@mui/icons-material/AccountCircle'
 
 function Sidebar() {
   const location = useLocation();
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  useEffect(() => {
+    const timerId = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+
+    return () => clearInterval(timerId);
+  }, []);
 
   const menuItems = [
-    { name: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
-    { name: 'Franchisee List', icon: <ListAltIcon />, path: '/franchisee-list' },
-    { name: 'Franchise Management', icon: <BusinessIcon />, path: '/franchise-management' },
-    { name: 'Reports', icon: <AssessmentIcon />, path: '/reports' },
-    { name: 'User Management', icon: <PeopleAltIcon />, path: '/user-management' }
+    { name: 'Dashboard', icon: <DashboardIcon />, path: '/admin/dashboard' },
+    { name: 'Franchisee List', icon: <ListAltIcon />, path: '/admin/franchisee-list' },
+    { name: 'Franchise Management', icon: <BusinessIcon />, path: '/admin/franchise-management' },
+    { name: 'Reports', icon: <AssessmentIcon />, path: '/admin/reports' },
+    { name: 'User Management', icon: <PeopleAltIcon />, path: '/admin/user-management' }
   ]
 
   return (
@@ -48,6 +57,16 @@ function Sidebar() {
             </li>
           ))}
         </ul>
+      </div>
+
+      <div className="timeanddate"> 
+        <span className="time-display">
+          {currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+        </span>
+        <br />
+        <span className="date-display"> 
+          {currentTime.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }).toUpperCase()}
+        </span>
       </div>
 
       <div className="user-profile">

@@ -1,19 +1,18 @@
 .user-management-container {
   display: flex;
   flex-direction: row;
-  width: 100%;
-  height: 100vh;
-  justify-content: space-between;
-  overflow: hidden;
 }
 
 .content-area {
+  flex: 1;
   display: flex;
   flex-direction: column;
   width: 100%;
   height: 100%;
   padding: 10px;
   overflow-y: auto;
+  margin-left: 240px; 
+  width: calc(100% - 240px); 
 }
 
 .table-header {

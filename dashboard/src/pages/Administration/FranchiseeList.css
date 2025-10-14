@@ -1,0 +1,158 @@
+*{
+    font-family: 'Poppins', sans-serif !important;
+}
+
+.franchisee-list-container {
+  display: flex;
+  min-height: 100vh;
+  background-color: #ffffff;
+}
+
+.content-container {
+  flex-grow: 1;
+  padding: 24px;
+  margin-left: 240px; 
+  width: calc(100% - 240px); 
+}
+
+
+.header-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.page-title {
+  font-weight: bold;
+  color: #000;
+  font-size: 32px;
+}
+
+.search-container {
+  display: flex;
+  margin-bottom: 20px;
+}
+
+.search-field {
+  margin-right: 16px !important;
+  background-color: #e0e0e0;
+  border-color: #0a3161 !important;
+  border: 2px solid #0a3161 !important;
+}
+
+.search-field .MuiOutlinedInput-notchedOutline {
+  border: none;
+}
+
+.search-button {
+  background-color: #0a3161 !important;
+  color: #ffffff !important;
+  font-weight: bold;
+}
+
+.search-button:hover {
+  background-color: #c0c0c0;
+}
+
+.table-container {
+  margin-bottom: 32px;
+  background-color: #e0e0e0;
+  max-height: 350px;
+  overflow-y: auto;
+}
+
+/* For the table header */
+.MuiTableCell-head {
+  background-color: #0a3161;
+  color: white;
+  font-weight: bold;
+}
+
+.section-title {
+  font-weight: bold;
+  margin-bottom: 8px;
+}
+
+.section-divider {
+  margin-bottom: 16px;
+  border-color: #000;
+  border-bottom-width: 2px;
+}
+
+.form-section {
+  margin-bottom: 32px;
+}
+
+/* New styles for the improved layout */
+.details-container {
+  background-color: #f5f5f5;
+  padding: 24px;
+  border-radius: 8px;
+}
+
+.card-header {
+  background-color: #0a3161;
+  color: white;
+  padding: 12px 16px;
+}
+
+.detail-card {
+  transition: all 0.3s ease;
+}
+
+.detail-card:hover {
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+}
+
+.form-field {
+  background-color: white;
+  border-radius: 4px;
+}
+
+.action-button {
+  background-color: #0a3161 !important;
+  color: white !important;
+  font-weight: bold !important;
+  padding: 8px 16px !important;
+  border-radius: 4px !important;
+}
+
+.action-button:hover {
+  background-color: #082548 !important;
+}
+
+/* Make form labels stand out */
+.MuiTypography-subtitle2 {
+  margin-bottom: 6px !important;
+  color: #555;
+}
+
+/* Additional spacing for form fields */
+.MuiTextField-root {
+  margin-bottom: 8px !important;
+}
+
+/* Style for card content */
+.MuiCardContent-root {
+  padding: 24px !important;
+}
+
+/* Ensure the table maintains its size */
+.MuiTableContainer-root {
+  height: 350px;
+}
+
+.sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 100vh;
+  overflow-y: auto;
+  z-index: 100;
+}
+
+.clickable-row:hover {
+  background-color: rgba(10, 53, 107, 0.15) !important;
+  transition: background-color 0.2s ease;
+}
