@@ -274,6 +274,21 @@ exports.logout = (req, res) => {
   res.status(200).json({ message: 'Logged out successfully' });
 };
 
+// Return the current authenticated user (minimal info)
+exports.getCurrentUser = async (req, res, next) => {
+  try {
+    if (!req.user) return res.status(401).json({ error: 'Not authenticated' });
+    // req.user is set by authenticate middleware; return minimal safe info
+    const userInfo = {
+      id: req.user.id,
+      role: req.user.role
+    };
+    res.json({ user: userInfo });
+  } catch (err) {
+    next(err);
+  }
+};
+
 // ------------------------
 // Google OAuth handlers
 // ------------------------
