@@ -92,6 +92,40 @@ const LandingPage = () => {
         </div>
       </main>
 
+            {/* Announcements Pagee ni papa\pi lucas ni jakey */}
+      <section className="announcements-section">
+        <div className="announcements-title">ANNOUNCEMENTS</div>
+        <div className="announcements-list">
+          <div className="announcement-card">
+            <div className="announcement-card-header">NOTICE TO ALL TRICYCLE FRANCHISE HOLDERS</div>
+            <div className="announcement-card-date">SEP 3, 2025</div>
+            <div className="announcement-card-body">
+              This is to inform all registered tricycle operators that renewal of franchise permits for the year 2025–2026 shall commence on September 10, 2025. All submissions must be completed through the TRC-V portal before September 30, 2025.
+            </div>
+          </div>
+          <div className="announcement-card">
+             
+            <div className="announcement-card-header">SYSTEM MAINTENANCE ADVISORY</div>
+            <div className="announcement-card-date">SEP 5, 2025</div> 
+            <div className="announcement-card-body">
+              Please be advised that the TRC-V online portal will undergo scheduled maintenance on September 8, 2025, from 12:00 AM to 6:00 AM. During this period, online services including QR code validation and document submissions will be temporarily unavailable…
+            </div>
+          </div>
+          <div className="announcement-card">
+            <div className="announcement-card-header">OFFICE CLOSURE ANNOUNCEMENT</div>
+            <div className="announcement-card-date">SEP 12, 2025</div>
+            <div className="announcement-card-body">
+              The Municipal Tricycle Regulatory Office will be closed on September 15, 2025 (Monday) in observance of municipal administrative activities. Online services will remain accessible.
+            </div>
+          </div>
+        </div>
+      </section>
+
+
+
+
+
+
       <div className="min-h-screen bg-[#F4D77E]">
       
         <section className="relative overflow-hidden pt-20 pb-32 px-6">
@@ -164,7 +198,7 @@ const LandingPage = () => {
           </div>
         </section>
 
-        <section className="py-24 px-6 bg-gradient-to-b from-[#F4D77E] to-[#E8C968]">
+        <section className="py-24 px-6 bg-gradient-to-b from-[#F4D77E] to-[#F4D77E]">
           <div className="max-w-4xl mx-auto text-center mb-24">
             <div className="bg-[#1B4B75] inline-block px-6 py-2 mb-6">
               <h3 className="text-white font-bold text-lg">OUR COMMITMENT</h3>
@@ -185,83 +219,18 @@ const LandingPage = () => {
             </div>
           </div>
 
-          <div className="max-w-6xl mx-auto">
-            <div className="text-center mb-16">
-              <div className="bg-[#1B4B75] inline-block px-6 py-2 mb-6">
-                <h3 className="text-white font-bold text-lg">COLLABORATION</h3>
-              </div>
-              <h2 className="text-4xl md:text-5xl font-bold text-[#1B4B75] mb-4">
-                Academic-Government Partnership
-              </h2>
-              <p className="text-xl text-gray-800 max-w-3xl mx-auto">
-                TRC-V was developed in collaboration with Saint Mary's University Information Technology students, 
-                demonstrating the potential of academic-government partnerships in building practical and 
-                scalable solutions that directly benefit the community.
-              </p>
-            </div>
+   
 
-            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
-              {partners.map((partner, index) => (
-                <Card 
-                  key={index}
-                  className="bg-white border-2 border-[#1B4B75] hover:shadow-xl transition-all duration-300 overflow-hidden group"
-                >
-                  <div className="p-6 text-center">
-                    <div className="w-24 h-24 mx-auto mb-4 bg-[#1B4B75] rounded-full flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-                      <partner.icon className="w-12 h-12 text-white" strokeWidth={1.5} />
-                    </div>
-                    <h4 className="text-lg font-bold text-[#1B4B75] mb-2">
-                      {partner.name}
-                    </h4>
-                    <p className="text-gray-600 text-sm">
-                      {partner.role}
-                    </p>
-                  </div>
-                </Card>
-              ))}
-            </div>
-          </div>
-        </section>
-      </div>
-
-      {/* Announcements Pagee ni papa\pi lucas ni jakey */}
-      <section className="announcements-section">
-        <div className="announcements-title">ANNOUNCEMENTS</div>
-        <div className="announcements-list">
-          <div className="announcement-card">
-            <div className="announcement-card-header">NOTICE TO ALL TRICYCLE FRANCHISE HOLDERS</div>
-            <div className="announcement-card-date">SEP 3, 2025</div>
-            <div className="announcement-card-body">
-              This is to inform all registered tricycle operators that renewal of franchise permits for the year 2025–2026 shall commence on September 10, 2025. All submissions must be completed through the TRC-V portal before September 30, 2025.
-            </div>
-          </div>
-          <div className="announcement-card">
-             
-            <div className="announcement-card-header">SYSTEM MAINTENANCE ADVISORY</div>
-            <div className="announcement-card-date">SEP 5, 2025</div> 
-            <div className="announcement-card-body">
-              Please be advised that the TRC-V online portal will undergo scheduled maintenance on September 8, 2025, from 12:00 AM to 6:00 AM. During this period, online services including QR code validation and document submissions will be temporarily unavailable…
-            </div>
-          </div>
-          <div className="announcement-card">
-            <div className="announcement-card-header">OFFICE CLOSURE ANNOUNCEMENT</div>
-            <div className="announcement-card-date">SEP 12, 2025</div>
-            <div className="announcement-card-body">
-              The Municipal Tricycle Regulatory Office will be closed on September 15, 2025 (Monday) in observance of municipal administrative activities. Online services will remain accessible.
-            </div>
-          </div>
-        </div>
-      </section>
       
         {/* FEATURES Hatdog */}
-        <div style={{ background: '#F5D76E', padding: '40px 0' }}>
-             <div style={{ background: '#174D7A', color: '#F5D76E', display: 'inline-block', padding: '10px 50px', borderRadius: '2px', fontWeight: 'bold', fontSize: '28px', boxShadow: '2px 2px 6px #b3a04a', fontFamily: 'Poppins, sans-serif' }}>
+        <div style={{ background: '#F4D77E', padding: '40px 0' }}>
+             <div style={{ background: '#1B4B75', color: '#F4D77E', display: 'inline-block', padding: '10px 50px', borderRadius: '2px', fontWeight: 'bold', fontSize: '28px', boxShadow: '2px 2px 6px #b3a04a', fontFamily: 'Poppins, sans-serif' }}>
               FEATURES
             </div>
           <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'flex-start', gap: '60px', maxWidth: '1100px', margin: '0 auto' }}>
           
             <div style={{ textAlign: 'center', width: '300px' }}>
-              <div style={{ background: '#174D7A', borderRadius: '50%', width: '170px', height: '170px', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ background: '#1B4B75', borderRadius: '50%', width: '170px', height: '170px', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <img src="/Logos/2.png" alt="Tricycle Verification" style={{ width: '150px', height: '150px' }} />
               </div>
               <h3 style={{ fontWeight: 'bold', marginTop: '20px', color: '#111', fontFamily: 'Poppins, sans-serif' }}>TRICYCLE VERIFICATION</h3>
@@ -269,7 +238,7 @@ const LandingPage = () => {
             </div>
            
             <div style={{ textAlign: 'center', width: '300px' }}>
-              <div style={{ background: '#174D7A', borderRadius: '50%', width: '170px', height: '170px', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ background: '#1B4B75', borderRadius: '50%', width: '170px', height: '170px', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <img src="/Logos/4.png" alt="Franchise Application" style={{ width: '150px', height: '150px' }} />
               </div>
               <h3 style={{ fontWeight: 'bold', marginTop: '20px', color: '#111', fontFamily: 'Poppins, sans-serif' }}>FRANCHISE APPLICATION AND RENEWAL</h3>
@@ -277,7 +246,7 @@ const LandingPage = () => {
             </div>
            
             <div style={{ textAlign: 'center', width: '300px' }}>
-              <div style={{ background: '#174D7A', borderRadius: '50%', width: '170px', height: '170px', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ background: '#1B4B75', borderRadius: '50%', width: '170px', height: '170px', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <img src="/Logos/6.png" alt="Reporting Function" style={{ width: '150px', height: '150px' }} />
               </div>
               <h3 style={{ fontWeight: 'bold', marginTop: '20px', color: '#111', fontFamily: 'Poppins, sans-serif' }}>REPORTING FUNCTION</h3>
@@ -288,6 +257,9 @@ const LandingPage = () => {
           
           </div>
         </div>
+        </section>
+      </div> {/* End of min-h-screen bg-[#F4D77E] */}
+
     {/* Footer Sectionsz */}
     <footer
   style={{
@@ -396,8 +368,8 @@ const LandingPage = () => {
   </div>
 </footer>
 
-    </div>
-  );
+  </div> /* End of landing-root */
+);
 };
 
 export default LandingPage;
