@@ -30,8 +30,21 @@ const OAuthCallback = () => {
         localStorage.setItem('accessToken', accessToken);
         // Optionally clear the hash/search to remove token from URL
   try { window.history.replaceState(null, '', window.location.pathname); } catch { /* ignore */ }
-        // Redirect to the dashboard or main page
-        navigate('/');
+        
+        // Decode token to get user role and redirect appropriately
+        try {
+          const decoded = JSON.parse(atob(accessToken.split('.')[1]));
+          if (decoded.role === 'driver') {
+            navigate('/driver/franchise');
+          } else if (decoded.role === 'admin') {
+            navigate('/admin');
+          } else {
+            navigate('/');
+          }
+        } catch {
+          // Fallback to driver dashboard for Google login users
+          navigate('/driver/franchise');
+        }
       } else {
         console.warn('OAuthCallback: no access token found in hash or query');
         // Keep user on this page and show debug info instead of auto-redirecting

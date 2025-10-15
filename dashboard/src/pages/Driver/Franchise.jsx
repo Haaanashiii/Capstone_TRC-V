@@ -13,7 +13,32 @@ const Franchise = () => {
   const [orNumber, setOrNumber] = useState("");
   const [mtopFile, setMtopFile] = useState(null);
   const [orWarning, setOrWarning] = useState("");
+  const [franchiseLinked, setFranchiseLinked] = useState(false);
+  const [userFranchiseInfo, setUserFranchiseInfo] = useState(null);
   const navigate = useNavigate();
+
+  const handleSubmitFranchiseLink = () => {
+    if (!orNumber || !mtopFile) {
+      alert("Please provide both O.R. Number and MTOP document");
+      return;
+    }
+
+    // Simulate franchise linking - replace with actual API call
+    const franchiseInfo = {
+      orNumber: orNumber,
+      status: "ACTIVE",
+      linkedDate: new Date().toLocaleDateString()
+    };
+
+    setUserFranchiseInfo(franchiseInfo);
+    setFranchiseLinked(true);
+    setShowModal(false);
+    
+    // Reset form
+    setOrNumber("");
+    setMtopFile(null);
+    setOrWarning("");
+  };
 
   return (
     <div className="franchise-bg">
@@ -27,23 +52,43 @@ const Franchise = () => {
           </div>
           <div className="franchise-card-content-centered">
             <div className="franchise-card-name-centered">USER</div>
-            <div className="franchise-card-status-centered">NO FRANCHISE</div>
-            <div className="franchise-card-title-centered">FRANCHISE APPLICATION</div>
-            <div className="franchise-card-subtitle-centered">Do you already have a franchise with us?</div>
-            <div className="franchise-btn-group-centered">
-              <button
-                className="franchise-btn-centered"
-                onClick={() => setShowModal(true)}
-              >
-                Yes, Link my franchise
-              </button>
-              <button
-                className="franchise-btn-centered"
-                onClick={() => navigate("/driver/franchise/application")}
-              >
-                No, apply for a new franchise
-              </button>
+            <div className="franchise-card-status-centered">
+              {franchiseLinked ? "FRANCHISE LINKED" : "NO FRANCHISE"}
             </div>
+            
+            {franchiseLinked && userFranchiseInfo ? (
+              <>
+                <div className="franchise-card-title-centered">FRANCHISE DETAILS</div>
+                <div className="franchise-card-subtitle-centered">
+                  O.R. Number: {userFranchiseInfo.orNumber}
+                </div>
+                <div className="franchise-card-subtitle-centered">
+                  Status: {userFranchiseInfo.status}
+                </div>
+                <div className="franchise-card-subtitle-centered">
+                  Linked on: {userFranchiseInfo.linkedDate}
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="franchise-card-title-centered">FRANCHISE APPLICATION</div>
+                <div className="franchise-card-subtitle-centered">Do you already have a franchise with us?</div>
+                <div className="franchise-btn-group-centered">
+                  <button
+                    className="franchise-btn-centered"
+                    onClick={() => setShowModal(true)}
+                  >
+                    Yes, Link my franchise
+                  </button>
+                  <button
+                    className="franchise-btn-centered"
+                    onClick={() => navigate("/driver/franchise/application")}
+                  >
+                    No, apply for a new franchise
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -107,7 +152,7 @@ const Franchise = () => {
               </button>
               <button
                 className="franchise-submit-btn"
-                onClick={() => {/* handle submit logic here */}}>
+                onClick={handleSubmitFranchiseLink}>
                 Submit
               </button>
             </div>

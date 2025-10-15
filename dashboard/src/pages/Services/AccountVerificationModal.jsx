@@ -155,7 +155,7 @@ const AccountVerificationModal = ({ open, onClose, email, onVerificationSuccess 
       const data = await response.json();
 
       if (response.ok) {
-        setTimeLeft(300); // timer so.. sinet ko as 5 minutes kasi yun yung andoon sa guide pero pwede nyo baguhin
+        setTimeLeft(300); // Reset timer to 5 minutes
         setOtp(['', '', '', '', '', '']); 
       } else {
         setError(data.error || 'Failed to resend code');
@@ -168,7 +168,7 @@ const AccountVerificationModal = ({ open, onClose, email, onVerificationSuccess 
   };
 
   const handleTryAnotherWay = () => {
-    //pwedeng mag re-direct. Kayo na bahala
+    // Close modal and return to login page
     onClose();
   };
 
@@ -204,16 +204,16 @@ const AccountVerificationModal = ({ open, onClose, email, onVerificationSuccess 
               
               <Typography variant="body1" className="verification-subtitle">
                 <Email className="inline-icon" />
-                Just to make sure it is you, we have sent a code
+                To verify your identity, we have sent a verification code
               </Typography>
               
               <Typography variant="body1" className="verification-email">
-                on this EMAIL - <strong>{maskEmail(email)}</strong>
+                to your email address: <strong>{maskEmail(email)}</strong>
               </Typography>
               
               <Typography variant="body2" className="verification-timer">
                 <Timer className="inline-icon" />
-                The code is only available for <strong>{formatTime(timeLeft)}</strong>.
+                This code will expire in <strong>{formatTime(timeLeft)}</strong>.
               </Typography>
 
               <Box className="otp-inputs-container">
@@ -245,23 +245,23 @@ const AccountVerificationModal = ({ open, onClose, email, onVerificationSuccess 
 
               <Box className="verification-actions">
                 <Typography variant="body2" className="verification-resend">
-                  Didn't receive the code?{' '}
+                  Did not receive the code?{' '}
                   <button
                     onClick={handleResendCode}
                     disabled={isResending || timeLeft > 0}
                     className="link-button try-again-btn"
                   >
-                    {isResending ? 'SENDING...' : 'TRY AGAIN?'}
+                    {isResending ? 'RESENDING...' : 'RESEND CODE'}
                   </button>
                 </Typography>
                 
                 <Typography variant="body2" className="verification-alternative">
-                  OR,{' '}
+                  Or{' '}
                   <button
                     onClick={handleTryAnotherWay}
                     className="link-button try-another-btn"
                   >
-                    TRY ANOTHER WAY TO LOGIN.
+                    try a different login method
                   </button>
                 </Typography>
               </Box>

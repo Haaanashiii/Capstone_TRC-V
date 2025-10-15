@@ -37,7 +37,7 @@ const Login = () => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e) => {   
     e.preventDefault();
     setError("");
     setSuccess("");
@@ -79,8 +79,22 @@ const Login = () => {
 
   const handleVerificationSuccess = () => {
     setSuccess("Login successful!");
-    // redirect to dashboard after successful verification
-    navigate('/admin');
+    // Check user role and redirect appropriately
+    const token = localStorage.getItem('accessToken');
+    if (token) {
+      try {
+        const decoded = JSON.parse(atob(token.split('.')[1]));
+        if (decoded.role === 'driver') {
+          navigate('/driver/franchise');
+        } else if (decoded.role === 'admin') {
+          navigate('/admin');
+        } else {
+          navigate('/');
+        }
+      } catch {
+        navigate('/admin'); // fallback
+      }
+    }
   };
 
   return (

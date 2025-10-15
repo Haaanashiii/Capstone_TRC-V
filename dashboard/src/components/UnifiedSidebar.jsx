@@ -1,11 +1,24 @@
 import React from "react";
 import { Link, useLocation } from "react-router-dom";
-import { useAuth } from "../contexts/AuthContext";
 import "../Styles/UnifiedSidebar.css";
 
 const UnifiedSidebar = ({ userType = "driver" }) => {
   const location = useLocation();
-  const { user } = useAuth();
+  
+  // Get user info from token instead of useAuth
+  const getUserInfo = () => {
+    const token = localStorage.getItem('accessToken');
+    if (!token) return null;
+    
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      return payload;
+    } catch {
+      return null;
+    }
+  };
+
+  const user = getUserInfo();
 
  
   const getNavigationItems = () => {
