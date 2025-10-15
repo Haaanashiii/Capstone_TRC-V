@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import '../../Styles/Administrator_Css/UserManagement.css';
-import UnifiedSidebar from '../../components/UnifiedSidebar';
-
-// Material UI imports
+import Sidebar from './Sidebar';
 import {
   Box, 
   Typography, 
@@ -201,7 +199,7 @@ function UserManagement() {
 
   return (
     <div className="user-management-container">
-      <UnifiedSidebar userType="admin" />
+      <Sidebar />
       <div className="content-area">
         <Box p={3}>
           <Typography 
@@ -211,7 +209,8 @@ function UserManagement() {
               mb: 3, 
               fontFamily: 'Poppins, sans-serif',
               color: 'black',
-              fontWeight: 500
+              fontWeight: 'bold',
+              fontSize: '32px'
             }}
           >
             User Management
