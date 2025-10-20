@@ -41,6 +41,8 @@ function Reports() {
   const [error, setError] = useState('');
   const [totalReports, setTotalReports] = useState(0);
   const [statusFilter, setStatusFilter] = useState('');
+  const [sortBy, setSortBy] = useState('dateReported');
+  const [sortOrder, setSortOrder] = useState('desc');
 
   // Get auth token
   const getAuthToken = () => {
@@ -64,7 +66,9 @@ function Reports() {
           page: page + 1,
           limit: rowsPerPage,
           search: searchTerm,
-          status: statusFilter
+          status: statusFilter,
+          sortBy,
+          sortOrder
         });
 
         const response = await fetch(`${API_BASE_URL}/reports?${queryParams}`, {
@@ -90,7 +94,7 @@ function Reports() {
     };
 
     loadReports();
-  }, [page, rowsPerPage, searchTerm, statusFilter]);
+  }, [page, rowsPerPage, searchTerm, statusFilter, sortBy, sortOrder]);
 
   // Export monthly reports as CSV
   const exportMonthlyReports = async () => {
@@ -235,6 +239,34 @@ function Reports() {
               <MenuItem value="investigating">Investigating</MenuItem>
               <MenuItem value="resolved">Resolved</MenuItem>
               <MenuItem value="dismissed">Dismissed</MenuItem>
+            </Select>
+          </FormControl>
+          
+          {/* Sort By Filter */}
+          <FormControl sx={{ minWidth: 140 }}>
+            <InputLabel>Sort By</InputLabel>
+            <Select
+              value={sortBy}
+              label="Sort By"
+              onChange={(e) => setSortBy(e.target.value)}
+            >
+              <MenuItem value="reportID">Report ID</MenuItem>
+              <MenuItem value="dateReported">Date Reported</MenuItem>
+              <MenuItem value="status">Status</MenuItem>
+              <MenuItem value="franchiseeName">Franchisee</MenuItem>
+            </Select>
+          </FormControl>
+          
+          {/* Sort Order Filter */}
+          <FormControl sx={{ minWidth: 100 }}>
+            <InputLabel>Order</InputLabel>
+            <Select
+              value={sortOrder}
+              label="Order"
+              onChange={(e) => setSortOrder(e.target.value)}
+            >
+              <MenuItem value="asc">Ascending</MenuItem>
+              <MenuItem value="desc">Descending</MenuItem>
             </Select>
           </FormControl>
           

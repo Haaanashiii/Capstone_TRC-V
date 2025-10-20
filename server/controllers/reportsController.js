@@ -40,13 +40,22 @@ exports.createReport = async (req, res, next) => {
  */
 exports.getAllReports = async (req, res, next) => {
     try {
-        const { page = 1, limit = 10, search = '', status = '' } = req.query;
+        const { 
+            page = 1, 
+            limit = 10, 
+            search = '', 
+            status = '',
+            sortBy = 'dateReported',
+            sortOrder = 'desc'
+        } = req.query;
         
         const options = {
             page: parseInt(page),
             limit: parseInt(limit),
             search,
-            status
+            status,
+            sortBy,
+            sortOrder
         };
 
         const result = await reportsRepository.getAllReports(options);

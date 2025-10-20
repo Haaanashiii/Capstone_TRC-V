@@ -24,6 +24,8 @@ exports.createReport = async (reportData) => {
  * @param {number} options.limit - Items per page
  * @param {string} options.search - Search term
  * @param {string} options.status - Filter by status
+ * @param {string} options.sortBy - Sort field (reportID, dateReported, status, franchiseeName)
+ * @param {string} options.sortOrder - Sort order (asc, desc)
  * @returns {Promise<Object>} Reports with pagination info
  */
 exports.getAllReports = async (options = {}) => {
@@ -32,7 +34,9 @@ exports.getAllReports = async (options = {}) => {
       page = 1,
       limit = 10,
       search = '',
-      status = ''
+      status = '',
+      sortBy = 'dateReported',
+      sortOrder = 'desc'
     } = options;
 
     const skip = (page - 1) * limit;
@@ -52,9 +56,83 @@ exports.getAllReports = async (options = {}) => {
       query.status = status;
     }
 
+    // Build sort object
+    let sortObject = {};
+    
+    switch (sortBy) {
+      case 'reportID':
+        // Custom sort for reportID to handle RPT-XXXX format numerically
+        sortObject = { reportID: sortOrder === 'asc' ? 1 : -1 };
+        break;
+      case 'dateReported':
+        sortObject = { dateReported: sortOrder === 'asc' ? 1 : -1 };
+        break;
+      case 'status':
+        // Sort by status priority: pending > investigating > resolved > dismissed
+        const statusPriority = {
+          'pending': 1,
+          'investigating': 2, 
+          'resolved': 3,
+          'dismissed': 4
+        };
+        // For status sorting, we'll use a different approach in the aggregation
+        if (sortOrder === 'asc') {
+          sortObject = { status: 1, dateReported: -1 };
+        } else {
+          sortObject = { status: -1, dateReported: -1 };
+        }
+        break;
+      case 'franchiseeName':
+        sortObject = { franchiseeName: sortOrder === 'asc' ? 1 : -1 };
+        break;
+      case 'amountCharged':
+        sortObject = { amountCharged: sortOrder === 'asc' ? 1 : -1 };
+        break;
+      default:
+        sortObject = { dateReported: -1 }; // Default: newest first
+    }
+
+    // If sorting by reportID, we need special handling for numerical order
+    if (sortBy === 'reportID') {
+      const [reports, total] = await Promise.all([
+        Report.aggregate([
+          { $match: query },
+          {
+            $addFields: {
+              reportNumber: {
+                $toInt: {
+                  $substr: ['$reportID', 4, -1] // Extract number part after 'RPT-'
+                }
+              }
+            }
+          },
+          { $sort: { reportNumber: sortOrder === 'asc' ? 1 : -1 } },
+          { $skip: skip },
+          { $limit: parseInt(limit) },
+          {
+            $project: {
+              reportNumber: 0 // Remove the temporary field
+            }
+          }
+        ]),
+        Report.countDocuments(query)
+      ]);
+
+      return {
+        reports,
+        pagination: {
+          page: parseInt(page),
+          limit: parseInt(limit),
+          total,
+          pages: Math.ceil(total / limit)
+        }
+      };
+    }
+
+    // For other sorts, use regular find with sort
     const [reports, total] = await Promise.all([
       Report.find(query)
-        .sort({ createdAt: -1 })
+        .sort(sortObject)
         .skip(skip)
         .limit(parseInt(limit)),
       Report.countDocuments(query)
