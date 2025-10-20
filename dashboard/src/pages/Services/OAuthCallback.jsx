@@ -26,7 +26,9 @@ const OAuthCallback = () => {
 
       if (accessToken) {
         console.log('OAuthCallback: got access token', accessToken && accessToken.slice(0, 8) + '...');
-        // Store token (replace with a safer mechanism if you prefer)
+        // Store token in sessionStorage for better security (session-based storage)
+        sessionStorage.setItem('accessToken', accessToken);
+        // Also keep localStorage for compatibility with existing code
         localStorage.setItem('accessToken', accessToken);
         // Optionally clear the hash/search to remove token from URL
   try { window.history.replaceState(null, '', window.location.pathname); } catch { /* ignore */ }
@@ -34,16 +36,27 @@ const OAuthCallback = () => {
         // Decode token to get user role and redirect appropriately
         try {
           const decoded = JSON.parse(atob(accessToken.split('.')[1]));
-          if (decoded.role === 'driver') {
-            navigate('/driver/franchise');
-          } else if (decoded.role === 'admin') {
-            navigate('/admin');
+          console.log('OAuthCallback decoded token:', decoded); // Debug log
+          console.log('User role from token:', decoded.role); // Debug log
+          
+          if (decoded.role === 'operator') {
+            console.log('Redirecting to operator dashboard'); // Debug log
+            navigate('/operator/franchise');
+          } else if (decoded.role === 'sb-admin') {
+            console.log('Redirecting to sb-admin dashboard'); // Debug log
+            navigate('/sb-admin');
+          } else if (decoded.role === 'bplo-admin') {
+            console.log('Redirecting to bplo-admin dashboard'); // Debug log
+            navigate('/bplo-admin');
           } else {
+            console.log('Unknown role, redirecting to home:', decoded.role); // Debug log
             navigate('/');
           }
-        } catch {
-          // Fallback to driver dashboard for Google login users
-          navigate('/driver/franchise');
+        } catch (error) {
+          console.error('Token decode error:', error); // Debug log
+          // Fallback to operator dashboard for Google login users
+          console.log('Fallback: redirecting to operator dashboard'); // Debug log
+          navigate('/operator/franchise');
         }
       } else {
         console.warn('OAuthCallback: no access token found in hash or query');

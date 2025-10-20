@@ -109,6 +109,7 @@ const refreshTokens = new Map();
 
 // Generate access token
 const generateAccessToken = (user) => {
+  console.log('Generating access token for user:', { id: user._id, role: user.role }); // Debug log
   return jwt.sign(
     { id: user._id, role: user.role }, 
     process.env.JWT_SECRET, 
@@ -349,6 +350,7 @@ exports.googleCallback = async (req, res, next) => {
           oauthProvider: 'google'
         });
         console.log('Google OAuth: user created', user && user._id);
+        console.log('Google OAuth: user role assigned:', user.role); // Debug log
       } catch (createErr) {
         console.error('Google OAuth: createUserAccount error', createErr);
         return next(createErr);
@@ -378,10 +380,10 @@ exports.googleCallback = async (req, res, next) => {
       maxAge: 7 * 24 * 60 * 60 * 1000
     });
 
-  // Redirect to the client root and include access token in fragment so SPA can read it
+  // Redirect to the client OAuth callback route and include access token in fragment so SPA can read it
   const clientRedirect = process.env.CLIENT_REDIRECT || 'http://localhost:5173';
   // include accessToken in fragment for client-side apps to read
-  res.redirect(`${clientRedirect}/#access_token=${accessToken}`);
+  res.redirect(`${clientRedirect}/oauth-callback#access_token=${accessToken}`);
   } catch (err) {
     next(err);
   }

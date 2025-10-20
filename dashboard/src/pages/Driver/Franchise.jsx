@@ -42,7 +42,7 @@ const Franchise = () => {
 
   return (
     <div className="franchise-bg">
-      <UnifiedSidebar userType="driver" />
+      <UnifiedSidebar userType="operator" />
 
       {/* Card section yah */}
       <div className="franchise-card-wrapper">

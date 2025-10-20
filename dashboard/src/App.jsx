@@ -35,25 +35,25 @@ function App() {
         
         {/* Protected Driver Routes */}
         <Route 
-          path="/driver/id" 
+          path="/operator/id" 
           element={
-            <ProtectedRoute requiredRole="driver">
+            <ProtectedRoute requiredRole="operator">
               <DriverID />
             </ProtectedRoute>
           } 
         />
         <Route 
-          path="/driver/franchise" 
+          path="/operator/franchise" 
           element={
-            <ProtectedRoute requiredRole="driver">
+            <ProtectedRoute requiredRole="operator">
               <Franchise />
             </ProtectedRoute>
           } 
         />
         <Route 
-          path="/driver/franchise/application" 
+          path="/operator/franchise/application" 
           element={
-            <ProtectedRoute requiredRole="driver">
+            <ProtectedRoute requiredRole="operator">
               <FranchiseApplication />
             </ProtectedRoute>
           } 
@@ -61,57 +61,73 @@ function App() {
         
         {/* Protected Admin Routes */}
         <Route 
+          path="/sb-admin" 
+          element={
+            <ProtectedRoute requiredRole="sb-admin">
+              <Dashboard />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/bplo-admin" 
+          element={
+            <ProtectedRoute requiredRole="bplo-admin">
+              <Dashboard />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
           path="/admin" 
           element={
-            <ProtectedRoute requiredRole="admin">
-              <AdminDashboard />
+            <ProtectedRoute>
+              <Dashboard />
             </ProtectedRoute>
           } 
         />
         <Route 
           path="/user-management" 
           element={
-            <ProtectedRoute requiredRole="admin">
+            <ProtectedRoute requiredRole="sb-admin">
               <UserManagement />
             </ProtectedRoute>
           } 
         />
         <Route 
-          path="/admin/user-management" 
+          path="/sb-admin/user-management" 
           element={
-            <ProtectedRoute requiredRole="admin">
+            <ProtectedRoute requiredRole="sb-admin">
               <UserManagement />
             </ProtectedRoute>
           } 
         />
         <Route 
-          path="/admin/franchisee-list" 
+          path="/sb-admin/franchisee-list" 
           element={
-            <ProtectedRoute requiredRole="admin">
+            <ProtectedRoute requiredRole="sb-admin">
               <FranchiseeList />
             </ProtectedRoute>
           } 
         />
         <Route 
-          path="/admin/franchise-management" 
+          path="/sb-admin/franchise-management" 
           element={
-            <ProtectedRoute requiredRole="admin">
+            <ProtectedRoute requiredRole="sb-admin">
               <FranchiseMgmt />
             </ProtectedRoute>
           } 
         />
         <Route 
-          path="/admin/dashboard" 
+          path="/sb-admin/dashboard" 
           element={
-            <ProtectedRoute requiredRole="admin">
+            <ProtectedRoute requiredRole="sb-admin">
               <Dashboard />
             </ProtectedRoute>
           } 
         />
         <Route 
-          path="/admin/reports" 
+          path="/sb-admin/reports" 
           element={
-            <ProtectedRoute requiredRole="admin">
+            <ProtectedRoute requiredRole="sb-admin">
               <Reports />
             </ProtectedRoute>
           } 

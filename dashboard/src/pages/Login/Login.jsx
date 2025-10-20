@@ -63,9 +63,12 @@ const Login = () => {
         return;
       }
 
-      // Save accessToken to localStorage for future API calls
+      // Save accessToken to both sessionStorage and localStorage for future API calls
       if (data.accessToken) {
-        try { localStorage.setItem('accessToken', data.accessToken); } catch (err) { console.warn('localStorage unavailable', err); }
+        try { 
+          sessionStorage.setItem('accessToken', data.accessToken);
+          localStorage.setItem('accessToken', data.accessToken); 
+        } catch (err) { console.warn('Storage unavailable', err); }
       }
 
       // Open verification modal. The backend has attempted to send the OTP
@@ -84,10 +87,12 @@ const Login = () => {
     if (token) {
       try {
         const decoded = JSON.parse(atob(token.split('.')[1]));
-        if (decoded.role === 'driver') {
-          navigate('/driver/franchise');
-        } else if (decoded.role === 'admin') {
-          navigate('/admin');
+        if (decoded.role === 'operator') {
+          navigate('/operator/franchise');
+        } else if (decoded.role === 'sb-admin') {
+          navigate('/sb-admin');
+        } else if (decoded.role === 'bplo-admin') {
+          navigate('/bplo-admin');
         } else {
           navigate('/');
         }

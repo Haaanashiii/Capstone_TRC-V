@@ -53,7 +53,8 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     const initializeAuth = async () => {
       try {
-        const token = localStorage.getItem('accessToken');
+        // Check sessionStorage first, then localStorage for compatibility
+        const token = sessionStorage.getItem('accessToken') || localStorage.getItem('accessToken');
         if (token) {
           const decoded = decodeToken(token);
           if (decoded && decoded.exp * 1000 > Date.now()) {
@@ -74,12 +75,14 @@ export const AuthProvider = ({ children }) => {
               });
             }
           } else {
-            // Token expired, remove it
+            // Token expired, remove it from both storages
+            sessionStorage.removeItem('accessToken');
             localStorage.removeItem('accessToken');
           }
         }
       } catch (error) {
         console.error('Error initializing auth:', error);
+        sessionStorage.removeItem('accessToken');
         localStorage.removeItem('accessToken');
       } finally {
         setLoading(false);
@@ -90,11 +93,13 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const login = (token, userInfo) => {
-    localStorage.setItem('accessToken', token);
+    sessionStorage.setItem('accessToken', token);
+    localStorage.setItem('accessToken', token); // Keep for compatibility
     setUser(userInfo);
   };
 
   const logout = () => {
+    sessionStorage.removeItem('accessToken');
     localStorage.removeItem('accessToken');
     setUser(null);
   };

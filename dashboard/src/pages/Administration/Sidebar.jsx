@@ -22,11 +22,11 @@ function Sidebar() {
   }, []);
 
   const menuItems = [
-    { name: 'Dashboard', icon: <DashboardIcon />, path: '/admin/dashboard' },
-    { name: 'Franchisee List', icon: <ListAltIcon />, path: '/admin/franchisee-list' },
-    { name: 'Franchise Management', icon: <BusinessIcon />, path: '/admin/franchise-management' },
-    { name: 'Reports', icon: <AssessmentIcon />, path: '/admin/reports' },
-    { name: 'User Management', icon: <PeopleAltIcon />, path: '/admin/user-management' }
+    { name: 'Dashboard', icon: <DashboardIcon />, path: '/sb-admin/dashboard' },
+    { name: 'Franchisee List', icon: <ListAltIcon />, path: '/sb-admin/franchisee-list' },
+    { name: 'Franchise Management', icon: <BusinessIcon />, path: '/sb-admin/franchise-management' },
+    { name: 'Reports', icon: <AssessmentIcon />, path: '/sb-admin/reports' },
+    { name: 'User Management', icon: <PeopleAltIcon />, path: '/sb-admin/user-management' }
   ]
 
   return (

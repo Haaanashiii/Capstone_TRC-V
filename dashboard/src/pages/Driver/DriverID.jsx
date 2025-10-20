@@ -47,7 +47,7 @@ function DriverID() {
   return (
     <Box sx={{ minHeight: '100vh', width: '100%', maxWidth: '100vw', bgcolor: '#f5f7fa', overflowX: 'hidden' }}>
       {/* Unified Sidebar */}
-      <UnifiedSidebar userType="driver" />
+      <UnifiedSidebar userType="operator" />
       
       {/* Top Blue Bar */}
       <Box sx={{ background: '#0a3576', width: '100vw', minHeight: 340, position: 'relative', pt: 5, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>

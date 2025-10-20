@@ -83,7 +83,7 @@ export default function FranchiseApplication() {
   return (
     <div>
 
-      <UnifiedSidebar userType="driver" />
+      <UnifiedSidebar userType="operator" />
       {/* Main Content */}
       <div className="franchise-app-bg">
         <div className="franchise-app-paper">

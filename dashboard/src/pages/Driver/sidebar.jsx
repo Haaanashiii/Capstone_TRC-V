@@ -17,14 +17,14 @@ const Sidebar = () => {
 				alignItems: "center",
 				padding: "5px 15px"
 			}}>
-				<Link to="/driver/home" style={{
+				<Link to="/operator/home" style={{
 					textDecoration: "none",
 					color: "#000",
 					fontWeight: 600,
 					margin: "0 18px",
 					fontFamily: "Poppins, sans-serif"
 				}}>HOME</Link>
-				<Link to="/driver/franchise" style={{
+				<Link to="/operator/franchise" style={{
 					textDecoration: "none",
 					color: "#000",
 					fontWeight: 600,

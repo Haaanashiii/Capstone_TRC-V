@@ -2,7 +2,7 @@ import React from "react";
 import { Link, useLocation } from "react-router-dom";
 import "../Styles/UnifiedSidebar.css";
 
-const UnifiedSidebar = ({ userType = "driver" }) => {
+const UnifiedSidebar = ({ userType = "operator" }) => {
   const location = useLocation();
   
   // Get user info from token instead of useAuth
@@ -23,14 +23,14 @@ const UnifiedSidebar = ({ userType = "driver" }) => {
  
   const getNavigationItems = () => {
     switch (userType) {
-      case "driver":
+      case "operator":
         return [
           { label: "HOME", path: "/", isActive: location.pathname === "/" },
-          { label: "MY FRANCHISE", path: "/driver/franchise", isActive: location.pathname === "/driver/franchise" },
-          { label: "DRIVER ID", path: "/driver/id", isActive: location.pathname === "/driver/id" },
+          { label: "MY FRANCHISE", path: "/operator/franchise", isActive: location.pathname === "/operator/franchise" },
+          { label: "OPERATOR ID", path: "/operator/id", isActive: location.pathname === "/operator/id" },
           { label: "VERIFY TRICYCLE", path: "/login", isActive: false }
         ];
-      case "admin":
+      case "admin": //for bplo-admin?
         return [
           { label: "DASHBOARD", path: "/admin", isActive: location.pathname === "/admin" },
           { label: "USER MANAGEMENT", path: "/user-management", isActive: location.pathname === "/user-management" },
