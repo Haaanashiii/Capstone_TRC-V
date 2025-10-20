@@ -14,6 +14,7 @@ const { auditLogService } = require('./services/auditLogService');
 //routes
 const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userAccountRoutes');
+const reportsRoutes = require('./routes/reportsRoutes');
 
 
 dotenv.config();
@@ -121,6 +122,7 @@ if (process.env.NODE_ENV !== 'production') {
 // Routes
 app.use('/auth', authRoutes);
 app.use('/users', userRoutes);
+app.use('/reports', reportsRoutes);
 
 
 // Health check endpoint

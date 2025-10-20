@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import './Reports.css';
 import Sidebar from './Sidebar';
 import { 
@@ -16,9 +16,19 @@ import {
   Modal,
   Box,
   Divider,
-  Grid
+  Grid,
+  Alert,
+  CircularProgress,
+  Chip,
+  MenuItem,
+  Select,
+  FormControl,
+  InputLabel
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
+import DownloadIcon from '@mui/icons-material/Download';
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 function Reports() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -26,64 +36,111 @@ function Reports() {
   const [open, setOpen] = useState(false);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(5);
+  const [reports, setReports] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [totalReports, setTotalReports] = useState(0);
+  const [statusFilter, setStatusFilter] = useState('');
 
-  // Mock data for demonstration
-const reports = [
-  { 
-    id: 'RPT-001', 
-    franchiseeName: 'Manila Trike Services',
-    dateReported: '2025-10-12 14:30',
-    amountCharged: 50.00,
-    expectedFare: 35.00,
-    description: 'Driver charged more than the standard fare rate',
-    reporterContact: 'maria.santos@gmail.com | 0917-234-5678'
-  },
-  { 
-    id: 'RPT-002', 
-    franchiseeName: 'Solano Express Tricycle',
-    dateReported: '2025-10-11 09:45',
-    amountCharged: 80.00,
-    expectedFare: 80.00,
-    description: 'Reported for rude behavior towards passenger',
-    reporterContact: 'juan.delacruz@yahoo.com | 0928-456-7890'
-  },
-  { 
-    id: 'RPT-003', 
-    franchiseeName: 'Nueva Vizcaya Transport Cooperative',
-    dateReported: '2025-10-10 16:20',
-    amountCharged: 30.00,
-    expectedFare: 30.00,
-    description: 'Tricycle was in poor condition and emitted smoke',
-    reporterContact: 'angelica.cruz@example.com | 0995-123-6547'
-  },
-  { 
-    id: 'RPT-004', 
-    franchiseeName: 'Vizcaya Ride Corporation',
-    dateReported: '2025-10-09 11:05',
-    amountCharged: 60.00,
-    expectedFare: 45.00,
-    description: 'Driver took a longer route without reason',
-    reporterContact: 'mark.reyes@gmail.com | 0908-321-8765'
-  },
-  { 
-    id: 'RPT-005', 
-    franchiseeName: 'Bambang City Trikes',
-    dateReported: '2025-10-08 16:45',
-    amountCharged: 40.00,
-    expectedFare: 40.00,
-    description: 'Driver was impolite to senior citizen passenger',
-    reporterContact: 'josefina.mendoza@gmail.com | 0916-789-2345'
-  },
-  { 
-    id: 'RPT-006', 
-    franchiseeName: 'Solano Central Tricycle Association',
-    dateReported: '2025-10-07 09:15',
-    amountCharged: 35.00,
-    expectedFare: 35.00,
-    description: 'Tricycle was dirty and had unpleasant odor',
-    reporterContact: 'carlo.garcia@yahoo.com | 0947-562-3412'
-  }
-];
+  // Get auth token
+  const getAuthToken = () => {
+    return sessionStorage.getItem('accessToken') || localStorage.getItem('accessToken');
+  };
+
+  // Load reports on component mount and when filters change
+  useEffect(() => {
+    const loadReports = async () => {
+      setLoading(true);
+      setError('');
+      
+      try {
+        const token = getAuthToken();
+        if (!token) {
+          setError('Authentication required');
+          return;
+        }
+
+        const queryParams = new URLSearchParams({
+          page: page + 1,
+          limit: rowsPerPage,
+          search: searchTerm,
+          status: statusFilter
+        });
+
+        const response = await fetch(`${API_BASE_URL}/reports?${queryParams}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        setReports(data.reports || []);
+        setTotalReports(data.pagination?.total || 0);
+      } catch (err) {
+        console.error('Error fetching reports:', err);
+        setError('Failed to fetch reports. Please try again.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadReports();
+  }, [page, rowsPerPage, searchTerm, statusFilter]);
+
+  // Export monthly reports as CSV
+  const exportMonthlyReports = async () => {
+    try {
+      const token = getAuthToken();
+      if (!token) {
+        setError('Authentication required');
+        return;
+      }
+
+      const currentDate = new Date();
+      const month = currentDate.getMonth() + 1;
+      const year = currentDate.getFullYear();
+
+      const response = await fetch(`${API_BASE_URL}/reports/monthly?month=${month}&year=${year}&format=csv`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to export reports');
+      }
+
+      // Create download
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `reports_${year}_${month.toString().padStart(2, '0')}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (err) {
+      console.error('Error exporting reports:', err);
+      setError('Failed to export reports. Please try again.');
+    }
+  };
+
+  // Status color mapping
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'pending': return 'warning';
+      case 'investigating': return 'info';
+      case 'resolved': return 'success';
+      case 'dismissed': return 'default';
+      default: return 'default';
+    }
+  };
 
 
   const handleOpen = (report) => {
@@ -104,11 +161,16 @@ const reports = [
     setPage(0);
   };
 
-  // Filter reports based on search term
-  const filteredReports = reports.filter(report => 
-    report.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    report.franchiseeName.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const handleSearch = () => {
+    setPage(0);
+    // The useEffect will automatically trigger when searchTerm changes
+  };
+
+  // Format date for display
+  const formatDate = (dateString) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+  };
 
   const modalStyle = {
     position: 'absolute',
@@ -133,37 +195,80 @@ const reports = [
           </div>
         </div>
         
-        {/* Search Bar */}
-        <div className="search-container">
-          <TextField
-            placeholder="Search Reports"
+        {/* Error Alert */}
+        {error && (
+          <Alert severity="error" sx={{ mb: 2 }}>
+            {error}
+          </Alert>
+        )}
+        
+        {/* Controls Row */}
+        <div style={{ display: 'flex', gap: '16px', marginBottom: '16px', alignItems: 'center' }}>
+          {/* Search Bar */}
+          <div className="search-container" style={{ flex: 1 }}>
+            <TextField
+              placeholder="Search Reports"
+              variant="outlined"
+              fullWidth
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="search-field"
+            />
+            <Button 
+              className="search-button"
+              onClick={handleSearch}
+            >
+              <SearchIcon />
+            </Button>
+          </div>
+          
+          {/* Status Filter */}
+          <FormControl sx={{ minWidth: 120 }}>
+            <InputLabel>Status</InputLabel>
+            <Select
+              value={statusFilter}
+              label="Status"
+              onChange={(e) => setStatusFilter(e.target.value)}
+            >
+              <MenuItem value="">All</MenuItem>
+              <MenuItem value="pending">Pending</MenuItem>
+              <MenuItem value="investigating">Investigating</MenuItem>
+              <MenuItem value="resolved">Resolved</MenuItem>
+              <MenuItem value="dismissed">Dismissed</MenuItem>
+            </Select>
+          </FormControl>
+          
+          {/* Export Button */}
+          <Button
             variant="outlined"
-            fullWidth
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="search-field"
-          />
-          <Button className="search-button">
-            <SearchIcon />
+            startIcon={<DownloadIcon />}
+            onClick={exportMonthlyReports}
+          >
+            Export CSV
           </Button>
         </div>
         
         {/* Reports Table */}
         <TableContainer component={Paper} className="table-container">
+          {loading && (
+            <Box display="flex" justifyContent="center" p={2}>
+              <CircularProgress />
+            </Box>
+          )}
+          
           <Table stickyHeader aria-label="reports table">
             <TableHead>
               <TableRow>
                 <TableCell>Report ID</TableCell>
                 <TableCell>Franchisee Name</TableCell>
                 <TableCell>Date and Time Reported</TableCell>
+                <TableCell>Status</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
-              {filteredReports
-                .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
-                .map((report) => (
+              {!loading && reports.map((report) => (
                 <TableRow 
-                  key={report.id}
+                  key={report.reportID}
                   onClick={() => handleOpen(report)}
                   sx={{ 
                     '&:hover': { 
@@ -172,17 +277,33 @@ const reports = [
                     }
                   }}
                 >
-                  <TableCell>{report.id}</TableCell>
+                  <TableCell>{report.reportID}</TableCell>
                   <TableCell>{report.franchiseeName}</TableCell>
-                  <TableCell>{report.dateReported}</TableCell>
+                  <TableCell>{formatDate(report.dateReported)}</TableCell>
+                  <TableCell>
+                    <Chip 
+                      label={report.status} 
+                      color={getStatusColor(report.status)}
+                      size="small"
+                    />
+                  </TableCell>
                 </TableRow>
               ))}
+              
+              {!loading && reports.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={4} align="center">
+                    No reports found
+                  </TableCell>
+                </TableRow>
+              )}
             </TableBody>
           </Table>
+          
           <TablePagination
             rowsPerPageOptions={[5, 10, 25]}
             component="div"
-            count={filteredReports.length}
+            count={totalReports}
             rowsPerPage={rowsPerPage}
             page={page}
             onPageChange={handleChangePage}
@@ -209,8 +330,21 @@ const reports = [
                     Report ID
                   </Typography>
                   <Typography variant="body1" sx={{ mb: 2 }}>
-                    {selectedReport.id}
+                    {selectedReport.reportID}
                   </Typography>
+                </Grid>
+                
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="subtitle2" fontWeight="bold">
+                    Status
+                  </Typography>
+                  <Box sx={{ mb: 2 }}>
+                    <Chip 
+                      label={selectedReport.status} 
+                      color={getStatusColor(selectedReport.status)}
+                      size="small"
+                    />
+                  </Box>
                 </Grid>
                 
                 <Grid item xs={12} sm={6}>
@@ -224,10 +358,19 @@ const reports = [
                 
                 <Grid item xs={12} sm={6}>
                   <Typography variant="subtitle2" fontWeight="bold">
+                    Date Reported
+                  </Typography>
+                  <Typography variant="body1" sx={{ mb: 2 }}>
+                    {formatDate(selectedReport.dateReported)}
+                  </Typography>
+                </Grid>
+                
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="subtitle2" fontWeight="bold">
                     Amount Charged
                   </Typography>
                   <Typography variant="body1" sx={{ mb: 2 }}>
-                    ${selectedReport.amountCharged.toFixed(2)}
+                    ₱{selectedReport.amountCharged?.toFixed(2)}
                   </Typography>
                 </Grid>
                 
@@ -236,7 +379,7 @@ const reports = [
                     Expected Fare
                   </Typography>
                   <Typography variant="body1" sx={{ mb: 2 }}>
-                    ${selectedReport.expectedFare.toFixed(2)}
+                    ₱{selectedReport.expectedFare?.toFixed(2)}
                   </Typography>
                 </Grid>
                 
