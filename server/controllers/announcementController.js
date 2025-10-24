@@ -1,0 +1,178 @@
+const announcementRepository = require('../repositories/announcementRepository');
+
+class AnnouncementController {
+  /**
+   * Create a new announcement (Admin only)
+   */
+  async createAnnouncement(req, res) {
+    try {
+      const { title, description, date } = req.body;
+      const { userId, name } = req.user;
+
+      // Validation
+      if (!title || !description) {
+        return res.status(400).json({
+          success: false,
+          message: 'Title and description are required'
+        });
+      }
+
+      const announcementData = {
+        title,
+        description,
+        date: date || new Date(),
+        createdBy: {
+          userId,
+          name
+        }
+      };
+
+      const announcement = await announcementRepository.create(announcementData);
+
+      res.status(201).json({
+        success: true,
+        message: 'Announcement created successfully',
+        announcement
+      });
+    } catch (error) {
+      console.error('Error creating announcement:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to create announcement',
+        error: error.message
+      });
+    }
+  }
+
+  /**
+   * Get all announcements with pagination
+   */
+  async getAllAnnouncements(req, res) {
+    try {
+      const { page, limit, search, sortBy, sortOrder } = req.query;
+
+      const result = await announcementRepository.getAll({
+        page: parseInt(page) || 1,
+        limit: parseInt(limit) || 10,
+        search,
+        sortBy,
+        sortOrder
+      });
+
+      res.status(200).json({
+        success: true,
+        ...result
+      });
+    } catch (error) {
+      console.error('Error getting announcements:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to get announcements',
+        error: error.message
+      });
+    }
+  }
+
+  /**
+   * Get a single announcement by ID
+   */
+  async getAnnouncementById(req, res) {
+    try {
+      const { id } = req.params;
+
+      const announcement = await announcementRepository.getById(id);
+
+      res.status(200).json({
+        success: true,
+        announcement
+      });
+    } catch (error) {
+      console.error('Error getting announcement:', error);
+      res.status(404).json({
+        success: false,
+        message: 'Announcement not found',
+        error: error.message
+      });
+    }
+  }
+
+  /**
+   * Update an announcement (Admin only)
+   */
+  async updateAnnouncement(req, res) {
+    try {
+      const { id } = req.params;
+      const { title, description, date } = req.body;
+
+      const updateData = {};
+      if (title) updateData.title = title;
+      if (description) updateData.description = description;
+      if (date) updateData.date = date;
+
+      const announcement = await announcementRepository.update(id, updateData);
+
+      res.status(200).json({
+        success: true,
+        message: 'Announcement updated successfully',
+        announcement
+      });
+    } catch (error) {
+      console.error('Error updating announcement:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to update announcement',
+        error: error.message
+      });
+    }
+  }
+
+  /**
+   * Delete an announcement (Admin only)
+   */
+  async deleteAnnouncement(req, res) {
+    try {
+      const { id } = req.params;
+
+      await announcementRepository.delete(id);
+
+      res.status(200).json({
+        success: true,
+        message: 'Announcement deleted successfully'
+      });
+    } catch (error) {
+      console.error('Error deleting announcement:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to delete announcement',
+        error: error.message
+      });
+    }
+  }
+
+  /**
+   * Get recent announcements
+   */
+  async getRecentAnnouncements(req, res) {
+    try {
+      const { limit } = req.query;
+
+      const announcements = await announcementRepository.getRecent(
+        parseInt(limit) || 5
+      );
+
+      res.status(200).json({
+        success: true,
+        announcements
+      });
+    } catch (error) {
+      console.error('Error getting recent announcements:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to get recent announcements',
+        error: error.message
+      });
+    }
+  }
+}
+
+module.exports = new AnnouncementController();
