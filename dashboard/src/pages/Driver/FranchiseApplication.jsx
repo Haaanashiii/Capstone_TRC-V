@@ -8,12 +8,127 @@ import dayjs from "dayjs";
 import "../../Styles/Operator's_CSS/FranchiseApplication.css";
 
 export default function FranchiseApplication() {
-  // Digital signature upload state and handler
-  const [digitalSignature, setDigitalSignature] = useState(null);
-  const digitalSignatureRef = useRef();
-  const handleDigitalSignatureChange = (e) => {
-    setDigitalSignature(e.target.files[0]);
+  // Language state
+  const [language, setLanguage] = useState('en'); // 'en' for English, 'tl' for Tagalog
+  
+  // Translation object
+  const translations = {
+    en: {
+      title: "FRANCHISE APPLICATION",
+      date: "DATE",
+      sidecarPlate: "SIDECAR PLATE NUMBER",
+      personalInfo: "PERSONAL INFORMATION",
+      nameOfOperator: "NAME OF OPERATOR",
+      contactNumber: "CONTACT NUMBER",
+      placeOfBirth: "PLACE OF BIRTH",
+      dateOfBirth: "DATE OF BIRTH",
+      civilStatus: "CIVIL STATUS",
+      citizenship: "CITIZENSHIP",
+      todaMembership: "TODA MEMBERSHIP",
+      motorcycleInfo: "MOTORCYCLE INFORMATION",
+      unitModel: "UNIT MODEL",
+      colorMotor: "COLOR (MOTOR)",
+      colorSidecar: "COLOR (SIDECAR)",
+      mvPlate: "MV PLATE",
+      motorEngineNumber: "MOTOR/ENGINE NUMBER",
+      chassisNumber: "CHASSIS NUMBER",
+      reqDocuments: "DOCUMENTARY REQUIREMENTS",
+      docInstructions: "Please upload clear scanned copies or photos of the following documents.",
+      docFormat1: "Accepted formats: JPG, PNG, or PDF",
+      docFormat2: "Maximum file size: 5MB per file",
+      docFormat3: "All documents must be valid, complete, and readable",
+      docFormat4: "Incomplete submissions will not be processed.",
+      selectFile: "Select a File",
+      upload: "Upload",
+      photoRegistration: "Photocopy of Registration",
+      photoBarangay: "Photocopy of Barangay Clearance",
+      photoCedula: "Photocopy of Cedula",
+      photoLicense: "Photocopy of Driver's License",
+      photoAffidavit: "Photocopy of Voter's Affidavit",
+      picture: "1x1 Picture",
+      browseFiles: "Browse Files to upload",
+      noFileSelected: "No selected File -",
+      digitalSignature: "Digital Signature",
+      signatureArea: "Signature area (for printing)",
+      submit: "Submit",
+      cancel: "Cancel",
+      submitApplication: "Submit Application",
+      swornStatement: "SWORN STATEMENT OF APPLICANT'S UNDERTAKINGS",
+      swornDeclaration: "I declare that I shall conform to the conditions relevant to the operation of my tricycle-for-hire such as:",
+      swornItem1: "Submit myself including my tricycle unit to obey and to abide faithfully the TRICYCLE CODE OF SOLANO, other existing laws and ordinances relevant to motorized tricycle-for-hire;",
+      swornItem2: "I shall pay without delay my corresponding taxes and fees, and submit all necessary documentary requirements;",
+      swornItem3: "Notify the Tricycle Regulatory Unit any change, transfer and cessation of my tricycle operations;",
+      swornItem4: "Any violation on my part or on the part of my driver herein stipulated conditions shall be sufficient cause for the revocation of my Franchise/Permit or any penalty may be imposed by the Solano Tricycle Franchising and Regulatory (STFRB)",
+      swornCompliance: "In compliance, thereof, I voluntarily affixed my signature,",
+      agreement: "AGREEMENT",
+      agreeText1: "I hereby warrant the truth and correctness of all the particulars stated herein and any false statements made by me will constitute sufficient cause for the cancellation of any authorization given to me;",
+      agreeText2: "Submit myself including my tricycle unit to obey and to abide faithfully the TRICYCLE CODE OF SOLANO, other existing laws and ordinances relevant to motorized tricycle-for-hire;",
+      agreeText3: "That I bind myself to conform with the rules and regulations promulgated by the LGU in connection with operation of motorized tricycle-for-hire.",
+      toggleLanguage: "Tagalog"
+    },
+    tl: {
+      title: "APLIKASYON PARA SA PRANGKISA",
+      date: "PETSA",
+      sidecarPlate: "NUMERO NG PLAKA NG SIDECAR",
+      personalInfo: "PERSONAL NA IMPORMASYON",
+      nameOfOperator: "PANGALAN NG OPERATOR",
+      contactNumber: "NUMERO NG TELEPONO",
+      placeOfBirth: "LUGAR NG KAPANGANAKAN",
+      dateOfBirth: "PETSA NG KAPANGANAKAN",
+      civilStatus: "KATAYUANG SIBIL",
+      citizenship: "PAGKAMAMAMAYAN",
+      todaMembership: "MIYEMBRO NG TODA",
+      motorcycleInfo: "IMPORMASYON NG MOTORSIKLO",
+      unitModel: "MODEL NG UNIT",
+      colorMotor: "KULAY (MOTOR)",
+      colorSidecar: "KULAY (SIDECAR)",
+      mvPlate: "MV PLAKA",
+      motorEngineNumber: "NUMERO NG MOTOR/ENGINE",
+      chassisNumber: "NUMERO NG CHASSIS",
+      reqDocuments: "MGA KINAKAILANGANG DOKUMENTO",
+      docInstructions: "Mangyaring mag-upload ng malinaw na scanned copies o mga larawan ng mga sumusunod na dokumento.",
+      docFormat1: "Mga tanggap na format: JPG, PNG, o PDF",
+      docFormat2: "Pinakamataas na laki ng file: 5MB bawat file",
+      docFormat3: "Ang lahat ng mga dokumento ay dapat na valid, kumpleto, at mababasa",
+      docFormat4: "Ang mga hindi kumpletong submission ay hindi mapoproseso.",
+      selectFile: "Pumili ng File",
+      upload: "I-upload",
+      photoRegistration: "Photocopy ng Rehistrasyon",
+      photoBarangay: "Photocopy ng Barangay Clearance",
+      photoCedula: "Photocopy ng Cedula",
+      photoLicense: "Photocopy ng Driver's License",
+      photoAffidavit: "Photocopy ng Voter's Affidavit",
+      picture: "1x1 na Larawan",
+      browseFiles: "Mag-browse ng mga file para i-upload",
+      noFileSelected: "Walang napiling File -",
+      digitalSignature: "Digital na Pirma",
+      signatureArea: "Lugar ng pirma (para sa pag-print)",
+      submit: "Ipasa",
+      cancel: "Kanselahin",
+      submitApplication: "Ipasa ang Aplikasyon",
+      swornStatement: "SINUMPAANG SALAYSAY NG MGA PANGAKO NG APLIKANTE",
+      swornDeclaration: "Nagpapatunay ako na susundin ko ang mga kondisyon na may kaugnayan sa operasyon ng aking tricycle-for-hire tulad ng:",
+      swornItem1: "Isusuko ko ang aking sarili kasama ang aking tricycle unit upang sumunod at tumupad nang tapat sa TRICYCLE CODE NG SOLANO, sa iba pang umiiral na mga batas at ordinansa na may kaugnayan sa motorized tricycle-for-hire;",
+      swornItem2: "Babayaran ko nang walang pagkakaantala ang aking kaukulang mga buwis at bayad, at isusumite ang lahat ng kinakailangang mga dokumento;",
+      swornItem3: "Ipababalita ko sa Tricycle Regulatory Unit ang anumang pagbabago, paglipat at paghinto ng aking tricycle operations;",
+      swornItem4: "Ang anumang paglabag sa aking bahagi o sa bahagi ng aking driver sa mga kondisyong nabanggit dito ay magiging sapat na dahilan para sa pagpapawalang-bisa ng aking Franchise/Permit o anumang parusa na maaaring ipataw ng Solano Tricycle Franchising and Regulatory (STFRB)",
+      swornCompliance: "Bilang pagsunod dito, kusang-loob kong nilagda ang aking pirma,",
+      agreement: "KASUNDUAN",
+      agreeText1: "Pinapatunayan ko na ang lahat ng mga detalyeng nabanggit dito ay totoo at tama, at ang anumang maling pahayag na aking gagawin ay magiging sapat na dahilan para sa pagkansela ng anumang pahintulot na ibinigay sa akin;",
+      agreeText2: "Isusuko ko ang aking sarili kasama ang aking tricycle unit upang sumunod at tumupad nang tapat sa TRICYCLE CODE NG SOLANO, sa iba pang umiiral na mga batas at ordinansa na may kaugnayan sa motorized tricycle-for-hire;",
+      agreeText3: "Na aking itinatatag ang aking sarili na sumunod sa mga tuntunin at regulasyon na pinatupad ng LGU na may kaugnayan sa operasyon ng motorized tricycle-for-hire.",
+      toggleLanguage: "English"
+    }
   };
+  
+  const t = translations[language];
+  
+  // Digital signature upload state and handler - REMOVED
+  // const [digitalSignature, setDigitalSignature] = useState(null);
+  // const digitalSignatureRef = useRef();
+  // const handleDigitalSignatureChange = (e) => {
+  //   setDigitalSignature(e.target.files[0]);
+  // };
   // Modal state for document upload (dynamic per document)
   const [modalDocKey, setModalDocKey] = useState(null); // null or one of the doc keys
   const [modalFile, setModalFile] = useState(null);
@@ -83,23 +198,28 @@ export default function FranchiseApplication() {
   return (
     <div>
 
-      <UnifiedSidebar userType="operator" />
+      <UnifiedSidebar 
+        userType="operator" 
+        language={language}
+        onLanguageToggle={() => setLanguage(language === 'en' ? 'tl' : 'en')}
+        translations={t}
+      />
       {/* Main Content */}
       <div className="franchise-app-bg">
         <div className="franchise-app-paper">
-        {/* modal yeha */}
+        {/* modal yeh */}
         {modalDocKey && (
           <div className="franchise-modal-bg">
             <div className="franchise-modal" style={{ maxWidth: 480, borderRadius: 18, background: '#fff', boxShadow: '0 4px 24px #0002', padding: 36, position: 'relative' }}>
-              <div style={{ fontWeight: 900, fontSize: '2.2rem', marginBottom: 8, letterSpacing: 0.5 }}>Select a File</div>
+              <div style={{ fontWeight: 900, fontSize: '2.2rem', marginBottom: 8, letterSpacing: 0.5 }}>{t.selectFile}</div>
               <div style={{ fontWeight: 700, fontSize: 20, marginBottom: 24, color: '#111' }}>
-                Upload {[
-                  { key: 'registration', label: 'Photocopy of Registration' },
-                  { key: 'barangay', label: 'Photocopy of Barangay Clearance' },
-                  { key: 'cedula', label: 'Photocopy of Cedula' },
-                  { key: 'license', label: "Photocopy of Driver's License" },
-                  { key: 'affidavit', label: "Photocopy of Voter's Affidavit" },
-                  { key: 'picture', label: '1x1 Picture' },
+                {t.upload} {[
+                  { key: 'registration', label: t.photoRegistration },
+                  { key: 'barangay', label: t.photoBarangay },
+                  { key: 'cedula', label: t.photoCedula },
+                  { key: 'license', label: t.photoLicense },
+                  { key: 'affidavit', label: t.photoAffidavit },
+                  { key: 'picture', label: t.picture },
                 ].find(d => d.key === modalDocKey)?.label}
               </div>
               <div style={{ marginBottom: 24 }}>
@@ -121,7 +241,7 @@ export default function FranchiseApplication() {
                   <div style={{ marginBottom: 8 }}>
                     <svg width="64" height="64" fill="#174D7A" viewBox="0 0 24 24"><path d="M12 16V4m0 0l-4 4m4-4l4 4" stroke="#174D7A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/><path d="M20 16v2a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-2" stroke="#174D7A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
                   </div>
-                  <div style={{ color: '#174D7A', fontWeight: 600, fontSize: 17 }}>Browse Files to upload</div>
+                  <div style={{ color: '#174D7A', fontWeight: 600, fontSize: 17 }}>{t.browseFiles}</div>
                   <input
                     type="file"
                     style={{ display: 'none' }}
@@ -130,7 +250,7 @@ export default function FranchiseApplication() {
                   />
                 </div>
                 <div style={{ background: '#eaf1ff', borderRadius: 8, padding: '12px 0', textAlign: 'center', fontWeight: 500, color: '#222', fontSize: 16, marginTop: 4 }}>
-                  {modalFile ? modalFile.name : 'No selected File -'}
+                  {modalFile ? modalFile.name : t.noFileSelected}
                 </div>
               </div>
               <div style={{ display: 'flex', gap: 18, justifyContent: 'flex-end', marginTop: 24 }}>
@@ -139,7 +259,7 @@ export default function FranchiseApplication() {
                   style={{ background: '#f3f3f3', color: '#174D7A', fontWeight: 700, borderRadius: 8, padding: '10px 32px', fontSize: 18, border: 'none', boxShadow: '0 2px 8px #0001', cursor: 'pointer' }}
                   onClick={() => { setModalDocKey(null); setModalFile(null); }}
                 >
-                  Cancel
+                  {t.cancel}
                 </button>
                 <button
                   className="franchise-submit-btn"
@@ -153,7 +273,7 @@ export default function FranchiseApplication() {
                   }}
                   disabled={!modalFile}
                 >
-                  Submit
+                  {t.submit}
                 </button>
               </div>
             </div>
@@ -163,10 +283,10 @@ export default function FranchiseApplication() {
             <img src="/public/Logos/SBLogo.png" alt="Seal" />
             <img src="/public/Logos/TRC-vLogo.png" alt="TRC-V Logo" />
           </div>
-          <div className="franchise-app-title">FRANCHISE APPLICATION</div>
+          <div className="franchise-app-title">{t.title}</div>
           <div className="franchise-app-date-row">
             <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
-              <label style={{ fontWeight: 700, marginBottom: 4 }}>DATE</label>
+              <label style={{ fontWeight: 700, marginBottom: 4 }}>{t.date}</label>
               <LocalizationProvider dateAdapter={AdapterDayjs}>
                 <DatePicker
                   value={fields.date}
@@ -177,19 +297,19 @@ export default function FranchiseApplication() {
               </LocalizationProvider>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', flex: 2 }}>
-              <label style={{ fontWeight: 700, marginBottom: 4 }}>SIDECAR PLATE NUMBER</label>
+              <label style={{ fontWeight: 700, marginBottom: 4 }}>{t.sidecarPlate}</label>
               <TextField size="small" className="franchise-app-input" value={fields.sidecarPlate} onChange={handleChange('sidecarPlate')} />
             </div>
           </div>
           <div className="franchise-app-section">
-            PERSONAL INFORMATION
+            {t.personalInfo}
             <div className="franchise-app-section-line" />
           </div>
           <div className="franchise-app-grid">
-            <TextField label="NAME OF OPERATOR" size="small" className="franchise-app-input" value={fields.operatorName} onChange={handleChange('operatorName')} />
+            <TextField label={t.nameOfOperator} size="small" className="franchise-app-input" value={fields.operatorName} onChange={handleChange('operatorName')} />
             <div style={{ display: 'flex', flexDirection: 'column' }}>
               <TextField 
-                label="CONTACT NUMBER" 
+                label={t.contactNumber} 
                 size="small" 
                 className="franchise-app-input" 
                 value={fields.contact} 
@@ -204,36 +324,40 @@ export default function FranchiseApplication() {
             </div>
           </div>
           <div className="franchise-app-grid-4">
-            <TextField label="BIRTH PLACE" size="small" className="franchise-app-input" value={fields.birthPlace} onChange={handleChange('birthPlace')} />
+            <TextField label={t.placeOfBirth} size="small" className="franchise-app-input" value={fields.birthPlace} onChange={handleChange('birthPlace')} />
             <LocalizationProvider dateAdapter={AdapterDayjs}>
               <DatePicker
-                label="BIRTH DATE"
+                label={t.dateOfBirth}
                 value={fields.birthDate}
                 onChange={(newValue) => setFields({ ...fields, birthDate: newValue })}
                 disableFuture
                 slotProps={{ textField: { size: 'small', className: 'franchise-app-input' } }}
               />
             </LocalizationProvider>
-            <TextField label="CIVIL STATUS" size="small" className="franchise-app-input" value={fields.civilStatus} onChange={handleChange('civilStatus')} />
-            <TextField label="CITIZENSHIP" size="small" className="franchise-app-input" value={fields.citizenship} onChange={handleChange('citizenship')} />
+          </div>
+          <div className="franchise-app-grid-4">
+            <TextField label={t.civilStatus} size="small" className="franchise-app-input" value={fields.civilStatus} onChange={handleChange('civilStatus')} />
+            <TextField label={t.citizenship} size="small" className="franchise-app-input" value={fields.citizenship} onChange={handleChange('citizenship')} />
           </div>
           <div className="franchise-app-field">
-            <TextField label="TODA MEMBERSHIP" size="small" className="franchise-app-input" value={fields.todaMembership} onChange={handleChange('todaMembership')} />
+            <TextField label={t.todaMembership} size="small" className="franchise-app-input" value={fields.todaMembership} onChange={handleChange('todaMembership')} />
           </div>
           {/* Motorcycle Information Section */}
           <div className="franchise-app-section" style={{ marginTop: 32 }}>
-            MOTORCYCLE INFORMATION
+            {t.motorcycleInfo}
             <div className="franchise-app-section-line" />
           </div>
           <div className="franchise-app-grid-4">
-            <TextField label="UNIT MODEL" size="small" className="franchise-app-input" />
-            <TextField label="COLOR (MOTOR)" size="small" className="franchise-app-input" />
-            <TextField label="COLOR (SIDECAR)" size="small" className="franchise-app-input" />
-            <TextField label="MV PLATE" size="small" className="franchise-app-input" />
+            <TextField label={t.unitModel} size="small" className="franchise-app-input" />
+            <TextField label={t.colorMotor} size="small" className="franchise-app-input" />
+          </div>
+          <div className="franchise-app-grid-4">
+            <TextField label={t.colorSidecar} size="small" className="franchise-app-input" />
+            <TextField label={t.mvPlate} size="small" className="franchise-app-input" />
           </div>
           <div className="franchise-app-grid-2">
-            <TextField label="MOTOR/ENGINE NUMBER" size="small" className="franchise-app-input" />
-            <TextField label="CHASSIS NUMBER" size="small" className="franchise-app-input" />
+            <TextField label={t.motorEngineNumber} size="small" className="franchise-app-input" />
+            <TextField label={t.chassisNumber} size="small" className="franchise-app-input" />
           </div>
           <div className="franchise-app-grid-2">
             <TextField label="NAME OF THE DRIVER" size="small" className="franchise-app-input" />
@@ -243,18 +367,18 @@ export default function FranchiseApplication() {
 
     
           <div className="franchise-app-section" style={{ marginTop: 32 }}>
-            DOCUMENTARY REQUIREMENTS
+            {t.reqDocuments}
             <div className="franchise-app-section-line" />
           </div>
           <div style={{ marginBottom: 24 }}>
             <p style={{ fontStyle: 'italic', marginBottom: 8 }}>
-              Please upload clear scanned copies or photos of the following documents.
+              {t.docInstructions}
             </p>
             <ul style={{ marginLeft: 24 }}>
-              <li>Accepted formats: JPG, PNG, or PDF</li>
-              <li>Maximum file size: 5MB per file</li>
-              <li>All documents must be valid, complete, and readable</li>
-              <li>Incomplete submissions will not be processed.</li>
+              <li>{t.docFormat1}</li>
+              <li>{t.docFormat2}</li>
+              <li>{t.docFormat3}</li>
+              <li>{t.docFormat4}</li>
             </ul>
           </div>
       
@@ -265,12 +389,12 @@ export default function FranchiseApplication() {
             </div>
 
             {[
-              { key: 'registration', label: 'PHOTOCOPY OF REGISTRATION' },
-              { key: 'barangay', label: 'PHOTOCOPY OF BARANGAY CLEARANCE' },
-              { key: 'cedula', label: 'PHOTOCOPY OF CEDULA' },
-              { key: 'license', label: "PHOTOCOPY OF DRIVER'S LICENSE" },
-              { key: 'affidavit', label: "PHOTOCOPY OF VOTER'S AFFIDAVIT" },
-              { key: 'picture', label: '1X1 PICTURE' },
+              { key: 'registration', label: t.photoRegistration.toUpperCase() },
+              { key: 'barangay', label: t.photoBarangay.toUpperCase() },
+              { key: 'cedula', label: t.photoCedula.toUpperCase() },
+              { key: 'license', label: t.photoLicense.toUpperCase() },
+              { key: 'affidavit', label: t.photoAffidavit.toUpperCase() },
+              { key: 'picture', label: t.picture.toUpperCase() },
             ].map((doc) => (
               <div key={doc.key} style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
                 <div style={{ flex: 2, fontWeight: 700, color: '#222', fontSize: 18, textTransform: 'uppercase', letterSpacing: 0.5 }}>{doc.label}</div>
@@ -296,7 +420,7 @@ export default function FranchiseApplication() {
                       setModalFile(null);
                     }}
                   >
-                    {uploads[doc.key] ? uploads[doc.key].name : 'No selected File -'}
+                    {uploads[doc.key] ? uploads[doc.key].name : t.noFileSelected}
                   </div>
                 </div>
               </div>
@@ -308,59 +432,48 @@ export default function FranchiseApplication() {
                 sx={{ bgcolor: '#174D7A', color: '#fff', fontWeight: 700, borderRadius: 2, fontSize: 18, px: 4, py: 1 }}
                 onClick={() => {/* handle submit logic here */}}
               >
-                Submit Application
+                {t.submitApplication}
               </Button>
             </div>
 
           {/* Sworn Statement Section */}
           <div className="franchise-app-section" style={{ marginTop: 32 }}>
-            SWORN STATEMENT OF APPLICANT'S UNDERTAKINGS
+            {t.swornStatement}
             <div className="franchise-app-section-line" />
           </div>
           <div className="franchise-app-sworn-statement">
-            <p>I declare that I shall conform to the conditions relevant to the operation of my tricycle-for-hire such as:</p>
+            <p>{t.swornDeclaration}</p>
             <ol style={{ marginLeft: 24 }}>
-              <li>Submit myself including my tricycle unit to obey and to abide faithfully the TRICYCLE CODE OF SOLANO, other existing laws and ordinances relevant to motorized tricycle-for-hire;</li>
-              <li>I shall pay without delay my corresponding taxes and fees, and submit all necessary documentary requirements;</li>
-              <li>Notify the Tricycle Regulatory Unit any change, transfer and cessation of my tricycle operations;</li>
-              <li>Any violation on my part or on the part of my driver herein stipulated conditions shall be sufficient cause for the revocation of my Franchise/Permit or any penalty may be imposed by the Solano Tricycle Franchising and Regulatory (STFRB)</li>
+              <li>{t.swornItem1}</li>
+              <li>{t.swornItem2}</li>
+              <li>{t.swornItem3}</li>
+              <li>{t.swornItem4}</li>
             </ol>
-            <p>In compliance, thereof, I voluntarily affixed my signature,</p>
+            <p>{t.swornCompliance}</p>
             <div className="franchise-app-digital-signature">
                 <div className="franchise-app-digital-signature" style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 32 }}>
                   <div style={{ width: 340 }}>
                     <div
                       style={{
                         width: '100%',
-                        height: 100,
-                        background: '#ddd',
-                        borderRadius: 4,
+                        height: 80,
+                        background: 'transparent',
+                        borderTop: '2px solid #000',
+                        borderBottom: 'none',
+                        borderLeft: 'none',
+                        borderRight: 'none',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        fontWeight: 700,
-                        fontSize: 18,
-                        color: '#222',
-                        cursor: 'pointer',
-                        border: 'none',
+                        fontWeight: 400,
+                        fontSize: 16,
+                        color: '#000',
                         marginBottom: 8,
+                        paddingTop: '10px'
                       }}
-                      onClick={() => digitalSignatureRef.current && digitalSignatureRef.current.click()}
                     >
-                      DIGITAL SIGNATURE
-                      <input
-                        type="file"
-                        accept="image/*,application/pdf"
-                        style={{ display: 'none' }}
-                        ref={digitalSignatureRef}
-                        onChange={handleDigitalSignatureChange}
-                      />
+                      SIGNATURE
                     </div>
-                    {digitalSignature && (
-                      <div style={{ background: '#eaf1ff', borderRadius: 8, padding: '8px 0', textAlign: 'center', fontWeight: 500, color: '#222', fontSize: 15 }}>
-                        {digitalSignature.name}
-                      </div>
-                    )}
                   </div>
                 </div>
             </div>

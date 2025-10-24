@@ -47,12 +47,12 @@ const LandingPage = () => {
     "Enables real-time monitoring"
   ];
 
-  const partners = [
-    { name: "Municipality of Solano", role: "Local Government Partner", icon: Building2 },
-    { name: "Saint Mary's University", role: "Academic Development Partner", icon: GraduationCap },
-    { name: "IT Students", role: "System Developers", icon: Users },
-    { name: "Transport Authorities", role: "Regulatory Partners", icon: Shield }
-  ];
+  // const partners = [
+  //   { name: "Municipality of Solano", role: "Local Government Partner", icon: Building2 },
+  //   { name: "Saint Mary's University", role: "Academic Development Partner", icon: GraduationCap },
+  //   { name: "IT Students", role: "System Developers", icon: Users },
+  //   { name: "Transport Authorities", role: "Regulatory Partners", icon: Shield }
+  // ];
   return (
     /* Adjust nyo nalang kung ayaw ko design hehe */ 
 
@@ -198,30 +198,6 @@ const LandingPage = () => {
           </div>
         </section>
 
-        <section className="py-24 px-6 bg-gradient-to-b from-[#F4D77E] to-[#F4D77E]">
-          <div className="max-w-4xl mx-auto text-center mb-24">
-            <div className="bg-[#1B4B75] inline-block px-6 py-2 mb-6">
-              <h3 className="text-white font-bold text-lg">OUR COMMITMENT</h3>
-            </div>
-            <h2 className="text-4xl md:text-5xl font-bold text-[#1B4B75] mb-8">
-              Good Governance Through Digital Transformation
-            </h2>
-            <div className="bg-white/50 backdrop-blur-sm rounded-3xl p-10 border-4 border-[#1B4B75]">
-              <p className="text-xl text-gray-800 leading-relaxed mb-6">
-                This initiative reflects the Municipality of Solano's commitment to <span className="font-bold text-[#1B4B75]">good governance</span>, 
-                <span className="font-bold text-[#1B4B75]"> digital transformation</span>, and <span className="font-bold text-[#1B4B75]">sustainable urban mobility</span>.
-              </p>
-              <p className="text-lg text-gray-700 leading-relaxed">
-                By leveraging technology, TRC-V promotes operational efficiency, regulatory compliance, 
-                and accountability among tricycle operators and transport authorities, creating a safer 
-                and more organized transportation system for the entire community.
-              </p>
-            </div>
-          </div>
-
-   
-
-      
         {/* FEATURES Hatdog */}
         <div style={{ background: '#F4D77E', padding: '40px 0' }}>
              <div style={{ background: '#1B4B75', color: '#F4D77E', display: 'inline-block', padding: '10px 50px', borderRadius: '2px', fontWeight: 'bold', fontSize: '28px', boxShadow: '2px 2px 6px #b3a04a', fontFamily: 'Poppins, sans-serif' }}>
@@ -257,7 +233,7 @@ const LandingPage = () => {
           
           </div>
         </div>
-        </section>
+      
       </div> {/* End of min-h-screen bg-[#F4D77E] */}
 
     {/* Footer Sectionsz */}
@@ -368,7 +344,7 @@ const LandingPage = () => {
   </div>
 </footer>
 
-  </div> /* End of landing-root */
+  </div> 
 );
 };
 

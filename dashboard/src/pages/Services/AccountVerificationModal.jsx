@@ -27,7 +27,16 @@ const AccountVerificationModal = ({ open, onClose, email, onVerificationSuccess 
   const [isResending, setIsResending] = useState(false);
 
  
-  // Do not log sensitive props (email or tokens) in production/development consoles
+ 
+
+  // Reset OTP and timer when modal opens
+  useEffect(() => {
+    if (open) {
+      setOtp(['', '', '', '', '', '']);
+      setTimeLeft(300);
+      setError('');
+    }
+  }, [open]);
 
   useEffect(() => {
     if (open && timeLeft > 0) {
@@ -35,8 +44,11 @@ const AccountVerificationModal = ({ open, onClose, email, onVerificationSuccess 
         setTimeLeft((prev) => prev - 1);
       }, 1000);
       return () => clearInterval(timer);
+    } else if (timeLeft === 0) {
+      // Auto-close modal when timer expires
+      onClose();
     }
-  }, [open, timeLeft]);
+  }, [open, timeLeft, onClose]);
 
   const formatTime = (seconds) => {
     const minutes = Math.floor(seconds / 60);

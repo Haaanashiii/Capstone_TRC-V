@@ -5,9 +5,12 @@ import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import dayjs from 'dayjs';
+import { useAuth } from '../../contexts/AuthContext';
 import UnifiedSidebar from '../../components/UnifiedSidebar';
 
 function DriverID() {
+  const { user } = useAuth(); // Get user data from auth context
+  
   // Validation state for number-only fields
   const [errors, setErrors] = useState({
     orNumber: false,
@@ -57,12 +60,22 @@ function DriverID() {
           </Box>
 
           <Box sx={{ ml: 4, pt: 2, flex: 1 }}>
-            <Typography variant="h4" sx={{ color: '#fff', fontWeight: 700, mb: 1 }}>Papi Luke </Typography>
-            <Typography sx={{ color: '#fff', fontWeight: 500, fontSize: 16 }}>#72 Baccara St. Brgy. Quezon, Solano Nueva Vizcaya</Typography>
-            <Typography sx={{ color: '#fff', fontWeight: 500, fontSize: 16 }}>SINGLE | NO CO-OWNER</Typography>
-            <Button variant="contained" sx={{ background: '#2ecc71', color: '#fff', fontWeight: 700, borderRadius: 2, mt: 1, px: 3, boxShadow: 2, textTransform: 'none', '&:hover': { background: '#27ae60' } }}>ACTIVE FRANCHISE</Button>
+            <Typography variant="h4" sx={{ color: '#fff', fontWeight: 700, mb: 1 }}>
+              {user?.name || 'User Name'}
+            </Typography>
+            <Typography sx={{ color: '#fff', fontWeight: 500, fontSize: 16 }}>
+              {user?.address || 'Address not provided'}
+            </Typography>
+            <Typography sx={{ color: '#fff', fontWeight: 500, fontSize: 16 }}>
+              SINGLE | NO CO-OWNER
+            </Typography>
+            <Button variant="contained" sx={{ background: '#2ecc71', color: '#fff', fontWeight: 700, borderRadius: 2, mt: 1, px: 3, boxShadow: 2, textTransform: 'none', '&:hover': { background: '#27ae60' } }}>
+              {user?.franchiseStatus || 'ACTIVE FRANCHISE'}
+            </Button>
           </Box>
-          <Box sx={{ background: '#ffe600', color: '#0a3576', fontWeight: 'bold', borderRadius: 1, px: 4, py: 2, fontSize: '1.2rem', position: 'absolute', right: 48, top: '100%', transform: 'translateY(-50%)', zIndex: 20, boxShadow: '0 2px 8px rgba(0,0,0,0.10)' }}>ID NO: 02612</Box>
+          <Box sx={{ background: '#ffe600', color: '#0a3576', fontWeight: 'bold', borderRadius: 1, px: 4, py: 2, fontSize: '1.2rem', position: 'absolute', right: 48, top: '100%', transform: 'translateY(-50%)', zIndex: 20, boxShadow: '0 2px 8px rgba(0,0,0,0.10)' }}>
+            ID NO: {user?.operatorId || user?.id?.toString().slice(-4) || '0000'}
+          </Box>
         </Box>
       </Box>
 

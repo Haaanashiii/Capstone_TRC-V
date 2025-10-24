@@ -8,7 +8,7 @@
 }
 
 .franchise-app-paper {
-  width: 900px;
+  width: 1050px;
   border-radius: 16px;
   padding: 40px 48px 32px 48px;
   background: #fff;
@@ -54,21 +54,21 @@
 .franchise-app-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 24px;
+  gap: 48px;
   margin-bottom: 18px;
 }
 
 .franchise-app-grid-4 {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr 1fr;
-  gap: 24px;
+  grid-template-columns: 1fr 1fr;
+  gap: 48px;
   margin-bottom: 18px;
 }
 
 .franchise-app-grid-2 {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 24px;
+  gap: 48px;
   margin-bottom: 18px;
 }
 
