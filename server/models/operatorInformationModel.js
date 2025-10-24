@@ -23,6 +23,7 @@ const operatorSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true, lowercase: true, trim: true, match: [/^\S+@\S+\.\S+$/, 'Invalid email address'] },
   password: { type: String, required: true, minlength: 8, select: false },
   driversID: { type: String, required: true, unique: true },
+  profilePhoto: { type: String },
   documents: documentSchema,
   applications: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Application' }]
 }, { timestamps: true });

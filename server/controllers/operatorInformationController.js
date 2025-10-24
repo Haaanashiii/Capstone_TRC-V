@@ -9,6 +9,16 @@ exports.createOperatorInformation = async (req, res, next) => {
     const { id, _id, ...body } = req.body;
     for (const k of ['__proto__', 'prototype', 'constructor']) delete body[k];
     const operatorInformation = await operatorInformationRepository.createOperatorInformation(body);
+
+    return res.status(201).json(operatorInformation);
+  }
+  catch (error) {
+    if (error?.name === 'SequelizeUniqueConstraintError' || error?.code === 11000) {
+      return res.status(409).json({ error: 'Duplicate operator information' });
+    }
+  }
+};
+
 exports.getOperatorInformation = async (req, res, next) => {
   try {
     if (!req.params?.id) {
@@ -25,33 +35,7 @@ exports.getOperatorInformation = async (req, res, next) => {
     }
     return next(error);
   }
-};exports.getOperatorInformation = async (req, res, next) => {
-exports.updateOperatorInformation = async (req, res, next) => {
-  try {
-    if (!req.params?.id) {
-      return res.status(400).json({ error: 'id param is required' });
-    }
-    if (!req.body || typeof req.body !== 'object' || Object.keys(req.body).length === 0) {
-      return res.status(400).json({ error: 'No updatable fields provided' });
-    }
-    const { id, _id, ...body } = req.body; // don't allow id changes
-    for (const k of ['__proto__', 'prototype', 'constructor']) delete body[k];
-    const operatorInformation = await operatorInformationRepository.updateOperatorInformation(req.params.id, body);
-    if (!operatorInformation) {
-      return res.status(404).json({ error: 'Operator information not found' });
-    }
-    return res.status(200).json(operatorInformation);
-  } catch (error) {
-    if (error?.name === 'CastError' || /invalid input syntax.*uuid/i.test(error?.message || '')) {
-      return res.status(400).json({ error: 'Invalid id format' });
-    }
-    if (error?.name === 'SequelizeUniqueConstraintError' || error?.code === 11000) {
-      return res.status(409).json({ error: 'Duplicate operator information' });
-    }
-    return next(error);
-  }
 };
-
 
 exports.updateOperatorInformation = async (req, res, next) => {
   try {
