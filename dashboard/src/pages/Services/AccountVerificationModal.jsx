@@ -10,6 +10,7 @@ import {
   createTheme
 } from '@mui/material';
 import { VerifiedUser, Email, Timer } from '@mui/icons-material';
+import api from '../Services/api';
 import '../../Styles/ServicesCss/AccountVerificationModal.css';
 
 const poppinsTheme = createTheme({
@@ -113,27 +114,19 @@ const AccountVerificationModal = ({ open, onClose, email, onVerificationSuccess 
     }
 
     try {
-      const response = await fetch(`${API_BASE_URL}/auth/verify-otp`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: email,
-          otp: otpCode,
-        }),
+      const response = await api.post('/auth/verify-otp', {
+        email: email,
+        otp: otpCode,
       });
 
-      const data = await response.json();
+      const data = response.data;
 
-      if (response.ok) {
+      if (data) {
         onVerificationSuccess();
         onClose();
-      } else {
-        setError(data.error || 'Invalid verification code');
       }
-    } catch {
-      setError('Network error. Please try again.');
+    } catch (error) {
+      setError(error.response?.data?.error || 'Invalid verification code');
     }
   };
 
@@ -142,26 +135,16 @@ const AccountVerificationModal = ({ open, onClose, email, onVerificationSuccess 
     setError('');
 
     try {
-      const response = await fetch(`${API_BASE_URL}/auth/request-otp`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: email,
-        }),
+      const response = await api.post('/auth/request-otp', {
+        email: email,
       });
 
-      const data = await response.json();
-
-      if (response.ok) {
+      if (response.data) {
         setTimeLeft(300); // Reset timer to 5 minutes
         setOtp(['', '', '', '', '', '']); 
-      } else {
-        setError(data.error || 'Failed to resend code');
       }
-    } catch {
-      setError('Network error. Please try again.');
+    } catch (error) {
+      setError(error.response?.data?.error || 'Failed to resend code');
     } finally {
       setIsResending(false);
     }

@@ -17,6 +17,7 @@ import FranchiseeList from './pages/Administration/FranchiseeList';
 import FranchiseMgmt from './pages/Administration/FranchiseMgmt';
 import Dashboard from './pages/Administration/Dashboard';
 import Reports from './pages/Administration/Reports';
+import QROperatorID from './pages/Driver/QROperatorID';
 
 function LandingPageWithNav() {
   const navigate = useNavigate();
@@ -33,6 +34,12 @@ function App() {
         <Route path="/oauth-callback" element={<OAuthCallback />} />
         <Route path="/maintenance" element={<MaintenancePage />} />
         
+        <Route 
+          path="/operator/id/:operatorId" 
+          element={
+              <QROperatorID />
+          } 
+        />
         {/* Protected Driver Routes */}
         <Route 
           path="/operator/id" 
