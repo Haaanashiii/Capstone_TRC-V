@@ -35,15 +35,40 @@
   border-radius: 40px;
   display: flex;
   align-items: center;
-  padding: 8px 64px;
-  min-width: 620px;
+  padding: 8px 28px;
+  min-width: 0; /* allow to shrink on small screens */
   box-shadow: 0 2px 8px #174D7A22;
-  gap: 50px;
+  gap: 20px;
   margin-left: auto;
-  margin-right: 68px;
+  margin-right: 24px;
   margin-top: 15px;
+  max-width: calc(100% - 120px);
+  overflow: hidden;
+  white-space: nowrap;
 }
 .franchise-nav-pill-link {
+
+/* High-specificity override: ensure the centered card reaches the right edge across browsers
+   and hide any thin blue strip caused by rounding/scrollbar spacing. The !important flags
+   are intentional here to force this layout while we verify in the browser. */
+.franchise-bg .franchise-card-centered {
+  max-width: 1100px !important;
+  width: calc(100% - 32px) !important; /* smaller gutter so card fills more of the viewport */
+  margin: -80px auto 0 auto !important; /* centered with reduced gutters */
+  box-sizing: border-box !important;
+  border-radius: 1.5rem !important; /* keep rounded corners but slightly smaller */
+  overflow: visible !important;
+}
+
+/* On narrow screens reduce the overlap and gutters so the header and card don't collide */
+@media (max-width: 768px) {
+  .franchise-bg .franchise-card-centered {
+    width: calc(100% - 24px) !important;
+    margin: -32px 12px 0 12px !important;
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+  }
+}
   color: #111;
   font-weight: bold;
   font-size: 16px;
@@ -75,26 +100,28 @@
 
 
 .franchise-card-wrapper {
-  min-height: calc(100vh - 100px);
+  min-height: calc(100vh - 64px);
   display: flex;
   justify-content: center;
   align-items: flex-start;
-  padding-top: 80px;
-  padding-bottom: 90px;
+  padding-top: 0; /* remove top padding so card can sit under header */
+  padding-bottom: 48px;
 }
 .franchise-card-centered {
   background: #fff;
   border-radius: 2rem;
   box-shadow: 0 2px 16px #174D7A22;
-  width: 80vw;
+  /* make the card span the available viewport width minus gutters, but cap at 1100px */
   max-width: 1100px;
-  margin: 160px auto 0 auto;
+  width: calc(100% - 48px);
+  margin: -80px auto 0 auto; /* pull card up and center with 24px implicit gutters */
   position: relative;
-  padding-top: 80px;
-  padding-bottom: 60px;
+  padding-top: 36px;
+  padding-bottom: 40px;
   display: flex;
   flex-direction: column;
   align-items: center;
+  box-sizing: border-box;
 }
 .franchise-profile-img-outer-centered {
   position: absolute;
@@ -204,7 +231,7 @@ body, html {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 24px 48px 0 48px;
+  padding: 12px 24px 0 24px; /* reduced vertical and horizontal padding */
 }
 .franchise-header-left {
   display: flex;
@@ -248,7 +275,7 @@ body, html {
 }
 .franchise-user-btn {
   display: flex;
-  align-items: center;
+  padding: 12px 24px 0 24px; /* reduced vertical padding to save space */
   background: #fff;
   border-radius: 20px;
   padding: 8px 18px;
@@ -261,31 +288,13 @@ body, html {
   width: 24px;
   height: 24px;
   background: #F5D76E;
-  border-radius: 50%;
+  min-height: calc(100vh - 64px);
   display: inline-block;
   margin-right: 8px;
 }
-.franchise-user-name {
-  font-weight: bold;
-}
 
-/* Card section */
-.franchise-card-wrapper {
-  display: flex;
-  justify-content: center;
-  align-items: flex-start;
-  margin-top: -40px;
-  padding-bottom: 60px;
-}
-.franchise-card {
-  background: #fff;
-  border-radius: 0 0 24px 24px;
-  box-shadow: 0 2px 16px #174D7A22;
-  min-width: 900px;
-  position: relative;
-  padding-top: 60px;
-  padding-bottom: 60px;
-}
+
+/* Card section - wrapper is defined earlier and adjusted for overlap */
 .franchise-profile-img-outer {
   position: absolute;
   top: -70px;

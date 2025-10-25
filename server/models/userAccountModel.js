@@ -7,7 +7,6 @@ const userAccountSchema = new mongoose.Schema({
     // username is required for local accounts. Make the requirement conditional so OAuth users can omit it.
     username: { 
         type: String, 
-        unique: true,
         required: function() { return !this.oauthProvider; }
     },
     email: { 

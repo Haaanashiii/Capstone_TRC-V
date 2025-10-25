@@ -109,9 +109,14 @@ const refreshTokens = new Map();
 
 // Generate access token
 const generateAccessToken = (user) => {
-  console.log('Generating access token for user:', { id: user._id, role: user.role }); // Debug log
+  console.log('Generating access token for user:', { id: user._id, role: user.role, name: user.name }); // Debug log
   return jwt.sign(
-    { id: user._id, role: user.role }, 
+    { 
+      id: user._id, 
+      role: user.role,
+      name: user.name,
+      email: user.email
+    }, 
     process.env.JWT_SECRET, 
     { expiresIn: '1h' }
   );
@@ -275,15 +280,33 @@ exports.logout = (req, res) => {
   res.status(200).json({ message: 'Logged out successfully' });
 };
 
-// Return the current authenticated user (minimal info)
+// Return the current authenticated user (detailed info)
 exports.getCurrentUser = async (req, res, next) => {
   try {
     if (!req.user) return res.status(401).json({ error: 'Not authenticated' });
-    // req.user is set by authenticate middleware; return minimal safe info
+    
+    // Fetch full user details from database
+    const user = await userAccountRepository.findAccountById(req.user.id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    
+    // Return comprehensive user info (excluding sensitive data)
     const userInfo = {
-      id: req.user.id,
-      role: req.user.role
+      id: user._id,
+      name: user.name,
+      username: user.username,
+      email: user.email,
+      role: user.role,
+      isEmailVerified: user.isEmailVerified,
+      profilePicture: user.profilePicture,
+      // Add operator-specific fields if they exist
+      address: user.address,
+      phoneNumber: user.phoneNumber,
+      operatorId: user.operatorId || user.franchiseNumber,
+      franchiseStatus: user.franchiseStatus,
+      dateCreated: user.createdAt,
+      lastLogin: user.lastLogin
     };
+    
     res.json({ user: userInfo });
   } catch (err) {
     next(err);

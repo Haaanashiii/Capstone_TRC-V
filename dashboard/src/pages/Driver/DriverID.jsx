@@ -1,15 +1,121 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Box, Typography, Button, Paper, Avatar, TextField } from '@mui/material';
 import PersonIcon from '@mui/icons-material/Person';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
-import dayjs from 'dayjs';
-import { useAuth } from '../../contexts/AuthContext';
 import UnifiedSidebar from '../../components/UnifiedSidebar';
 
 function DriverID() {
-  const { user } = useAuth(); // Get user data from auth context
+  const [user, setUser] = useState(null);
+  const [language, setLanguage] = useState('en'); // Language state
+  const [franchiseStatus, setFranchiseStatus] = useState(null); // Franchise status state
+  
+  // Translation object
+  const translations = {
+    en: {
+      activeFranchise: "ACTIVE FRANCHISE",
+      noFranchise: "NO FRANCHISE",
+      addressNotProvided: "Address not provided",
+      singleNoCoOwner: "SINGLE | NO CO-OWNER",
+      toggleLanguage: "Tagalog"
+    },
+    tl: {
+      activeFranchise: "AKTIBONG PRANGKISA",
+      noFranchise: "WALANG PRANGKISA",
+      addressNotProvided: "Walang nakalagay na address",
+      singleNoCoOwner: "NAG-IISA | WALANG KASAMA",
+      toggleLanguage: "English"
+    }
+  };
+  
+  const t = translations[language];
+  
+  // Check franchise status from localStorage or API
+  const checkFranchiseStatus = () => {
+    // Check if user has linked franchise (this could be stored in localStorage or fetched from API)
+    const franchiseData = localStorage.getItem('userFranchiseInfo');
+    if (franchiseData) {
+      try {
+        const parsedData = JSON.parse(franchiseData);
+        setFranchiseStatus(parsedData.status || 'ACTIVE');
+      } catch (error) {
+        console.error('Error parsing franchise data:', error);
+        setFranchiseStatus(null);
+      }
+    } else {
+      setFranchiseStatus(null);
+    }
+  };
+  
+  // Get user info from token
+  const getUserInfo = () => {
+    const token = localStorage.getItem('accessToken');
+    if (!token) return null;
+    
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      return payload;
+    } catch {
+      return null;
+    }
+  };
+
+  // Fetch full user details from the server
+  const fetchUserDetails = async () => {
+    try {
+      const token = localStorage.getItem('accessToken');
+      if (!token) return;
+
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170';
+      console.log('DriverID: Fetching user details from:', `${API_BASE_URL}/auth/me`);
+      
+      const response = await fetch(`${API_BASE_URL}/auth/me`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      console.log('DriverID: Response status:', response.status);
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log('DriverID: User details received:', data);
+        setUser(data.user);
+      } else {
+        console.log('DriverID: API failed, using token data');
+        // Fallback to token data if API fails
+        const tokenUser = getUserInfo();
+        if (tokenUser) {
+          setUser(tokenUser);
+        }
+      }
+    } catch (error) {
+      console.error('DriverID: Error fetching user details:', error);
+      // Fallback to token data
+      const tokenUser = getUserInfo();
+      if (tokenUser) {
+        setUser(tokenUser);
+      }
+    }
+  };
+
+  // Fetch user details on component mount
+  useEffect(() => {
+    const token = localStorage.getItem('accessToken');
+    if (token) {
+      // Get token user data immediately
+      const tokenUser = getUserInfo();
+      if (tokenUser) {
+        setUser(tokenUser);
+      }
+      // Then try to fetch detailed user data
+      fetchUserDetails();
+    }
+    // Check franchise status
+    checkFranchiseStatus();
+  }, []);  // eslint-disable-line react-hooks/exhaustive-deps
   
   // Validation state for number-only fields
   const [errors, setErrors] = useState({
@@ -19,8 +125,6 @@ function DriverID() {
     plateNumber: false
   });
 
-  // Helper to check if value is numeric
-  const isNumeric = (value) => /^\d*$/.test(value);
   const [fields, setFields] = useState({
     orNumber: '',
     franchiseNumber: '',
@@ -50,7 +154,12 @@ function DriverID() {
   return (
     <Box sx={{ minHeight: '100vh', width: '100%', maxWidth: '100vw', bgcolor: '#f5f7fa', overflowX: 'hidden' }}>
       {/* Unified Sidebar */}
-      <UnifiedSidebar userType="operator" />
+      <UnifiedSidebar 
+        userType="operator" 
+        language={language}
+        onLanguageToggle={() => setLanguage(language === 'en' ? 'tl' : 'en')}
+        translations={t}
+      />
       
       {/* Top Blue Bar */}
       <Box sx={{ background: '#0a3576', width: '100vw', minHeight: 340, position: 'relative', pt: 5, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
@@ -64,13 +173,28 @@ function DriverID() {
               {user?.name || 'User Name'}
             </Typography>
             <Typography sx={{ color: '#fff', fontWeight: 500, fontSize: 16 }}>
-              {user?.address || 'Address not provided'}
+              {user?.address || t.addressNotProvided}
             </Typography>
             <Typography sx={{ color: '#fff', fontWeight: 500, fontSize: 16 }}>
-              SINGLE | NO CO-OWNER
+              {t.singleNoCoOwner}
             </Typography>
-            <Button variant="contained" sx={{ background: '#2ecc71', color: '#fff', fontWeight: 700, borderRadius: 2, mt: 1, px: 3, boxShadow: 2, textTransform: 'none', '&:hover': { background: '#27ae60' } }}>
-              {user?.franchiseStatus || 'ACTIVE FRANCHISE'}
+            <Button 
+              variant="contained" 
+              sx={{ 
+                background: franchiseStatus ? '#2ecc71' : '#e74c3c', 
+                color: '#fff', 
+                fontWeight: 700, 
+                borderRadius: 2, 
+                mt: 1, 
+                px: 3, 
+                boxShadow: 2, 
+                textTransform: 'none', 
+                '&:hover': { 
+                  background: franchiseStatus ? '#27ae60' : '#c0392b' 
+                } 
+              }}
+            >
+              {franchiseStatus ? t.activeFranchise : t.noFranchise}
             </Button>
           </Box>
           <Box sx={{ background: '#ffe600', color: '#0a3576', fontWeight: 'bold', borderRadius: 1, px: 4, py: 2, fontSize: '1.2rem', position: 'absolute', right: 48, top: '100%', transform: 'translateY(-50%)', zIndex: 20, boxShadow: '0 2px 8px rgba(0,0,0,0.10)' }}>

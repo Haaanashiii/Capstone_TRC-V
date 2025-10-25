@@ -1,14 +1,77 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import UnifiedSidebar from "../../components/UnifiedSidebar";
 import "../../Styles/Operator's_CSS/Franchise.css";
 
-const navLinks = [
-  { label: "HOME", href: "/" },
-  { label: "MY FRANCHISE", href: "/driver/franchise" },
-];
-
 const Franchise = () => {
+  // User state for displaying user information
+  const [userDetails, setUserDetails] = useState(null);
+  
+  // Get user info from token (same as UnifiedSidebar)
+  const getUserInfo = () => {
+    const token = localStorage.getItem('accessToken');
+    if (!token) return null;
+    
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      return payload;
+    } catch {
+      return null;
+    }
+  };
+
+  // Get user from token
+  const user = getUserInfo();
+  
+  // Fetch user details from the server (same logic as UnifiedSidebar)
+  const fetchUserDetails = async () => {
+    try {
+      const token = localStorage.getItem('accessToken');
+      console.log('Token found:', !!token);
+      if (!token) return;
+
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170';
+      console.log('Fetching from:', `${API_BASE_URL}/auth/me`);
+      
+      const response = await fetch(`${API_BASE_URL}/auth/me`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      console.log('Response status:', response.status);
+      if (response.ok) {
+        const data = await response.json();
+        console.log('User data received:', data);
+        setUserDetails(data.user);
+      } else {
+        console.error('Failed to fetch user details:', response.status);
+      }
+    } catch (error) {
+      console.error('Error fetching user details:', error);
+    }
+  };
+
+  // Fetch user details on component mount
+  useEffect(() => {
+    fetchUserDetails();
+    
+    // Check if franchise was previously linked
+    const savedFranchiseInfo = localStorage.getItem('userFranchiseInfo');
+    const savedFranchiseLinked = localStorage.getItem('franchiseLinked');
+    
+    if (savedFranchiseInfo && savedFranchiseLinked === 'true') {
+      try {
+        const parsedInfo = JSON.parse(savedFranchiseInfo);
+        setUserFranchiseInfo(parsedInfo);
+        setFranchiseLinked(true);
+      } catch (error) {
+        console.error('Error parsing saved franchise info:', error);
+      }
+    }
+  }, []);
+  
   // Language state
   const [language, setLanguage] = useState('en'); // 'en' for English, 'tl' for Tagalog
   
@@ -91,6 +154,11 @@ const Franchise = () => {
 
     setUserFranchiseInfo(franchiseInfo);
     setFranchiseLinked(true);
+    
+    // Store franchise info in localStorage so DriverID can access it
+    localStorage.setItem('userFranchiseInfo', JSON.stringify(franchiseInfo));
+    localStorage.setItem('franchiseLinked', 'true');
+    
     setShowModal(false);
     
     // Reset form
@@ -115,7 +183,15 @@ const Franchise = () => {
             <img src="/Logos/Tricy (2).png" alt="Profile" className="franchise-profile-img" />
           </div>
           <div className="franchise-card-content-centered">
-            <div className="franchise-card-name-centered">{t.user}</div>
+            <div className="franchise-card-name-centered">
+              {(() => {
+                const displayName = userDetails?.name || userDetails?.username || user?.name || t.user;
+                console.log('UserDetails in render:', userDetails);
+                console.log('User from token:', user);
+                console.log('Display name:', displayName);
+                return displayName;
+              })()}
+            </div>
             <div className="franchise-card-status-centered">
               {franchiseLinked ? t.franchiseLinked : t.noFranchise}
             </div>
