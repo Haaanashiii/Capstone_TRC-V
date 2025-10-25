@@ -90,3 +90,13 @@ exports.findAccountById = async (id, { projection, lean = false } = {}) => {
   return await User.findById(id, projection);
 };
 
+// Find accounts by specific roles
+exports.findAccountsByRoles = async (roles) => {
+  return await User.find({ role: { $in: roles } }).select('-password');
+};
+
+// Find all accounts (if needed elsewhere)
+exports.findAllAccounts = async () => {
+  return await User.find().select('-password');
+};
+
