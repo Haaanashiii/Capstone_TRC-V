@@ -1,5 +1,6 @@
 
-const operatorInformation = require('../models/operatorInformationModel');
+
+const OperatorInformation = require('../models/operatorInformationModel');
 
 exports.createOperatorInformation = async (data) => {
   const operatorInformation = new OperatorInformation(data);
@@ -15,7 +16,6 @@ exports.updateOperatorInformation = async (id, data) => {
 }
 
 exports.deleteOperatorInformation = async (id) => {
-  
+  return await OperatorInformation.findByIdAndDelete(id);
 }
-
 

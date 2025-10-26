@@ -11,6 +11,7 @@ const documentSchema = new mongoose.Schema({
 });
 
 const operatorSchema = new mongoose.Schema({
+  operatorId: { type: mongoose.Schema.Types.ObjectId, ref: 'Operator' },
   firstName: { type: String, required: true },
   lastName: { type: String, required: true },
   middleName: { type: String, required: true },
@@ -25,7 +26,8 @@ const operatorSchema = new mongoose.Schema({
   driversID: { type: String, required: true, unique: true },
   profilePhoto: { type: String },
   documents: documentSchema,
-  applications: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Application' }]
+  applications: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Application' }],
+  franchiseStatus: { type: String, enum: ['active', 'expired'], required: true }
 }, { timestamps: true });
 
-module.exports = mongoose.model('Operator Information', operatorInformationSchema);
+module.exports = mongoose.model('Operator Information', operatorSchema);

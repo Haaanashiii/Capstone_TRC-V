@@ -60,3 +60,41 @@ exports.deleteOperatorInformation = async (req, res, next) => {
     next(error);
   }
 };
+
+exports.operatorQRIDLookup = async (req, res, next) => {
+  try {
+    if (!req.params?.operatorId) {
+      return res.status(400).json({ error: 'operatorId param is required' });
+    }
+    
+    const operatorInformation = await operatorInformationRepository.getOperatorInformationById(req.params.operatorId);
+    
+    if (!operatorInformation) {
+      return res.status(404).json({ error: 'Operator information not found' });
+    }
+    
+    // Log QR scan for audit trail
+    const ipAddress = req.ip || req.socket.remoteAddress || req.headers['x-forwarded-for']?.split(',')[0];
+    console.log(`[QR SCAN] Operator: ${req.params.operatorId}, IP: ${ipAddress}, Time: ${new Date().toISOString()}`);
+    
+    // Return only public information for QR code display
+    const publicData = {
+      driversID: operatorInformation.driversID,
+      firstName: operatorInformation.firstName,
+      lastName: operatorInformation.lastName,
+      middleName: operatorInformation.middleName,
+      suffix: operatorInformation.suffix || '',
+      address: operatorInformation.address,
+      barangay: operatorInformation.barangay,
+      profilePhoto: operatorInformation.profilePhoto || null,
+      franchiseStatus: operatorInformation.franchiseStatus
+    };
+    
+    return res.status(200).json(publicData);
+  } catch (error) {
+    if (error?.name === 'CastError' || /invalid input syntax.*uuid/i.test(error?.message || '')) {
+      return res.status(400).json({ error: 'Invalid operatorId format' });
+    }
+    return next(error);
+  }
+};
