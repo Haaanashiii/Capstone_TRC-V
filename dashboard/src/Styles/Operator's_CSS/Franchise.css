@@ -173,17 +173,18 @@
   opacity: 0.7;
 }
 
-/* Background and headerrs */
+/* Background and headers */
 * {
   font-family: 'Poppins', sans-serif !important;
 }
 
-body, html {
+/* Removed global body background - should be set per page/component */
+/* body, html {
   background: #0a3970 !important;
   margin: 0;
   padding: 0;
   font-family: 'Poppins', sans-serif !important;
-}
+} */
 
 #root {
   background: #0a3970 !important;

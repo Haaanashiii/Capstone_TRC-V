@@ -1,5 +1,6 @@
 .main {
-    margin-left: 260px;
+    background-color: white;
+    min-height: 100vh;
 }
 
 .title {
@@ -12,6 +13,34 @@
     display: flex;
     margin-bottom: 20px;
     gap: 10px;
+}
+
+/* Table Cell Styles */
+.table-cell-head {
+    background-color: #0A356B !important;
+    color: #ffffff !important;
+    font-weight: bold !important;
+    text-align: center !important;
+}
+
+.table-cell-body {
+    font-size: 14px !important;
+    text-align: center !important;
+    color: #333 !important;
+}
+
+/* Table Row Styles */
+.table-row-odd {
+    background-color: #f9f9f9 !important;
+}
+
+.table-row:hover {
+    background-color: rgba(10, 53, 107, 0.08) !important;
+}
+
+.table-row:last-child td,
+.table-row:last-child th {
+    border: 0;
 }
 
 .section-header {
@@ -158,4 +187,133 @@
 .file-icon-large {
     font-size: 60px;
     color: #1976d2;
+}
+
+/* Content container */
+.content-container {
+    padding: 20px;
+}
+
+/* Loading spinner container */
+.loading-container {
+    display: flex;
+    justify-content: center;
+    padding: 24px;
+}
+
+/* Table styles */
+.pending-table {
+    min-width: 650px;
+}
+
+/* Chip styles for application types */
+.chip-new {
+    background-color: #4caf50 !important;
+    color: white !important;
+    font-weight: bold !important;
+}
+
+.chip-renewal {
+    background-color: #2196f3 !important;
+    color: white !important;
+    font-weight: bold !important;
+}
+
+.chip-transfer {
+    background-color: #ff9800 !important;
+    color: white !important;
+    font-weight: bold !important;
+}
+
+/* Icon button styles */
+.view-icon-button {
+    color: #0a3161 !important;
+}
+
+/* Typography spacing */
+.mb-2 {
+    margin-bottom: 16px;
+}
+
+.mb-3 {
+    margin-bottom: 24px;
+}
+
+.mt-2 {
+    margin-top: 16px;
+}
+
+/* Document requirements info text */
+.document-requirements-info {
+    margin-bottom: 16px;
+    color: rgba(0, 0, 0, 0.6);
+}
+
+/* Alert full width */
+.alert-full-width {
+    width: 100%;
+}
+
+/* TODA membership field */
+.toda-membership-field {
+    margin-bottom: 16px;
+}
+
+/* Button Styles */
+.button-primary {
+    background-color: #1976d2;
+    color: white;
+}
+
+.button-primary:hover {
+    background-color: #1565c0;
+}
+
+.button-error {
+    background-color: #d32f2f;
+    color: white;
+}
+
+.button-error:hover {
+    background-color: #c62828;
+}
+
+.button-success {
+    background-color: #2e7d32;
+    color: white;
+}
+
+.button-success:hover {
+    background-color: #1b5e20;
+}
+
+/* CircularProgress Styles */
+.circular-progress-small {
+    width: 24px !important;
+    height: 24px !important;
+}
+
+.circular-progress-inherit {
+    color: inherit;
+}
+
+/* Table Cell Alignment */
+.table-cell-center {
+    text-align: center !important;
+}
+
+/* Snackbar Position */
+.snackbar-bottom-right {
+    bottom: 24px;
+    right: 24px;
+}
+
+/* TextField multiline styles */
+.textfield-multiline {
+    margin-bottom: 24px;
+}
+
+.textfield-multiline textarea {
+    min-height: 100px;
+    resize: vertical;
 }

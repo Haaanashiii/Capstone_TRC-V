@@ -20,7 +20,7 @@ const poppinsTheme = createTheme({
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
-const AccountVerificationModal = ({ open, onClose, email, onVerificationSuccess }) => {
+const AccountVerificationModal = ({ open, onClose, email, onVerificationSuccess, buttonText = 'Sign in to your account' }) => {
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [timeLeft, setTimeLeft] = useState(300); // 5 minutes in seconds
   const [error, setError] = useState('');
@@ -273,7 +273,7 @@ const AccountVerificationModal = ({ open, onClose, email, onVerificationSuccess 
                 onClick={handleVerify}
                 disabled={otp.join('').length !== 6}
               >
-                Sign in to your account
+                {buttonText}
               </Button>
             </Box>
           </Paper>

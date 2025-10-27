@@ -27,11 +27,6 @@ const userAccountSchema = new mongoose.Schema({
         default: 'operator',
         required: true 
     },
-    status: {
-        type: String,
-        enum: ['Active', 'Deactivated', 'Pending'],
-        default: 'Pending'
-    },
     oauthProvider: { type: String },
     oauthId: { type: String },
     googleId: { type: String }

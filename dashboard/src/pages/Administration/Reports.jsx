@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import './Reports.css';
 import Sidebar from './Sidebar';
 import { 
@@ -23,10 +23,42 @@ import {
   MenuItem,
   Select,
   FormControl,
-  InputLabel
+  InputLabel,
+  tableCellClasses,
+  IconButton
 } from '@mui/material';
+import { styled } from "@mui/material/styles";
 import SearchIcon from '@mui/icons-material/Search';
 import DownloadIcon from '@mui/icons-material/Download';
+import VisibilityIcon from '@mui/icons-material/Visibility';
+
+// Styled components for table
+const StyledTableCell = styled(TableCell)(({ theme }) => ({
+  [`&.${tableCellClasses.head}`]: {
+    backgroundColor: '#0A356B',
+    color: '#ffffff',
+    fontWeight: 'bold',
+    textAlign: 'center',
+  },
+  [`&.${tableCellClasses.body}`]: {
+    fontSize: 14,
+    textAlign: 'center',
+    color: '#333',
+  },
+}));
+
+const StyledTableRow = styled(TableRow)(({ theme }) => ({
+  '&:nth-of-type(odd)': {
+    backgroundColor: '#f9f9f9',
+  },
+  '&:hover': {
+    backgroundColor: 'rgba(10, 53, 107, 0.08)',
+    cursor: 'pointer',
+  },
+  '&:last-child td, &:last-child th': {
+    border: 0,
+  },
+}));
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
@@ -138,37 +170,36 @@ function Reports() {
   // Status color mapping
   const getStatusColor = (status) => {
     switch (status) {
-      case 'pending': return 'warning';
-      case 'investigating': return 'info';
-      case 'resolved': return 'success';
-      case 'dismissed': return 'default';
-      default: return 'default';
+      case 'pending': return '#ff9800';
+      case 'investigating': return '#2196f3';
+      case 'resolved': return '#4caf50';
+      case 'dismissed': return '#757575';
+      default: return '#757575';
     }
   };
 
-
-  const handleOpen = (report) => {
+  const handleOpen = useCallback((report) => {
     setSelectedReport(report);
     setOpen(true);
-  };
+  }, []);
 
-  const handleClose = () => {
+  const handleClose = useCallback(() => {
     setOpen(false);
-  };
+  }, []);
 
-  const handleChangePage = (event, newPage) => {
+  const handleChangePage = useCallback((event, newPage) => {
     setPage(newPage);
-  };
+  }, []);
 
-  const handleChangeRowsPerPage = (event) => {
+  const handleChangeRowsPerPage = useCallback((event) => {
     setRowsPerPage(parseInt(event.target.value, 10));
     setPage(0);
-  };
+  }, []);
 
-  const handleSearch = () => {
+  const handleSearch = useCallback(() => {
     setPage(0);
     // The useEffect will automatically trigger when searchTerm changes
-  };
+  }, []);
 
   // Format date for display
   const formatDate = (dateString) => {
@@ -281,7 +312,7 @@ function Reports() {
         </div>
         
         {/* Reports Table */}
-        <TableContainer component={Paper} className="table-container">
+        <TableContainer component={Paper} className="table-container" elevation={2}>
           {loading && (
             <Box display="flex" justifyContent="center" p={2}>
               <CircularProgress />
@@ -291,43 +322,54 @@ function Reports() {
           <Table stickyHeader aria-label="reports table">
             <TableHead>
               <TableRow>
-                <TableCell>Report ID</TableCell>
-                <TableCell>Franchisee Name</TableCell>
-                <TableCell>Date and Time Reported</TableCell>
-                <TableCell>Status</TableCell>
+                <StyledTableCell>Report ID</StyledTableCell>
+                <StyledTableCell>Franchisee Name</StyledTableCell>
+                <StyledTableCell>Date and Time Reported</StyledTableCell>
+                <StyledTableCell>Status</StyledTableCell>
+                <StyledTableCell>Action</StyledTableCell>
               </TableRow>
             </TableHead>
             <TableBody>
-              {!loading && reports.map((report) => (
-                <TableRow 
-                  key={report.reportID}
-                  onClick={() => handleOpen(report)}
-                  sx={{ 
-                    '&:hover': { 
-                      backgroundColor: '#f5f5f5',
-                      cursor: 'pointer'
-                    }
-                  }}
-                >
-                  <TableCell>{report.reportID}</TableCell>
-                  <TableCell>{report.franchiseeName}</TableCell>
-                  <TableCell>{formatDate(report.dateReported)}</TableCell>
-                  <TableCell>
-                    <Chip 
-                      label={report.status} 
-                      color={getStatusColor(report.status)}
-                      size="small"
-                    />
-                  </TableCell>
-                </TableRow>
-              ))}
-              
-              {!loading && reports.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={4} align="center">
-                    No reports found
-                  </TableCell>
-                </TableRow>
+              {!loading && reports.length > 0 ? (
+                reports.map((report) => (
+                  <StyledTableRow 
+                    key={report.reportID}
+                    onClick={() => handleOpen(report)}
+                  >
+                    <StyledTableCell>{report.reportID}</StyledTableCell>
+                    <StyledTableCell>{report.franchiseeName}</StyledTableCell>
+                    <StyledTableCell>{formatDate(report.dateReported)}</StyledTableCell>
+                    <StyledTableCell>
+                      <Chip 
+                        label={report.status} 
+                        size="small"
+                        sx={{ 
+                          bgcolor: getStatusColor(report.status),
+                          color: 'white',
+                          fontWeight: 'bold'
+                        }}
+                      />
+                    </StyledTableCell>
+                    <StyledTableCell>
+                      <IconButton 
+                        size="small"
+                        sx={{ color: '#0a3161' }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpen(report);
+                        }}
+                      >
+                        <VisibilityIcon />
+                      </IconButton>
+                    </StyledTableCell>
+                  </StyledTableRow>
+                ))
+              ) : (
+                <StyledTableRow>
+                  <StyledTableCell colSpan={5} align="center">
+                    {loading ? 'Loading...' : 'No reports found'}
+                  </StyledTableCell>
+                </StyledTableRow>
               )}
             </TableBody>
           </Table>

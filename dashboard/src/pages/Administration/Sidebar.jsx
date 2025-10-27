@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Link, useLocation } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import '../../Styles/Administrator_Css/Sidebar.css'
 import logoImage from '../../assets/TRC-vLogo.png'
 import DashboardIcon from '@mui/icons-material/Dashboard'
@@ -8,10 +8,14 @@ import BusinessIcon from '@mui/icons-material/Business'
 import AssessmentIcon from '@mui/icons-material/Assessment'
 import PeopleAltIcon from '@mui/icons-material/PeopleAlt'
 import AccountCircleIcon from '@mui/icons-material/AccountCircle'
+import LogoutIcon from '@mui/icons-material/Logout'
 
 function Sidebar() {
   const location = useLocation();
+  const navigate = useNavigate();
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [showLogout, setShowLogout] = useState(false);
+  const [user, setUser] = useState(null);
 
   useEffect(() => {
     const timerId = setInterval(() => {
@@ -20,6 +24,56 @@ function Sidebar() {
 
     return () => clearInterval(timerId);
   }, []);
+
+  // Get user info from localStorage token
+  useEffect(() => {
+    const token = localStorage.getItem('accessToken');
+    if (token) {
+      try {
+        const decoded = JSON.parse(atob(token.split('.')[1]));
+        setUser(decoded);
+      } catch (error) {
+        console.error('Error decoding token:', error);
+      }
+    }
+  }, []);
+
+  const handleLogout = () => {
+    localStorage.removeItem('accessToken');
+    sessionStorage.removeItem('accessToken');
+    navigate('/login');
+  };
+
+  const toggleLogout = () => {
+    setShowLogout(!showLogout);
+  };
+
+  // Get first name from user object
+  const getFirstName = () => {
+    if (user?.firstName) return user.firstName;
+    if (user?.name) {
+      // If full name is stored, split and get first name
+      return user.name.split(' ')[0];
+    }
+    if (user?.username) return user.username;
+    return 'User';
+  };
+
+  // Get role display name
+  const getRoleDisplay = () => {
+    if (!user?.role) return 'Employee';
+    
+    // Map role codes to display names
+    const roleMap = {
+      'sb-admin': 'SB Employee',
+      'bplo-admin': 'BPLO Employee',
+      'operator': 'Operator',
+      'admin': 'Administrator',
+      'driver': 'Driver'
+    };
+    
+    return roleMap[user.role] || user.role;
+  };
 
   const menuItems = [
     { name: 'Dashboard', icon: <DashboardIcon />, path: '/sb-admin/dashboard' },
@@ -69,12 +123,20 @@ function Sidebar() {
         </span>
       </div>
 
-      <div className="user-profile">
+      <div className="user-profile" onClick={toggleLogout}>
         <AccountCircleIcon className="profile-image-fallback" />
         <div className="user-info">
-          <div className="user-name">Luke Dominic</div>
-          <div className="user-role">SB Employee</div>
+          <div className="user-name">{getFirstName()}</div>
+          <div className="user-role">{getRoleDisplay()}</div>
         </div>
+        {showLogout && (
+          <div className="logout-dropdown" onClick={(e) => e.stopPropagation()}>
+            <button className="logout-button" onClick={handleLogout}>
+              <LogoutIcon className="logout-icon" />
+              <span>Logout</span>
+            </button>
+          </div>
+        )}
       </div>
     </div>
   )

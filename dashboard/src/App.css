@@ -1,9 +1,5 @@
-#root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
-}
+/* Removed #root centering styles that were breaking dashboard layout */
+/* These styles were meant for landing pages, not dashboards */
 
 .logo {
   height: 6em;
