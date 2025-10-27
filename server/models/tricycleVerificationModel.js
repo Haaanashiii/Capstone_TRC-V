@@ -8,6 +8,7 @@ const verificationSlipSchema = new mongoose.Schema({
   sideCar:           { type: String, required: true, trim: true },
   status:            { type: String, required: true, trim: true },
   scNumber:          { type: String, required: true, trim: true, unique: true },
+  profilePhoto:      { type: String },
 
   franchiseNumber:   { type: String, required: true, trim: true, unique: true },
   franchiseStatus:   { type: String, required: true, trim: true },

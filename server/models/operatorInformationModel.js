@@ -11,6 +11,7 @@ const documentSchema = new mongoose.Schema({
 });
 
 const operatorSchema = new mongoose.Schema({
+  operatorId: { type: mongoose.Schema.Types.ObjectId, ref: 'Operator' },
   firstName: { type: String, required: true },
   lastName: { type: String, required: true },
   middleName: { type: String, required: true },
@@ -23,8 +24,10 @@ const operatorSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true, lowercase: true, trim: true, match: [/^\S+@\S+\.\S+$/, 'Invalid email address'] },
   password: { type: String, required: true, minlength: 8, select: false },
   driversID: { type: String, required: true, unique: true },
+  profilePhoto: { type: String },
   documents: documentSchema,
-  applications: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Application' }]
+  applications: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Application' }],
+  franchiseStatus: { type: String, enum: ['active', 'expired'], required: true }
 }, { timestamps: true });
 
-module.exports = mongoose.model('Operator Information', operatorInformationSchema);
+module.exports = mongoose.model('Operator Information', operatorSchema);

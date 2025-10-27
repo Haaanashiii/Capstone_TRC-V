@@ -1,11 +1,27 @@
 const express = require('express');
 const router = express.Router();
 const reportsController = require('../controllers/reportsController');
+const { apiLimiter } = require('../middlewares/rateLimiter');
+const authenticate = require('../middlewares/authenticate');
+const authorize = require('../middlewares/authorize');
 
-router.post('/', reportsController.createReport);
-router.get('/', reportsController.getAllReports);
-router.get('/:id', reportsController.getReportById);
-router.put('/:id', reportsController.updateReport);
-router.delete('/:id', reportsController.deleteReport);
+// Apply rate limiting to all routes
+router.use(apiLimiter);
+
+// Basic CRUD routes (require authentication)
+router.post('/', authenticate, reportsController.createReport);
+router.get('/', authenticate, reportsController.getAllReports);
+router.get('/statistics', authenticate, authorize(['sb-admin', 'bplo-admin']), reportsController.getReportsStatistics);
+
+// Monthly reports with CSV export (admin only)
+router.get('/monthly', authenticate, authorize(['sb-admin', 'bplo-admin']), reportsController.getMonthlyReports);
+
+// Date range reports with CSV export (admin only)
+router.get('/date-range', authenticate, authorize(['sb-admin', 'bplo-admin']), reportsController.getReportsByDateRange);
+
+// Individual report operations
+router.get('/:id', authenticate, reportsController.getReportById);
+router.put('/:id', authenticate, authorize(['sb-admin', 'bplo-admin']), reportsController.updateReport);
+router.delete('/:id', authenticate, authorize(['sb-admin', 'bplo-admin']), reportsController.deleteReport);
 
 module.exports = router;
