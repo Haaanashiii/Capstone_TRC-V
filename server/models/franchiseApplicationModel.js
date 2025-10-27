@@ -7,6 +7,7 @@ const franchiseApplicationSchema = new mongoose.Schema({
   actionType: { type: String, enum: ['NEW', 'RENEWAL', 'AMMENDMENTS'], required: true, uppercase: true ,trim: true},
   operatorAddress: { type: String, required: true },
   profilePhoto: { type: String },
+  qrCode: { type: String }, // Path to QR code image (generated when franchise is approved)
 
   driversID: { type: String, required: true },
   birthPlace: { type: String, required: true },

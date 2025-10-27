@@ -6,9 +6,8 @@
  */
 
 const rateLimit = require('express-rate-limit');
-const RedisStore = require('rate-limit-redis');
 
-// In-memory store for per-QR-ID tracking (use Redis in production)
+// In-memory store for per-QR-ID tracking (no Redis dependency needed)
 const qrScanStore = new Map();
 
 // Cleanup old entries every 5 minutes
