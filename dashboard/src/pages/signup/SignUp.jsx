@@ -5,6 +5,7 @@ import { Box, Button, TextField, Typography, InputAdornment, IconButton, Divider
 import { Visibility, VisibilityOff } from "@mui/icons-material";
 import GoogleIcon from "@mui/icons-material/Google";
 import AccountVerificationModal from '../Services/AccountVerificationModal';
+import api from '../Services/api';
 import '../../Styles/SignupCss/signup.css';
 
 const poppinsTheme = createTheme({
@@ -115,21 +116,16 @@ const SignUp = () => {
       // and open the verification modal. Account creation will happen after
       // the OTP is successfully verified.
       console.log("Requesting OTP for:", form.email);
-      const otpResponse = await fetch(`${API_BASE_URL}/auth/request-otp`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: form.email })
+      const response = await api.post('/auth/request-otp', { 
+        email: form.email 
       });
-      const otpData = await otpResponse.json().catch(() => ({}));
-      if (!otpResponse.ok) {
-        // Still open the modal in some cases? For now show error to user
-        setError(otpData.error || 'Failed to request verification code');
-        return;
+      
+      if (response.data) {
+        setShowVerificationModal(true);
       }
-      setShowVerificationModal(true);
     } catch (error) {
-      console.error("OTP request network error:", error);
-      setError("Network error. Please try again.");
+      console.error("OTP request error:", error);
+      setError(error.response?.data?.error || 'Failed to request verification code');
     }
   };
 
@@ -137,30 +133,25 @@ const SignUp = () => {
     // After OTP verification, create the actual user account
     (async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/users`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            name: form.fullName,
-            username: form.username,
-            email: form.email,
-            password: form.password
-          })
+        const response = await api.post('/users', {
+          name: form.fullName,
+          username: form.username,
+          email: form.email,
+          password: form.password
         });
-        const data = await res.json();
-        if (!res.ok) {
-          setError(data.error || 'Registration failed');
-          } else {
-            setSuccess('Account created and verified! You can now log in.');
-            setForm({ fullName: '', username: '', email: '', password: '', confirmPassword: '' });
-            setPasswordError('');
-            setConfirmPasswordError('');
-            // Sarap ni luke po, best green flag nang bayan
-            navigate('/login');
-          }
-      } catch (err) {
-        console.error('Create user network error:', err);
-        setError('Network error. Please try again.');
+        
+        const data = response.data;
+        if (data) {
+          setSuccess('Account created and verified! You can now log in.');
+          setForm({ fullName: '', username: '', email: '', password: '', confirmPassword: '' });
+          setPasswordError('');
+          setConfirmPasswordError('');
+          // Sarap ni luke po, best green flag nang bayan
+          navigate('/login');
+        }
+      } catch (error) {
+        console.error('Create user error:', error);
+        setError(error.response?.data?.error || 'Registration failed');
       }
     })();
     // Optionally redirect to login page

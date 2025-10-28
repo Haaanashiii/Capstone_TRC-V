@@ -1,6 +1,8 @@
 const User = require('../models/userAccountModel');
 const bcrypt = require('bcryptjs');
 
+
+
 exports.createUserAccount = async (userData) => {
   // If this is an OAuth account and username is missing, generate a safe one from the email
   if (!userData.username && userData.email) {
@@ -100,3 +102,6 @@ exports.findAllAccounts = async () => {
   return await User.find().select('-password');
 };
 
+exports.getAllUsers = async () => {
+  return await User.find({}).select('-password').lean();
+};

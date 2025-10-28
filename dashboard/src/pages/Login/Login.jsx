@@ -5,6 +5,7 @@ import { Visibility, VisibilityOff } from "@mui/icons-material";
 import GoogleIcon from "@mui/icons-material/Google"; 
 import AccountVerificationModal from '../Services/AccountVerificationModal';
 import { useNavigate } from 'react-router-dom';
+import api from '../Services/api';
 
 import '../../Styles/LoginCss/Login.css';
 
@@ -42,41 +43,34 @@ const Login = () => {
     setError("");
     setSuccess("");
     
-  // login attempt started (no sensitive data logged)
+    // login attempt started (no sensitive data logged)
     
     try {
-  console.log("Making login API call");
-      const res = await fetch(`${API_BASE_URL}/auth/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: 'include',
-        body: JSON.stringify({
-          email: form.email,
-          password: form.password
-        })
+      console.log("Making login API call");
+      const response = await api.post('/auth/login', {
+        email: form.email,
+        password: form.password
       });
 
-  const data = await res.json().catch(() => ({}));
-
-      if (!res.ok) {
-        setError(data.error || "Login failed");
-        return;
-      }
+      const data = response.data;
 
       // Save accessToken to both sessionStorage and localStorage for future API calls
       if (data.accessToken) {
         try { 
           sessionStorage.setItem('accessToken', data.accessToken);
-          localStorage.setItem('accessToken', data.accessToken); 
-        } catch (err) { console.warn('Storage unavailable', err); }
+          localStorage.setItem('accessToken', data.accessToken);
+          localStorage.setItem('token', data.accessToken); // For axios interceptor
+        } catch (err) { 
+          console.warn('Storage unavailable', err); 
+        }
       }
 
       // Open verification modal. The backend has attempted to send the OTP
       // to the user's email on record; the modal will POST to /auth/verify-otp.
       setShowVerificationModal(true);
     } catch (error) {
-      console.error("Login network error details:", error);
-      setError("Network error. Please try again.");
+      console.error("Login error:", error);
+      setError(error.response?.data?.error || error.response?.data?.message || "Login failed. Please try again.");
     }
   };
 

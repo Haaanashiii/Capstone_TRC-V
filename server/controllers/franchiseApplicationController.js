@@ -1,4 +1,5 @@
 const franchiseApplicationRepository = require('../repositories/applicationRepository');
+const { generateOperatorQRCode } = require('../services/qrCodeService');
 
 exports.createFranchiseApplication = async (req, res, next) => {
   try {
@@ -45,4 +46,49 @@ exports.deleteFranchiseApplication = async (req, res, next) => {
     } catch (error) {
         next(error);
     }   
+};
+
+/**
+ * Approve franchise application and generate QR code
+ * This endpoint should be called by admin when approving an application
+ */
+exports.approveFranchiseApplication = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const { actionTaken, remarks } = req.body;
+        
+        // Get the application
+        const application = await franchiseApplicationRepository.getFranchiseApplicationById(id);
+        if (!application) {
+            return res.status(404).json({ error: 'Application not found' });
+        }
+        
+        // Update application status
+        const updateData = {
+            actionTaken: actionTaken || 'APPROVED',
+            remarks: remarks || 'Application approved'
+        };
+        
+        // Generate QR code for the approved franchise
+        try {
+            const qrCodeData = await generateOperatorQRCode(id, { saveToFile: true });
+            updateData.qrCode = qrCodeData.filePath;
+            
+            console.log(`[QR GENERATED] Franchise Application: ${id}, File: ${qrCodeData.filePath}`);
+        } catch (qrError) {
+            console.error('QR Code generation failed during approval:', qrError);
+            // Continue with approval even if QR generation fails
+        }
+        
+        // Update the application
+        const updatedApplication = await franchiseApplicationRepository.updateFranchiseApplication(id, updateData);
+        
+        res.status(200).json({
+            success: true,
+            message: 'Franchise application approved successfully',
+            data: updatedApplication
+        });
+    } catch (error) {
+        next(error);
+    }
 };
