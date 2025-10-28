@@ -1,18 +1,24 @@
-import React, { useState, useEffect } from "react";
-import { Link, useLocation } from "react-router-dom";
+import React, { useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   AppBar,
   Toolbar,
   Box,
   Typography,
   Button,
+  Menu,
+  MenuItem,
+  ListItemIcon,
   styled
 } from "@mui/material";
+import PermIdentityIcon from '@mui/icons-material/PermIdentity';
+import LogoutIcon from '@mui/icons-material/Logout';
+import { useAuth } from "../contexts/AuthContext";
 
 // Styled components for horizontal navbar
 const StyledAppBar = styled(AppBar)(() => ({
-  // Unified AppBar background so the navbar looks the same on every page
-  backgroundColor: '#143c6e',
+
+  backgroundColor: '#0a3970',
   position: 'sticky',
   top: 0,
   zIndex: 1000,
@@ -39,7 +45,7 @@ const TrcTitle = styled(Typography)({
   lineHeight: 1,
   marginBottom: '4px',
   '& .yellow': {
-    color: '#ffe066', // brighter yellow used elsewhere in the project
+    color: '#ffe066',
   },
   '& .white': {
     color: 'white',
@@ -87,10 +93,10 @@ const NavButton = styled(Button)(({ isActive }) => ({
 }));
 
 const UserSection = styled(Box)(() => ({
-  backgroundColor: '#143c6e', // keep the user pill blue so it reads on the page
+  backgroundColor: 'transparent',
   color: 'white',
-  borderRadius: '18px',
-  padding: '6px 20px',
+  borderRadius: '24px',
+  padding: '6px 10px',
   display: 'flex',
   alignItems: 'center',
   fontWeight: 600,
@@ -98,6 +104,25 @@ const UserSection = styled(Box)(() => ({
   flexShrink: 0,
   marginLeft: '12px',
   boxShadow: 'none'
+}));
+
+const UserInnerPill = styled(Box)(() => ({
+  backgroundColor: '#143c6e',
+  color: '#fff',
+  padding: '6px 18px',
+  borderRadius: '18px',
+  fontWeight: 700,
+  fontSize: '14px',
+  cursor: 'pointer',
+  boxShadow: '0 6px 18px rgba(0,0,0,0.12)',
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  minHeight: 40,
+  minWidth: 140,
+  userSelect: 'none',
+  '&:focus': { outline: 'none' },
+  '&:active': { transform: 'none' }
 }));
 
 // Small language buttons (EN / TAG)
@@ -127,82 +152,56 @@ const LangGroup = styled(Box)(() => ({
 
 const UnifiedSidebar = ({ userType = "operator", language, onLanguageToggle, translations }) => {
   const location = useLocation();
-  const [userDetails, setUserDetails] = useState(null);
-  
-  // Get user info from token
-  const getUserInfo = () => {
-    const token = localStorage.getItem('accessToken');
-    if (!token) return null;
-    
-    try {
-      const payload = JSON.parse(atob(token.split('.')[1]));
-      return payload;
-    } catch {
-      return null;
-    }
+  const navigate = useNavigate();
+  const { user: authUser, logout } = useAuth();
+  const [anchorEl, setAnchorEl] = useState(null);
+  const menuOpen = Boolean(anchorEl);
+
+  const handleMenuOpen = (e) => setAnchorEl(e.currentTarget);
+  const handleMenuClose = () => setAnchorEl(null);
+
+  // Build a friendly display name from AuthContext user or fall back to token username
+  const getDisplayName = (u) => {
+    if (!u) return 'USER';
+    const full = u.full_name || u.name || u.username || u.email;
+    if (!full) return 'USER';
+    // Prefer showing first name (and last initial if present)
+    const parts = String(full).trim().split(/\s+/);
+    const first = parts[0];
+    const last = parts.slice(1).join(' ');
+    return last ? `${first} ${String(last).charAt(0).toUpperCase()}` : first;
   };
 
-  // Fetch full user details from the server
-  const fetchUserDetails = async () => {
+  const displayName = getDisplayName(authUser);
+
+  const handleLogout = () => {
+    // use AuthContext logout then navigate to landing page
     try {
-      const token = localStorage.getItem('accessToken');
-      if (!token) return;
-
-      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170';
-      console.log('Fetching user details from:', `${API_BASE_URL}/auth/me`);
-      
-      const response = await fetch(`${API_BASE_URL}/auth/me`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      console.log('Response status:', response.status);
-      
-      if (response.ok) {
-        const data = await response.json();
-        console.log('User details received:', data);
-        setUserDetails(data.user);
-      } else {
-        console.error('Failed to fetch user details:', response.status, response.statusText);
-      }
+      logout();
     } catch (error) {
-      console.error('Error fetching user details:', error);
+      // best-effort: log and remove tokens
+      console.error('Error during logout:', error);
+      sessionStorage.removeItem('accessToken');
+      localStorage.removeItem('accessToken');
     }
+    handleMenuClose();
+    navigate('/');
   };
 
-  // Fetch user details on component mount
-  useEffect(() => {
-    const token = localStorage.getItem('accessToken');
-    if (token) {
-      // Get token user data immediately
-      const tokenUser = getUserInfo();
-      if (tokenUser) {
-        setUserDetails(tokenUser);
-      }
-      // Then try to fetch detailed user data
-      fetchUserDetails();
-    }
-  }, []);
-
-  const user = getUserInfo();
-  // Helper to extract first name only for navbar display
-  const getFirstName = (fullName) => {
-    if (!fullName) return 'USER';
-    const parts = String(fullName).trim().split(/\s+/);
-    return parts[0] || fullName;
+  const handleGoToId = () => {
+    handleMenuClose();
+    navigate('/operator/id');
   };
-  const displayName = getFirstName(userDetails?.name || userDetails?.username || user?.name);
 
   const getNavigationItems = () => {
     switch (userType) {
       case "operator":
         return [
+         
           { label: "HOME", path: "/", isActive: location.pathname === "/" },
           { label: "MY FRANCHISE", path: "/operator/franchise", isActive: location.pathname === "/operator/franchise" },
           { label: "OPERATOR ID", path: "/operator/id", isActive: location.pathname === "/operator/id" },
-          { label: "VERIFY TRICYCLE", path: "/login", isActive: false }
+
         ];
       case "admin": //for bplo-admin?
         return [
@@ -214,7 +213,6 @@ const UnifiedSidebar = ({ userType = "operator", language, onLanguageToggle, tra
         return [
           { label: "HOME", path: "/", isActive: location.pathname === "/" },
           { label: "ABOUT US", path: "/", isActive: false },
-          { label: "VERIFY TRICYCLE", path: "/login", isActive: false },
           { label: "NEW APPLICATION", path: "/login", isActive: false }
         ];
     }
@@ -259,12 +257,47 @@ const UnifiedSidebar = ({ userType = "operator", language, onLanguageToggle, tra
           </NavButton>
         ))}
 
-        {/* User Section */}
-        <UserSection>
-          <Typography variant="body2" sx={{ fontSize: '14px' }}>
-            {displayName}
-          </Typography>
-        </UserSection>
+        {/* User Section: show logged-in user via AuthContext; clickable menu */}
+        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+          {displayName && displayName !== 'USER' ? (
+            <>
+              <UserSection component="div">
+                {/* Outer transparent pill with inner blue pill for name */}
+                <UserInnerPill onClick={handleMenuOpen} aria-controls={menuOpen ? 'user-menu' : undefined} aria-haspopup="true">
+                  {displayName}
+                </UserInnerPill>
+              </UserSection>
+              <Menu
+                id="user-menu"
+                anchorEl={anchorEl}
+                open={menuOpen}
+                onClose={handleMenuClose}
+                anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+                transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+                PaperProps={{ sx: { borderRadius: 2, minWidth: 200 } }}
+              >
+                <MenuItem onClick={handleGoToId}>
+                  <ListItemIcon sx={{ minWidth: 40 }}>
+                    <PermIdentityIcon fontSize="small" />
+                  </ListItemIcon>
+                  Operator ID
+                </MenuItem>
+                <MenuItem onClick={handleLogout}>
+                  <ListItemIcon sx={{ minWidth: 40 }}>
+                    <LogoutIcon fontSize="small" />
+                  </ListItemIcon>
+                  Logout
+                </MenuItem>
+              </Menu>
+            </>
+          ) : (
+            <UserSection>
+              <Typography variant="body2" sx={{ fontSize: '14px' }}>
+                {displayName}
+              </Typography>
+            </UserSection>
+          )}
+        </Box>
       </Box>
     </NavigationSection>
 

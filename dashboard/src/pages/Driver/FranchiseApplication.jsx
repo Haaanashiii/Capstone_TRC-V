@@ -185,7 +185,7 @@ export default function FranchiseApplication() {
     setUploads({ ...uploads, [key]: e.target.files[0] });
   };
 
-  // Refs for file inputs
+
   const fileRefs = {
     registration: useRef(),
     barangay: useRef(),
@@ -204,10 +204,10 @@ export default function FranchiseApplication() {
         onLanguageToggle={() => setLanguage(language === 'en' ? 'tl' : 'en')}
         translations={t}
       />
-      {/* Main Content */}
+
       <div className="franchise-app-bg">
         <div className="franchise-app-paper">
-        {/* modal yeh */}
+       
         {modalDocKey && (
           <div className="franchise-modal-bg">
             <div className="franchise-modal" style={{ maxWidth: 480, borderRadius: 18, background: '#fff', boxShadow: '0 4px 24px #0002', padding: 36, position: 'relative' }}>
@@ -426,15 +426,88 @@ export default function FranchiseApplication() {
               </div>
             ))}
           </div>
-               <div style={{ display: 'flex', justifyContent: 'flex-end', margin: '32px 0 0 0' }}>
-              <Button
-                variant="contained"
-                sx={{ bgcolor: '#174D7A', color: '#fff', fontWeight: 700, borderRadius: 2, fontSize: 18, px: 4, py: 1 }}
-                onClick={() => {/* handle submit logic here */}}
-              >
-                {t.submitApplication}
-              </Button>
-            </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', margin: '32px 0 0 0' }}>
+                <Button
+                  variant="contained"
+                  sx={{ bgcolor: '#174D7A', color: '#fff', fontWeight: 700, borderRadius: 2, fontSize: 18, px: 4, py: 1 }}
+                  onClick={async () => {
+                    // Build application payload
+                    const timestamp = Date.now()
+                    const franchiseNumber = `F${String(Math.floor(Math.random() * 900) + 1).padStart(3, '0')}`
+
+                      const mapFile = (file) => {
+                        if (!file) return null
+                        // Do not include blob/object URLs in server payload (not accessible from other clients)
+                        return { name: file.name || '', type: file.type || 'application/octet-stream' }
+                      }
+
+                    const newApp = {
+                      id: timestamp,
+                      franchiseNumber,
+                      name: fields.operatorName,
+                      make: '',
+                      plateNumber: fields.sidecarPlate || '',
+                      applicationType: 'New',
+                      address: '',
+                      contactNumber: fields.contact,
+                      sidecarPlateNumber: fields.sidecarPlate,
+                      birthPlace: fields.birthPlace,
+                      birthDate: fields.birthDate ? fields.birthDate.format ? fields.birthDate.format('YYYY-MM-DD') : fields.birthDate : '',
+                      civilStatus: fields.civilStatus,
+                      citizenship: fields.citizenship,
+                      todaMembership: fields.todaMembership,
+                      unitModel: '',
+                      colorMotor: '',
+                      colorSidecar: '',
+                      mvPlate: '',
+                      motorEngineNumber: '',
+                      chassisNumber: '',
+                      driverName: '',
+                      driverAddress: '',
+                      documentRegistration: mapFile(uploads.registration),
+                      documentBarangayClearance: mapFile(uploads.barangay),
+                      documentCedula: mapFile(uploads.cedula),
+                      documentDriversLicense: mapFile(uploads.license),
+                      documentVotersAffidavit: mapFile(uploads.affidavit),
+                      documentPicture: mapFile(uploads.picture),
+                    }
+
+                    // POST to server endpoint so admin users on other machines can see it
+                    try {
+                      const apiBase = 'http://localhost:5170'
+                      const resp = await fetch(`${apiBase}/api/pending-apps`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(newApp)
+                      })
+
+                      if (!resp.ok) throw new Error('Failed to submit application')
+
+                      // Success: clear local form state (keep user on same page to avoid admin login redirect)
+                      setFields({
+                        date: dayjs(),
+                        sidecarPlate: "",
+                        operatorName: "",
+                        contact: "",
+                        birthPlace: "",
+                        birthDate: null,
+                        civilStatus: "",
+                        citizenship: "",
+                        todaMembership: "",
+                      })
+                      setUploads({ registration: null, barangay: null, cedula: null, license: null, affidavit: null, picture: null })
+
+                      // Provide feedback to the user
+                      window.alert('Application submitted successfully. Administrators will be able to review it shortly.')
+                    } catch (err) {
+                      console.error('Failed to POST application to server', err)
+                      window.alert('Failed to submit application. Please try again later.')
+                    }
+                  }}
+                >
+                  {t.submitApplication}
+                </Button>
+              </div>
 
           {/* Sworn Statement Section */}
           <div className="franchise-app-section" style={{ marginTop: 32 }}>

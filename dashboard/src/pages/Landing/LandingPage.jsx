@@ -1,9 +1,10 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from 'react-router-dom';
 import '../../Styles/LandingCss/LandingPage.css';
-
-import { useEffect, useState } from 'react';
-import { CheckCircle, Building2, GraduationCap, Users, Shield } from 'lucide-react';
+import { useAuth } from '../../contexts/AuthContext';
+import { Menu, MenuItem, ListItemIcon } from '@mui/material';
+import PermIdentityIcon from '@mui/icons-material/PermIdentity';
+import LogoutIcon from '@mui/icons-material/Logout';
 
 const Card = ({ children, className }) => (
   <div className={className}>{children}</div>
@@ -11,7 +12,15 @@ const Card = ({ children, className }) => (
 
 const LandingPage = () => {
   const navigate = useNavigate();
-  const [scrollY, setScrollY] = useState(0);
+  const { user, logout, login } = useAuth();
+  const [anchorEl, setAnchorEl] = useState(null);
+  const menuOpen = Boolean(anchorEl);
+  const displayName = user ? (user.full_name || user.name || user.username) : null;
+
+  const handleMenuOpen = (e) => setAnchorEl(e.currentTarget);
+  const handleMenuClose = () => setAnchorEl(null);
+  const handleGoToId = () => { handleMenuClose(); navigate('/operator/id'); };
+  const handleLogout = () => { try { logout(); } catch { sessionStorage.removeItem('accessToken'); localStorage.removeItem('accessToken'); } handleMenuClose(); navigate('/'); };
   
   useEffect(() => {
     try {
@@ -21,6 +30,24 @@ const LandingPage = () => {
         const token = params.get('access_token');
         if (token) {
           localStorage.setItem('accessToken', token);
+          // Also notify AuthContext about the new login so components update immediately
+          try {
+            const decoded = JSON.parse(atob(token.split('.')[1]));
+            const userInfo = {
+              id: decoded.id,
+              role: decoded.role,
+              name: decoded.name || decoded.username || decoded.email,
+              full_name: decoded.full_name || decoded.name || decoded.username,
+              username: decoded.username,
+            };
+            // call AuthContext login if available
+            if (typeof login === 'function') {
+              login(token, userInfo);
+            }
+          } catch (e) {
+            // ignore decode errors, token is still stored
+            console.warn('Failed to decode token in landing page:', e);
+          }
           // remove token from URL if available
           if (window.history && typeof window.history.replaceState === 'function') {
             try { window.history.replaceState(null, '', window.location.pathname); } catch (err) { console.warn('replaceState failed', err); }
@@ -28,31 +55,9 @@ const LandingPage = () => {
         }
       }
   } catch { /* ignore */ }
-  }, []);
+  }, [login]);
 
-  useEffect(() => {
-    const handleScroll = () => setScrollY(window.scrollY);
-    window.addEventListener("scroll", handleScroll);
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
-
-  const benefits = [
-    "Modernizes manual record management",
-    "Eliminates verification delays",
-    "Resolves data inconsistencies",
-    "Reduces administrative workload",
-    "Minimizes paperwork and filing",
-    "Promotes transparency and accountability",
-    "Ensures regulatory compliance",
-    "Enables real-time monitoring"
-  ];
-
-  // const partners = [
-  //   { name: "Municipality of Solano", role: "Local Government Partner", icon: Building2 },
-  //   { name: "Saint Mary's University", role: "Academic Development Partner", icon: GraduationCap },
-  //   { name: "IT Students", role: "System Developers", icon: Users },
-  //   { name: "Transport Authorities", role: "Regulatory Partners", icon: Shield }
-  // ];
+  
   return (
     /* Adjust nyo nalang kung ayaw ko design hehe */ 
 
@@ -68,19 +73,48 @@ const LandingPage = () => {
         </div>
         <nav className="landing-nav">
           <button className="nav-link" onClick={() => navigate('/')}>HOME</button>
-          <button className="nav-link" onClick={() => navigate('/')}>ABOUT US</button>
-          <button className="nav-link" onClick={() => navigate('/login')}>VERIFY TRICYCLE</button>
+          {/* Show different label & route when user is logged in */}
+          {displayName ? (
+            <button className="nav-link" onClick={() => navigate('/request-amendment')}>REQUEST FOR AMENDMENT</button>
+          ) : (
+            <button className="nav-link" onClick={() => navigate('/login')}>VERIFY TRICYCLE</button>
+          )}
           <button className="nav-link" onClick={() => navigate('/login')}>NEW APPLICATION</button>
-          <button className="nav-login" onClick={() => navigate('/login')}>LOGIN</button>
+          {/* If user is logged in show name and menu, otherwise show Login button */}
+          {displayName ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              
+              <div style={{ background: 'rgba(255,255,255,0.12)', padding: '6px 10px', borderRadius: 28, display: 'flex', alignItems: 'center' }}>
+               
+                <div onClick={handleMenuOpen} style={{ background: '#143c6e', color: '#fff', padding: '6px 16px', borderRadius: 20, fontWeight: 700, cursor: 'pointer', boxShadow: '0 4px 12px rgba(0,0,0,0.12)' }}>{displayName}</div>
+              </div>
+              <Menu anchorEl={anchorEl} open={menuOpen} onClose={handleMenuClose} anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }} transformOrigin={{ vertical: 'top', horizontal: 'right' }} PaperProps={{ sx: { borderRadius: 2, minWidth: 200 } }}>
+                <MenuItem onClick={handleGoToId}>
+                  <ListItemIcon sx={{ minWidth: 40 }}>
+                    <PermIdentityIcon fontSize="small" />
+                  </ListItemIcon>
+                  Operator ID
+                </MenuItem>
+                <MenuItem onClick={handleLogout}>
+                  <ListItemIcon sx={{ minWidth: 40 }}>
+                    <LogoutIcon fontSize="small" />
+                  </ListItemIcon>
+                  Logout
+                </MenuItem>
+              </Menu>
+            </div>
+          ) : (
+            <button className="nav-login" onClick={() => navigate('/login')}>LOGIN</button>
+          )}
         </nav>
       </header>
       <main className="landing-main">
         
         <div className="main-content">
           <h1>Tricycle Verification and<br />Hassle-Free Online<br />Franchise in Solano</h1>
+           {/* For button  */}
           <div className="main-buttons">
-            <button className="main-btn yellow" onClick={() => navigate('/login')}>VERIFY A TRICYCLE</button>
-            <button className="main-btn yellow" onClick={() => navigate('/login')}>APPLY/RENEW FRANCHISE</button>
+            <button className="main-btn yellow" onClick={() => navigate('/login')}>RENEW A FRANCHISE</button>
           </div>
         </div>
         <div className="main-image" style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', height: '100%' }}>
@@ -128,75 +162,6 @@ const LandingPage = () => {
 
       <div className="min-h-screen bg-[#F4D77E]">
       
-        <section className="relative overflow-hidden pt-20 pb-32 px-6">
-          <div 
-            className="absolute inset-0 opacity-10"
-            style={{
-              transform: `translateY(${scrollY * 0.5}px)`,
-              background: `radial-gradient(circle at 30% 20%, #1B4B75 0%, transparent 50%),
-                          radial-gradient(circle at 70% 60%, #1B4B75 0%, transparent 50%)`
-            }}
-          />
-          
-          <div className="max-w-6xl mx-auto relative z-10">
-            <div className="bg-[#1B4B75] inline-block px-8 py-3 mb-8">
-              <h2 className="text-white font-bold text-2xl tracking-wide">ABOUT US</h2>
-            </div>
-            
-            <h1 className="text-5xl md:text-7xl font-bold text-[#1B4B75] mb-6 leading-tight">
-              Tricycle Verification System (TRC-V)
-            </h1>
-            
-            <p className="text-xl md:text-2xl text-gray-800 max-w-3xl leading-relaxed font-medium mb-4">
-              A digital platform designed to modernize and streamline the tricycle franchising 
-              and verification process within the Municipality of Solano.
-            </p>
-            
-            <p className="text-lg text-gray-700 max-w-3xl leading-relaxed">
-              Developed through an innovative academic-government partnership with Saint Mary's University.
-            </p>
-          </div>
-        </section>
-
-        <section className="py-24 px-6 bg-[#1B4B75]">
-          <div className="max-w-6xl mx-auto">
-            <div className="grid md:grid-cols-2 gap-16 items-center">
-              <div>
-                <div className="bg-[#F4D77E] inline-block px-6 py-2 mb-6">
-                  <h3 className="text-[#1B4B75] font-bold text-lg">OUR PURPOSE</h3>
-                </div>
-                <h2 className="text-4xl md:text-5xl font-bold text-[#F4D77E] mb-6">
-                  Transforming Tricycle Franchising Through Technology
-                </h2>
-                <p className="text-lg text-white/90 mb-4 leading-relaxed">
-                  The TRC-V system was developed to address long-standing challenges in manual 
-                  record management, verification delays, and data inconsistencies by introducing 
-                  a centralized, automated, and transparent solution.
-                </p>
-                <p className="text-lg text-white/90 leading-relaxed">
-                  Our platform enables local government offices to efficiently manage tricycle 
-                  franchise applications, verify registered operators, and monitor franchise status 
-                  in real time, ensuring that only authorized and compliant tricycles operate within 
-                  the municipality.
-                </p>
-              </div>
-              
-              <div className="relative">
-                <div className="absolute -top-8 -right-8 w-64 h-64 bg-[#F4D77E] rounded-full opacity-20 blur-3xl" />
-                <div className="relative bg-white/10 backdrop-blur-sm rounded-3xl p-8 border-4 border-[#F4D77E]">
-                  <div className="space-y-4">
-                    {benefits.map((benefit, index) => (
-                      <div key={index} className="flex items-start gap-3">
-                        <CheckCircle className="w-6 h-6 text-[#F4D77E] flex-shrink-0 mt-1" />
-                        <span className="text-white font-medium">{benefit}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
 
         {/* FEATURES Hatdog */}
         <div style={{ background: '#F4D77E', padding: '40px 0' }}>
@@ -234,7 +199,7 @@ const LandingPage = () => {
           </div>
         </div>
       
-      </div> {/* End of min-h-screen bg-[#F4D77E] */}
+      </div> 
 
     {/* Footer Sectionsz */}
     <footer

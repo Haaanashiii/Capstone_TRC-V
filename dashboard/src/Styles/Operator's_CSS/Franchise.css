@@ -12,6 +12,12 @@
   display: flex;
   flex-direction: column;
   align-items: flex-start;
+  .franchise-page-content {
+    max-width: 1200px;
+    margin: 12px auto; /* centered */
+    padding: 0 24px;
+    box-sizing: border-box;
+  }
   gap: 2px;
 }
 .franchise-header-title-main {
@@ -21,6 +27,16 @@
   letter-spacing: 2px;
 }
 .franchise-header-title-main span {
+  .profile-header-card {
+    width: 100%;
+    border-radius: 18px;
+    padding: 28px;
+    box-sizing: border-box;
+  /* changed from gradient to a solid yellow background */
+  background: #F5D76E;
+    box-shadow: 0 8px 30px rgba(23,77,122,0.12);
+    margin: 16px 0;
+  }
   color: #F5D76E;
   font-weight: bold;
 }
@@ -33,6 +49,18 @@
 .franchise-nav-bar-pill {
   background: #fff;
   border-radius: 40px;
+  .avatar-square {
+    width: 120px;
+    height: 120px;
+    border-radius: 18px;
+    background: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 8px 24px rgba(20,63,115,0.06);
+    border: 4px solid #083d77; /* blue outline */
+    overflow: hidden;
+  }
   display: flex;
   align-items: center;
   padding: 8px 28px;
@@ -48,20 +76,55 @@
 }
 .franchise-nav-pill-link {
 
+  .avatar-alert {
+    position: absolute;
+    right: -8px;
+    bottom: -8px;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: #083d77; /* blue background */
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    box-shadow: 0 6px 12px rgba(0,0,0,0.12);
+  }
 /* High-specificity override: ensure the centered card reaches the right edge across browsers
    and hide any thin blue strip caused by rounding/scrollbar spacing. The !important flags
    are intentional here to force this layout while we verify in the browser. */
 .franchise-bg .franchise-card-centered {
-  max-width: 1100px !important;
-  width: calc(100% - 32px) !important; /* smaller gutter so card fills more of the viewport */
-  margin: -80px auto 0 auto !important; /* centered with reduced gutters */
+  /* increase available width while preserving overlap under header */
+  max-width: 1200px !important;
+  width: calc(100% - 80px) !important; /* larger gutters removed to maximize space */
+  margin: -80px auto 0 auto !important;
   box-sizing: border-box !important;
-  border-radius: 1.5rem !important; /* keep rounded corners but slightly smaller */
+  .badge-pill {
+    display: inline-block;
+    color: #fff;
+    padding: 8px 16px;
+    border-radius: 999px;
+    font-weight: 700;
+    margin-bottom: 14px;
+  }
+  .badge-pill.inactive { background: linear-gradient(90deg,#EF4444 0%, #DC2626 100%); }
+  .badge-pill.active { background: linear-gradient(90deg,#16A34A 0%, #10B981 100%); }
+  border-radius: 1.5rem !important;
   overflow: visible !important;
 }
+  .application-inner { text-align: center; max-width: 1200px; margin: 0 auto; }
+  .application-title { font-size:32px; color:#000; margin: 6px 0 8px 0; font-weight:800; }
+  .application-sub { color:#ffffff; margin-bottom:32px; font-weight:600; }
 
+  .app-card { background:#fff; border-radius:12px; padding:28px; box-shadow: 0 10px 24px rgba(23,77,122,0.06); text-align:left; display:flex; flex-direction:column; gap:14px; }
 /* On narrow screens reduce the overlap and gutters so the header and card don't collide */
+  .app-card-icon { width:56px; height:56px; border-radius:12px; background:#fff; color:#174D7A; display:flex; align-items:center; justify-content:center; font-size:22px; box-shadow: 0 6px 18px rgba(23,77,122,0.06);} 
 @media (max-width: 768px) {
+  .app-card-cta { margin-top:auto; background:linear-gradient(90deg,#174D7A,#0A3970); border:none; padding:18px 26px; border-radius:12px; font-weight:800; color:#ffffff; cursor:pointer; box-shadow: 0 20px 40px rgba(23,77,122,0.12); width:100%; text-align:center; font-size:18px; }
+
+  /* check icon (feature list) color override when using svg icons */
+  .app-card .feature-check svg, .app-card .feature-check { color: #F5D76E; }
   .franchise-bg .franchise-card-centered {
     width: calc(100% - 24px) !important;
     margin: -32px 12px 0 12px !important;
@@ -81,7 +144,7 @@
   color: #174D7A;
 }
 .franchise-nav-pill-user {
-  background: #174D7A;
+  background: #083d77;
   color: #fff;
   font-weight: bold;
   font-size: 16px;
@@ -103,25 +166,28 @@
   min-height: calc(100vh - 64px);
   display: flex;
   justify-content: center;
-  align-items: flex-start;
-  padding-top: 0; /* remove top padding so card can sit under header */
-  padding-bottom: 48px;
+  align-items: center; /* center vertically */
+  padding-top: 0; /* keep no top padding so card can sit under header */
+  padding-bottom: 0; /* remove bottom padding to avoid extra page height */
+  overflow: hidden; /* prevent the page from scrolling when this component is shown */
 }
 .franchise-card-centered {
   background: #fff;
   border-radius: 2rem;
   box-shadow: 0 2px 16px #174D7A22;
-  /* make the card span the available viewport width minus gutters, but cap at 1100px */
-  max-width: 1100px;
-  width: calc(100% - 48px);
-  margin: -80px auto 0 auto; /* pull card up and center with 24px implicit gutters */
+  /* make the card span the available viewport width minus gutters, but cap at 1200px */
+  max-width: 1200px;
+  width: calc(100% - 96px);
+  margin: 0 auto;
   position: relative;
-  padding-top: 36px;
+  padding-top: 80px;
   padding-bottom: 40px;
   display: flex;
   flex-direction: column;
   align-items: center;
   box-sizing: border-box;
+  max-height: calc(100vh - 80px);
+  overflow: hidden;
 }
 .franchise-profile-img-outer-centered {
   position: absolute;
@@ -147,7 +213,7 @@
 .franchise-card-name-centered {
   font-weight: bold;
   font-size: 36px;
-  color: #174D7A;
+  color: #083d77;
   margin-top: 12px;
   text-align: center;
 }
@@ -166,7 +232,7 @@
 .franchise-card-title-centered {
   font-weight: bold;
   font-size: 32px;
-  color: #174D7A;
+  color: #083d77;
   text-align: center;
   margin-bottom: 8px;
 }
@@ -185,7 +251,7 @@
 }
 .franchise-btn-centered {
   background: #F7D76E;
-  color: #174D7A;
+  color: #083d77;
   font-weight: bold;
   font-size: 24px;
   border: none;
@@ -213,7 +279,7 @@ body, html {
 }
 
 #root {
-  background: #0a3970 !important;
+  background: #083d77 !important;
   max-width: none !important;
   margin: 0 !important;
   padding: 0 !important;
@@ -222,7 +288,7 @@ body, html {
 
 .franchise-bg {
   min-height: 100vh;
-  background: #0a3970;
+  background: #083d77;
   font-family: 'Poppins', sans-serif !important;
 }
 
@@ -261,7 +327,7 @@ body, html {
 }
 .franchise-nav-link {
   background: #fff;
-  color: #174D7A;
+  color: #083d77;
   font-weight: bold;
   font-size: 16px;
   border-radius: 20px;
@@ -280,7 +346,7 @@ body, html {
   border-radius: 20px;
   padding: 8px 18px;
   font-weight: bold;
-  color: #174D7A;
+  color: #083d77;
   font-size: 16px;
   margin-left: 12px;
 }
@@ -321,7 +387,7 @@ body, html {
 .franchise-card-name {
   font-weight: bold;
   font-size: 36px;
-  color: #174D7A;
+  color: #083d77;
   margin-top: 12px;
 }
 .franchise-card-status {
@@ -338,7 +404,7 @@ body, html {
 .franchise-card-title {
   font-weight: bold;
   font-size: 32px;
-  color: #174D7A;
+  color: #083d77;
   text-align: center;
   margin-bottom: 8px;
 }
@@ -357,7 +423,7 @@ body, html {
 }
 .franchise-btn {
   background: #F5D76E;
-  color: #174D7A;
+  color: #083d77;
   font-weight: bold;
   font-size: 24px;
   border: none;
@@ -396,7 +462,7 @@ body, html {
 .franchise-modal-title {
   font-weight: bold;
   font-size: 28px;
-  color: #174D7A;
+  color: #083d77;
   margin-bottom: 18px;
 }
 .franchise-modal-desc {
@@ -407,7 +473,7 @@ body, html {
 }
 .franchise-modal-label {
   font-weight: bold;
-  color: #174D7A;
+  color: #083d77;
   font-size: 16px;
 }
 .franchise-modal-input {
@@ -478,3 +544,238 @@ body, html {
   padding: 10px 32px;
   cursor: pointer;
 }
+
+/* New profile header styles to match provided mockup */
+.profile-header-card {
+  width: 100%;
+  border-radius: 18px;
+  padding: 28px;
+  box-sizing: border-box;
+  background: linear-gradient(180deg, #F3EAFE 0%, #F6E7F2 60%, #FBEFF6 100%);
+  box-shadow: 0 8px 30px rgba(23,77,122,0.08);
+  margin: 16px 24px;
+}
+.profile-header-inner {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+.avatar-wrap {
+  position: relative;
+  flex: 0 0 auto;
+}
+.avatar-square {
+  width: 120px;
+  height: 120px;
+  border-radius: 18px;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 8px 24px rgba(20,63,115,0.06);
+  border: 4px solid rgba(104, 64, 255, 0.85); /* purple outline */
+  overflow: hidden;
+}
+.avatar-img { width: 100%; height: 100%; object-fit: cover; }
+.avatar-placeholder { display: flex; align-items: center; justify-content: center; }
+.avatar-alert {
+  position: absolute;
+  right: -8px;
+  bottom: -8px;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(90deg,#FF7A3D 0%, #FF4E2D 100%);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  box-shadow: 0 6px 12px rgba(0,0,0,0.12);
+}
+.profile-info { flex: 1 1 auto; }
+.profile-name {
+  font-size: 56px; /* reduced to a balanced large size */
+  line-height: 1.02;
+  font-weight: 800;
+  margin: 0 0 6px 0;
+  color: #0b2740;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  letter-spacing: 0.5px;
+}
+.badge-pill {
+  display: inline-block;
+  background: linear-gradient(90deg,#FF6F3D 0%, #FF8A3D 100%);
+  color: #fff;
+  padding: 8px 16px;
+  border-radius: 999px;
+  font-weight: 700;
+  margin-bottom: 14px;
+}
+.profile-desc {
+  display: none !important; /* removed as requested */
+}
+
+@media (max-width: 768px) {
+  .profile-header-inner { flex-direction: row; gap: 12px; }
+  .avatar-square { width: 96px; height: 96px; }
+  .profile-name { font-size: 40px; }
+}
+
+/* Application section styles (separate card holder under header) */
+.application-section {
+  /* remove white holder so section sits flush under header */
+  background: transparent;
+  border-radius: 0;
+  margin: 8px 12px 32px 12px;
+  padding: 24px 12px 40px 12px;
+  box-shadow: none;
+}
+.application-inner { text-align: center; max-width: 1200px; margin: 0 auto; }
+.application-title { font-size:32px; color:#000; margin: 6px 0 8px 0; font-weight:800; }
+.application-sub { color:#172B3A; margin-bottom:32px; font-weight:600; }
+.options-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:28px; margin-top:28px; }
+.app-card { background:#fff; border-radius:12px; padding:28px; box-shadow: 0 10px 24px rgba(23,77,122,0.04); text-align:left; display:flex; flex-direction:column; gap:14px; }
+.app-card { background:#fff; border-radius:12px; padding:28px; box-shadow: 0 10px 24px rgba(23,77,122,0.04); text-align:left; display:flex; flex-direction:column; gap:14px; }
+.app-card-icon { width:56px; height:56px; border-radius:12px; background:linear-gradient(90deg,#8B5CF6,#EC4899); color:#fff; display:flex; align-items:center; justify-content:center; font-size:22px; }
+.app-card-title { font-size:20px; color:#0b2740; margin:0; font-weight:700; }
+.app-card-desc { color:#54656f; margin:0 0 8px 0; font-size:14px; }
+.app-card-cta { margin-top:auto; background:linear-gradient(90deg,#6D28D9,#EC4899); border:none; padding:18px 26px; border-radius:12px; font-weight:800; color:#ffffff; cursor:pointer; box-shadow: 0 20px 40px rgba(99,102,241,0.12); width:100%; text-align:center; font-size:18px; }
+
+@media (max-width: 900px) {
+  .options-grid { grid-template-columns: 1fr; }
+  .application-inner { padding: 0 12px; }
+}
+
+/* Prevent horizontal scroll on small/big viewports */
+.franchise-bg { overflow-x: hidden; }
+html, body { overflow-x: hidden; }
+
+
+html, body, .franchise-bg, #root {
+
+  min-height: 100vh;
+  overflow-x: hidden; /* prevent horizontal scroll */
+  overflow-y: auto; /* allow vertical scrolling */
+}
+
+/* If any .franchise-card-centered wrapper remains, make it transparent so there's no white 'paper' */
+.franchise-card-centered {
+  background: transparent !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+}
+
+/* Page-level content wrapper (no white paper) */
+.franchise-page-content {
+  max-width: 1200px;
+  margin: 12px 24px;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+/* Reduce header/card sizing so content fits vertically */
+.profile-header-card { padding: 18px !important; margin: 8px 12px !important; }
+.avatar-square { width: 72px !important; height: 72px !important; }
+.profile-name { font-size: 56px !important; line-height:1.02 !important; }
+.profile-desc { font-size: 13px !important; }
+
+/* Compact application section */
+.application-section { padding: 12px 8px 18px 8px !important; margin: 6px 8px 12px 8px !important; }
+.application-title { font-size: 24px !important; }
+.options-grid { gap: 12px !important; margin-top: 12px !important; }
+.app-card { padding: 12px !important; }
+.app-card-cta { padding: 10px 14px !important; }
+
+/* If content still overflows on very small viewports, allow internal scrolling on the application area only */
+@media (max-height: 700px) {
+  .application-inner { max-height: calc(100vh - 200px); overflow-y: auto; }
+}
+
+.franchise-page-content { margin: 18px auto !important; }
+.profile-header-card {
+
+  background: #F5D76E !important;
+  color: #072033 !important;
+  border-radius: 12px !important;
+  margin: 12px 18px !important;
+  padding: 28px 36px !important; /* increased padding to fit larger title */
+  box-shadow: none !important;
+  width: calc(100% - 36px) !important;
+}
+.profile-header-card .profile-desc { color: rgba(11,39,64,0.85) !important; }
+
+.avatar-square { display: none !important; }
+.avatar-alert { display: none !important; }
+.badge-pill.inactive { background: linear-gradient(90deg,#EF4444 0%, #DC2626 100%) !important; }
+.badge-pill.active { background: linear-gradient(90deg,#16A34A 0%, #10B981 100%) !important; }
+.application-sub { color: #ffffff !important; }
+.app-card { background: #fff !important; }
+.app-card-icon { background: #fff !important; color: #174D7A !important; box-shadow: 0 6px 18px rgba(23,77,122,0.08) !important; }
+.app-card-cta { background: linear-gradient(90deg,#174D7A,#0A3970) !important; color: #fff !important; box-shadow: 0 20px 40px rgba(23,77,122,0.12) !important; }
+.app-card {
+  /* Center card content both vertically and horizontally */
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: center !important;
+  align-items: center !important;
+  text-align: center !important;
+}
+.app-card .app-card-title, .app-card .app-card-desc { width: 100%; }
+.app-card-cta {
+  /* don't push button to the bottom; keep some gap from content and center it */
+  margin-top: 18px !important;
+  width: 92% !important;
+}
+.app-card .feature-check svg, .app-card .feature-check { color: #F5D76E !important; }
+
+/* Ensure compact responsive overrides don't re-introduce old gradients */
+@media (max-width: 900px) {
+  .app-card-cta { padding: 14px 12px !important; font-size: 16px !important; }
+}
+
+/* Hover & interaction animations for app cards */
+.app-card {
+  transition: transform 260ms cubic-bezier(.2,.9,.2,1), box-shadow 260ms cubic-bezier(.2,.9,.2,1);
+  will-change: transform, box-shadow;
+}
+.app-card:hover {
+  transform: translateY(-10px);
+  box-shadow: 0 30px 60px rgba(7,36,67,0.22);
+}
+.app-card:focus-within {
+  transform: translateY(-6px);
+  box-shadow: 0 22px 44px rgba(7,36,67,0.18);
+}
+.app-card-icon {
+  transition: transform 360ms cubic-bezier(.2,.9,.2,1), box-shadow 360ms cubic-bezier(.2,.9,.2,1);
+  will-change: transform;
+}
+.app-card:hover .app-card-icon {
+  transform: translateY(-6px) scale(1.06) rotate(-3deg);
+  box-shadow: 0 10px 30px rgba(23,77,122,0.12);
+}
+.app-card-cta {
+  transition: transform 200ms ease, box-shadow 200ms ease, background 200ms ease;
+}
+.app-card-cta:hover, .app-card-cta:focus {
+  transform: translateY(-3px);
+  box-shadow: 0 30px 50px rgba(7,36,67,0.18);
+}
+.app-card-cta:active {
+  transform: translateY(0);
+  box-shadow: 0 18px 36px rgba(7,36,67,0.14);
+}
+
+/* Accessible focus styles */
+.app-card:focus-within { outline: none; }
+.app-card-cta:focus { outline: 3px solid rgba(245,215,110,0.28); outline-offset: 4px; }
+
+

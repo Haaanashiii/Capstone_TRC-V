@@ -121,7 +121,8 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 24px 40px 0 40px;
+  /* For landing main content */
+  padding: 20px 60px 20px 40px;
 }
 .logo-title {
   display: flex;
@@ -199,14 +200,12 @@
 .landing-main {
   flex: 1;
   display: flex;
-  align-items: center;
+  /* anchor content to the top of the main area so it sits closer under the header */
+  align-items: flex-start;
   justify-content: space-between;
-  padding: 40px 90px 0 260px;
+  padding: 0 90px 0 260px;
   width: 100%;
   box-sizing: border-box;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
   gap: 40px;
 }
 .main-content {
@@ -215,9 +214,10 @@
 .main-content h1 {
   font-size: 3.7rem;
   font-weight: 600;
-  margin-bottom: 100px;
+  /* reduced bottom margin to bring following content up */
+  margin-bottom: 48px;
   line-height: 1.2;
-   margin-left: -100px;
+  margin-left: -100px;
 }
 .main-desc {
   font-size: 1.1rem;
@@ -228,7 +228,8 @@
   display: flex;
   gap: 32px;
   justify-content: center;
-  margin-top: 64px;
+  /* smaller top margin so buttons sit nearer the headline */
+  margin-top: 24px;
   border: none !important;
   width: 450px;
   max-width: 100%;
