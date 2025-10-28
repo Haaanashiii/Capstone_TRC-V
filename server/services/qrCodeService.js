@@ -1,8 +1,77 @@
 const QRCode = require('qrcode');
 const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
+
+// Ensure QR code directory exists
+const qrCodeDir = 'uploads/operators/qrcodes';
+if (!fs.existsSync(qrCodeDir)) {
+  fs.mkdirSync(qrCodeDir, { recursive: true });
+}
 
 /**
- * Generates a secure QR code with static URL for verification
+ * Generates a secure QR code for operator verification
+ * @param {string} operatorId - The operator's MongoDB _id
+ * @param {Object} options - Additional options (save to file, etc.)
+ * @returns {Promise<Object>} - Object containing QR code data URL and file path
+ */
+async function generateOperatorQRCode(operatorId, options = {}) {
+  if (!operatorId) {
+    throw new Error('Operator ID is required to generate QR code');
+  }
+
+  // Create verification URL with operator ID
+  const baseUrl = (process.env.BASE_URL || 'http://localhost:5173').replace(/\/+$/, '');
+  const verificationUrl = `${baseUrl}/operator/id/${operatorId}`;
+  
+  // Generate QR code options
+  const qrOptions = {
+    errorCorrectionLevel: 'H', // High error correction
+    type: 'image/png',
+    quality: 0.92,
+    margin: 1,
+    color: {
+      dark: '#1B4B75',  // TRC-V blue
+      light: '#FFFFFF'  // White background
+    },
+    width: 300
+  };
+
+  try {
+    // Generate QR code as data URL
+    const qrCodeDataURL = await QRCode.toDataURL(verificationUrl, qrOptions);
+    
+    let qrCodeFilePath = null;
+    
+    // Save to file if requested
+    if (options.saveToFile !== false) {
+      const filename = `qr-${operatorId}-${Date.now()}.png`;
+      const filePath = path.join(qrCodeDir, filename);
+      
+      // Convert data URL to buffer and save
+      const base64Data = qrCodeDataURL.replace(/^data:image\/png;base64,/, '');
+      const buffer = Buffer.from(base64Data, 'base64');
+      
+      await fs.promises.writeFile(filePath, buffer);
+      
+      // Return relative path for database storage
+      qrCodeFilePath = `/uploads/operators/qrcodes/${filename}`;
+    }
+    
+    return {
+      dataURL: qrCodeDataURL,
+      filePath: qrCodeFilePath,
+      verificationUrl: verificationUrl,
+      operatorId: operatorId
+    };
+  } catch (error) {
+    console.error('QR Code generation error:', error);
+    throw new Error('Failed to generate QR code');
+  }
+}
+
+/**
+ * Generates a secure QR code with static URL for verification (legacy support)
  * @param {string} ssn - The SSN (Social Security Number) or unique identifier
  * @param {string} franchiseId - The franchise ID for the application
  * @param {Date} expiryDate - The expiration date of the franchise
@@ -20,6 +89,29 @@ async function generateQRCode(ssn, franchiseId = null, expiryDate = null) {
   
   // Generate QR code
   return await QRCode.toDataURL(url);
+}
+
+/**
+ * Delete QR code file from storage
+ * @param {string} filePath - The file path to delete
+ * @returns {Promise<boolean>} - Success status
+ */
+async function deleteQRCode(filePath) {
+  if (!filePath) return false;
+  
+  try {
+    // Convert relative path to absolute
+    const absolutePath = path.join(process.cwd(), filePath);
+    
+    if (fs.existsSync(absolutePath)) {
+      await fs.promises.unlink(absolutePath);
+      return true;
+    }
+    return false;
+  } catch (error) {
+    console.error('QR Code deletion error:', error);
+    return false;
+  }
 }
 
 /**
@@ -68,4 +160,10 @@ function verifyQRCodeSignature(payload) {
 
 }
 
-module.exports = { generateQRCode, verifyQRCodeSignature };
+module.exports = { 
+  generateQRCode, 
+  generateOperatorQRCode,
+  deleteQRCode,
+  verifyQRCodeSignature 
+};
+

@@ -152,7 +152,107 @@
   z-index: 100;
 }
 
+.clickable-row {
+  transition: background-color 0.2s ease, transform 0.1s ease;
+}
+
 .clickable-row:hover {
-  background-color: rgba(10, 53, 107, 0.15) !important;
+  background-color: rgba(10, 53, 107, 0.08) !important;
   transition: background-color 0.2s ease;
+}
+
+.clickable-row:active {
+  transform: scale(0.99);
+}
+
+/* Modal overlay backdrop */
+.MuiBackdrop-root {
+  background-color: rgba(0, 0, 0, 0.5) !important;
+}
+
+/* Scrollbar styling for modal content */
+.MuiBox-root::-webkit-scrollbar {
+  width: 8px;
+}
+
+.MuiBox-root::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+.MuiBox-root::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 4px;
+}
+
+.MuiBox-root::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+/* Table row animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.MuiTableRow-root {
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+/* Improved button styles */
+.search-button:active {
+  transform: scale(0.95);
+}
+
+.action-button:active {
+  transform: scale(0.98);
+}
+
+/* Status chip styling */
+.MuiChip-root {
+  font-weight: 600 !important;
+  letter-spacing: 0.5px;
+}
+
+/* Empty state styling */
+.empty-state {
+  padding: 40px;
+  text-align: center;
+  color: #999;
+}
+
+/* Loading state */
+.loading-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 40px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .content-container {
+    margin-left: 0;
+    width: 100%;
+    padding: 16px;
+  }
+
+  .sidebar {
+    position: static;
+    height: auto;
+  }
+
+  .page-title {
+    font-size: 24px;
+  }
+
+  .table-container {
+    max-height: 400px;
+  }
 }

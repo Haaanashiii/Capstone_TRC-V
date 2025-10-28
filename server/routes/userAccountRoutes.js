@@ -8,6 +8,7 @@ router.get('/', userAccountController.getAllUserAccounts);
 // GET user by ID
 router.get('/:id', userAccountController.getUserAccountById);
 
+router.get('/', userAccountController.getAllUsers);
 router.post('/', userAccountController.createUserAccount);
 router.put('/:id', userAccountController.updateUserAccount);
 router.delete('/:id', userAccountController.deleteUserAccount);

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import './Reports.css';
 import Sidebar from './Sidebar';
 import { 
@@ -24,15 +24,41 @@ import {
   Select,
   FormControl,
   InputLabel,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  IconButton,
-  Badge
+  tableCellClasses,
+  IconButton
 } from '@mui/material';
+import { styled } from "@mui/material/styles";
 import SearchIcon from '@mui/icons-material/Search';
 import DownloadIcon from '@mui/icons-material/Download';
+import VisibilityIcon from '@mui/icons-material/Visibility';
+
+// Styled components for table
+const StyledTableCell = styled(TableCell)(({ theme }) => ({
+  [`&.${tableCellClasses.head}`]: {
+    backgroundColor: '#0A356B',
+    color: '#ffffff',
+    fontWeight: 'bold',
+    textAlign: 'center',
+  },
+  [`&.${tableCellClasses.body}`]: {
+    fontSize: 14,
+    textAlign: 'center',
+    color: '#333',
+  },
+}));
+
+const StyledTableRow = styled(TableRow)(({ theme }) => ({
+  '&:nth-of-type(odd)': {
+    backgroundColor: '#f9f9f9',
+  },
+  '&:hover': {
+    backgroundColor: 'rgba(10, 53, 107, 0.08)',
+    cursor: 'pointer',
+  },
+  '&:last-child td, &:last-child th': {
+    border: 0,
+  },
+}));
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
@@ -145,37 +171,36 @@ function Reports() {
   // Status color mapping
   const getStatusColor = (status) => {
     switch (status) {
-      case 'pending': return 'warning';
-      case 'investigating': return 'info';
-      case 'resolved': return 'success';
-      case 'dismissed': return 'default';
-      default: return 'default';
+      case 'pending': return '#ff9800';
+      case 'investigating': return '#2196f3';
+      case 'resolved': return '#4caf50';
+      case 'dismissed': return '#757575';
+      default: return '#757575';
     }
   };
 
-
-  const handleOpen = (report) => {
+  const handleOpen = useCallback((report) => {
     setSelectedReport(report);
     setOpen(true);
-  };
+  }, []);
 
-  const handleClose = () => {
+  const handleClose = useCallback(() => {
     setOpen(false);
-  };
+  }, []);
 
-  const handleChangePage = (event, newPage) => {
+  const handleChangePage = useCallback((event, newPage) => {
     setPage(newPage);
-  };
+  }, []);
 
-  const handleChangeRowsPerPage = (event) => {
+  const handleChangeRowsPerPage = useCallback((event) => {
     setRowsPerPage(parseInt(event.target.value, 10));
     setPage(0);
-  };
+  }, []);
 
-  const handleSearch = () => {
+  const handleSearch = useCallback(() => {
     setPage(0);
     // The useEffect will automatically trigger when searchTerm changes
-  };
+  }, []);
 
   // Format date for display
   const formatDate = (dateString) => {
@@ -290,40 +315,72 @@ function Reports() {
         </div>
         
         {/* Reports Table */}
-        <TableContainer component={Paper} className="table-container">
+        <TableContainer component={Paper} className="table-container" elevation={2}>
+          {loading && (
+            <Box display="flex" justifyContent="center" p={2}>
+              <CircularProgress />
+            </Box>
+          )}
+          
           <Table stickyHeader aria-label="reports table">
             <TableHead>
               <TableRow>
-                <TableCell>Report ID</TableCell>
-                <TableCell>Franchisee Name</TableCell>
-                <TableCell>Date and Time Reported</TableCell>
+                <StyledTableCell>Report ID</StyledTableCell>
+                <StyledTableCell>Franchisee Name</StyledTableCell>
+                <StyledTableCell>Date and Time Reported</StyledTableCell>
+                <StyledTableCell>Status</StyledTableCell>
+                <StyledTableCell>Action</StyledTableCell>
               </TableRow>
             </TableHead>
             <TableBody>
-              {filteredReports
-                .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
-                .map((report) => (
-                <TableRow 
-                  key={report.id}
-                  onClick={() => handleOpen(report)}
-                  sx={{ 
-                    '&:hover': { 
-                      backgroundColor: '#f5f5f5',
-                      cursor: 'pointer'
-                    }
-                  }}
-                >
-                  <TableCell>{report.id}</TableCell>
-                  <TableCell>{report.franchiseeName}</TableCell>
-                  <TableCell>{report.dateReported}</TableCell>
-                </TableRow>
-              ))}
+              {!loading && reports.length > 0 ? (
+                reports.map((report) => (
+                  <StyledTableRow 
+                    key={report.reportID}
+                    onClick={() => handleOpen(report)}
+                  >
+                    <StyledTableCell>{report.reportID}</StyledTableCell>
+                    <StyledTableCell>{report.franchiseeName}</StyledTableCell>
+                    <StyledTableCell>{formatDate(report.dateReported)}</StyledTableCell>
+                    <StyledTableCell>
+                      <Chip 
+                        label={report.status} 
+                        size="small"
+                        sx={{ 
+                          bgcolor: getStatusColor(report.status),
+                          color: 'white',
+                          fontWeight: 'bold'
+                        }}
+                      />
+                    </StyledTableCell>
+                    <StyledTableCell>
+                      <IconButton 
+                        size="small"
+                        sx={{ color: '#0a3161' }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpen(report);
+                        }}
+                      >
+                        <VisibilityIcon />
+                      </IconButton>
+                    </StyledTableCell>
+                  </StyledTableRow>
+                ))
+              ) : (
+                <StyledTableRow>
+                  <StyledTableCell colSpan={5} align="center">
+                    {loading ? 'Loading...' : 'No reports found'}
+                  </StyledTableCell>
+                </StyledTableRow>
+              )}
             </TableBody>
           </Table>
+          
           <TablePagination
             rowsPerPageOptions={[5, 10, 25]}
             component="div"
-            count={filteredReports.length}
+            count={totalReports}
             rowsPerPage={rowsPerPage}
             page={page}
             onPageChange={handleChangePage}
@@ -461,7 +518,7 @@ function Reports() {
                     Report ID
                   </Typography>
                   <Typography variant="body1" sx={{ mb: 2 }}>
-                    {selectedReport.id}
+                    {selectedReport.reportID}
                   </Typography>
                 </Grid>
                 
@@ -479,7 +536,11 @@ function Reports() {
                 </Grid>
                 
                 <Grid item xs={12} sm={6}>
+<<<<<<< Front_Marla
                   <Typography variant="subtitle2" fontWeight="bold" color="text.secondary">
+=======
+                  <Typography variant="subtitle2" fontWeight="bold">
+>>>>>>> main
                     Franchisee Name
                   </Typography>
                   <Typography variant="body1" sx={{ mb: 2 }}>
@@ -497,11 +558,11 @@ function Reports() {
                 </Grid>
                 
                 <Grid item xs={12} sm={6}>
-                  <Typography variant="subtitle2" fontWeight="bold" color="text.secondary">
+                  <Typography variant="subtitle2" fontWeight="bold">
                     Amount Charged
                   </Typography>
                   <Typography variant="body1" sx={{ mb: 2 }}>
-                    ${selectedReport.amountCharged.toFixed(2)}
+                    ₱{selectedReport.amountCharged?.toFixed(2)}
                   </Typography>
                 </Grid>
                 
@@ -510,7 +571,7 @@ function Reports() {
                     Expected Fare
                   </Typography>
                   <Typography variant="body1" sx={{ mb: 2 }}>
-                    ${selectedReport.expectedFare.toFixed(2)}
+                    ₱{selectedReport.expectedFare?.toFixed(2)}
                   </Typography>
                 </Grid>
                 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo, useCallback } from 'react'
 import './FranchiseMgmt.css'
 import Sidebar from './Sidebar'
 import {
@@ -23,14 +23,79 @@ import {
   Link,
   CircularProgress,
   Snackbar,
-  Alert
+  Alert,
+  Chip
 } from '@mui/material'
 import SearchIcon from '@mui/icons-material/Search'
 import CloseIcon from '@mui/icons-material/Close'
 import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFile'
 import ImageIcon from '@mui/icons-material/Image'
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf'
+import VisibilityIcon from '@mui/icons-material/Visibility'
 
+// Mock data constant
+const MOCK_APPLICATIONS = [
+  {
+    id: 1,
+    franchiseNumber: 'F001',
+    name: 'Luke Dominic Corpuz',
+    make: 'Honda',
+    plateNumber: 'NV-1234',
+    applicationType: 'New',
+    address: 'Brgy. Communal, Solano, Nueva Vizcaya',
+    contactNumber: '0917-245-6789',
+    sidecarPlateNumber: 'SP-11223',
+    birthPlace: 'Solano, Nueva Vizcaya',
+    birthDate: '2002-04-10',
+    civilStatus: 'Single',
+    citizenship: 'Filipino',
+    todaMembership: 'Yes',
+    unitModel: 'Wave 125',
+    colorMotor: 'Red',
+    colorSidecar: 'Black',
+    mvPlate: 'MV-9821',
+    motorEngineNumber: 'EN-53241',
+    chassisNumber: 'CH-87234',
+    driverName: 'Luke Dominic Corpuz',
+    driverAddress: 'Brgy. Communal, Solano, Nueva Vizcaya',
+    documentRegistration: { name: 'Registration Document', path: 'reg-corpuz.jpg', type: 'image/jpeg' },
+    documentBarangayClearance: { name: 'Barangay Clearance', path: 'clearance-corpuz.jpg', type: 'image/jpeg' },
+    documentCedula: { name: 'Cedula', path: 'cedula-corpuz.pdf', type: 'application/pdf' },
+    documentDriversLicense: { name: 'Driver\'s License', path: 'license-corpuz.jpg', type: 'image/jpeg' },
+    documentVotersAffidavit: { name: 'Voter\'s Affidavit', path: 'voter-corpuz.pdf', type: 'application/pdf' },
+    documentPicture: { name: '1x1 Picture', path: 'picture-corpuz.jpg', type: 'image/jpeg' },
+  },
+  {
+    id: 2,
+    franchiseNumber: 'F002',
+    name: 'Kevin Klein Ananayo',
+    make: 'Kawasaki',
+    plateNumber: 'NV-5678',
+    applicationType: 'Renewal',
+    address: 'Brgy. Quezon, Solano, Nueva Vizcaya',
+    contactNumber: '0928-563-2147',
+    sidecarPlateNumber: 'SP-33456',
+    birthPlace: 'Bayombong, Nueva Vizcaya',
+    birthDate: '1998-09-12',
+    civilStatus: 'Married',
+    citizenship: 'Filipino',
+    todaMembership: 'Yes',
+    unitModel: 'Barako 175',
+    colorMotor: 'Blue',
+    colorSidecar: 'Gray',
+    mvPlate: 'MV-4532',
+    motorEngineNumber: 'EN-65783',
+    chassisNumber: 'CH-98211',
+    driverName: 'Kevin Klein Ananayo',
+    driverAddress: 'Brgy. Quezon, Solano, Nueva Vizcaya',
+    documentRegistration: { name: 'Registration Document', path: 'reg-ananayo.jpg', type: 'image/jpeg' },
+    documentBarangayClearance: { name: 'Barangay Clearance', path: 'clearance-ananayo.jpg', type: 'image/jpeg' },
+    documentCedula: { name: 'Cedula', path: 'cedula-ananayo.pdf', type: 'application/pdf' },
+    documentDriversLicense: { name: 'Driver\'s License', path: 'license-ananayo.jpg', type: 'image/jpeg' },
+    documentVotersAffidavit: { name: 'Voter\'s Affidavit', path: 'voter-ananayo.pdf', type: 'application/pdf' },
+    documentPicture: { name: '1x1 Picture', path: 'picture-ananayo.jpg', type: 'image/jpeg' },
+  },
+]
 
 function FranchiseMgmt() {
   const [searchTerm, setSearchTerm] = useState('')
@@ -227,6 +292,8 @@ function FranchiseMgmt() {
             })()
 
             setIsLoading(false)
+          setPendingApplications(MOCK_APPLICATIONS)
+          setIsLoading(false)
         }, 1000)
       } catch (error) {
         console.error('Error fetching applications:', error)
@@ -242,35 +309,47 @@ function FranchiseMgmt() {
     fetchPendingApplications()
   }, [])
 
-  // Handle search
-  const handleSearch = (e) => {
-    setSearchTerm(e.target.value)
-  }
+  // Handle search with debouncing
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('')
   
-  // Filter applications based on search term
-  const filteredApplications = pendingApplications.filter(app => 
-    app.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    app.franchiseNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    app.plateNumber?.toLowerCase().includes(searchTerm.toLowerCase())
-  )
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm)
+    }, 300)
+    
+    return () => clearTimeout(timer)
+  }, [searchTerm])
+  
+  const handleSearch = useCallback((e) => {
+    setSearchTerm(e.target.value)
+  }, [])
+  
+  // Filter applications based on search term (memoized)
+  const filteredApplications = useMemo(() => {
+    return pendingApplications.filter(app => 
+      app.name?.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+      app.franchiseNumber?.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+      app.plateNumber?.toLowerCase().includes(debouncedSearchTerm.toLowerCase())
+    )
+  }, [pendingApplications, debouncedSearchTerm])
   
   /**
    * Modal handlers
    */
-  const handleOpenAddModal = () => setOpenAddModal(true)
-  const handleCloseAddModal = () => setOpenAddModal(false)
+  const handleOpenAddModal = useCallback(() => setOpenAddModal(true), [])
+  const handleCloseAddModal = useCallback(() => setOpenAddModal(false), [])
   
-  const handleOpenViewModal = (application) => {
+  const handleOpenViewModal = useCallback((application) => {
     setSelectedApplication(application)
     setOpenViewModal(true)
-  }
-  const handleCloseViewModal = () => setOpenViewModal(false)
+  }, [])
+  const handleCloseViewModal = useCallback(() => setOpenViewModal(false), [])
   
-  const handleOpenRejectModal = () => {
+  const handleOpenRejectModal = useCallback(() => {
     setOpenViewModal(false)
     setOpenRejectModal(true)
-  }
-  const handleCloseRejectModal = () => setOpenRejectModal(false)
+  }, [])
+  const handleCloseRejectModal = useCallback(() => setOpenRejectModal(false), [])
   
   /**
    * File preview handlers
@@ -282,16 +361,16 @@ function FranchiseMgmt() {
     }
     setPreviewFile(file)
     setOpenFilePreview(true)
-  }
+  }, [])
   
-  const handleCloseFilePreview = () => {
+  const handleCloseFilePreview = useCallback(() => {
     setOpenFilePreview(false)
-  }
+  }, [])
   
   /**
-   * Get appropriate icon for file type
+   * Get appropriate icon for file type (memoized)
    */
-  const getFileIcon = (fileType) => {
+  const getFileIcon = useCallback((fileType) => {
     if (!fileType) return <InsertDriveFileIcon />
     
     if (fileType.includes('image')) {
@@ -301,24 +380,24 @@ function FranchiseMgmt() {
     } else {
       return <InsertDriveFileIcon />
     }
-  }
+  }, [])
   
   /**
    * Form handlers
    */
-  const handleFormChange = (e) => {
+  const handleFormChange = useCallback((e) => {
     const { name, value } = e.target
-    setFormData({
-      ...formData,
+    setFormData(prev => ({
+      ...prev,
       [name]: value
-    })
-  }
+    }))
+  }, [])
   
   /**
    * File upload handler
    * This will integrate with the secureUpload middleware in production
    */
-  const handleFileChange = (e) => {
+  const handleFileChange = useCallback((e) => {
     const { name, files } = e.target
     if (files && files[0]) {
       const file = files[0]
@@ -335,17 +414,32 @@ function FranchiseMgmt() {
       }
       
       // Create object URL for preview
-      setFormData({
-        ...formData,
+      const objectURL = URL.createObjectURL(file)
+      setFormData(prev => ({
+        ...prev,
         [name]: {
           name: file.name,
           type: file.type,
-          path: URL.createObjectURL(file),
+          path: objectURL,
           file: file // Store the actual file object for upload
+        }
+      }))
+    }
+  }, [])
+  
+  /**
+   * Cleanup object URLs when component unmounts or form data changes
+   */
+  useEffect(() => {
+    return () => {
+      // Cleanup all object URLs to prevent memory leaks
+      Object.keys(formData).forEach(key => {
+        if (key.startsWith('document') && formData[key]?.path) {
+          URL.revokeObjectURL(formData[key].path)
         }
       })
     }
-  }
+  }, [formData])
   
   /**
    * Submit new application
@@ -531,14 +625,14 @@ function FranchiseMgmt() {
   /**
    * Handle notification close
    */
-  const handleNotificationClose = () => {
-    setNotification({ ...notification, open: false })
-  }
+  const handleNotificationClose = useCallback(() => {
+    setNotification(prev => ({ ...prev, open: false }))
+  }, [])
 
   return (
     <div className="main">
       <Sidebar />
-      <div style={{ padding: '20px' }}>
+      <div className="content-container">
         <h1 className="title">Franchise Management</h1>
         
         {/* Search bar and Add button */}
@@ -572,43 +666,67 @@ function FranchiseMgmt() {
         </Typography>
         
         {isLoading && !pendingApplications.length ? (
-          <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
+          <Box className="loading-container">
             <CircularProgress />
           </Box>
         ) : (
-          <TableContainer component={Paper}>
-            <Table sx={{ minWidth: 650 }} aria-label="pending franchises table">
+          <TableContainer component={Paper} elevation={2}>
+            <Table className="pending-table" aria-label="pending franchises table">
               <TableHead>
-                <TableRow className="table-header-row">
-                  <TableCell>Record No.</TableCell>
-                  <TableCell>Franchisee Name</TableCell>
-                  <TableCell>Franchise Number</TableCell>
-                  <TableCell>Make</TableCell>
-                  <TableCell>Plate Number</TableCell>
-                  <TableCell>Application Type</TableCell>
-                  <TableCell>Address</TableCell>
+                <TableRow>
+                  <TableCell className="table-cell-head">Record No.</TableCell>
+                  <TableCell className="table-cell-head">Franchisee Name</TableCell>
+                  <TableCell className="table-cell-head">Franchise Number</TableCell>
+                  <TableCell className="table-cell-head">Make</TableCell>
+                  <TableCell className="table-cell-head">Plate Number</TableCell>
+                  <TableCell className="table-cell-head">Application Type</TableCell>
+                  <TableCell className="table-cell-head">Address</TableCell>
+                  <TableCell className="table-cell-head">Action</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {filteredApplications.length > 0 ? (
-                  filteredApplications.map((application) => (
+                  filteredApplications.map((application, index) => (
                     <TableRow 
-                      key={application.id} 
+                      key={application.id}
+                      className={`table-row ${index % 2 !== 0 ? 'table-row-odd' : ''}`}
                       onClick={() => handleOpenViewModal(application)}
-                      className="clickable-row"
                     >
-                      <TableCell>{application.id}</TableCell>
-                      <TableCell>{application.name}</TableCell>
-                      <TableCell>{application.franchiseNumber}</TableCell>
-                      <TableCell>{application.make}</TableCell>
-                      <TableCell>{application.plateNumber}</TableCell>
-                      <TableCell>{application.applicationType}</TableCell>
-                      <TableCell>{application.address}</TableCell>
+                      <TableCell className="table-cell-body">{application.id}</TableCell>
+                      <TableCell className="table-cell-body">{application.name}</TableCell>
+                      <TableCell className="table-cell-body">{application.franchiseNumber}</TableCell>
+                      <TableCell className="table-cell-body">{application.make}</TableCell>
+                      <TableCell className="table-cell-body">{application.plateNumber}</TableCell>
+                      <TableCell className="table-cell-body">
+                        <Chip 
+                          label={application.applicationType}
+                          size="small"
+                          className={
+                            application.applicationType === 'New' ? 'chip-new' : 
+                            application.applicationType === 'Renewal' ? 'chip-renewal' : 'chip-transfer'
+                          }
+                        />
+                      </TableCell>
+                      <TableCell className="table-cell-body">{application.address}</TableCell>
+                      <TableCell className="table-cell-body">
+                        <IconButton 
+                          size="small"
+                          className="view-icon-button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOpenViewModal(application);
+                          }}
+                        >
+                          <VisibilityIcon />
+                        </IconButton>
+                      </TableCell>
                     </TableRow>
                   ))
                 ) : (
-                  <TableRow>
-                    <TableCell colSpan={7} align="center">No pending applications found</TableCell>
+                  <TableRow className="table-row">
+                    <TableCell className="table-cell-body table-cell-center" colSpan={8}>
+                      {isLoading ? 'Loading...' : 'No pending applications found'}
+                    </TableCell>
                   </TableRow>
                 )}
               </TableBody>
@@ -728,7 +846,7 @@ function FranchiseMgmt() {
               onChange={handleFormChange}
               fullWidth
               required
-              sx={{ mb: 2 }}
+              className="toda-membership-field"
             />
             
             <Typography variant="h6" className="section-header">
@@ -812,7 +930,7 @@ function FranchiseMgmt() {
               DOCUMENTARY REQUIREMENTS
             </Typography>
             
-            <Typography variant="body2" sx={{ mb: 2, color: 'text.secondary' }}>
+            <Typography variant="body2" className="document-requirements-info">
               Maximum file size: 5MB per file. Accepted formats: JPG, PNG, PDF
             </Typography>
             
@@ -921,11 +1039,10 @@ function FranchiseMgmt() {
             <div className="action-buttons">
               <Button
                 type="submit"
-                variant="contained"
-                color="primary"
+                className="button-primary"
                 disabled={isLoading}
               >
-                {isLoading ? <CircularProgress size={24} /> : 'Submit Application'}
+                {isLoading ? <CircularProgress className="circular-progress-small" /> : 'Submit Application'}
               </Button>
             </div>
           </form>
@@ -1056,20 +1173,18 @@ function FranchiseMgmt() {
             
             <div className="action-buttons">
               <Button
-                variant="contained"
-                color="error"
+                className="button-error"
                 onClick={handleOpenRejectModal}
                 disabled={isLoading}
               >
                 Disapprove
               </Button>
               <Button
-                variant="contained"
-                color="success"
+                className="button-success"
                 onClick={handleApproveApplication}
                 disabled={isLoading}
               >
-                {isLoading ? <CircularProgress size={24} color="inherit" /> : 'Approve'}
+                {isLoading ? <CircularProgress className="circular-progress-small circular-progress-inherit" /> : 'Approve'}
               </Button>
             </div>
           </Box>
@@ -1108,15 +1223,13 @@ function FranchiseMgmt() {
             ) : (
               <div className="file-preview-fallback">
                 <InsertDriveFileIcon className="file-icon-large" />
-                <Typography variant="body1" sx={{ mt: 2 }}>
+                <Typography variant="body1" className="mt-2">
                   This file type cannot be previewed. Download to view.
                 </Typography>
                 <Button
-                  variant="contained"
-                  color="primary"
+                  className="button-primary mt-2"
                   href={previewFile.path}
                   download={previewFile.name}
-                  sx={{ mt: 2 }}
                 >
                   Download File
                 </Button>
@@ -1142,29 +1255,26 @@ function FranchiseMgmt() {
             </IconButton>
           </div>
           
-          <Typography variant="body1" sx={{ mb: 2 }}>
+          <Typography variant="body1" className="mb-2">
             Please provide a reason for rejecting this franchise application:
           </Typography>
           
           <TextField
             label="Reason for Rejection"
-            multiline
-            rows={4}
+            className="textfield-multiline"
             value={rejectionReason}
             onChange={(e) => setRejectionReason(e.target.value)}
             fullWidth
             required
-            sx={{ mb: 3 }}
           />
           
           <div className="action-buttons">
             <Button
-              variant="contained"
-              color="primary"
+              className="button-primary"
               onClick={handleSubmitRejection}
               disabled={!rejectionReason.trim() || isLoading}
             >
-              {isLoading ? <CircularProgress size={24} /> : 'Submit'}
+              {isLoading ? <CircularProgress className="circular-progress-small" /> : 'Submit'}
             </Button>
           </div>
         </Box>
@@ -1177,7 +1287,7 @@ function FranchiseMgmt() {
         onClose={handleNotificationClose}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
       >
-        <Alert onClose={handleNotificationClose} severity={notification.type} sx={{ width: '100%' }}>
+        <Alert onClose={handleNotificationClose} severity={notification.type} className="alert-full-width">
           {notification.message}
         </Alert>
       </Snackbar>

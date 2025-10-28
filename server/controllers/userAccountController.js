@@ -1,5 +1,26 @@
 const userAccountRepository = require('../repositories/userAccountRepository');
 
+exports.getAllUsers = async (req, res, next) => {
+  try {
+    const users = await userAccountRepository.getAllUsers();
+    
+    // Don't return passwords in response
+    const usersResponse = users.map(user => ({
+      _id: user._id,
+      userId: user.userId,
+      name: user.name,
+      username: user.username,
+      email: user.email,
+      role: user.role,
+      oauthProvider: user.oauthProvider
+    }));
+    
+    res.status(200).json(usersResponse);
+  } catch (err) {
+    next(err);
+  }
+};
+
 exports.createUserAccount = async (req, res, next) => {
   try {
     const { name, username, email, password } = req.body;
