@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import UnifiedSidebar from "../../components/UnifiedSidebar";
 import "../../Styles/Operator's_CSS/Franchise.css";
+import { Sparkles, Link2, CheckCircle, PlusCircle } from 'lucide-react';
 
 const Franchise = () => {
   // User state for displaying user information
@@ -57,7 +58,7 @@ const Franchise = () => {
   useEffect(() => {
     fetchUserDetails();
     
-    // Check if franchise was previously linked
+    // session storage for identifying linked franchise if ever meron 
     const savedFranchiseInfo = localStorage.getItem('userFranchiseInfo');
     const savedFranchiseLinked = localStorage.getItem('franchiseLinked');
     
@@ -71,11 +72,55 @@ const Franchise = () => {
       }
     }
   }, []);
+
+  // Fetch approved franchises and auto-link if the logged-in operator has one
+  useEffect(() => {
+    const tryFetchApproved = async () => {
+      try {
+        const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170'
+        const resp = await fetch(`${API_BASE_URL}/api/pending-apps/approved`)
+        if (!resp.ok) return
+        const apps = await resp.json()
+        if (!Array.isArray(apps) || !apps.length) return
+
+        // Try to match by operator name or contact
+        const token = localStorage.getItem('accessToken')
+        let userName = null
+        if (token) {
+          try { userName = JSON.parse(atob(token.split('.')[1])).name } catch { /* ignore */ }
+        }
+
+        const matched = apps.find(a => {
+          if (!a) return false
+          const nm = (a.name || '').toLowerCase()
+          if (userName && nm.includes(String(userName).toLowerCase())) return true
+          // fallback: if driverName or contact matches local storage user info
+          return false
+        })
+
+        if (matched) {
+          const franchiseInfo = {
+            orNumber: matched.franchiseNumber,
+            status: 'ACTIVE',
+            linkedDate: matched.approvedAt || new Date().toLocaleDateString()
+          }
+          setUserFranchiseInfo(franchiseInfo)
+          setFranchiseLinked(true)
+          localStorage.setItem('userFranchiseInfo', JSON.stringify(franchiseInfo))
+          localStorage.setItem('franchiseLinked', 'true')
+        }
+      } catch (err) {
+        console.warn('Error fetching approved franchises', err)
+      }
+    }
+
+    tryFetchApproved()
+  }, [])
   
   // Language state
   const [language, setLanguage] = useState('en'); // 'en' for English, 'tl' for Tagalog
   
-  // Translation object
+
   const translations = {
     en: {
       user: "USER",
@@ -145,7 +190,7 @@ const Franchise = () => {
       return;
     }
 
-    // Simulate franchise linking - replace with actual API call
+    // API call
     const franchiseInfo = {
       orNumber: orNumber,
       status: "ACTIVE",
@@ -155,17 +200,26 @@ const Franchise = () => {
     setUserFranchiseInfo(franchiseInfo);
     setFranchiseLinked(true);
     
-    // Store franchise info in localStorage so DriverID can access it
+    // para sa Storing ng  franchise info in localStorage so DriverID can access it
     localStorage.setItem('userFranchiseInfo', JSON.stringify(franchiseInfo));
     localStorage.setItem('franchiseLinked', 'true');
     
     setShowModal(false);
     
-    // Reset form
+    // For reset 
     setOrNumber("");
     setMtopFile(null);
     setOrWarning("");
   };
+
+
+  const handleLinkFranchise = () => setShowModal(true);
+  const handleApplyNew = () => navigate('/operator/franchise/application');
+
+
+  const badgeClass = (franchiseLinked && userFranchiseInfo?.status === 'ACTIVE') ? 'badge-pill active' : 'badge-pill inactive';
+
+
 
   return (
     <div className="franchise-bg">
@@ -176,62 +230,76 @@ const Franchise = () => {
         translations={t}
       />
 
-      {/* Card section yah */}
-      <div className="franchise-card-wrapper">
-        <div className="franchise-card-centered">
-          <div className="franchise-profile-img-outer-centered">
-            <img src="/Logos/Tricy (2).png" alt="Profile" className="franchise-profile-img" />
-          </div>
-          <div className="franchise-card-content-centered">
-            <div className="franchise-card-name-centered">
-              {(() => {
-                const displayName = userDetails?.name || userDetails?.username || user?.name || t.user;
-                console.log('UserDetails in render:', userDetails);
-                console.log('User from token:', user);
-                console.log('Display name:', displayName);
-                return displayName;
-              })()}
+      <div className="franchise-page-content">
+          <div className="profile-header-card">
+            <div className="profile-header-inner">
+              <div className="avatar-wrap">
+                <div className="avatar-square">
+                  {userDetails?.avatar_url || user?.avatar_url ? (
+                    <img
+                      src={userDetails?.avatar_url || user?.avatar_url}
+                      alt={(userDetails?.full_name || userDetails?.name || user?.name) || ''}
+                      className="avatar-img"
+                    />
+                  ) : (
+                    <div className="avatar-placeholder" />
+                  )}
+                </div>
+                <div className="avatar-alert">!</div>
+              </div>
+
+              <div className="profile-info">
+                <h3 className="profile-name">{(userDetails?.full_name || userDetails?.name || user?.name || t.user).toUpperCase()}</h3>
+                <span className={badgeClass}>{franchiseLinked ? t.franchiseLinked : t.noFranchise}</span>
+                <p className="profile-desc">Welcome! You don't have an active franchise yet. Choose an option below to get started on your franchise journey.</p>
+              </div>
             </div>
-            <div className="franchise-card-status-centered">
-              {franchiseLinked ? t.franchiseLinked : t.noFranchise}
-            </div>
-            
-            {franchiseLinked && userFranchiseInfo ? (
-              <>
-                <div className="franchise-card-title-centered">{t.franchiseDetails}</div>
-                <div className="franchise-card-subtitle-centered">
-                  {t.orNumber}: {userFranchiseInfo.orNumber}
-                </div>
-                <div className="franchise-card-subtitle-centered">
-                  {t.status}: {userFranchiseInfo.status}
-                </div>
-                <div className="franchise-card-subtitle-centered">
-                  {t.linkedOn}: {userFranchiseInfo.linkedDate}
-                </div>
-              </>
-            ) : (
-              <>
-                <div className="franchise-card-title-centered">{t.franchiseApplication}</div>
-                <div className="franchise-card-subtitle-centered">{t.questionText}</div>
-                <div className="franchise-btn-group-centered">
-                  <button
-                    className="franchise-btn-centered"
-                    onClick={() => setShowModal(true)}
-                  >
-                    {t.yesLink}
-                  </button>
-                  <button
-                    className="franchise-btn-centered"
-                    onClick={() => navigate("/operator/franchise/application")}
-                  >
-                    {t.noApply}
-                  </button>
-                </div>
-              </>
-            )}
           </div>
+
+          {franchiseLinked && userFranchiseInfo ? (
+            <div className="franchise-card-content-centered">
+              <div className="franchise-card-title-centered">{t.franchiseDetails}</div>
+              <div className="franchise-card-subtitle-centered">{t.orNumber}: {userFranchiseInfo.orNumber}</div>
+              <div className="franchise-card-subtitle-centered">{t.status}: {userFranchiseInfo.status}</div>
+              <div className="franchise-card-subtitle-centered">{t.linkedOn}: {userFranchiseInfo.linkedDate}</div>
+            </div>
+          ) : (
+            <div className="application-section">
+              <div className="application-inner">
+                <div className="text-center mb-12">
+                  <h2 className="application-title">Franchise Application</h2>
+                  <p className="application-sub">Do you already have a franchise with us?</p>
+                </div>
+
+                <div className="options-grid">
+      
+                <div className="app-card group">
+                    <div className="app-card-icon">
+                      <Link2 style={{ width: 28, height: 28, color: '#174D7A' }} />
+                    </div>
+
+                  <h3 className="app-card-title">Yes, Link my franchise</h3>
+                  <p className="app-card-desc">Connect your existing franchise</p>
+
+                  <button onClick={handleLinkFranchise} className="app-card-cta">Get Started</button>
+                </div>
+
+         
+                <div className="app-card group">
+                  <div className="app-card-icon">
+                    <PlusCircle style={{ width: 28, height: 28, color: '#174D7A' }} />
+                  </div>
+
+                  <h3 className="app-card-title">No, apply for a new franchise</h3>
+                  <p className="app-card-desc">Apply your franchise now</p>
+
+                  <button onClick={handleApplyNew} className="app-card-cta">Get Started</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          )}
         </div>
-      </div>
 
       {/* For modal, paki adjust nalang if wants nyo   */}
       {showModal && (

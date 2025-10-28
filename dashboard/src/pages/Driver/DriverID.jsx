@@ -333,8 +333,7 @@ function DriverID() {
                 </Box>
               </Box>
             </Box>
-            {/* Removed duplicate MOTORCYCLE INFORMATION section and stray braces */}
-          {/* Main Content Section End */}
+
         </Paper>
         <Box sx={{ width: 380, height: '100%', borderRadius: 3, background: '#0a3576', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', overflow: 'hidden', p: 2 }}>
           <img src="/public/Logos/SBLogo.png" alt="Seal" style={{ width: '80%', height: 'auto', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.08)', position: 'absolute', right: 0, bottom: 0, opacity: 0.2 }} />

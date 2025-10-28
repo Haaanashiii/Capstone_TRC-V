@@ -159,6 +159,139 @@ function FranchiseMgmt() {
         
         // Mock data for development
         setTimeout(() => {
+          // Merge mock data with any pending applications saved in localStorage by the operator submission form
+          const savedPending = (function() {
+            try {
+              return JSON.parse(localStorage.getItem('pending_franchise_applications') || '[]')
+            } catch (err) {
+              console.warn('Failed to parse pending_franchise_applications from localStorage', err)
+              return []
+            }
+          })()
+
+          setPendingApplications([
+            {
+              id: 1,
+              franchiseNumber: 'F001',
+              name: 'Luke Dominic Corpuz',
+              make: 'Honda',
+              plateNumber: 'NV-1234',
+              applicationType: 'New',
+              address: 'Brgy. Communal, Solano, Nueva Vizcaya',
+              contactNumber: '0917-245-6789',
+              sidecarPlateNumber: 'SP-11223',
+              birthPlace: 'Solano, Nueva Vizcaya',
+              birthDate: '2002-04-10',
+              civilStatus: 'Single',
+              citizenship: 'Filipino',
+              todaMembership: 'Yes',
+              unitModel: 'Wave 125',
+              colorMotor: 'Red',
+              colorSidecar: 'Black',
+              mvPlate: 'MV-9821',
+              motorEngineNumber: 'EN-53241',
+              chassisNumber: 'CH-87234',
+              driverName: 'Luke Dominic Corpuz',
+              driverAddress: 'Brgy. Communal, Solano, Nueva Vizcaya',
+              documentRegistration: { name: 'Registration Document', path: 'reg-corpuz.jpg', type: 'image/jpeg' },
+              documentBarangayClearance: { name: 'Barangay Clearance', path: 'clearance-corpuz.jpg', type: 'image/jpeg' },
+              documentCedula: { name: 'Cedula', path: 'cedula-corpuz.pdf', type: 'application/pdf' },
+              documentDriversLicense: { name: 'Driver\'s License', path: 'license-corpuz.jpg', type: 'image/jpeg' },
+              documentVotersAffidavit: { name: 'Voter\'s Affidavit', path: 'voter-corpuz.pdf', type: 'application/pdf' },
+              documentPicture: { name: '1x1 Picture', path: 'picture-corpuz.jpg', type: 'image/jpeg' },
+            },
+            {
+    id: 2,
+    franchiseNumber: 'F002',
+    name: 'Kevin Klein Ananayo',
+    make: 'Kawasaki',
+    plateNumber: 'NV-5678',
+    applicationType: 'Renewal',
+    address: 'Brgy. Quezon, Solano, Nueva Vizcaya',
+    contactNumber: '0928-563-2147',
+    sidecarPlateNumber: 'SP-33456',
+    birthPlace: 'Bayombong, Nueva Vizcaya',
+    birthDate: '1998-09-12',
+    civilStatus: 'Married',
+    citizenship: 'Filipino',
+    todaMembership: 'Yes',
+    unitModel: 'Barako 175',
+    colorMotor: 'Blue',
+    colorSidecar: 'Gray',
+    mvPlate: 'MV-4532',
+    motorEngineNumber: 'EN-65783',
+    chassisNumber: 'CH-98211',
+    driverName: 'Kevin Klein Ananayo',
+    driverAddress: 'Brgy. Quezon, Solano, Nueva Vizcaya',
+    documentRegistration: { name: 'Registration Document', path: 'reg-ananayo.jpg', type: 'image/jpeg' },
+    documentBarangayClearance: { name: 'Barangay Clearance', path: 'clearance-ananayo.jpg', type: 'image/jpeg' },
+    documentCedula: { name: 'Cedula', path: 'cedula-ananayo.pdf', type: 'application/pdf' },
+    documentDriversLicense: { name: 'Driver\'s License', path: 'license-ananayo.jpg', type: 'image/jpeg' },
+    documentVotersAffidavit: { name: 'Voter\'s Affidavit', path: 'voter-ananayo.pdf', type: 'application/pdf' },
+    documentPicture: { name: '1x1 Picture', path: 'picture-ananayo.jpg', type: 'image/jpeg' },
+  },
+]);
+
+          // If there are saved pending applications from the operator, append them
+          if (savedPending && savedPending.length) {
+            // Map saved items to the expected shape (ensure id uniqueness)
+            const normalized = savedPending.map((it, idx) => ({
+              id: it.id || (`s-${Date.now()}-${idx}`),
+              franchiseNumber: it.franchiseNumber || `P${String(Date.now()).slice(-4)}`,
+              name: it.name || '',
+              make: it.make || it.unitModel || '',
+              plateNumber: it.plateNumber || it.mvPlate || it.sidecarPlateNumber || '',
+              applicationType: it.applicationType || 'New',
+              address: it.address || it.driverAddress || '',
+              contactNumber: it.contactNumber || '',
+              sidecarPlateNumber: it.sidecarPlateNumber || '',
+              birthPlace: it.birthPlace || '',
+              birthDate: it.birthDate || '',
+              civilStatus: it.civilStatus || '',
+              citizenship: it.citizenship || '',
+              todaMembership: it.todaMembership || '',
+              unitModel: it.unitModel || '',
+              colorMotor: it.colorMotor || '',
+              colorSidecar: it.colorSidecar || '',
+              mvPlate: it.mvPlate || '',
+              motorEngineNumber: it.motorEngineNumber || '',
+              chassisNumber: it.chassisNumber || '',
+              driverName: it.driverName || '',
+              driverAddress: it.driverAddress || '',
+              documentRegistration: it.documentRegistration || null,
+              documentBarangayClearance: it.documentBarangayClearance || null,
+              documentCedula: it.documentCedula || null,
+              documentDriversLicense: it.documentDriversLicense || null,
+              documentVotersAffidavit: it.documentVotersAffidavit || null,
+              documentPicture: it.documentPicture || null,
+            }))
+
+            setPendingApplications(prev => [...prev, ...normalized])
+          }
+
+            // Also fetch server-side pending apps saved by operator submissions
+            ;(async () => {
+              try {
+                const apiBase = 'http://localhost:5170'
+                const resp = await fetch(`${apiBase}/api/pending-apps`)
+                if (resp.ok) {
+                  const serverApps = await resp.json()
+                  if (Array.isArray(serverApps) && serverApps.length) {
+                    setPendingApplications(prev => {
+                      const existingIds = new Set(prev.map(p => String(p.id)))
+                      const toAdd = serverApps.filter(a => !existingIds.has(String(a.id)))
+                      return toAdd.length ? [...prev, ...toAdd] : prev
+                    })
+                  }
+                } else {
+                  console.warn('Failed to fetch server pending apps', resp.status)
+                }
+              } catch (err) {
+                console.warn('Error fetching /api/pending-apps', err)
+              }
+            })()
+
+            setIsLoading(false)
           setPendingApplications(MOCK_APPLICATIONS)
           setIsLoading(false)
         }, 1000)
@@ -221,7 +354,11 @@ function FranchiseMgmt() {
   /**
    * File preview handlers
    */
-  const handleOpenFilePreview = useCallback((file) => {
+  const handleOpenFilePreview = (file) => {
+    if (!file) {
+      setNotification({ open: true, message: 'File not available for preview', type: 'info' })
+      return
+    }
     setPreviewFile(file)
     setOpenFilePreview(true)
   }, [])
@@ -408,28 +545,21 @@ function FranchiseMgmt() {
     setIsLoading(true)
     
     try {
-      // API call to approve the application
-      // const response = await fetch(`/api/franchise-applications/${selectedApplication.id}/approve`, {
-      //   method: 'PUT',
-      // });
-      
-      // if (!response.ok) throw new Error('Failed to approve application');
-      
-      // Mock successful approval
-      setTimeout(() => {
-        // In a real app, this would update the status in the database
-        // and move the application to the franchisee list
-        setPendingApplications(pendingApplications.filter(app => app.id !== selectedApplication.id))
-        
-        setNotification({
-          open: true,
-          message: 'Application approved successfully',
-          type: 'success'
-        })
-        
-        handleCloseViewModal()
-        setIsLoading(false)
-      }, 1000)
+      // Call dev server to approve the application so it becomes visible to drivers
+      const apiBase = 'http://localhost:5170'
+      const resp = await fetch(`${apiBase}/api/pending-apps/${selectedApplication.id}/approve`, {
+        method: 'PUT'
+      })
+
+      if (!resp.ok) throw new Error('Failed to approve application')
+
+  await resp.json()
+  // Remove from pending list locally
+      setPendingApplications(prev => prev.filter(app => String(app.id) !== String(selectedApplication.id)))
+
+      setNotification({ open: true, message: 'Application approved successfully', type: 'success' })
+      handleCloseViewModal()
+      setIsLoading(false)
     } catch (error) {
       console.error('Error approving application:', error)
       setNotification({

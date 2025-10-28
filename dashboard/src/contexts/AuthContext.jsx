@@ -5,7 +5,14 @@ const AuthContext = createContext();
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
+   
+    console.warn('useAuth was called outside of an AuthProvider. Returning fallback auth object. Make sure your app is wrapped with <AuthProvider> in src/main.jsx');
+    return {
+      user: null,
+      login: () => {},
+      logout: () => {},
+      loading: false
+    };
   }
   return context;
 };
@@ -14,7 +21,7 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Function to decode JWT token and extract user info
+
   const decodeToken = (token) => {
     try {
       const payload = JSON.parse(atob(token.split('.')[1]));
@@ -26,12 +33,12 @@ export const AuthProvider = ({ children }) => {
   };
 
   // Function to fetch user details from the server
-  const fetchUserDetails = async (userId) => {
+  const fetchUserDetails = async () => {
     try {
       const token = localStorage.getItem('accessToken');
       if (!token) return null;
 
-      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170';
       const response = await fetch(`${API_BASE_URL}/auth/me`, {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -40,7 +47,9 @@ export const AuthProvider = ({ children }) => {
       });
 
       if (response.ok) {
-        return await response.json();
+        const data = await response.json();
+        // API returns { user: {...} } in other parts of the app; normalize to the inner user object
+        return data?.user || data;
       }
       return null;
     } catch (error) {
@@ -51,6 +60,8 @@ export const AuthProvider = ({ children }) => {
 
   // Initialize user from token
   useEffect(() => {
+    // helpful debug: indicate provider mounted
+    console.info('AuthProvider initializing');
     const initializeAuth = async () => {
       try {
         // Check sessionStorage first, then localStorage for compatibility
