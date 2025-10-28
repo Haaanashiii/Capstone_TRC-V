@@ -103,3 +103,25 @@ exports.findAccountByUsername = async (req, res, next) => {
     next(err);
   }
 };
+
+exports.getAllUserAccounts = async (req, res, next) => {
+  try {
+    // Filter to get only sb-admin and bplo-admin users
+    const users = await userAccountRepository.findAccountsByRoles(['sb-admin', 'bplo-admin']);
+    
+    // Don't return passwords
+    const usersResponse = users.map(user => ({
+      userId: user.userId,
+      name: user.name,
+      username: user.username,
+      email: user.email,
+      role: user.role,
+      status: user.status,
+      oauthProvider: user.oauthProvider
+    }));
+    
+    res.status(200).json(usersResponse);
+  } catch (err) {
+    next(err);
+  }
+};
