@@ -276,10 +276,46 @@ function FranchiseMgmt() {
                 const resp = await fetch(`${apiBase}/api/pending-apps`)
                 if (resp.ok) {
                   const serverApps = await resp.json()
+                  // DEBUG: log server response so we can verify which keys the server returns
+                  console.log('FranchiseMgmt: fetched serverApps', serverApps)
                   if (Array.isArray(serverApps) && serverApps.length) {
+                    // Normalize server apps to the expected shape so table fields
+                    // like `address`, `unitModel`, `mvPlate` are present regardless
+                    // of how the server stored them.
+                    const normalizedServerApps = serverApps.map((it) => ({
+                      id: it.id,
+                      franchiseNumber: it.franchiseNumber || it.franchise_number || '',
+                      name: it.name || it.driverName || it.operatorName || '',
+                      make: it.make || it.unitModel || it.vehicleMake || '',
+                      plateNumber: it.plateNumber || it.mvPlate || it.plate_number || '',
+                      applicationType: it.applicationType || it.type || 'New',
+                      address: it.address || it.driverAddress || it.address_of_driver || '',
+                      contactNumber: it.contactNumber || it.phone || it.contact || '',
+                      sidecarPlateNumber: it.sidecarPlateNumber || it.sidecar_plate || '',
+                      birthPlace: it.birthPlace || it.placeOfBirth || '',
+                      birthDate: it.birthDate || it.dateOfBirth || '',
+                      civilStatus: it.civilStatus || '',
+                      citizenship: it.citizenship || '',
+                      todaMembership: it.todaMembership || '',
+                      unitModel: it.unitModel || it.make || '',
+                      colorMotor: it.colorMotor || it.color || '',
+                      colorSidecar: it.colorSidecar || it.sidecarColor || '',
+                      mvPlate: it.mvPlate || it.plateNumber || '',
+                      motorEngineNumber: it.motorEngineNumber || it.engineNumber || '',
+                      chassisNumber: it.chassisNumber || it.chassis || '',
+                      driverName: it.driverName || it.name || it.operatorName || '',
+                      driverAddress: it.driverAddress || it.address || '',
+                      documentRegistration: it.documentRegistration || null,
+                      documentBarangayClearance: it.documentBarangayClearance || null,
+                      documentCedula: it.documentCedula || null,
+                      documentDriversLicense: it.documentDriversLicense || null,
+                      documentVotersAffidavit: it.documentVotersAffidavit || null,
+                      documentPicture: it.documentPicture || null,
+                    }))
+
                     setPendingApplications(prev => {
                       const existingIds = new Set(prev.map(p => String(p.id)))
-                      const toAdd = serverApps.filter(a => !existingIds.has(String(a.id)))
+                      const toAdd = normalizedServerApps.filter(a => !existingIds.has(String(a.id)))
                       return toAdd.length ? [...prev, ...toAdd] : prev
                     })
                   }
@@ -292,8 +328,9 @@ function FranchiseMgmt() {
             })()
 
             setIsLoading(false)
-          setPendingApplications(MOCK_APPLICATIONS)
-          setIsLoading(false)
+            // Only fall back to mock data when no pending applications were loaded
+            setPendingApplications(prev => (prev && prev.length ? prev : MOCK_APPLICATIONS))
+            setIsLoading(false)
         }, 1000)
       } catch (error) {
         console.error('Error fetching applications:', error)
@@ -319,6 +356,122 @@ function FranchiseMgmt() {
     
     return () => clearTimeout(timer)
   }, [searchTerm])
+
+  // Keep in-sync with submissions saved to localStorage by the operator form
+  // Some parts of the app (the `FranchiseApplication` page) save new pending
+  // applications to localStorage under 'pending_franchise_applications'. That
+  // write may happen while this component is mounted and won't automatically
+  // update state here. Listen for storage events and window focus to merge
+  // any newly-saved items into `pendingApplications` so submissions appear
+  // without a full reload.
+  useEffect(() => {
+    const mergeSavedPending = async () => {
+      try {
+        // First merge any saved pending apps from localStorage
+        const saved = JSON.parse(localStorage.getItem('pending_franchise_applications') || '[]')
+        if (Array.isArray(saved) && saved.length) {
+          setPendingApplications(prev => {
+            const existingIds = new Set(prev.map(p => String(p.id)))
+            const normalized = saved.map((it, idx) => ({
+              id: it.id || (`s-${Date.now()}-${idx}`),
+              franchiseNumber: it.franchiseNumber || `P${String(Date.now()).slice(-4)}`,
+              name: it.name || it.driverName || '',
+              make: it.make || it.unitModel || '',
+              plateNumber: it.plateNumber || it.mvPlate || it.sidecarPlateNumber || '',
+              applicationType: it.applicationType || 'New',
+              address: it.address || it.driverAddress || '',
+              contactNumber: it.contactNumber || it.phone || it.contact || '',
+              sidecarPlateNumber: it.sidecarPlateNumber || '',
+              birthPlace: it.birthPlace || '',
+              birthDate: it.birthDate || '',
+              civilStatus: it.civilStatus || '',
+              citizenship: it.citizenship || '',
+              todaMembership: it.todaMembership || '',
+              unitModel: it.unitModel || it.make || '',
+              colorMotor: it.colorMotor || it.color || '',
+              colorSidecar: it.colorSidecar || it.sidecarColor || '',
+              mvPlate: it.mvPlate || it.plateNumber || '',
+              motorEngineNumber: it.motorEngineNumber || it.engineNumber || '',
+              chassisNumber: it.chassisNumber || it.chassis || '',
+              driverName: it.driverName || it.name || '',
+              driverAddress: it.driverAddress || it.address || '',
+              documentRegistration: it.documentRegistration || null,
+              documentBarangayClearance: it.documentBarangayClearance || null,
+              documentCedula: it.documentCedula || null,
+              documentDriversLicense: it.documentDriversLicense || null,
+              documentVotersAffidavit: it.documentVotersAffidavit || null,
+              documentPicture: it.documentPicture || null,
+            }))
+
+            const toAdd = normalized.filter(a => !existingIds.has(String(a.id)))
+            return toAdd.length ? [...prev, ...toAdd] : prev
+          })
+        }
+
+        // Then fetch latest server-side pending apps and merge them too
+        try {
+          const apiBase = 'http://localhost:5170'
+          const resp = await fetch(`${apiBase}/api/pending-apps`)
+          if (resp.ok) {
+            const serverApps = await resp.json()
+            if (Array.isArray(serverApps) && serverApps.length) {
+              const normalizedServerApps = serverApps.map((it) => ({
+                id: it.id,
+                franchiseNumber: it.franchiseNumber || it.franchise_number || '',
+                name: it.name || it.driverName || it.operatorName || '',
+                make: it.make || it.unitModel || it.vehicleMake || '',
+                plateNumber: it.plateNumber || it.mvPlate || it.plate_number || '',
+                applicationType: it.applicationType || it.type || 'New',
+                address: it.address || it.driverAddress || it.address_of_driver || '',
+                contactNumber: it.contactNumber || it.phone || it.contact || '',
+                sidecarPlateNumber: it.sidecarPlateNumber || it.sidecar_plate || '',
+                birthPlace: it.birthPlace || it.placeOfBirth || '',
+                birthDate: it.birthDate || it.dateOfBirth || '',
+                civilStatus: it.civilStatus || '',
+                citizenship: it.citizenship || '',
+                todaMembership: it.todaMembership || '',
+                unitModel: it.unitModel || it.make || '',
+                colorMotor: it.colorMotor || it.color || '',
+                colorSidecar: it.colorSidecar || it.sidecarColor || '',
+                mvPlate: it.mvPlate || it.plateNumber || '',
+                motorEngineNumber: it.motorEngineNumber || it.engineNumber || '',
+                chassisNumber: it.chassisNumber || it.chassis || '',
+                driverName: it.driverName || it.name || it.operatorName || '',
+                driverAddress: it.driverAddress || it.address || '',
+                documentRegistration: it.documentRegistration || null,
+                documentBarangayClearance: it.documentBarangayClearance || null,
+                documentCedula: it.documentCedula || null,
+                documentDriversLicense: it.documentDriversLicense || null,
+                documentVotersAffidavit: it.documentVotersAffidavit || null,
+                documentPicture: it.documentPicture || null,
+              }))
+
+              setPendingApplications(prev => {
+                const existingIds = new Set(prev.map(p => String(p.id)))
+                const toAdd = normalizedServerApps.filter(a => !existingIds.has(String(a.id)))
+                return toAdd.length ? [...prev, ...toAdd] : prev
+              })
+            }
+          }
+        } catch (err) {
+          console.warn('Error fetching /api/pending-apps during merge', err)
+        }
+      } catch (err) {
+        console.warn('Failed to merge pending_franchise_applications from localStorage', err)
+      }
+    }
+
+    // Merge once on mount in case items were saved while this component wasn't mounted
+    mergeSavedPending()
+
+    window.addEventListener('storage', mergeSavedPending)
+    window.addEventListener('focus', mergeSavedPending)
+
+    return () => {
+      window.removeEventListener('storage', mergeSavedPending)
+      window.removeEventListener('focus', mergeSavedPending)
+    }
+  }, [])
   
   const handleSearch = useCallback((e) => {
     setSearchTerm(e.target.value)
@@ -340,7 +493,24 @@ function FranchiseMgmt() {
   const handleCloseAddModal = useCallback(() => setOpenAddModal(false), [])
   
   const handleOpenViewModal = useCallback((application) => {
-    setSelectedApplication(application)
+    // Normalize incoming application objects to the shape expected by the view modal.
+    // Some sources (server, form submissions, third-party) may use different keys
+    // (e.g. `make` vs `unitModel`, `plateNumber` vs `mvPlate`). Use sensible fallbacks
+    // so the modal always shows any available tricycle information.
+    const normalized = {
+      ...application,
+      unitModel: application.unitModel || application.make || application.vehicleModel || '',
+      colorMotor: application.colorMotor || application.color || application.motorColor || '',
+      colorSidecar: application.colorSidecar || application.sidecarColor || application.sidecar_color || '',
+      mvPlate: application.mvPlate || application.plateNumber || application.mv_plate || '',
+      motorEngineNumber: application.motorEngineNumber || application.engineNumber || application.motor_engine_number || '',
+      chassisNumber: application.chassisNumber || application.chassis || application.chassis_number || '',
+      driverName: application.driverName || application.name || '',
+      driverAddress: application.driverAddress || application.address || application.driver_address || '',
+      contactNumber: application.contactNumber || application.phone || application.contact || '',
+    }
+
+    setSelectedApplication(normalized)
     setOpenViewModal(true)
   }, [])
   const handleCloseViewModal = useCallback(() => setOpenViewModal(false), [])
@@ -354,7 +524,7 @@ function FranchiseMgmt() {
   /**
    * File preview handlers
    */
-  const handleOpenFilePreview = (file) => {
+  const handleOpenFilePreview = useCallback((file) => {
     if (!file) {
       setNotification({ open: true, message: 'File not available for preview', type: 'info' })
       return
@@ -393,17 +563,13 @@ function FranchiseMgmt() {
     }))
   }, [])
   
-  /**
-   * File upload handler
-   * This will integrate with the secureUpload middleware in production
-   */
+
   const handleFileChange = useCallback((e) => {
     const { name, files } = e.target
     if (files && files[0]) {
       const file = files[0]
       
-      // In production, this should validate file size and type
-      // based on the secureUpload middleware restrictions
+
       if (file.size > 5 * 1024 * 1024) { // 5MB limit
         setNotification({
           open: true,
@@ -1136,38 +1302,38 @@ function FranchiseMgmt() {
             <div className="info-grid">
               <Typography variant="subtitle2" className="label">Registration:</Typography>
               <Link className="document-link" onClick={() => handleOpenFilePreview(selectedApplication.documentRegistration)}>
-                {getFileIcon(selectedApplication.documentRegistration.type)}
-                <span>{selectedApplication.documentRegistration.name}</span>
+                {getFileIcon(selectedApplication.documentRegistration?.type)}
+                <span>{selectedApplication.documentRegistration?.name || 'No file'}</span>
               </Link>
               
               <Typography variant="subtitle2" className="label">Barangay Clearance:</Typography>
               <Link className="document-link" onClick={() => handleOpenFilePreview(selectedApplication.documentBarangayClearance)}>
-                {getFileIcon(selectedApplication.documentBarangayClearance.type)}
-                <span>{selectedApplication.documentBarangayClearance.name}</span>
+                {getFileIcon(selectedApplication.documentBarangayClearance?.type)}
+                <span>{selectedApplication.documentBarangayClearance?.name || 'No file'}</span>
               </Link>
               
               <Typography variant="subtitle2" className="label">Cedula:</Typography>
               <Link className="document-link" onClick={() => handleOpenFilePreview(selectedApplication.documentCedula)}>
-                {getFileIcon(selectedApplication.documentCedula.type)}
-                <span>{selectedApplication.documentCedula.name}</span>
+                {getFileIcon(selectedApplication.documentCedula?.type)}
+                <span>{selectedApplication.documentCedula?.name || 'No file'}</span>
               </Link>
               
               <Typography variant="subtitle2" className="label">Driver's License:</Typography>
               <Link className="document-link" onClick={() => handleOpenFilePreview(selectedApplication.documentDriversLicense)}>
-                {getFileIcon(selectedApplication.documentDriversLicense.type)}
-                <span>{selectedApplication.documentDriversLicense.name}</span>
+                {getFileIcon(selectedApplication.documentDriversLicense?.type)}
+                <span>{selectedApplication.documentDriversLicense?.name || 'No file'}</span>
               </Link>
               
               <Typography variant="subtitle2" className="label">Voter's Affidavit:</Typography>
               <Link className="document-link" onClick={() => handleOpenFilePreview(selectedApplication.documentVotersAffidavit)}>
-                {getFileIcon(selectedApplication.documentVotersAffidavit.type)}
-                <span>{selectedApplication.documentVotersAffidavit.name}</span>
+                {getFileIcon(selectedApplication.documentVotersAffidavit?.type)}
+                <span>{selectedApplication.documentVotersAffidavit?.name || 'No file'}</span>
               </Link>
               
               <Typography variant="subtitle2" className="label">Picture:</Typography>
               <Link className="document-link" onClick={() => handleOpenFilePreview(selectedApplication.documentPicture)}>
-                {getFileIcon(selectedApplication.documentPicture.type)}
-                <span>{selectedApplication.documentPicture.name}</span>
+                {getFileIcon(selectedApplication.documentPicture?.type)}
+                <span>{selectedApplication.documentPicture?.name || 'No file'}</span>
               </Link>
             </div>
             

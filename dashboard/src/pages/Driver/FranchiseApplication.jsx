@@ -148,6 +148,15 @@ export default function FranchiseApplication() {
     civilStatus: "",
     citizenship: "",
     todaMembership: "",
+    // Motorcycle / driver fields (previously inputs were uncontrolled)
+    unitModel: "",
+    colorMotor: "",
+    colorSidecar: "",
+    mvPlate: "",
+    motorEngineNumber: "",
+    chassisNumber: "",
+    driverName: "",
+    driverAddress: "",
   });
 
   // State for contact number validation
@@ -348,20 +357,20 @@ export default function FranchiseApplication() {
             <div className="franchise-app-section-line" />
           </div>
           <div className="franchise-app-grid-4">
-            <TextField label={t.unitModel} size="small" className="franchise-app-input" />
-            <TextField label={t.colorMotor} size="small" className="franchise-app-input" />
+            <TextField label={t.unitModel} size="small" className="franchise-app-input" value={fields.unitModel} onChange={handleChange('unitModel')} />
+            <TextField label={t.colorMotor} size="small" className="franchise-app-input" value={fields.colorMotor} onChange={handleChange('colorMotor')} />
           </div>
           <div className="franchise-app-grid-4">
-            <TextField label={t.colorSidecar} size="small" className="franchise-app-input" />
-            <TextField label={t.mvPlate} size="small" className="franchise-app-input" />
+            <TextField label={t.colorSidecar} size="small" className="franchise-app-input" value={fields.colorSidecar} onChange={handleChange('colorSidecar')} />
+            <TextField label={t.mvPlate} size="small" className="franchise-app-input" value={fields.mvPlate} onChange={handleChange('mvPlate')} />
           </div>
           <div className="franchise-app-grid-2">
-            <TextField label={t.motorEngineNumber} size="small" className="franchise-app-input" />
-            <TextField label={t.chassisNumber} size="small" className="franchise-app-input" />
+            <TextField label={t.motorEngineNumber} size="small" className="franchise-app-input" value={fields.motorEngineNumber} onChange={handleChange('motorEngineNumber')} />
+            <TextField label={t.chassisNumber} size="small" className="franchise-app-input" value={fields.chassisNumber} onChange={handleChange('chassisNumber')} />
           </div>
           <div className="franchise-app-grid-2">
-            <TextField label="NAME OF THE DRIVER" size="small" className="franchise-app-input" />
-            <TextField label="ADDRESS OF THE DRIVER" size="small" className="franchise-app-input" />
+            <TextField label="NAME OF THE DRIVER" size="small" className="franchise-app-input" value={fields.driverName} onChange={handleChange('driverName')} />
+            <TextField label="ADDRESS OF THE DRIVER" size="small" className="franchise-app-input" value={fields.driverAddress} onChange={handleChange('driverAddress')} />
           </div>
 
 
@@ -448,7 +457,8 @@ export default function FranchiseApplication() {
                       make: '',
                       plateNumber: fields.sidecarPlate || '',
                       applicationType: 'New',
-                      address: '',
+                      // Use driverAddress as the primary address shown in admin table
+                      address: fields.driverAddress || '',
                       contactNumber: fields.contact,
                       sidecarPlateNumber: fields.sidecarPlate,
                       birthPlace: fields.birthPlace,
@@ -456,14 +466,14 @@ export default function FranchiseApplication() {
                       civilStatus: fields.civilStatus,
                       citizenship: fields.citizenship,
                       todaMembership: fields.todaMembership,
-                      unitModel: '',
-                      colorMotor: '',
-                      colorSidecar: '',
-                      mvPlate: '',
-                      motorEngineNumber: '',
-                      chassisNumber: '',
-                      driverName: '',
-                      driverAddress: '',
+                      unitModel: fields.unitModel || '',
+                      colorMotor: fields.colorMotor || '',
+                      colorSidecar: fields.colorSidecar || '',
+                      mvPlate: fields.mvPlate || '',
+                      motorEngineNumber: fields.motorEngineNumber || '',
+                      chassisNumber: fields.chassisNumber || '',
+                      driverName: fields.driverName || '',
+                      driverAddress: fields.driverAddress || '',
                       documentRegistration: mapFile(uploads.registration),
                       documentBarangayClearance: mapFile(uploads.barangay),
                       documentCedula: mapFile(uploads.cedula),
@@ -474,6 +484,10 @@ export default function FranchiseApplication() {
 
                     // POST to server endpoint so admin users on other machines can see it
                     try {
+                      // DEBUG: log payload so we can verify motorcycle fields are present
+                      // Remove this log after debugging
+                      console.log('Submitting newApp payload', newApp)
+
                       const apiBase = 'http://localhost:5170'
                       const resp = await fetch(`${apiBase}/api/pending-apps`, {
                         method: 'POST',
@@ -494,6 +508,14 @@ export default function FranchiseApplication() {
                         civilStatus: "",
                         citizenship: "",
                         todaMembership: "",
+                        unitModel: "",
+                        colorMotor: "",
+                        colorSidecar: "",
+                        mvPlate: "",
+                        motorEngineNumber: "",
+                        chassisNumber: "",
+                        driverName: "",
+                        driverAddress: "",
                       })
                       setUploads({ registration: null, barangay: null, cedula: null, license: null, affidavit: null, picture: null })
 
