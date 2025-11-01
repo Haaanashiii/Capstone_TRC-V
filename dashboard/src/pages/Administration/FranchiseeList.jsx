@@ -1,5 +1,6 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import Sidebar from './Sidebar';
+import api from '../Services/api';
 import {
   Box,
   Typography,
@@ -21,6 +22,8 @@ import {
   IconButton,
   Chip,
   tableCellClasses,
+  CircularProgress,
+  Alert,
 } from '@mui/material';
 import { styled } from "@mui/material/styles";
 import SearchIcon from '@mui/icons-material/Search';
@@ -372,30 +375,60 @@ function FranchiseeList() {
   const [isEditing, setIsEditing] = useState(false);
   const [selectedFranchisee, setSelectedFranchisee] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [franchisees, setFranchisees] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [totalCount, setTotalCount] = useState(0);
 
-  // Mock data - In production, this would come from an API
-  const franchisees = useMemo(() => [
-    { id: 1, recordNumber: '001', franchiseeName: 'Charles Agustin', franchiseNumber: '81737', make: 'Skygo', plateNumber: 'NV-1001', applicationType: 'New', address: 'Brgy. Poblacion, Solano, Nueva Vizcaya' },
-    { id: 2, recordNumber: '002', franchiseeName: 'Kevin Klein Ananayo', franchiseNumber: '81738', make: 'Honda', plateNumber: 'NV-1002', applicationType: 'Renewal', address: 'Brgy. Quezon, Solano, Nueva Vizcaya' },
-    { id: 3, recordNumber: '003', franchiseeName: 'Andreev Abellera', franchiseNumber: '81739', make: 'Yamaha', plateNumber: 'NV-1003', applicationType: 'New', address: 'Brgy. Roxas, Bayombong, Nueva Vizcaya' },
-    { id: 4, recordNumber: '004', franchiseeName: 'Jose "Wendell Jon" III Apolonio', franchiseNumber: '81740', make: 'Suzuki', plateNumber: 'NV-1004', applicationType: 'Transfer', address: 'Brgy. Bangaan, Solano, Nueva Vizcaya' },
-    { id: 5, recordNumber: '005', franchiseeName: 'Marc Aedrian Andres', franchiseNumber: '81741', make: 'Kawasaki', plateNumber: 'NV-1005', applicationType: 'Renewal', address: 'Brgy. Osmeña, Bagabag, Nueva Vizcaya' },
-    { id: 6, recordNumber: '006', franchiseeName: 'Lance Krystian Andres', franchiseNumber: '81742', make: 'Skygo', plateNumber: 'NV-1006', applicationType: 'New', address: 'Brgy. Bagahabag, Solano, Nueva Vizcaya' },
-    { id: 7, recordNumber: '007', franchiseeName: 'Erein Miko Bambalan', franchiseNumber: '81743', make: 'Honda', plateNumber: 'NV-1007', applicationType: 'Renewal', address: 'Brgy. Quirino, Solano, Nueva Vizcaya' },
-    { id: 8, recordNumber: '008', franchiseeName: 'Johann Dwyane Bandolin', franchiseNumber: '81744', make: 'Yamaha', plateNumber: 'NV-1008', applicationType: 'New', address: 'Brgy. Mabini, Bayombong, Nueva Vizcaya' },
-    { id: 9, recordNumber: '009', franchiseeName: 'Joshua Roel Basto', franchiseNumber: '81745', make: 'Suzuki', plateNumber: 'NV-1009', applicationType: 'Transfer', address: 'Brgy. Bonfal, Bayombong, Nueva Vizcaya' },
-    { id: 10, recordNumber: '010', franchiseeName: 'Andrei Barroga', franchiseNumber: '81746', make: 'Skygo', plateNumber: 'NV-1010', applicationType: 'Renewal', address: 'Brgy. Aggub, Solano, Nueva Vizcaya' },
-    { id: 11, recordNumber: '011', franchiseeName: 'Jenzon Emerald Baquiran', franchiseNumber: '81747', make: 'Honda', plateNumber: 'NV-1011', applicationType: 'New', address: 'Brgy. Sta. Cruz, Bambang, Nueva Vizcaya' },
-    { id: 12, recordNumber: '012', franchiseeName: 'Hanamitchie Beltran', franchiseNumber: '81748', make: 'Yamaha', plateNumber: 'NV-1012', applicationType: 'Renewal', address: 'Brgy. Almaguer, Quezon, Nueva Vizcaya' },
-    { id: 13, recordNumber: '013', franchiseeName: 'Luke Dominic Corpuz', franchiseNumber: '81749', make: 'Suzuki', plateNumber: 'NV-1013', applicationType: 'Transfer', address: 'Brgy. Communal, Solano, Nueva Vizcaya' },
-    { id: 14, recordNumber: '014', franchiseeName: 'Karrel Emman Dayag', franchiseNumber: '81750', make: 'Kawasaki', plateNumber: 'NV-1014', applicationType: 'New', address: 'Brgy. Ibung, Solano, Nueva Vizcaya' },
-    { id: 15, recordNumber: '015', franchiseeName: 'Nicolai Dela Peña', franchiseNumber: '81751', make: 'Skygo', plateNumber: 'NV-1015', applicationType: 'Renewal', address: 'Brgy. Maddiangat, Quezon, Nueva Vizcaya' },
-    { id: 16, recordNumber: '016', franchiseeName: 'Marc Christian Delos Santos', franchiseNumber: '81752', make: 'Yamaha', plateNumber: 'NV-1016', applicationType: 'New', address: 'Brgy. Don Tomas, Solano, Nueva Vizcaya' },
-    { id: 17, recordNumber: '017', franchiseeName: 'Ray Richard Gabatino', franchiseNumber: '81753', make: 'Suzuki', plateNumber: 'NV-1017', applicationType: 'Renewal', address: 'Brgy. Aggub, Solano, Nueva Vizcaya' },
-    { id: 18, recordNumber: '018', franchiseeName: 'Arnoell Kelhzcy Galano', franchiseNumber: '81754', make: 'Honda', plateNumber: 'NV-1018', applicationType: 'New', address: 'Brgy. Roxas, Bayombong, Nueva Vizcaya' },
-    { id: 19, recordNumber: '019', franchiseeName: 'Marla Rihana Jose', franchiseNumber: '81755', make: 'Kawasaki', plateNumber: 'NV-1019', applicationType: 'Transfer', address: 'Brgy. Quirino, Solano, Nueva Vizcaya' },
-    { id: 20, recordNumber: '020', franchiseeName: 'Marlowe Ian Jumagbas', franchiseNumber: '81756', make: 'Yamaha', plateNumber: 'NV-1020', applicationType: 'Renewal', address: 'Brgy. Sta. Lucia, Bayombong, Nueva Vizcaya' },
-  ], []);
+  // Fetch approved franchisees from backend
+  useEffect(() => {
+    const fetchApprovedFranchisees = async () => {
+      setLoading(true);
+      setError('');
+      
+      try {
+        const { data } = await api.get('/api/pending-apps/approved');
+        
+        // Transform the data to match the component's expected format
+        const transformedData = (data || []).map((app, index) => ({
+          id: app.id,
+          recordNumber: String(index + 1).padStart(3, '0'),
+          franchiseeName: app.name || app.driverName,
+          franchiseNumber: app.franchiseNumber,
+          make: app.make || app.unitModel,
+          plateNumber: app.plateNumber || app.mvPlate || app.sidecarPlateNumber,
+          applicationType: app.applicationType || 'New',
+          address: app.address || app.driverAddress,
+          // Additional fields for the modal
+          civilStatus: app.civilStatus,
+          birthPlace: app.birthPlace,
+          birthDate: app.birthDate,
+          contactNumber: app.contactNumber,
+          citizenship: app.citizenship,
+          todaMembership: app.todaMembership,
+          unitModel: app.unitModel,
+          colorMotor: app.colorMotor,
+          colorSidecar: app.colorSidecar,
+          mvPlate: app.mvPlate,
+          motorEngineNumber: app.motorEngineNumber,
+          chassisNumber: app.chassisNumber,
+          sidecarPlateNumber: app.sidecarPlateNumber,
+          approvedAt: app.approvedAt,
+          status: app.status,
+        }));
+        
+        setFranchisees(transformedData);
+        setTotalCount(transformedData.length);
+      } catch (err) {
+        console.error('Error fetching approved franchisees:', err);
+        setError(err.response?.data?.error || 'Failed to load franchisee list');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchApprovedFranchisees();
+  }, []);
 
   // Filtered franchisees based on search term
   const filteredFranchisees = useMemo(() => {
@@ -444,13 +477,37 @@ function FranchiseeList() {
     setIsEditing(true);
   }, []);
 
-  const handleSave = useCallback((editedData) => {
-    // In production, this would make an API call to save the data
-    console.log('Saving data:', editedData);
-    setSelectedFranchisee(editedData);
-    setIsEditing(false);
-    // TODO: Show success notification
-    // TODO: Update the franchisees list with the new data
+  const handleSave = useCallback(async (editedData) => {
+    try {
+      setLoading(true);
+      
+      // Update the franchisee data via API
+      const { data } = await api.put(`/api/pending-apps/${editedData.id}`, {
+        name: editedData.franchiseeName,
+        franchiseNumber: editedData.franchiseNumber,
+        make: editedData.make,
+        plateNumber: editedData.plateNumber,
+        address: editedData.address,
+        civilStatus: editedData.civilStatus,
+        contactNumber: editedData.contactNumber,
+        citizenship: editedData.citizenship,
+        // Add other fields as needed
+      });
+      
+      // Update local state with the edited data
+      setFranchisees(prev => 
+        prev.map(f => f.id === editedData.id ? { ...f, ...editedData } : f)
+      );
+      
+      setSelectedFranchisee(editedData);
+      setIsEditing(false);
+      setError('');
+    } catch (err) {
+      console.error('Error updating franchisee:', err);
+      setError(err.response?.data?.error || 'Failed to update franchisee information');
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   const handleSearch = useCallback(() => {
@@ -481,6 +538,13 @@ function FranchiseeList() {
             Franchisee List
           </div>
         </div>
+
+        {/* Error Alert */}
+        {error && (
+          <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>
+            {error}
+          </Alert>
+        )}
 
         {/* Search Bar */}
         <div className="search-container">
@@ -514,6 +578,12 @@ function FranchiseeList() {
 
         {/* Franchisee Records Table */}
         <TableContainer component={Paper} className="table-container" elevation={2}>
+          {loading && (
+            <Box display="flex" justifyContent="center" p={3}>
+              <CircularProgress />
+            </Box>
+          )}
+          
           <Table stickyHeader aria-label="franchisee table">
             <TableHead>
               <TableRow>
@@ -527,7 +597,7 @@ function FranchiseeList() {
               </TableRow>
             </TableHead>
             <TableBody>
-              {paginatedFranchisees.length > 0 ? (
+              {!loading && paginatedFranchisees.length > 0 ? (
                 paginatedFranchisees.map((row) => (
                   <StyledTableRow 
                     key={row.id}
@@ -567,7 +637,7 @@ function FranchiseeList() {
                 <StyledTableRow>
                   <StyledTableCell colSpan={7} align="center">
                     <Typography variant="body1" sx={{ py: 4, color: '#999' }}>
-                      No franchisees found
+                      {loading ? 'Loading...' : 'No approved franchisees found'}
                     </Typography>
                   </StyledTableCell>
                 </StyledTableRow>

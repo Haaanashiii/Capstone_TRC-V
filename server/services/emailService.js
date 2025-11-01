@@ -94,7 +94,7 @@ async function sendOTPEmail(to, otp) {
                     <!-- OTP Code Box -->
                     <div style="background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); border: 2px solid #3b82f6; border-radius: 10px; padding: 30px; text-align: center; margin: 35px 0;">
                       <p style="color: #94a3b8; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; margin: 0 0 10px 0; font-family: 'Poppins', sans-serif;">Your OTP Code</p>
-                      <p style="color: #1e3a8a; font-size: 42px; font-weight: 700; letter-spacing: 12px; margin: 0; font-family: 'Courier New', Consolas, monospace;">
+                      <p style="color: #1e3a8a; font-size: 42px; font-weight: 700; letter-spacing: 12px; margin: 0;  font-family: 'Poppins', sans-serif; font-weight: 1200;">
                         ${code}
                       </p>
                     </div>

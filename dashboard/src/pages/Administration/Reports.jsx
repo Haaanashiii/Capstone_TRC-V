@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import './Reports.css';
 import Sidebar from './Sidebar';
+import api from '../Services/api';
 import { 
   Typography, 
   TextField, 
@@ -60,13 +61,10 @@ const StyledTableRow = styled(TableRow)(({ theme }) => ({
   },
 }));
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
-
 function Reports() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedReport, setSelectedReport] = useState(null);
   const [open, setOpen] = useState(false);
-  const [filterOpen, setFilterOpen] = useState(false);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(5);
   const [reports, setReports] = useState([]);
@@ -77,11 +75,6 @@ function Reports() {
   const [sortBy, setSortBy] = useState('dateReported');
   const [sortOrder, setSortOrder] = useState('desc');
 
-  // Get auth token
-  const getAuthToken = () => {
-    return sessionStorage.getItem('accessToken') || localStorage.getItem('accessToken');
-  };
-
   // Load reports on component mount and when filters change
   useEffect(() => {
     const loadReports = async () => {
@@ -89,12 +82,6 @@ function Reports() {
       setError('');
       
       try {
-        const token = getAuthToken();
-        if (!token) {
-          setError('Authentication required');
-          return;
-        }
-
         const queryParams = new URLSearchParams({
           page: page + 1,
           limit: rowsPerPage,
@@ -104,23 +91,12 @@ function Reports() {
           sortOrder
         });
 
-        const response = await fetch(`${API_BASE_URL}/reports?${queryParams}`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        });
-
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const data = await response.json();
+        const { data } = await api.get(`/reports?${queryParams}`);
         setReports(data.reports || []);
         setTotalReports(data.pagination?.total || 0);
       } catch (err) {
         console.error('Error fetching reports:', err);
-        setError('Failed to fetch reports. Please try again.');
+        setError(err.response?.data?.error || 'Failed to fetch reports. Please try again.');
       } finally {
         setLoading(false);
       }
@@ -132,28 +108,16 @@ function Reports() {
   // Export monthly reports as CSV
   const exportMonthlyReports = async () => {
     try {
-      const token = getAuthToken();
-      if (!token) {
-        setError('Authentication required');
-        return;
-      }
-
       const currentDate = new Date();
       const month = currentDate.getMonth() + 1;
       const year = currentDate.getFullYear();
 
-      const response = await fetch(`${API_BASE_URL}/reports/monthly?month=${month}&year=${year}&format=csv`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+      const response = await api.get(`/reports/monthly?month=${month}&year=${year}&format=csv`, {
+        responseType: 'blob'
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to export reports');
-      }
-
       // Create download
-      const blob = await response.blob();
+      const blob = new Blob([response.data], { type: 'text/csv' });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -164,7 +128,7 @@ function Reports() {
       document.body.removeChild(a);
     } catch (err) {
       console.error('Error exporting reports:', err);
-      setError('Failed to export reports. Please try again.');
+      setError(err.response?.data?.error || 'Failed to export reports. Please try again.');
     }
   };
 
@@ -197,10 +161,10 @@ function Reports() {
     setPage(0);
   }, []);
 
-  const handleSearch = useCallback(() => {
+  const handleSearch = () => {
     setPage(0);
     // The useEffect will automatically trigger when searchTerm changes
-  }, []);
+  };
 
   // Format date for display
   const formatDate = (dateString) => {
@@ -219,8 +183,6 @@ function Reports() {
     boxShadow: 24,
     p: 4,
     borderRadius: 2,
-    maxHeight: '90vh',
-    overflow: 'auto'
   };
 
   return (
@@ -388,112 +350,6 @@ function Reports() {
           />
         </TableContainer>
         
-        {/* Filter Dialog */}
-        <Dialog 
-          open={filterOpen} 
-          onClose={handleCloseFilter}
-          maxWidth="sm"
-          fullWidth
-          className="filter-dialog"
-          PaperProps={{
-            className: "filter-dialog-paper"
-          }}
-        >
-          <DialogTitle className="filter-dialog-title">
-            Filter Reports
-            <IconButton
-              onClick={handleCloseFilter}
-              className="filter-close-button"
-            >
-              <CloseIcon />
-            </IconButton>
-          </DialogTitle>
-          
-          <DialogContent className="filter-dialog-content">
-            <Grid container spacing={3}>
-              {/* Status Filter */}
-              <Grid item xs={12}>
-                <FormControl fullWidth className="filter-form-control">
-                  <InputLabel id="status-filter-label">Status</InputLabel>
-                  <Select
-                    labelId="status-filter-label"
-                    value={tempFilters.status}
-                    label="Status"
-                    onChange={(e) => handleTempFilterChange('status', e.target.value)}
-                    className="filter-select"
-                  >
-                    <MenuItem value="">All</MenuItem>
-                    <MenuItem value="pending">Pending</MenuItem>
-                    <MenuItem value="investigating">Investigating</MenuItem>
-                    <MenuItem value="resolved">Resolved</MenuItem>
-                    <MenuItem value="dismissed">Dismissed</MenuItem>
-                  </Select>
-                </FormControl>
-              </Grid>
-              
-              {/* Sort By Filter */}
-              <Grid item xs={12}>
-                <FormControl fullWidth className="filter-form-control">
-                  <InputLabel id="sort-by-filter-label">Sort By</InputLabel>
-                  <Select
-                    labelId="sort-by-filter-label"
-                    value={tempFilters.sortBy}
-                    label="Sort By"
-                    onChange={(e) => handleTempFilterChange('sortBy', e.target.value)}
-                    className="filter-select"
-                  >
-                    <MenuItem value="reportID">Report ID</MenuItem>
-                    <MenuItem value="dateReported">Date Reported</MenuItem>
-                    <MenuItem value="status">Status</MenuItem>
-                    <MenuItem value="franchiseeName">Franchisee Name</MenuItem>
-                  </Select>
-                </FormControl>
-              </Grid>
-              
-              {/* Sort Order Filter */}
-              <Grid item xs={12}>
-                <FormControl fullWidth className="filter-form-control">
-                  <InputLabel id="sort-order-filter-label">Sort Order</InputLabel>
-                  <Select
-                    labelId="sort-order-filter-label"
-                    value={tempFilters.sortOrder}
-                    label="Sort Order"
-                    onChange={(e) => handleTempFilterChange('sortOrder', e.target.value)}
-                    className="filter-select"
-                  >
-                    <MenuItem value="asc">Ascending</MenuItem>
-                    <MenuItem value="desc">Descending</MenuItem>
-                  </Select>
-                </FormControl>
-              </Grid>
-            </Grid>
-          </DialogContent>
-          
-          <DialogActions className="filter-dialog-actions">
-            <Button 
-              onClick={handleClearFilters}
-              className="filter-clear-button"
-            >
-              Clear All
-            </Button>
-            <Box sx={{ flex: 1 }} />
-            <Button 
-              onClick={handleCloseFilter}
-              variant="outlined"
-              className="filter-cancel-button"
-            >
-              Cancel
-            </Button>
-            <Button 
-              onClick={handleApplyFilters}
-              variant="contained"
-              className="filter-apply-button"
-            >
-              Apply Filters
-            </Button>
-          </DialogActions>
-        </Dialog>
-        
         {/* Modal for displaying report details */}
         <Modal
           open={open}
@@ -501,20 +357,15 @@ function Reports() {
           aria-labelledby="report-details-modal"
         >
           <Box sx={modalStyle}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-              <Typography id="modal-title" variant="h5" component="h2" sx={{ fontWeight: 'bold' }}>
-                Report Details
-              </Typography>
-              <IconButton onClick={handleClose} size="small">
-                <CloseIcon />
-              </IconButton>
-            </Box>
+            <Typography id="modal-title" variant="h5" component="h2" sx={{ mb: 2, fontWeight: 'bold' }}>
+              Report Details
+            </Typography>
             <Divider sx={{ mb: 3 }} />
             
             {selectedReport && (
               <Grid container spacing={2}>
                 <Grid item xs={12} sm={6}>
-                  <Typography variant="subtitle2" fontWeight="bold" color="text.secondary">
+                  <Typography variant="subtitle2" fontWeight="bold">
                     Report ID
                   </Typography>
                   <Typography variant="body1" sx={{ mb: 2 }}>
@@ -536,11 +387,7 @@ function Reports() {
                 </Grid>
                 
                 <Grid item xs={12} sm={6}>
-<<<<<<< Front_Marla
-                  <Typography variant="subtitle2" fontWeight="bold" color="text.secondary">
-=======
                   <Typography variant="subtitle2" fontWeight="bold">
->>>>>>> main
                     Franchisee Name
                   </Typography>
                   <Typography variant="body1" sx={{ mb: 2 }}>
@@ -576,7 +423,7 @@ function Reports() {
                 </Grid>
                 
                 <Grid item xs={12}>
-                  <Typography variant="subtitle2" fontWeight="bold" color="text.secondary">
+                  <Typography variant="subtitle2" fontWeight="bold">
                     Description
                   </Typography>
                   <Typography variant="body1" sx={{ mb: 2 }}>
@@ -585,7 +432,7 @@ function Reports() {
                 </Grid>
                 
                 <Grid item xs={12}>
-                  <Typography variant="subtitle2" fontWeight="bold" color="text.secondary">
+                  <Typography variant="subtitle2" fontWeight="bold">
                     Reporter's Contact
                   </Typography>
                   <Typography variant="body1" sx={{ mb: 2 }}>
@@ -595,16 +442,11 @@ function Reports() {
               </Grid>
             )}
             
-            <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 3 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 2 }}>
               <Button 
                 variant="contained" 
                 onClick={handleClose}
-                sx={{
-                  bgcolor: '#0a3161',
-                  '&:hover': {
-                    bgcolor: '#082548'
-                  }
-                }}
+                className="action-button"
               >
                 Close
               </Button>

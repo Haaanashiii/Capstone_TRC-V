@@ -503,7 +503,6 @@ function UserManagement() {
             <TextField
               fullWidth
               label="Name"
-              name="name"
               margin="normal"
               value={newUser.name}
               onChange={(e) => handleFieldChange('name', e.target.value)}
@@ -513,7 +512,6 @@ function UserManagement() {
             <TextField
               fullWidth
               label="Username"
-              name="username"
               margin="normal"
               value={newUser.username}
               onChange={(e) => handleFieldChange('username', e.target.value)}
@@ -523,7 +521,6 @@ function UserManagement() {
             <TextField
               fullWidth
               label="Email"
-              name="email"
               margin="normal"
               type="email"
               value={newUser.email}
@@ -534,9 +531,8 @@ function UserManagement() {
             <TextField
               fullWidth
               label="Password"
-              name="password"
               margin="normal"
-              type={showPassword ? "text" : "password"}
+              type="password"
               value={newUser.password}
               onChange={(e) => handleFieldChange('password', e.target.value)}
               required={!isEditing}
@@ -546,7 +542,6 @@ function UserManagement() {
             <FormControl fullWidth margin="normal" required>
               <InputLabel>Role</InputLabel>
               <Select
-                name="role"
                 value={newUser.role}
                 onChange={(e) => handleFieldChange('role', e.target.value)}
                 input={<OutlinedInput label="Role" />}
