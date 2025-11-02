@@ -114,7 +114,7 @@
   overflow: visible !important;
 }
   .application-inner { text-align: center; max-width: 1200px; margin: 0 auto; }
-  .application-title { font-size:32px; color:#000; margin: 6px 0 8px 0; font-weight:800; }
+  .application-title { font-size:32px; color:#fff; margin: 6px 0 8px 0; font-weight:800; }
   .application-sub { color:#ffffff; margin-bottom:32px; font-weight:600; }
 
   .app-card { background:#fff; border-radius:12px; padding:28px; box-shadow: 0 10px 24px rgba(23,77,122,0.06); text-align:left; display:flex; flex-direction:column; gap:14px; }
@@ -635,7 +635,7 @@
   box-shadow: none;
 }
 .application-inner { text-align: center; max-width: 1200px; margin: 0 auto; }
-.application-title { font-size:32px; color:#000; margin: 6px 0 8px 0; font-weight:800; }
+.application-title { font-size:32px; color:#fff; margin: 6px 0 8px 0; font-weight:800; text-shadow: 0 1px 2px rgba(0,0,0,0.35); }
 .application-sub { color:#172B3A; margin-bottom:32px; font-weight:600; }
 .options-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:28px; margin-top:28px; }
 .app-card { background:#fff; border-radius:12px; padding:28px; box-shadow: 0 10px 24px rgba(23,77,122,0.04); text-align:left; display:flex; flex-direction:column; gap:14px; }
@@ -690,7 +690,7 @@ html, body, .franchise-bg, #root {
 
 /* Compact application section */
 .application-section { padding: 12px 8px 18px 8px !important; margin: 6px 8px 12px 8px !important; }
-.application-title { font-size: 24px !important; }
+.application-title { font-size: 24px !important; color: #fff !important; text-shadow: 0 1px 2px rgba(0,0,0,0.35) !important; }
 .options-grid { gap: 12px !important; margin-top: 12px !important; }
 .app-card { padding: 12px !important; }
 .app-card-cta { padding: 10px 14px !important; }

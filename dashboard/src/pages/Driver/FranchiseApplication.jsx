@@ -1,6 +1,6 @@
 import React, { useState, useRef } from "react";
 import UnifiedSidebar from "../../components/UnifiedSidebar";
-import { TextField, Button } from "@mui/material";
+import { TextField, Button, Snackbar, Alert } from "@mui/material";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
@@ -188,6 +188,14 @@ export default function FranchiseApplication() {
     affidavit: null,
     picture: null,
   });
+
+  // Toast / Snackbar state
+  const [toast, setToast] = useState({ open: false, message: '', severity: 'success' });
+
+  const handleToastClose = (event, reason) => {
+    if (reason === 'clickaway') return;
+    setToast(t => ({ ...t, open: false }));
+  };
 
   // Handlers for file input (main form)
   const handleFileChange = (key) => (e) => {
@@ -482,7 +490,7 @@ export default function FranchiseApplication() {
                       documentPicture: mapFile(uploads.picture),
                     }
 
-                    // POST to server endpoint so admin users on other machines can see it
+              
                     try {
                       // DEBUG: log payload so we can verify motorcycle fields are present
                       // Remove this log after debugging
@@ -519,11 +527,11 @@ export default function FranchiseApplication() {
                       })
                       setUploads({ registration: null, barangay: null, cedula: null, license: null, affidavit: null, picture: null })
 
-                      // Provide feedback to the user
-                      window.alert('Application submitted successfully. Administrators will be able to review it shortly.')
+                      // Provide feedback to the user via toast
+                      setToast({ open: true, message: 'Application submitted successfully. Administrators will be able to review it shortly.', severity: 'success' })
                     } catch (err) {
                       console.error('Failed to POST application to server', err)
-                      window.alert('Failed to submit application. Please try again later.')
+                      setToast({ open: true, message: 'Failed to submit application. Please try again later.', severity: 'error' })
                     }
                   }}
                 >
@@ -573,6 +581,18 @@ export default function FranchiseApplication() {
                 </div>
             </div>
           </div>
+          {/* Snackbar for toast notifications */}
+          <Snackbar
+            open={toast.open}
+            autoHideDuration={6000}
+            onClose={handleToastClose}
+            anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+          >
+            <Alert onClose={handleToastClose} severity={toast.severity} sx={{ width: '100%' }}>
+              {toast.message}
+            </Alert>
+          </Snackbar>
+
         </div>
       </div>
     </div>

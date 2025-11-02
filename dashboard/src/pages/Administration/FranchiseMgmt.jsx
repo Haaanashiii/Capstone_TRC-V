@@ -588,7 +588,7 @@ function FranchiseMgmt() {
                       className={`table-row ${index % 2 !== 0 ? 'table-row-odd' : ''}`}
                       onClick={() => handleOpenViewModal(application)}
                     >
-                      <TableCell className="table-cell-body">{application.id}</TableCell>
+                      <TableCell className="table-cell-body">{index + 1}</TableCell>
                       <TableCell className="table-cell-body">{application.name}</TableCell>
                       <TableCell className="table-cell-body">{application.franchiseNumber}</TableCell>
                       <TableCell className="table-cell-body">{application.make}</TableCell>

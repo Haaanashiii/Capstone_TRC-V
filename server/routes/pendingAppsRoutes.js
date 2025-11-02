@@ -2,9 +2,44 @@ const express = require('express')
 const router = express.Router()
 const notificationService = require('../services/notificationService')
 
-// In-memory store for pending and approved applications (dev-only)
-const pending = []
-const approved = []
+const fs = require('fs')
+const path = require('path')
+
+// Simple file-backed store so pending/approved applications persist across restarts.
+// Data file lives under server/data/pendingApps.json
+const DATA_DIR = path.join(__dirname, '..', 'data')
+const DATA_FILE = path.join(DATA_DIR, 'pendingApps.json')
+
+let pending = []
+let approved = []
+
+// Ensure data directory exists
+try {
+  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true })
+} catch (err) {
+  console.error('Failed to ensure data directory', err)
+}
+
+// Load persisted data if available
+try {
+  if (fs.existsSync(DATA_FILE)) {
+    const raw = fs.readFileSync(DATA_FILE, 'utf8')
+    const parsed = JSON.parse(raw || '{}')
+    pending = Array.isArray(parsed.pending) ? parsed.pending : []
+    approved = Array.isArray(parsed.approved) ? parsed.approved : []
+  }
+} catch (err) {
+  console.warn('Failed to load pendingApps.json, starting with empty arrays', err)
+}
+
+const persist = () => {
+  try {
+    const payload = { pending, approved }
+    fs.writeFileSync(DATA_FILE, JSON.stringify(payload, null, 2), 'utf8')
+  } catch (err) {
+    console.error('Failed to persist pending apps', err)
+  }
+}
 
 // GET all pending applications
 router.get('/', (req, res) => {
@@ -54,9 +89,10 @@ router.post('/', (req, res) => {
       status: 'PENDING'
     }
 
-    pending.push(app)
+  pending.push(app)
+  persist()
 
-    res.status(201).json(app)
+  res.status(201).json(app)
   } catch (err) {
     console.error('Failed to create pending app', err)
     res.status(500).json({ error: 'Failed to create pending application' })
@@ -67,13 +103,14 @@ router.post('/', (req, res) => {
 router.put('/:id/approve', (req, res) => {
   try {
     const id = req.params.id
-    const idx = pending.findIndex(p => String(p.id) === String(id))
-    if (idx === -1) return res.status(404).json({ error: 'Pending application not found' })
-    const app = pending.splice(idx, 1)[0]
-    app.status = 'APPROVED'
-    app.approvedAt = new Date().toISOString()
-    approved.push(app)
-    res.json(app)
+  const idx = pending.findIndex(p => String(p.id) === String(id))
+  if (idx === -1) return res.status(404).json({ error: 'Pending application not found' })
+  const app = pending.splice(idx, 1)[0]
+  app.status = 'APPROVED'
+  app.approvedAt = new Date().toISOString()
+  approved.push(app)
+  persist()
+  res.json(app)
   } catch (err) {
     console.error('Failed to approve application', err)
     res.status(500).json({ error: 'Failed to approve application' })
@@ -228,3 +265,18 @@ router.put('/:id/reject', async (req, res) => {
 })
 
 module.exports = router
+
+// DELETE a pending application by id
+router.delete('/:id', (req, res) => {
+  try {
+    const id = req.params.id
+    const idx = pending.findIndex(p => String(p.id) === String(id))
+    if (idx === -1) return res.status(404).json({ error: 'Pending application not found' })
+    const removed = pending.splice(idx, 1)[0]
+    persist()
+    res.json(removed)
+  } catch (err) {
+    console.error('Failed to delete pending application', err)
+    res.status(500).json({ error: 'Failed to delete pending application' })
+  }
+})
