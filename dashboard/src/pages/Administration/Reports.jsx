@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import './Reports.css';
 import Sidebar from './Sidebar';
-import api from '../Services/api';
+import { reportsAPI } from '../Services/api';
 import { 
   Typography, 
   TextField, 
@@ -91,7 +91,7 @@ function Reports() {
           sortOrder
         });
 
-        const { data } = await api.get(`/reports?${queryParams}`);
+        const { data } = await reportsAPI.getReports(Object.fromEntries(queryParams));
         setReports(data.reports || []);
         setTotalReports(data.pagination?.total || 0);
       } catch (err) {
@@ -112,9 +112,7 @@ function Reports() {
       const month = currentDate.getMonth() + 1;
       const year = currentDate.getFullYear();
 
-      const response = await api.get(`/reports/monthly?month=${month}&year=${year}&format=csv`, {
-        responseType: 'blob'
-      });
+      const response = await reportsAPI.getMonthlyReportsCSV(month, year);
 
       // Create download
       const blob = new Blob([response.data], { type: 'text/csv' });

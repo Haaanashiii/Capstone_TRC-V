@@ -5,6 +5,7 @@ import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import dayjs from "dayjs";
+import { franchiseAPI } from '../Services/api';
 import "../../Styles/Operator's_CSS/FranchiseApplication.css";
 
 export default function FranchiseApplication() {
@@ -496,14 +497,7 @@ export default function FranchiseApplication() {
                       // Remove this log after debugging
                       console.log('Submitting newApp payload', newApp)
 
-                      const apiBase = 'http://localhost:5170'
-                      const resp = await fetch(`${apiBase}/api/pending-apps`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(newApp)
-                      })
-
-                      if (!resp.ok) throw new Error('Failed to submit application')
+                      await franchiseAPI.submitApplication(newApp);
 
                       // Success: clear local form state (keep user on same page to avoid admin login redirect)
                       setFields({

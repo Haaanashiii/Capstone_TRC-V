@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react'
 import './FranchiseMgmt.css'
 import Sidebar from './Sidebar'
-import api from '../Services/api'
+import { franchiseAPI } from '../Services/api'
 import {
   Table,
   TableBody,
@@ -85,7 +85,7 @@ function FranchiseMgmt() {
     const fetchPendingApplications = async () => {
       setIsLoading(true)
       try {
-        const response = await api.get('/api/pending-apps')
+        const response = await franchiseAPI.getApplications()
         const data = response.data
         
         if (Array.isArray(data)) {
@@ -173,7 +173,7 @@ function FranchiseMgmt() {
 
         // Then fetch latest server-side pending apps and merge them too
         try {
-          const resp = await api.get('/api/pending-apps')
+          const resp = await franchiseAPI.getApplications()
           const serverApps = resp.data
           if (Array.isArray(serverApps) && serverApps.length) {
               const normalizedServerApps = serverApps.map((it) => ({
@@ -391,14 +391,10 @@ function FranchiseMgmt() {
       })
       
       // Submit to backend - this will create the application
-      const response = await api.post('/api/pending-apps', formDataToSend, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      })
+      const response = await franchiseAPI.submitApplication(formDataToSend)
       
       // Automatically approve it since it's created by admin
-      await api.put(`/api/pending-apps/${response.data.id}/approve`)
+      await franchiseAPI.approveApplication(response.data.id)
       
       // Don't add to pending list since it's auto-approved
       handleCloseAddModal()
@@ -458,7 +454,7 @@ function FranchiseMgmt() {
     
     try {
       // Call backend to approve the application
-      await api.put(`/api/pending-apps/${selectedApplication.id}/approve`)
+      await franchiseAPI.approveApplication(selectedApplication.id)
 
       // Remove from pending list locally
       setPendingApplications(prev => prev.filter(app => String(app.id) !== String(selectedApplication.id)))
@@ -491,9 +487,7 @@ function FranchiseMgmt() {
     
     try {
       // API call to reject the application
-      await api.put(`/api/pending-apps/${selectedApplication.id}/reject`, {
-        reason: rejectionReason
-      })
+      await franchiseAPI.rejectApplication(selectedApplication.id, rejectionReason)
       
       // Remove from pending list
       setPendingApplications(pendingApplications.filter(app => app.id !== selectedApplication.id))

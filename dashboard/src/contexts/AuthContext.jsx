@@ -1,16 +1,16 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { authAPI, decodeToken, getToken, setTokens, clearTokens } from '../pages/Services/api';
 
 const AuthContext = createContext();
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {
-   
     console.warn('useAuth was called outside of an AuthProvider. Returning fallback auth object. Make sure your app is wrapped with <AuthProvider> in src/main.jsx');
     return {
       user: null,
-      login: () => {},
-      logout: () => {},
+      login: async () => {},
+      logout: async () => {},
       loading: false
     };
   }
@@ -21,80 +21,97 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-
-  const decodeToken = (token) => {
-    try {
-      const payload = JSON.parse(atob(token.split('.')[1]));
-      return payload;
-    } catch (error) {
-      console.error('Error decoding token:', error);
-      return null;
-    }
-  };
-
-  // Function to fetch user details from the server
+  /**
+   * Fetch user details from backend
+   * Uses secure authAPI.getMe() endpoint
+   */
   const fetchUserDetails = async () => {
     try {
-      const token = localStorage.getItem('accessToken');
-      if (!token) return null;
-
-      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170';
-      const response = await fetch(`${API_BASE_URL}/auth/me`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        // API returns { user: {...} } in other parts of the app; normalize to the inner user object
-        return data?.user || data;
+      const token = getToken();
+      if (!token) {
+        console.info('[AuthContext] No token found, skipping user fetch');
+        return null;
       }
-      return null;
+
+      const response = await authAPI.getMe();
+      return response.data?.user || response.data;
     } catch (error) {
-      console.error('Error fetching user details:', error);
+      console.error('[AuthContext] Error fetching user details:', error);
+      
+      // If token is invalid, clear it
+      if (error.response?.status === 401) {
+        clearTokens();
+      }
+      
       return null;
     }
   };
 
-  // Initialize user from token
+  /**
+   * Initialize authentication state on mount
+   * Checks for existing valid token and fetches user data
+   */
   useEffect(() => {
-    // helpful debug: indicate provider mounted
-    console.info('AuthProvider initializing');
+    console.info('[AuthContext] Initializing authentication');
+    
     const initializeAuth = async () => {
       try {
-        // Check sessionStorage first, then localStorage for compatibility
-        const token = sessionStorage.getItem('accessToken') || localStorage.getItem('accessToken');
-        if (token) {
-          const decoded = decodeToken(token);
-          if (decoded && decoded.exp * 1000 > Date.now()) {
-            // Token is valid, fetch full user details
-            const userDetails = await fetchUserDetails(decoded.id);
-            if (userDetails) {
-              setUser({
-                id: decoded.id,
-                role: decoded.role,
-                ...userDetails
-              });
-            } else {
-              // Fallback to basic info from token
-              setUser({
-                id: decoded.id,
-                role: decoded.role,
-                name: 'User' // Default name
-              });
-            }
-          } else {
-            // Token expired, remove it from both storages
-            sessionStorage.removeItem('accessToken');
-            localStorage.removeItem('accessToken');
-          }
+        const token = getToken();
+        
+        if (!token) {
+          console.info('[AuthContext] No token found');
+          setLoading(false);
+          return;
+        }
+
+        // Decode token for basic info (UX only - server validates)
+        const decoded = decodeToken(token);
+        
+        if (!decoded) {
+          console.warn('[AuthContext] Invalid token, clearing...');
+          clearTokens();
+          setLoading(false);
+          return;
+        }
+
+        // Check expiration (with buffer)
+        const isExpired = decoded.exp * 1000 <= Date.now();
+        
+        if (isExpired) {
+          console.warn('[AuthContext] Token expired, clearing...');
+          clearTokens();
+          setLoading(false);
+          return;
+        }
+
+        // Token valid, fetch full user details from backend
+        const userDetails = await fetchUserDetails();
+        
+        if (userDetails) {
+          // Merge decoded token data with backend user data
+          setUser({
+            id: decoded.id,
+            role: decoded.role,
+            ...userDetails
+          });
+          console.info('[AuthContext] User authenticated:', { 
+            id: decoded.id, 
+            role: decoded.role,
+            name: userDetails.name 
+          });
+        } else {
+          // Backend fetch failed, use token data as fallback
+          console.warn('[AuthContext] Using token data as fallback');
+          setUser({
+            id: decoded.id,
+            role: decoded.role,
+            name: decoded.name || 'User'
+          });
         }
       } catch (error) {
-        console.error('Error initializing auth:', error);
-        sessionStorage.removeItem('accessToken');
-        localStorage.removeItem('accessToken');
+        console.error('[AuthContext] Initialization error:', error);
+        clearTokens();
+        setUser(null);
       } finally {
         setLoading(false);
       }
@@ -103,16 +120,56 @@ export const AuthProvider = ({ children }) => {
     initializeAuth();
   }, []);
 
-  const login = (token, userInfo) => {
-    sessionStorage.setItem('accessToken', token);
-    localStorage.setItem('accessToken', token); // Keep for compatibility
-    setUser(userInfo);
+  /**
+   * Login user
+   * @param {string} accessToken - JWT access token from backend
+   * @param {object} userInfo - User information from backend
+   */
+  const login = async (accessToken, userInfo) => {
+    try {
+      // Use secure setTokens function (stores in sessionStorage only)
+      const success = setTokens(accessToken);
+      
+      if (!success) {
+        throw new Error('Failed to store authentication token');
+      }
+
+      // Set user state
+      setUser(userInfo);
+      
+      console.info('[AuthContext] User logged in:', { 
+        id: userInfo.id, 
+        role: userInfo.role,
+        name: userInfo.name 
+      });
+    } catch (error) {
+      console.error('[AuthContext] Login error:', error);
+      throw error;
+    }
   };
 
-  const logout = () => {
-    sessionStorage.removeItem('accessToken');
-    localStorage.removeItem('accessToken');
-    setUser(null);
+  /**
+   * Logout user
+   * Clears tokens from frontend and notifies backend
+   */
+  const logout = async () => {
+    try {
+      console.info('[AuthContext] Logging out user');
+      
+      // Call backend logout endpoint (clears HTTP-only cookie)
+      await authAPI.logout();
+      
+      // Clear frontend state
+      setUser(null);
+      
+      console.info('[AuthContext] Logout successful');
+    } catch (error) {
+      console.error('[AuthContext] Logout error:', error);
+      
+      // Even if backend call fails, clear frontend state
+      clearTokens();
+      setUser(null);
+    }
   };
 
   const value = {

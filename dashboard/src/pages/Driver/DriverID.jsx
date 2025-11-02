@@ -5,6 +5,7 @@ import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import UnifiedSidebar from '../../components/UnifiedSidebar';
+import { authAPI, decodeToken, getToken } from '../Services/api';
 
 function DriverID() {
   const [user, setUser] = useState(null);
@@ -47,66 +48,35 @@ function DriverID() {
       setFranchiseStatus(null);
     }
   };
-  
-  // Get user info from token
-  const getUserInfo = () => {
-    const token = localStorage.getItem('accessToken');
-    if (!token) return null;
-    
-    try {
-      const payload = JSON.parse(atob(token.split('.')[1]));
-      return payload;
-    } catch {
-      return null;
-    }
-  };
 
-  // Fetch full user details from the server
+  // Fetch full user details from the server using centralized API
   const fetchUserDetails = async () => {
     try {
-      const token = localStorage.getItem('accessToken');
+      const token = getToken();
       if (!token) return;
 
-      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170';
-      console.log('DriverID: Fetching user details from:', `${API_BASE_URL}/auth/me`);
-      
-      const response = await fetch(`${API_BASE_URL}/auth/me`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      console.log('DriverID: Response status:', response.status);
-
-      if (response.ok) {
-        const data = await response.json();
-        console.log('DriverID: User details received:', data);
-        setUser(data.user);
-      } else {
-        console.log('DriverID: API failed, using token data');
-        // Fallback to token data if API fails
-        const tokenUser = getUserInfo();
-        if (tokenUser) {
-          setUser(tokenUser);
-        }
-      }
+      const response = await authAPI.getMe();
+      console.log('DriverID: User details received:', response.data);
+      setUser(response.data.user || response.data);
     } catch (error) {
       console.error('DriverID: Error fetching user details:', error);
       // Fallback to token data
-      const tokenUser = getUserInfo();
-      if (tokenUser) {
-        setUser(tokenUser);
+      const token = getToken();
+      if (token) {
+        const tokenUser = decodeToken(token);
+        if (tokenUser) {
+          setUser(tokenUser);
+        }
       }
     }
   };
 
   // Fetch user details on component mount
   useEffect(() => {
-    const token = localStorage.getItem('accessToken');
+    const token = getToken();
     if (token) {
       // Get token user data immediately
-      const tokenUser = getUserInfo();
+      const tokenUser = decodeToken(token);
       if (tokenUser) {
         setUser(tokenUser);
       }
@@ -115,7 +85,7 @@ function DriverID() {
     }
     // Check franchise status
     checkFranchiseStatus();
-  }, []);  // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
   
   // Validation state for number-only fields
   const [errors, setErrors] = useState({

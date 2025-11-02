@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import '../../Styles/Administrator_Css/UserManagement.css';
 import Sidebar from './Sidebar';
 import AccountVerificationModal from '../Services/AccountVerificationModal';
+import { userAPI } from '../Services/api';
 import {
   Box, 
   Typography, 
@@ -33,8 +34,6 @@ import SearchIcon from '@mui/icons-material/Search';
 import PersonAddIcon from '@mui/icons-material/PersonAdd';
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 // Styled components for table
 const StyledTableCell = styled(TableCell)(({ theme }) => ({
@@ -96,17 +95,9 @@ function UserManagement() {
   const fetchUsers = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${API_BASE_URL}/users`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
-      });
+      const response = await userAPI.getUsers();
       
-      if (!response.ok) {
-        throw new Error('Failed to fetch users');
-      }
-      
-      const data = await response.json();
+      const data = response.data;
       // Filter to show only Sangguniang Bayan and BPLO admins
       const adminUsers = Array.isArray(data) 
         ? data.filter(user => user.role === 'sb-admin' || user.role === 'bplo-admin')
@@ -177,18 +168,7 @@ function UserManagement() {
   // Request OTP for new user
   const requestOTP = async (email) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/auth/request-otp`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email })
-      });
-      
-      const data = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to send verification code');
-      }
-      
+      await userAPI.requestOTP(email);
       return true;
     } catch (err) {
       console.error('OTP request error:', err);
@@ -232,20 +212,7 @@ function UserManagement() {
           updateData.password = newUser.password;
         }
         
-        const response = await fetch(`${API_BASE_URL}/users/${selectedUser._id}`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-          },
-          body: JSON.stringify(updateData)
-        });
-        
-        const data = await response.json();
-        
-        if (!response.ok) {
-          throw new Error(data.error || 'Failed to update user');
-        }
+        await userAPI.updateUser(selectedUser._id, updateData);
         
         setSuccess('User updated successfully');
         await fetchUsers();
@@ -254,7 +221,7 @@ function UserManagement() {
         }, 1500);
       } catch (err) {
         console.error('Error updating user:', err);
-        setError(err.message || 'Failed to update user');
+        setError(err.response?.data?.error || err.message || 'Failed to update user');
       } finally {
         setLoading(false);
       }
@@ -295,20 +262,7 @@ function UserManagement() {
     try {
       setLoading(true);
       
-      const response = await fetch(`${API_BASE_URL}/users`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify(pendingUserData)
-      });
-      
-      const data = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to create user');
-      }
+      await userAPI.createUser(pendingUserData);
       
       setSuccess('User created and verified successfully!');
       setPendingUserData(null);
@@ -319,7 +273,7 @@ function UserManagement() {
       }, 3000);
     } catch (err) {
       console.error('Error creating user:', err);
-      setError(err.message || 'Failed to create user');
+      setError(err.response?.data?.error || err.message || 'Failed to create user');
     } finally {
       setLoading(false);
     }
@@ -333,17 +287,7 @@ function UserManagement() {
       setLoading(true);
       setError('');
       
-      const response = await fetch(`${API_BASE_URL}/users/${userId}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
-      });
-      
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Failed to delete user');
-      }
+      await userAPI.deleteUser(userId);
       
       setSuccess('User deleted successfully');
       await fetchUsers();
@@ -353,7 +297,7 @@ function UserManagement() {
       }, 3000);
     } catch (err) {
       console.error('Error deleting user:', err);
-      setError(err.message || 'Failed to delete user');
+      setError(err.response?.data?.error || err.message || 'Failed to delete user');
     } finally {
       setLoading(false);
     }

@@ -3,52 +3,25 @@ import { useNavigate } from "react-router-dom";
 import UnifiedSidebar from "../../components/UnifiedSidebar";
 import "../../Styles/Operator's_CSS/Franchise.css";
 import { Sparkles, Link2, CheckCircle, PlusCircle } from 'lucide-react';
+import { authAPI, decodeToken, getToken } from '../Services/api';
 
 const Franchise = () => {
   // User state for displaying user information
   const [userDetails, setUserDetails] = useState(null);
   
-  // Get user info from token (same as UnifiedSidebar)
-  const getUserInfo = () => {
-    const token = localStorage.getItem('accessToken');
-    if (!token) return null;
-    
-    try {
-      const payload = JSON.parse(atob(token.split('.')[1]));
-      return payload;
-    } catch {
-      return null;
-    }
-  };
-
-  // Get user from token
-  const user = getUserInfo();
+  // Get user from token using centralized utility
+  const user = getToken() ? decodeToken(getToken()) : null;
   
-  // Fetch user details from the server (same logic as UnifiedSidebar)
+  // Fetch user details from the server using centralized API
   const fetchUserDetails = async () => {
     try {
-      const token = localStorage.getItem('accessToken');
+      const token = getToken();
       console.log('Token found:', !!token);
       if (!token) return;
 
-      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170';
-      console.log('Fetching from:', `${API_BASE_URL}/auth/me`);
-      
-      const response = await fetch(`${API_BASE_URL}/auth/me`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      console.log('Response status:', response.status);
-      if (response.ok) {
-        const data = await response.json();
-        console.log('User data received:', data);
-        setUserDetails(data.user);
-      } else {
-        console.error('Failed to fetch user details:', response.status);
-      }
+      const response = await authAPI.getMe();
+      console.log('User data received:', response.data);
+      setUserDetails(response.data.user || response.data);
     } catch (error) {
       console.error('Error fetching user details:', error);
     }
@@ -77,45 +50,44 @@ const Franchise = () => {
   useEffect(() => {
     const tryFetchApproved = async () => {
       try {
-        const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170'
-        const resp = await fetch(`${API_BASE_URL}/api/pending-apps/approved`)
-        if (!resp.ok) return
-        const apps = await resp.json()
-        if (!Array.isArray(apps) || !apps.length) return
+        const response = await authAPI.getMe();
+        const apps = response.data;
+        if (!Array.isArray(apps) || !apps.length) return;
 
         // Try to match by operator name or contact
-        const token = localStorage.getItem('accessToken')
-        let userName = null
+        const token = getToken();
+        let userName = null;
         if (token) {
-          try { userName = JSON.parse(atob(token.split('.')[1])).name } catch { /* ignore */ }
+          const decoded = decodeToken(token);
+          userName = decoded?.name;
         }
 
         const matched = apps.find(a => {
-          if (!a) return false
-          const nm = (a.name || '').toLowerCase()
-          if (userName && nm.includes(String(userName).toLowerCase())) return true
+          if (!a) return false;
+          const nm = (a.name || '').toLowerCase();
+          if (userName && nm.includes(String(userName).toLowerCase())) return true;
           // fallback: if driverName or contact matches local storage user info
-          return false
-        })
+          return false;
+        });
 
         if (matched) {
           const franchiseInfo = {
             orNumber: matched.franchiseNumber,
             status: 'ACTIVE',
             linkedDate: matched.approvedAt || new Date().toLocaleDateString()
-          }
-          setUserFranchiseInfo(franchiseInfo)
-          setFranchiseLinked(true)
-          localStorage.setItem('userFranchiseInfo', JSON.stringify(franchiseInfo))
-          localStorage.setItem('franchiseLinked', 'true')
+          };
+          setUserFranchiseInfo(franchiseInfo);
+          setFranchiseLinked(true);
+          localStorage.setItem('userFranchiseInfo', JSON.stringify(franchiseInfo));
+          localStorage.setItem('franchiseLinked', 'true');
         }
       } catch (err) {
-        console.warn('Error fetching approved franchises', err)
+        console.warn('Error fetching approved franchises', err);
       }
-    }
+    };
 
-    tryFetchApproved()
-  }, [])
+    tryFetchApproved();
+  }, []);
   
   // Language state
   const [language, setLanguage] = useState('en'); // 'en' for English, 'tl' for Tagalog

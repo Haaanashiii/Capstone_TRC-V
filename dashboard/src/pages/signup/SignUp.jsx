@@ -5,7 +5,7 @@ import { Box, Button, TextField, Typography, InputAdornment, IconButton, Divider
 import { Visibility, VisibilityOff } from "@mui/icons-material";
 import GoogleIcon from "@mui/icons-material/Google";
 import AccountVerificationModal from '../Services/AccountVerificationModal';
-import api from '../Services/api';
+import { authAPI, clearTokens } from '../Services/api';
 import '../../Styles/SignupCss/signup.css';
 
 const poppinsTheme = createTheme({
@@ -34,6 +34,7 @@ const SignUp = () => {
   const [passwordError, setPasswordError] = useState("");
   const [confirmPasswordError, setConfirmPasswordError] = useState("");
   const [showVerificationModal, setShowVerificationModal] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleClickShowPassword = () => setShowPassword((show) => !show);
   const handleClickShowConfirmPassword = () => setShowConfirmPassword((show) => !show);
@@ -44,10 +45,18 @@ const SignUp = () => {
       return "Password must be at least 8 characters long";
     }
     if (!/[A-Z]/.test(password)) {
-      return "Password must include at least one capital letter";
+      return "Password must include at least one uppercase letter";
+    }
+    if (!/[a-z]/.test(password)) {
+      return "Password must include at least one lowercase letter";
     }
     if (!/[0-9]/.test(password)) {
       return "Password must include at least one number";
+    }
+    // Check for common weak passwords
+    const weakPasswords = ['password123', 'admin123', 'qwerty123', '123456789'];
+    if (weakPasswords.some(weak => password.toLowerCase().includes(weak))) {
+      return "Password is too common. Please choose a stronger password";
     }
     return "";
   };
@@ -84,12 +93,29 @@ const SignUp = () => {
     setError("");
     setSuccess("");
     
-    console.log("Form submission started"); // Debug log
+    // Prevent double submission
+    if (isSubmitting) return;
     
-    // Pang Validate password 
+    console.log("Form submission started");
+    
+    // Email format validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(form.email)) {
+      setError("Please enter a valid email address");
+      return;
+    }
+    
+    // Username validation 
+    const usernameRegex = /^[a-zA-Z0-9_]{3,20}$/;
+    if (!usernameRegex.test(form.username)) {
+      setError("Username must be 3-20 characters and contain only letters, numbers, and underscores");
+      return;
+    }
+    
+    // Validate password 
     const passwordValidationError = validatePassword(form.password);
     if (passwordValidationError) {
-      console.log("Password validation failed:", passwordValidationError); // Debug log
+      console.log("Password validation failed:", passwordValidationError);
       setError(passwordValidationError);
       return;
     }
@@ -97,65 +123,89 @@ const SignUp = () => {
     // Validate password match
     const passwordMatchError = validatePasswordMatch(form.password, form.confirmPassword);
     if (passwordMatchError) {
-      console.log("Password match failed:", passwordMatchError); // Debug log
+      console.log("Password match failed:", passwordMatchError);
       setError(passwordMatchError);
       return;
     }
     
     // Check if all fields are filled
     if (!form.fullName || !form.username || !form.email || !form.password || !form.confirmPassword) {
-      console.log("Missing fields:", form); // Debug log
+      console.log("Missing fields:", form);
       setError("Please fill out all fields");
       return;
     }
     
-    console.log("All validations passed, making API call"); // Debug log
+    setIsSubmitting(true);
+    
+    console.log("All validations passed, requesting OTP");
     
     try {
-      // Instead of creating the account immediately, request an OTP first
-      // and open the verification modal. Account creation will happen after
-      // the OTP is successfully verified.
+      // Use secure authAPI method
       console.log("Requesting OTP for:", form.email);
-      const response = await api.post('/auth/request-otp', { 
-        email: form.email 
-      });
+      const response = await authAPI.requestOTP(form.email.trim().toLowerCase());
       
       if (response.data) {
         setShowVerificationModal(true);
       }
     } catch (error) {
       console.error("OTP request error:", error);
-      setError(error.response?.data?.error || 'Failed to request verification code');
+      
+      if (error.response?.status === 429) {
+        setError('Too many requests. Please try again later.');
+      } else if (error.response?.status === 409) {
+        setError('An account with this email already exists.');
+      } else {
+        setError(error.response?.data?.error || 'Failed to request verification code');
+      }
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  const handleVerificationSuccess = () => {
-    // After OTP verification, create the actual user account
-    (async () => {
-      try {
-        const response = await api.post('/users', {
-          name: form.fullName,
-          username: form.username,
-          email: form.email,
-          password: form.password
-        });
+  const handleVerificationSuccess = async () => {
+    try {
+      // Clear any existing tokens before signup (security best practice)
+      clearTokens();
+      
+      // Use secure authAPI.signup method
+      const response = await authAPI.signup({
+        name: form.fullName,
+        username: form.username,
+        email: form.email.trim().toLowerCase(), // Normalize email
+        password: form.password,
+        role: 'operator' // Default role for new signups
+      });
+      
+      const data = response.data;
+      if (data.user || data.message) {
+        setSuccess('Account created and verified! Redirecting to login...');
         
-        const data = response.data;
-        if (data) {
-          setSuccess('Account created and verified! You can now log in.');
-          setForm({ fullName: '', username: '', email: '', password: '', confirmPassword: '' });
-          setPasswordError('');
-          setConfirmPasswordError('');
-          // Sarap ni luke po, best green flag nang bayan
-          navigate('/login');
-        }
-      } catch (error) {
-        console.error('Create user error:', error);
-        setError(error.response?.data?.error || 'Registration failed');
+        // Clear sensitive form data from memory (security best practice)
+        setForm({ fullName: '', username: '', email: '', password: '', confirmPassword: '' });
+        setPasswordError('');
+        setConfirmPasswordError('');
+        
+        // Redirect to login page after few seconds
+        setTimeout(() => {
+          navigate('/login', { replace: true });
+        }, 3000);
+      } else {
+        throw new Error('Unexpected response format from server');
       }
-    })();
-    // Optionally redirect to login page
-    // window.location.href = '/login';
+    } catch (error) {
+      console.error('Signup error:', error);
+      
+      // Handle specific error cases
+      if (error.response?.status === 409) {
+        setError('An account with this email or username already exists.');
+      } else if (error.response?.status === 422) {
+        setError('Invalid data provided. Please check your information.');
+      } else if (error.response?.status === 400) {
+        setError(error.response?.data?.error || 'Please provide all required fields.');
+      } else {
+        setError(error.response?.data?.error || error.response?.data?.message || 'Registration failed. Please try again.');
+      }
+    }
   };
   
   return (
@@ -223,7 +273,7 @@ const SignUp = () => {
             className="signup-input"
             type={showPassword ? "text" : "password"}
             error={!!passwordError}
-            helperText={passwordError || "Must be at least 12 characters and include capital letters and numbers"}
+            helperText={passwordError || "Must be at least 12 characters with uppercase, lowercase, numbers and special characters"}
             InputLabelProps={{ style: { fontFamily: 'Poppins, sans-serif' } }}
             FormHelperTextProps={{ style: { fontFamily: 'Poppins, sans-serif', fontSize: '12px' } }}
             InputProps={{
@@ -267,8 +317,9 @@ const SignUp = () => {
               fullWidth
               className="signup-create-btn"
               style={{ fontFamily: 'Poppins, sans-serif' }}
+              disabled={isSubmitting}
             >
-              Create
+              {isSubmitting ? 'Creating...' : 'Create'}
             </Button>
             
             <Box className="signup-divider-box">

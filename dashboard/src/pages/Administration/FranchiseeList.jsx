@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import Sidebar from './Sidebar';
-import api from '../Services/api';
+import { franchiseAPI } from '../Services/api';
 import {
   Box,
   Typography,
@@ -387,7 +387,7 @@ function FranchiseeList() {
       setError('');
       
       try {
-        const { data } = await api.get('/api/pending-apps/approved');
+        const { data } = await franchiseAPI.getApprovedFranchises();
         
         // Transform the data to match the component's expected format
         const transformedData = (data || []).map((app, index) => ({
@@ -482,7 +482,7 @@ function FranchiseeList() {
       setLoading(true);
       
       // Update the franchisee data via API
-      const { data } = await api.put(`/api/pending-apps/${editedData.id}`, {
+      await franchiseAPI.updateApplication(editedData.id, {
         name: editedData.franchiseeName,
         franchiseNumber: editedData.franchiseNumber,
         make: editedData.make,
