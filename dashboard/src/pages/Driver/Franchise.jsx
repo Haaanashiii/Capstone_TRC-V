@@ -77,8 +77,8 @@ const Franchise = () => {
   useEffect(() => {
     const tryFetchApproved = async () => {
       try {
-        const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170'
-        const resp = await fetch(`${API_BASE_URL}/api/pending-apps/approved`)
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170'
+  const resp = await fetch(`${API_BASE_URL}/api/franchise-applications?status=approved`)
         if (!resp.ok) return
         const apps = await resp.json()
         if (!Array.isArray(apps) || !apps.length) return

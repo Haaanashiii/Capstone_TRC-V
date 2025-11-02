@@ -143,8 +143,8 @@ function FranchiseMgmt() {
             //Server side pending
             ;(async () => {
               try {
-                const apiBase = 'http://localhost:5170'
-                const resp = await fetch(`${apiBase}/api/pending-apps`)
+                const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170'
+                const resp = await fetch(`${apiBase}/api/franchise-applications?status=pending`)
                 if (resp.ok) {
                   const serverApps = await resp.json()
                   // DEBUG: log server response so we can verify which keys the server returns
@@ -191,7 +191,7 @@ function FranchiseMgmt() {
                   console.warn('Failed to fetch server pending apps', resp.status)
                 }
               } catch (err) {
-                console.warn('Error fetching /api/pending-apps', err)
+                console.warn('Error fetching /api/franchise-applications', err)
               }
             })()
 
@@ -278,8 +278,8 @@ function FranchiseMgmt() {
 
         // Then fetch latest server-side pending apps and merge them too
         try {
-          const apiBase = 'http://localhost:5170'
-          const resp = await fetch(`${apiBase}/api/pending-apps`)
+          const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170'
+          const resp = await fetch(`${apiBase}/api/franchise-applications?status=pending`)
           if (resp.ok) {
             const serverApps = await resp.json()
             if (Array.isArray(serverApps) && serverApps.length) {
@@ -322,7 +322,7 @@ function FranchiseMgmt() {
             }
           }
         } catch (err) {
-          console.warn('Error fetching /api/pending-apps during merge', err)
+          console.warn('Error fetching /api/franchise-applications during merge', err)
         }
       } catch (err) {
         console.warn('Failed to merge pending_franchise_applications from localStorage', err)
@@ -507,15 +507,15 @@ function FranchiseMgmt() {
       
       // if (!response.ok) throw new Error('Failed to submit application');
       
-      // Post the new application to the dev server so it persists
-      const apiBase = 'http://localhost:5170'
+      // Post the new application to the server so it persists
+      const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170'
       const payload = {
         ...formData,
         applicationType: formData.applicationType || 'New',
         address: formData.driverAddress || formData.address || ''
       }
 
-      const resp = await fetch(`${apiBase}/api/pending-apps`, {
+      const resp = await fetch(`${apiBase}/api/franchise-applications`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -579,9 +579,9 @@ function FranchiseMgmt() {
     setIsLoading(true)
     
     try {
-      // Call dev server to approve the application so it becomes visible to drivers
-      const apiBase = 'http://localhost:5170'
-      const resp = await fetch(`${apiBase}/api/pending-apps/${selectedApplication.id}/approve`, {
+      // Call server to approve the application so it becomes visible to drivers
+      const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170'
+      const resp = await fetch(`${apiBase}/api/franchise-applications/${selectedApplication.id}/approve`, {
         method: 'PUT'
       })
 
@@ -630,14 +630,12 @@ function FranchiseMgmt() {
       // if (!response.ok) throw new Error('Failed to reject application');
       
       // Delete the pending application from server so it is persisted
-      const apiBase = 'http://localhost:5170'
-      const resp = await fetch(`${apiBase}/api/pending-apps/${selectedApplication.id}`, {
+      const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170'
+      const resp = await fetch(`${apiBase}/api/franchise-applications/${selectedApplication.id}`, {
         method: 'DELETE'
       })
 
       if (!resp.ok) throw new Error('Failed to reject application')
-
-      await resp.json()
       setPendingApplications(prev => prev.filter(app => String(app.id) !== String(selectedApplication.id)))
 
       setNotification({ open: true, message: 'Application rejected successfully', type: 'success' })

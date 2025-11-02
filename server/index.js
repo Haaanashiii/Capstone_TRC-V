@@ -18,6 +18,7 @@ const pendingAppsRoutes = require('./routes/pendingAppsRoutes');
 const reportsRoutes = require('./routes/reportsRoutes');
 const announcementRoutes = require('./routes/announcementRoutes');
 const operatorInformationRoutes = require('./routes/operatorInformationRoutes');
+const franchiseApplicationRoutes = require('./routes/franchiseApplicationRoutes');
 
 
 dotenv.config();
@@ -126,6 +127,7 @@ if (process.env.NODE_ENV !== 'production') {
 app.use('/auth', authRoutes);
 app.use('/users', userRoutes);
 app.use('/api/pending-apps', pendingAppsRoutes);
+app.use('/api/franchise-applications', franchiseApplicationRoutes);
 app.use('/reports', reportsRoutes);
 app.use('/announcements', announcementRoutes);
 app.use('/operators', operatorInformationRoutes);

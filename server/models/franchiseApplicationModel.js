@@ -28,6 +28,7 @@ const franchiseApplicationSchema = new mongoose.Schema({
   actionTaken: { type: String },
   remarks: { type: String },
   submittedAt: { type: Date, default: Date.now },
-});
+}, { collection: 'franchiseapplications' });
 
-module.exports = mongoose.model('Franchise Application', franchiseApplicationSchema);
+
+module.exports = mongoose.model('FranchiseApplication', franchiseApplicationSchema);

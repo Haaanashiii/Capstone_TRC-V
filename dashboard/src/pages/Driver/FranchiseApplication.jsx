@@ -496,8 +496,8 @@ export default function FranchiseApplication() {
                       // Remove this log after debugging
                       console.log('Submitting newApp payload', newApp)
 
-                      const apiBase = 'http://localhost:5170'
-                      const resp = await fetch(`${apiBase}/api/pending-apps`, {
+                      const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170'
+                      const resp = await fetch(`${apiBase}/api/franchise-applications`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(newApp)

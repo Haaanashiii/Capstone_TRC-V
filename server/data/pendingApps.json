@@ -31,6 +31,50 @@
       "documentPicture": null,
       "submittedAt": "2025-11-02T04:54:35.002Z",
       "status": "PENDING"
+    },
+    {
+      "id": 1762062014157,
+      "franchiseNumber": "F174",
+      "name": "Luke Dominic Juan",
+      "make": "",
+      "plateNumber": "324509",
+      "applicationType": "New",
+      "address": "Purok Dos, Solano, Nueva Vizcaya",
+      "contactNumber": "90877665432",
+      "sidecarPlateNumber": "324509",
+      "birthPlace": "Solano",
+      "birthDate": "2003-09-29",
+      "civilStatus": "Married",
+      "citizenship": "Filipino",
+      "todaMembership": "Yes",
+      "unitModel": "Wave 135",
+      "colorMotor": "Blue",
+      "colorSidecar": "Blue",
+      "mvPlate": "MV-9821",
+      "motorEngineNumber": " EN-53241",
+      "chassisNumber": " CH-9868",
+      "driverName": "Luke Dominic Juan",
+      "driverAddress": "Purok Dos, Solano, Nueva Vizcaya",
+      "documentRegistration": {
+        "name": "Screenshot 2025-10-28 015240.png",
+        "type": "image/png"
+      },
+      "documentBarangayClearance": {
+        "name": "1e3f5fb2-41a3-4cfb-b90a-f5e1cc481a36.jpg",
+        "type": "image/jpeg"
+      },
+      "documentCedula": {
+        "name": "Final logo.png",
+        "type": "image/png"
+      },
+      "documentDriversLicense": {
+        "name": "ITS-Health-Information-Form.pdf",
+        "type": "application/pdf"
+      },
+      "documentVotersAffidavit": null,
+      "documentPicture": null,
+      "submittedAt": "2025-11-02T05:40:14.160Z",
+      "status": "PENDING"
     }
   ],
   "approved": []

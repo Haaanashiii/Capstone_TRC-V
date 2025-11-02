@@ -1,25 +1,32 @@
 const franchiseApplication = require('../models/franchiseApplicationModel');
+const mongoose = require('mongoose');
+
+const isValidObjectId = (id) => mongoose.isValidObjectId(id);
 
 exports.createFranchiseApplication = async (data) => {
-    const payload = sanitize(data, process.env.ALLOWED_CREATE_FIELDS);
-    const application = new franchiseApplication(payload);
+    // Create Mongoose model directly. Validation is handled by the schema.
+    const application = new franchiseApplication(data);
     return await application.save();
+};
+
+exports.getAllFranchiseApplications = async (query = {}) => {
+    
+    const q = query && Object.keys(query).length ? query : {};
+    return await franchiseApplication.find(q).sort({ submittedAt: -1 }).lean();
 };
 
 exports.getFranchiseApplicationById = async (id) => {
     if (!isValidObjectId(id)) return null;
-
-  return await franchiseApplication.findById(id);
+    return await franchiseApplication.findById(id).lean();
 };
 
 exports.updateFranchiseApplication = async (id, data) => {
     if (!isValidObjectId(id)) return null;
-    const update = sanitize(data, ALLOWED_UPDATE_FIELDS);
     return franchiseApplication.findByIdAndUpdate(
         id,
-        { $set: update },
+        { $set: data },
         { new: true, runValidators: true, context: 'query' }
-    );  
+    );
 };
 
 exports.deleteFranchiseApplication = async (id) => {
