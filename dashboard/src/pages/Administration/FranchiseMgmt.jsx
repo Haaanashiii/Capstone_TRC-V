@@ -173,11 +173,9 @@ function FranchiseMgmt() {
 
         // Then fetch latest server-side pending apps and merge them too
         try {
-          const apiBase = 'http://localhost:5170'
-          const resp = await fetch(`${apiBase}/api/pending-apps`)
-          if (resp.ok) {
-            const serverApps = await resp.json()
-            if (Array.isArray(serverApps) && serverApps.length) {
+          const resp = await api.get('/api/pending-apps')
+          const serverApps = resp.data
+          if (Array.isArray(serverApps) && serverApps.length) {
               const normalizedServerApps = serverApps.map((it) => ({
                 id: it.id,
                 franchiseNumber: it.franchiseNumber || it.franchise_number || '',
@@ -215,7 +213,6 @@ function FranchiseMgmt() {
                 return toAdd.length ? [...prev, ...toAdd] : prev
               })
             }
-          }
         } catch (err) {
           console.warn('Error fetching /api/pending-apps during merge', err)
         }
