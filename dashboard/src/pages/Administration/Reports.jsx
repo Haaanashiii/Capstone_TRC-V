@@ -536,11 +536,7 @@ function Reports() {
                 </Grid>
                 
                 <Grid item xs={12} sm={6}>
-<<<<<<< Front_Marla
                   <Typography variant="subtitle2" fontWeight="bold" color="text.secondary">
-=======
-                  <Typography variant="subtitle2" fontWeight="bold">
->>>>>>> main
                     Franchisee Name
                   </Typography>
                   <Typography variant="body1" sx={{ mb: 2 }}>

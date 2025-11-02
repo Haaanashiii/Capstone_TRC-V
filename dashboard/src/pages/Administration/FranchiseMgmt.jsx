@@ -33,69 +33,7 @@ import ImageIcon from '@mui/icons-material/Image'
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf'
 import VisibilityIcon from '@mui/icons-material/Visibility'
 
-// Mock data constant
-const MOCK_APPLICATIONS = [
-  {
-    id: 1,
-    franchiseNumber: 'F001',
-    name: 'Luke Dominic Corpuz',
-    make: 'Honda',
-    plateNumber: 'NV-1234',
-    applicationType: 'New',
-    address: 'Brgy. Communal, Solano, Nueva Vizcaya',
-    contactNumber: '0917-245-6789',
-    sidecarPlateNumber: 'SP-11223',
-    birthPlace: 'Solano, Nueva Vizcaya',
-    birthDate: '2002-04-10',
-    civilStatus: 'Single',
-    citizenship: 'Filipino',
-    todaMembership: 'Yes',
-    unitModel: 'Wave 125',
-    colorMotor: 'Red',
-    colorSidecar: 'Black',
-    mvPlate: 'MV-9821',
-    motorEngineNumber: 'EN-53241',
-    chassisNumber: 'CH-87234',
-    driverName: 'Luke Dominic Corpuz',
-    driverAddress: 'Brgy. Communal, Solano, Nueva Vizcaya',
-    documentRegistration: { name: 'Registration Document', path: 'reg-corpuz.jpg', type: 'image/jpeg' },
-    documentBarangayClearance: { name: 'Barangay Clearance', path: 'clearance-corpuz.jpg', type: 'image/jpeg' },
-    documentCedula: { name: 'Cedula', path: 'cedula-corpuz.pdf', type: 'application/pdf' },
-    documentDriversLicense: { name: 'Driver\'s License', path: 'license-corpuz.jpg', type: 'image/jpeg' },
-    documentVotersAffidavit: { name: 'Voter\'s Affidavit', path: 'voter-corpuz.pdf', type: 'application/pdf' },
-    documentPicture: { name: '1x1 Picture', path: 'picture-corpuz.jpg', type: 'image/jpeg' },
-  },
-  {
-    id: 2,
-    franchiseNumber: 'F002',
-    name: 'Kevin Klein Ananayo',
-    make: 'Kawasaki',
-    plateNumber: 'NV-5678',
-    applicationType: 'Renewal',
-    address: 'Brgy. Quezon, Solano, Nueva Vizcaya',
-    contactNumber: '0928-563-2147',
-    sidecarPlateNumber: 'SP-33456',
-    birthPlace: 'Bayombong, Nueva Vizcaya',
-    birthDate: '1998-09-12',
-    civilStatus: 'Married',
-    citizenship: 'Filipino',
-    todaMembership: 'Yes',
-    unitModel: 'Barako 175',
-    colorMotor: 'Blue',
-    colorSidecar: 'Gray',
-    mvPlate: 'MV-4532',
-    motorEngineNumber: 'EN-65783',
-    chassisNumber: 'CH-98211',
-    driverName: 'Kevin Klein Ananayo',
-    driverAddress: 'Brgy. Quezon, Solano, Nueva Vizcaya',
-    documentRegistration: { name: 'Registration Document', path: 'reg-ananayo.jpg', type: 'image/jpeg' },
-    documentBarangayClearance: { name: 'Barangay Clearance', path: 'clearance-ananayo.jpg', type: 'image/jpeg' },
-    documentCedula: { name: 'Cedula', path: 'cedula-ananayo.pdf', type: 'application/pdf' },
-    documentDriversLicense: { name: 'Driver\'s License', path: 'license-ananayo.jpg', type: 'image/jpeg' },
-    documentVotersAffidavit: { name: 'Voter\'s Affidavit', path: 'voter-ananayo.pdf', type: 'application/pdf' },
-    documentPicture: { name: '1x1 Picture', path: 'picture-ananayo.jpg', type: 'image/jpeg' },
-  },
-]
+
 
 function FranchiseMgmt() {
   const [searchTerm, setSearchTerm] = useState('')
@@ -151,13 +89,7 @@ function FranchiseMgmt() {
     const fetchPendingApplications = async () => {
       setIsLoading(true)
       try {
-        // API INTEGRATION POINT: Replace this with actual API call
-        // const response = await fetch('/api/franchise-applications?status=pending');
-        // if (!response.ok) throw new Error('Failed to fetch applications');
-        // const data = await response.json();
-        // setPendingApplications(data);
-        
-        // Mock data for development
+  
         setTimeout(() => {
           // Merge mock data with any pending applications saved in localStorage by the operator submission form
           const savedPending = (function() {
@@ -169,68 +101,7 @@ function FranchiseMgmt() {
             }
           })()
 
-          setPendingApplications([
-            {
-              id: 1,
-              franchiseNumber: 'F001',
-              name: 'Luke Dominic Corpuz',
-              make: 'Honda',
-              plateNumber: 'NV-1234',
-              applicationType: 'New',
-              address: 'Brgy. Communal, Solano, Nueva Vizcaya',
-              contactNumber: '0917-245-6789',
-              sidecarPlateNumber: 'SP-11223',
-              birthPlace: 'Solano, Nueva Vizcaya',
-              birthDate: '2002-04-10',
-              civilStatus: 'Single',
-              citizenship: 'Filipino',
-              todaMembership: 'Yes',
-              unitModel: 'Wave 125',
-              colorMotor: 'Red',
-              colorSidecar: 'Black',
-              mvPlate: 'MV-9821',
-              motorEngineNumber: 'EN-53241',
-              chassisNumber: 'CH-87234',
-              driverName: 'Luke Dominic Corpuz',
-              driverAddress: 'Brgy. Communal, Solano, Nueva Vizcaya',
-              documentRegistration: { name: 'Registration Document', path: 'reg-corpuz.jpg', type: 'image/jpeg' },
-              documentBarangayClearance: { name: 'Barangay Clearance', path: 'clearance-corpuz.jpg', type: 'image/jpeg' },
-              documentCedula: { name: 'Cedula', path: 'cedula-corpuz.pdf', type: 'application/pdf' },
-              documentDriversLicense: { name: 'Driver\'s License', path: 'license-corpuz.jpg', type: 'image/jpeg' },
-              documentVotersAffidavit: { name: 'Voter\'s Affidavit', path: 'voter-corpuz.pdf', type: 'application/pdf' },
-              documentPicture: { name: '1x1 Picture', path: 'picture-corpuz.jpg', type: 'image/jpeg' },
-            },
-            {
-    id: 2,
-    franchiseNumber: 'F002',
-    name: 'Kevin Klein Ananayo',
-    make: 'Kawasaki',
-    plateNumber: 'NV-5678',
-    applicationType: 'Renewal',
-    address: 'Brgy. Quezon, Solano, Nueva Vizcaya',
-    contactNumber: '0928-563-2147',
-    sidecarPlateNumber: 'SP-33456',
-    birthPlace: 'Bayombong, Nueva Vizcaya',
-    birthDate: '1998-09-12',
-    civilStatus: 'Married',
-    citizenship: 'Filipino',
-    todaMembership: 'Yes',
-    unitModel: 'Barako 175',
-    colorMotor: 'Blue',
-    colorSidecar: 'Gray',
-    mvPlate: 'MV-4532',
-    motorEngineNumber: 'EN-65783',
-    chassisNumber: 'CH-98211',
-    driverName: 'Kevin Klein Ananayo',
-    driverAddress: 'Brgy. Quezon, Solano, Nueva Vizcaya',
-    documentRegistration: { name: 'Registration Document', path: 'reg-ananayo.jpg', type: 'image/jpeg' },
-    documentBarangayClearance: { name: 'Barangay Clearance', path: 'clearance-ananayo.jpg', type: 'image/jpeg' },
-    documentCedula: { name: 'Cedula', path: 'cedula-ananayo.pdf', type: 'application/pdf' },
-    documentDriversLicense: { name: 'Driver\'s License', path: 'license-ananayo.jpg', type: 'image/jpeg' },
-    documentVotersAffidavit: { name: 'Voter\'s Affidavit', path: 'voter-ananayo.pdf', type: 'application/pdf' },
-    documentPicture: { name: '1x1 Picture', path: 'picture-ananayo.jpg', type: 'image/jpeg' },
-  },
-]);
+         
 
           // If there are saved pending applications from the operator, append them
           if (savedPending && savedPending.length) {
@@ -269,7 +140,7 @@ function FranchiseMgmt() {
             setPendingApplications(prev => [...prev, ...normalized])
           }
 
-            // Also fetch server-side pending apps saved by operator submissions
+            //Server side pending
             ;(async () => {
               try {
                 const apiBase = 'http://localhost:5170'
@@ -279,9 +150,6 @@ function FranchiseMgmt() {
                   // DEBUG: log server response so we can verify which keys the server returns
                   console.log('FranchiseMgmt: fetched serverApps', serverApps)
                   if (Array.isArray(serverApps) && serverApps.length) {
-                    // Normalize server apps to the expected shape so table fields
-                    // like `address`, `unitModel`, `mvPlate` are present regardless
-                    // of how the server stored them.
                     const normalizedServerApps = serverApps.map((it) => ({
                       id: it.id,
                       franchiseNumber: it.franchiseNumber || it.franchise_number || '',
@@ -328,8 +196,8 @@ function FranchiseMgmt() {
             })()
 
             setIsLoading(false)
-            // Only fall back to mock data when no pending applications were loaded
-            setPendingApplications(prev => (prev && prev.length ? prev : MOCK_APPLICATIONS))
+            // Only fall back to empty array when no pending applications were loaded
+            setPendingApplications(prev => (prev && prev.length ? prev : []))
             setIsLoading(false)
         }, 1000)
       } catch (error) {
@@ -639,55 +507,55 @@ function FranchiseMgmt() {
       
       // if (!response.ok) throw new Error('Failed to submit application');
       
-      // Mock successful submission
-      setTimeout(() => {
-        // Create a new application with a unique ID
-        const newApplication = {
-          id: pendingApplications.length + 1,
-          franchiseNumber: `F${String(pendingApplications.length + 1).padStart(3, '0')}`,
-          applicationType: 'New',
-          address: formData.driverAddress, // For display in the table
-          ...formData
-        }
-        
-        setPendingApplications([...pendingApplications, newApplication])
-        handleCloseAddModal()
-        
-        // Reset form data
-        setFormData({
-          date: new Date().toISOString().slice(0, 10),
-          sidecarPlateNumber: '',
-          name: '',
-          contactNumber: '',
-          birthPlace: '',
-          birthDate: '',
-          civilStatus: '',
-          citizenship: '',
-          todaMembership: '',
-          unitModel: '',
-          colorMotor: '',
-          colorSidecar: '',
-          mvPlate: '',
-          motorEngineNumber: '',
-          chassisNumber: '',
-          driverName: '',
-          driverAddress: '',
-          documentRegistration: null,
-          documentBarangayClearance: null,
-          documentCedula: null,
-          documentDriversLicense: null,
-          documentVotersAffidavit: null,
-          documentPicture: null,
-        })
-        
-        setNotification({
-          open: true,
-          message: 'Application submitted successfully',
-          type: 'success'
-        })
-        
-        setIsLoading(false)
-      }, 1500)
+      // Post the new application to the dev server so it persists
+      const apiBase = 'http://localhost:5170'
+      const payload = {
+        ...formData,
+        applicationType: formData.applicationType || 'New',
+        address: formData.driverAddress || formData.address || ''
+      }
+
+      const resp = await fetch(`${apiBase}/api/pending-apps`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+
+      if (!resp.ok) throw new Error('Failed to submit application')
+
+      const created = await resp.json()
+      setPendingApplications(prev => [...prev, created])
+      handleCloseAddModal()
+
+      // Reset form data
+      setFormData({
+        date: new Date().toISOString().slice(0, 10),
+        sidecarPlateNumber: '',
+        name: '',
+        contactNumber: '',
+        birthPlace: '',
+        birthDate: '',
+        civilStatus: '',
+        citizenship: '',
+        todaMembership: '',
+        unitModel: '',
+        colorMotor: '',
+        colorSidecar: '',
+        mvPlate: '',
+        motorEngineNumber: '',
+        chassisNumber: '',
+        driverName: '',
+        driverAddress: '',
+        documentRegistration: null,
+        documentBarangayClearance: null,
+        documentCedula: null,
+        documentDriversLicense: null,
+        documentVotersAffidavit: null,
+        documentPicture: null,
+      })
+
+      setNotification({ open: true, message: 'Application submitted successfully', type: 'success' })
+      setIsLoading(false)
     } catch (error) {
       console.error('Error submitting application:', error)
       setNotification({
@@ -761,22 +629,21 @@ function FranchiseMgmt() {
       
       // if (!response.ok) throw new Error('Failed to reject application');
       
-      // Mock successful rejection
-      setTimeout(() => {
-        // In a real app, this would update the application status in the database
-        // with the rejection reason
-        setPendingApplications(pendingApplications.filter(app => app.id !== selectedApplication.id))
-        
-        setNotification({
-          open: true,
-          message: 'Application rejected successfully',
-          type: 'success'
-        })
-        
-        handleCloseRejectModal()
-        setRejectionReason('')
-        setIsLoading(false)
-      }, 1000)
+      // Delete the pending application from server so it is persisted
+      const apiBase = 'http://localhost:5170'
+      const resp = await fetch(`${apiBase}/api/pending-apps/${selectedApplication.id}`, {
+        method: 'DELETE'
+      })
+
+      if (!resp.ok) throw new Error('Failed to reject application')
+
+      await resp.json()
+      setPendingApplications(prev => prev.filter(app => String(app.id) !== String(selectedApplication.id)))
+
+      setNotification({ open: true, message: 'Application rejected successfully', type: 'success' })
+      handleCloseRejectModal()
+      setRejectionReason('')
+      setIsLoading(false)
     } catch (error) {
       console.error('Error rejecting application:', error)
       setNotification({
@@ -858,7 +725,7 @@ function FranchiseMgmt() {
                       className={`table-row ${index % 2 !== 0 ? 'table-row-odd' : ''}`}
                       onClick={() => handleOpenViewModal(application)}
                     >
-                      <TableCell className="table-cell-body">{application.id}</TableCell>
+                      <TableCell className="table-cell-body">{index + 1}</TableCell>
                       <TableCell className="table-cell-body">{application.name}</TableCell>
                       <TableCell className="table-cell-body">{application.franchiseNumber}</TableCell>
                       <TableCell className="table-cell-body">{application.make}</TableCell>

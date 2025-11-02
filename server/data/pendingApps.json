@@ -1,0 +1,37 @@
+{
+  "pending": [
+    {
+      "id": 1762059274990,
+      "franchiseNumber": "F621",
+      "name": "Hana",
+      "make": "",
+      "plateNumber": "89308",
+      "applicationType": "New",
+      "address": "Quezon, Solano Nueva Vizcaya",
+      "contactNumber": "09806554786",
+      "sidecarPlateNumber": "89308",
+      "birthPlace": "Solano",
+      "birthDate": "2000-02-15",
+      "civilStatus": "Single",
+      "citizenship": "Filipino",
+      "todaMembership": "No",
+      "unitModel": "wave 890",
+      "colorMotor": "Black",
+      "colorSidecar": "Blue",
+      "mvPlate": "Hb-98826",
+      "motorEngineNumber": "Hg-8785",
+      "chassisNumber": "Hk-343445",
+      "driverName": "Hana",
+      "driverAddress": "Quezon, Solano Nueva Vizcaya",
+      "documentRegistration": null,
+      "documentBarangayClearance": null,
+      "documentCedula": null,
+      "documentDriversLicense": null,
+      "documentVotersAffidavit": null,
+      "documentPicture": null,
+      "submittedAt": "2025-11-02T04:54:35.002Z",
+      "status": "PENDING"
+    }
+  ],
+  "approved": []
+}
