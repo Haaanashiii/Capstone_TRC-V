@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react'
 import './FranchiseMgmt.css'
 import Sidebar from './Sidebar'
+import { franchiseAPI } from '../Services/api'
 import {
   Table,
   TableBody,
@@ -32,8 +33,6 @@ import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFile'
 import ImageIcon from '@mui/icons-material/Image'
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf'
 import VisibilityIcon from '@mui/icons-material/Visibility'
-
-
 
 function FranchiseMgmt() {
   const [searchTerm, setSearchTerm] = useState('')
@@ -81,9 +80,6 @@ function FranchiseMgmt() {
 
   /**
    * Fetch pending franchise applications from the API
-   * 
-   * This should be replaced with a real API call to:
-   * GET /api/franchise-applications?status=pending
    */
   useEffect(() => {
     const fetchPendingApplications = async () => {
@@ -143,8 +139,8 @@ function FranchiseMgmt() {
             //Server side pending
             ;(async () => {
               try {
-                const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170'
-                const resp = await fetch(`${apiBase}/api/franchise-applications?status=pending`)
+                const apiBase = 'http://localhost:5170'
+                const resp = await fetch(`${apiBase}/api/pending-apps`)
                 if (resp.ok) {
                   const serverApps = await resp.json()
                   // DEBUG: log server response so we can verify which keys the server returns
@@ -191,7 +187,7 @@ function FranchiseMgmt() {
                   console.warn('Failed to fetch server pending apps', resp.status)
                 }
               } catch (err) {
-                console.warn('Error fetching /api/franchise-applications', err)
+                console.warn('Error fetching /api/pending-apps', err)
               }
             })()
 
@@ -278,8 +274,8 @@ function FranchiseMgmt() {
 
         // Then fetch latest server-side pending apps and merge them too
         try {
-          const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170'
-          const resp = await fetch(`${apiBase}/api/franchise-applications?status=pending`)
+          const apiBase = 'http://localhost:5170'
+          const resp = await fetch(`${apiBase}/api/pending-apps`)
           if (resp.ok) {
             const serverApps = await resp.json()
             if (Array.isArray(serverApps) && serverApps.length) {
@@ -320,7 +316,6 @@ function FranchiseMgmt() {
                 return toAdd.length ? [...prev, ...toAdd] : prev
               })
             }
-          }
         } catch (err) {
           console.warn('Error fetching /api/franchise-applications during merge', err)
         }
@@ -476,11 +471,7 @@ function FranchiseMgmt() {
   }, [formData])
   
   /**
-   * Submit new application
-   * 
-   * API INTEGRATION POINT:
-   * This should send a multipart/form-data request to:
-   * POST /api/franchise-applications
+   * Submit new application (auto-approved by admin)
    */
   const handleSubmitApplication = async (e) => {
     e.preventDefault()
@@ -507,15 +498,15 @@ function FranchiseMgmt() {
       
       // if (!response.ok) throw new Error('Failed to submit application');
       
-      // Post the new application to the server so it persists
-      const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170'
+      // Post the new application to the dev server so it persists
+      const apiBase = 'http://localhost:5170'
       const payload = {
         ...formData,
         applicationType: formData.applicationType || 'New',
         address: formData.driverAddress || formData.address || ''
       }
 
-      const resp = await fetch(`${apiBase}/api/franchise-applications`, {
+      const resp = await fetch(`${apiBase}/api/pending-apps`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -526,7 +517,7 @@ function FranchiseMgmt() {
       const created = await resp.json()
       setPendingApplications(prev => [...prev, created])
       handleCloseAddModal()
-
+      
       // Reset form data
       setFormData({
         date: new Date().toISOString().slice(0, 10),
@@ -553,14 +544,19 @@ function FranchiseMgmt() {
         documentVotersAffidavit: null,
         documentPicture: null,
       })
-
-      setNotification({ open: true, message: 'Application submitted successfully', type: 'success' })
+      
+      setNotification({
+        open: true,
+        message: 'Franchise added and approved successfully',
+        type: 'success'
+      })
+      
       setIsLoading(false)
     } catch (error) {
       console.error('Error submitting application:', error)
       setNotification({
         open: true,
-        message: 'Failed to submit application',
+        message: error.response?.data?.error || 'Failed to add franchise',
         type: 'error'
       })
       setIsLoading(false)
@@ -569,9 +565,6 @@ function FranchiseMgmt() {
   
   /**
    * Approve application
-   * 
-   * API INTEGRATION POINT:
-   * This should call PUT /api/franchise-applications/:id/approve
    */
   const handleApproveApplication = async () => {
     if (!selectedApplication) return
@@ -579,26 +572,29 @@ function FranchiseMgmt() {
     setIsLoading(true)
     
     try {
-      // Call server to approve the application so it becomes visible to drivers
-      const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170'
-      const resp = await fetch(`${apiBase}/api/franchise-applications/${selectedApplication.id}/approve`, {
+      // Call dev server to approve the application so it becomes visible to drivers
+      const apiBase = 'http://localhost:5170'
+      const resp = await fetch(`${apiBase}/api/pending-apps/${selectedApplication.id}/approve`, {
         method: 'PUT'
       })
 
       if (!resp.ok) throw new Error('Failed to approve application')
 
-  await resp.json()
-  // Remove from pending list locally
+      // Remove from pending list locally
       setPendingApplications(prev => prev.filter(app => String(app.id) !== String(selectedApplication.id)))
 
-      setNotification({ open: true, message: 'Application approved successfully', type: 'success' })
+      setNotification({ 
+        open: true, 
+        message: 'Application approved successfully', 
+        type: 'success' 
+      })
       handleCloseViewModal()
       setIsLoading(false)
     } catch (error) {
       console.error('Error approving application:', error)
       setNotification({
         open: true,
-        message: 'Failed to approve application',
+        message: error.response?.data?.error || 'Failed to approve application',
         type: 'error'
       })
       setIsLoading(false)
@@ -607,10 +603,6 @@ function FranchiseMgmt() {
   
   /**
    * Submit rejection
-   * 
-   * API INTEGRATION POINT:
-   * This should call PUT /api/franchise-applications/:id/reject
-   * with the rejection reason in the request body
    */
   const handleSubmitRejection = async () => {
     if (!selectedApplication || !rejectionReason.trim()) return
@@ -630,12 +622,14 @@ function FranchiseMgmt() {
       // if (!response.ok) throw new Error('Failed to reject application');
       
       // Delete the pending application from server so it is persisted
-      const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170'
-      const resp = await fetch(`${apiBase}/api/franchise-applications/${selectedApplication.id}`, {
+      const apiBase = 'http://localhost:5170'
+      const resp = await fetch(`${apiBase}/api/pending-apps/${selectedApplication.id}`, {
         method: 'DELETE'
       })
 
       if (!resp.ok) throw new Error('Failed to reject application')
+
+      await resp.json()
       setPendingApplications(prev => prev.filter(app => String(app.id) !== String(selectedApplication.id)))
 
       setNotification({ open: true, message: 'Application rejected successfully', type: 'success' })
@@ -646,7 +640,7 @@ function FranchiseMgmt() {
       console.error('Error rejecting application:', error)
       setNotification({
         open: true,
-        message: 'Failed to reject application',
+        message: error.response?.data?.error || 'Failed to reject application',
         type: 'error'
       })
       setIsLoading(false)
@@ -673,7 +667,7 @@ function FranchiseMgmt() {
             variant="outlined"
             fullWidth
             value={searchTerm}
-            onChange={handleSearch}
+            onChange={(e) => setSearchTerm(e.target.value)}
             InputProps={{
               startAdornment: (
                 <InputAdornment position="start">
@@ -1258,7 +1252,7 @@ function FranchiseMgmt() {
                   This file type cannot be previewed. Download to view.
                 </Typography>
                 <Button
-                  className="button-primary mt-2"
+                  className="mt-2 button-primary"
                   href={previewFile.path}
                   download={previewFile.name}
                 >
