@@ -25,12 +25,17 @@ import {
   FormControl,
   InputLabel,
   tableCellClasses,
-  IconButton
+  IconButton,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions
 } from '@mui/material';
 import { styled } from "@mui/material/styles";
 import SearchIcon from '@mui/icons-material/Search';
 import DownloadIcon from '@mui/icons-material/Download';
 import VisibilityIcon from '@mui/icons-material/Visibility';
+import CloseIcon from '@mui/icons-material/Close';
 
 // Styled components for table
 const StyledTableCell = styled(TableCell)(({ theme }) => ({
@@ -76,6 +81,11 @@ function Reports() {
   const [statusFilter, setStatusFilter] = useState('');
   const [sortBy, setSortBy] = useState('dateReported');
   const [sortOrder, setSortOrder] = useState('desc');
+  const [tempFilters, setTempFilters] = useState({
+    status: '',
+    sortBy: 'dateReported',
+    sortOrder: 'desc'
+  });
 
   // Get auth token
   const getAuthToken = () => {
@@ -207,6 +217,42 @@ function Reports() {
     const date = new Date(dateString);
     return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
   };
+
+  // Filter dialog handlers
+  const handleCloseFilter = useCallback(() => {
+    setFilterOpen(false);
+    // Reset temp filters to current filters
+    setTempFilters({
+      status: statusFilter,
+      sortBy: sortBy,
+      sortOrder: sortOrder
+    });
+  }, [statusFilter, sortBy, sortOrder]);
+
+  const handleTempFilterChange = useCallback((field, value) => {
+    setTempFilters(prev => ({ ...prev, [field]: value }));
+  }, []);
+
+  const handleApplyFilters = useCallback(() => {
+    setStatusFilter(tempFilters.status);
+    setSortBy(tempFilters.sortBy);
+    setSortOrder(tempFilters.sortOrder);
+    setPage(0);
+    setFilterOpen(false);
+  }, [tempFilters]);
+
+  const handleClearFilters = useCallback(() => {
+    const defaultFilters = {
+      status: '',
+      sortBy: 'dateReported',
+      sortOrder: 'desc'
+    };
+    setTempFilters(defaultFilters);
+    setStatusFilter('');
+    setSortBy('dateReported');
+    setSortOrder('desc');
+    setPage(0);
+  }, []);
 
   const modalStyle = {
     position: 'absolute',
