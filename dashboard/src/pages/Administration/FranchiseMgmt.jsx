@@ -390,15 +390,41 @@ function FranchiseMgmt() {
     try {
       
       const apiBase = 'http://localhost:5170'
+      
+      // Log the ID being sent for debugging
+      console.log('Approving application with ID:', selectedApplication.id)
+      
       // Approve via DB-backed endpoint so approval logic (QR generation, persistence) runs on the server
       const resp = await fetch(`${apiBase}/api/franchise-applications/${selectedApplication.id}/approve`, {
-        method: 'PUT'
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          actionTaken: 'APPROVED',
+          remarks: 'Application approved by administrator'
+        })
       })
 
-      if (!resp.ok) throw new Error('Failed to approve application')
+      if (!resp.ok) {
+        // Try to get error message from response
+        let errorMessage = 'Failed to approve application'
+        try {
+          const errorData = await resp.json()
+          console.error('Server error response:', errorData)
+          errorMessage = errorData.error || errorData.message || errorMessage
+        } catch (e) {
+          // If response is not JSON, use status text
+          errorMessage = `Failed to approve application: ${resp.status} ${resp.statusText}`
+        }
+        throw new Error(errorMessage)
+      }
 
-  // Refresh list from server to reflect approval
-  await fetchAllPending()
+      const result = await resp.json()
+      console.log('Approval successful:', result)
+
+      // Refresh list from server to reflect approval
+      await fetchAllPending()
 
       setNotification({ 
         open: true, 
@@ -411,7 +437,7 @@ function FranchiseMgmt() {
       console.error('Error approving application:', error)
       setNotification({
         open: true,
-        message: error.response?.data?.error || 'Failed to approve application',
+        message: error.message || 'Failed to approve application',
         type: 'error'
       })
       setIsLoading(false)
