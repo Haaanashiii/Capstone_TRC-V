@@ -74,8 +74,26 @@ exports.createUserAccount = async (req, res, next) => {
 exports.updateUserAccount = async (req, res, next) => {
   try {
     const user = await userAccountRepository.updateUserAccount(req.params.id, req.body);
-    res.status(200).json(user);
+    
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    // Don't return password in response
+    const userResponse = {
+      userId: user.userId,
+      name: user.name,
+      username: user.username,
+      email: user.email,
+      role: user.role,
+      status: user.status
+    };
+    
+    res.status(200).json(userResponse);
   } catch (err) {
+    if (err.message === 'User not found') {
+      return res.status(404).json({ error: 'User not found' });
+    }
     next(err);
   }
 };
@@ -85,6 +103,9 @@ exports.deleteUserAccount = async (req, res, next) => {
     await userAccountRepository.deleteUserAccount(req.params.id);
     res.status(204).send();
   } catch (err) {
+    if (err.message === 'User not found') {
+      return res.status(404).json({ error: 'User not found' });
+    }
     next(err);
   }
 };

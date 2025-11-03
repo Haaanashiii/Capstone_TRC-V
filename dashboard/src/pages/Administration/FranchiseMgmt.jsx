@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react'
 import './FranchiseMgmt.css'
 import Sidebar from './Sidebar'
+import { franchiseAPI } from '../Services/api'
 import {
   Table,
   TableBody,
@@ -81,52 +82,60 @@ function FranchiseMgmt() {
   })
 
  
+  /**
+   * Fetch all pending franchise applications from backend
+   * Uses secure franchiseAPI.getPending() with automatic token refresh
+   */
   const fetchAllPending = useCallback(async () => {
     setIsLoading(true)
     try {
-      const apiBase = 'http://localhost:5170'
-      const resp = await fetch(`${apiBase}/api/franchise-applications?status=pending`)
-      if (resp.ok) {
-        const serverApps = await resp.json()
-        console.log('FranchiseMgmt: fetched serverApps', serverApps)
-        const normalizedServerApps = Array.isArray(serverApps) ? serverApps.map((it) => ({
-          id: it.id,
-          franchiseNumber: it.franchiseNumber || it.franchise_number || '',
-          name: it.name || it.driverName || it.operatorName || '',
-          make: it.make || it.unitModel || it.vehicleMake || '',
-          plateNumber: it.plateNumber || it.mvPlate || it.plate_number || '',
-          applicationType: it.applicationType || it.type || 'New',
-          address: it.address || it.driverAddress || it.address_of_driver || '',
-          contactNumber: it.contactNumber || it.phone || it.contact || '',
-          sidecarPlateNumber: it.sidecarPlateNumber || it.sidecar_plate || '',
-          birthPlace: it.birthPlace || it.placeOfBirth || '',
-          birthDate: it.birthDate || it.dateOfBirth || '',
-          civilStatus: it.civilStatus || '',
-          citizenship: it.citizenship || '',
-          todaMembership: it.todaMembership || '',
-          unitModel: it.unitModel || it.make || '',
-          colorMotor: it.colorMotor || it.color || '',
-          colorSidecar: it.colorSidecar || it.sidecarColor || it.sidecar_color || '',
-          mvPlate: it.mvPlate || it.plateNumber || '',
-          motorEngineNumber: it.motorEngineNumber || it.engineNumber || '',
-          chassisNumber: it.chassisNumber || it.chassis || it.chassis_number || '',
-          driverName: it.driverName || it.name || it.operatorName || '',
-          driverAddress: it.driverAddress || it.address || '',
-          documentRegistration: it.documentRegistration || null,
-          documentBarangayClearance: it.documentBarangayClearance || null,
-          documentCedula: it.documentCedula || null,
-          documentDriversLicense: it.documentDriversLicense || null,
-          documentVotersAffidavit: it.documentVotersAffidavit || null,
-          documentPicture: it.documentPicture || null,
-        })) : []
+      const response = await franchiseAPI.getPending()
+      const serverApps = response.data
+      
+      console.log('[FranchiseMgmt] Fetched pending applications:', serverApps?.length || 0)
+      
+      // Normalize application data structure
+      const normalizedServerApps = Array.isArray(serverApps) ? serverApps.map((it) => ({
+        id: it.id || it._id,
+        franchiseNumber: it.franchiseNumber || it.franchise_number || '',
+        name: it.name || it.driverName || it.operatorName || '',
+        make: it.make || it.unitModel || it.vehicleMake || '',
+        plateNumber: it.plateNumber || it.mvPlate || it.plate_number || '',
+        applicationType: it.applicationType || it.type || 'New',
+        address: it.address || it.driverAddress || it.address_of_driver || '',
+        contactNumber: it.contactNumber || it.phone || it.contact || '',
+        sidecarPlateNumber: it.sidecarPlateNumber || it.sidecar_plate || '',
+        birthPlace: it.birthPlace || it.placeOfBirth || '',
+        birthDate: it.birthDate || it.dateOfBirth || '',
+        civilStatus: it.civilStatus || '',
+        citizenship: it.citizenship || '',
+        todaMembership: it.todaMembership || '',
+        unitModel: it.unitModel || it.make || '',
+        colorMotor: it.colorMotor || it.color || '',
+        colorSidecar: it.colorSidecar || it.sidecarColor || it.sidecar_color || '',
+        mvPlate: it.mvPlate || it.plateNumber || '',
+        motorEngineNumber: it.motorEngineNumber || it.engineNumber || '',
+        chassisNumber: it.chassisNumber || it.chassis || it.chassis_number || '',
+        driverName: it.driverName || it.name || it.operatorName || '',
+        driverAddress: it.driverAddress || it.address || '',
+        documentRegistration: it.documentRegistration || null,
+        documentBarangayClearance: it.documentBarangayClearance || null,
+        documentCedula: it.documentCedula || null,
+        documentDriversLicense: it.documentDriversLicense || null,
+        documentVotersAffidavit: it.documentVotersAffidavit || null,
+        documentPicture: it.documentPicture || null,
+      })) : []
 
-        setPendingApplications(normalizedServerApps)
-      } else {
-        console.warn('Failed to fetch server pending apps', resp.status)
-        setPendingApplications([])
-      }
+      setPendingApplications(normalizedServerApps)
     } catch (err) {
-      console.warn('Error fetching /api/franchise-applications', err)
+      console.error('[FranchiseMgmt] Error fetching pending applications:', err)
+      
+      setNotification({
+        open: true,
+        message: err.response?.data?.error || 'Failed to load pending applications',
+        type: 'error'
+      })
+      
       setPendingApplications([])
     } finally {
       setIsLoading(false)
@@ -286,6 +295,7 @@ function FranchiseMgmt() {
   
   /**
    * Submit new application (auto-approved by admin)
+   * Uses secure franchiseAPI.create() with FormData for file uploads
    */
   const handleSubmitApplication = async (e) => {
     e.preventDefault()
@@ -293,48 +303,42 @@ function FranchiseMgmt() {
     setIsLoading(true)
     
     try {
-      // In production, this would be a FormData object with all the fields
-      // including the file uploads, sent to the server
+      // Create FormData for file uploads
+      const formDataToSend = new FormData()
       
-      // const formDataToSend = new FormData();
-      // Object.keys(formData).forEach(key => {
-      //   if (key.startsWith('document') && formData[key]?.file) {
-      //     formDataToSend.append(key, formData[key].file);
-      //   } else {
-      //     formDataToSend.append(key, formData[key]);
-      //   }
-      // });
+      // Add all form fields to FormData
+      Object.keys(formData).forEach(key => {
+        if (key.startsWith('document') && formData[key]?.file) {
+          // Add file uploads
+          formDataToSend.append(key, formData[key].file)
+        } else if (formData[key] !== null && formData[key] !== undefined) {
+          // Add regular fields
+          formDataToSend.append(key, formData[key])
+        }
+      })
       
-      // const response = await fetch('/api/franchise-applications', {
-      //   method: 'POST',
-      //   body: formDataToSend,
-      // });
+      // Add application type if not present
+      if (!formData.applicationType) {
+        formDataToSend.append('applicationType', 'New')
+      }
       
-      // if (!response.ok) throw new Error('Failed to submit application');
-      
-      // Post the new application to the dev server so it persists
-      const apiBase = 'http://localhost:5170'
-      const payload = {
-        ...formData,
-        applicationType: formData.applicationType || 'New',
-        address: formData.driverAddress || formData.address || ''
+      // Add address if not present
+      if (!formData.address && formData.driverAddress) {
+        formDataToSend.append('address', formData.driverAddress)
       }
 
-      // Post to the DB-backed franchise applications endpoint so submissions are stored in MongoDB
-      const resp = await fetch(`${apiBase}/api/franchise-applications`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      })
+      // Submit to backend using secure API
+      const response = await franchiseAPI.create(formDataToSend)
+      
+      console.log('[FranchiseMgmt] Application submitted:', response.data)
 
-      if (!resp.ok) throw new Error('Failed to submit application')
-
-  await resp.json()
-  // Refresh full list from server/local storage so UI reflects authoritative data
-  await fetchAllPending()
+      // Refresh pending applications list
+      await fetchAllPending()
+      
+      // Close modal
       handleCloseAddModal()
       
-     
+      // Reset form
       setFormData({
         date: new Date().toISOString().slice(0, 10),
         sidecarPlateNumber: '',
@@ -363,24 +367,24 @@ function FranchiseMgmt() {
       
       setNotification({
         open: true,
-        message: 'Franchise added and approved successfully',
+        message: 'Franchise application submitted successfully',
         type: 'success'
       })
-      
-      setIsLoading(false)
     } catch (error) {
-      console.error('Error submitting application:', error)
+      console.error('[FranchiseMgmt] Error submitting application:', error)
       setNotification({
         open: true,
-        message: error.response?.data?.error || 'Failed to add franchise',
+        message: error.response?.data?.error || 'Failed to submit application',
         type: 'error'
       })
+    } finally {
       setIsLoading(false)
     }
   }
   
   /**
    * Approve application
+   * Uses secure franchiseAPI.approve() with automatic token refresh
    */
   const handleApproveApplication = async () => {
     if (!selectedApplication) return
@@ -388,42 +392,14 @@ function FranchiseMgmt() {
     setIsLoading(true)
     
     try {
+      console.log('[FranchiseMgmt] Approving application:', selectedApplication.id)
       
-      const apiBase = 'http://localhost:5170'
+      // Approve via secure API (generates QR code, updates DB)
+      const response = await franchiseAPI.approve(selectedApplication.id)
       
-      // Log the ID being sent for debugging
-      console.log('Approving application with ID:', selectedApplication.id)
-      
-      // Approve via DB-backed endpoint so approval logic (QR generation, persistence) runs on the server
-      const resp = await fetch(`${apiBase}/api/franchise-applications/${selectedApplication.id}/approve`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          actionTaken: 'APPROVED',
-          remarks: 'Application approved by administrator'
-        })
-      })
+      console.log('[FranchiseMgmt] Application approved:', response.data)
 
-      if (!resp.ok) {
-        // Try to get error message from response
-        let errorMessage = 'Failed to approve application'
-        try {
-          const errorData = await resp.json()
-          console.error('Server error response:', errorData)
-          errorMessage = errorData.error || errorData.message || errorMessage
-        } catch (e) {
-          // If response is not JSON, use status text
-          errorMessage = `Failed to approve application: ${resp.status} ${resp.statusText}`
-        }
-        throw new Error(errorMessage)
-      }
-
-      const result = await resp.json()
-      console.log('Approval successful:', result)
-
-      // Refresh list from server to reflect approval
+      // Refresh pending applications list
       await fetchAllPending()
 
       setNotification({ 
@@ -431,21 +407,23 @@ function FranchiseMgmt() {
         message: 'Application approved successfully', 
         type: 'success' 
       })
+      
       handleCloseViewModal()
-      setIsLoading(false)
     } catch (error) {
-      console.error('Error approving application:', error)
+      console.error('[FranchiseMgmt] Error approving application:', error)
       setNotification({
         open: true,
-        message: error.message || 'Failed to approve application',
+        message: error.response?.data?.error || 'Failed to approve application',
         type: 'error'
       })
+    } finally {
       setIsLoading(false)
     }
   }
   
   /**
    * Submit rejection
+   * Uses secure franchiseAPI.delete() (or reject if endpoint exists)
    */
   const handleSubmitRejection = async () => {
     if (!selectedApplication || !rejectionReason.trim()) return
@@ -453,44 +431,33 @@ function FranchiseMgmt() {
     setIsLoading(true)
     
     try {
-      // API call to reject the application
-      // const response = await fetch(`/api/franchise-applications/${selectedApplication.id}/reject`, {
-      //   method: 'PUT',
-      //   headers: {
-      //     'Content-Type': 'application/json',
-      //   },
-      //   body: JSON.stringify({ reason: rejectionReason }),
-      // });
+      console.log('[FranchiseMgmt] Rejecting application:', selectedApplication.id)
       
-      // if (!response.ok) throw new Error('Failed to reject application');
-      
-      // Delete the pending application from server so it is persisted
-      const apiBase = 'http://localhost:5170'
-      
-      const resp = await fetch(`${apiBase}/api/franchise-applications/${selectedApplication.id}`, {
-        method: 'DELETE'
-      })
+      // Delete the pending application using secure API
+      // TODO: If backend has a reject endpoint, use franchiseAPI.reject(id, reason)
+      await franchiseAPI.delete(selectedApplication.id)
 
-      if (!resp.ok) throw new Error('Failed to reject application')
-
-     
-      if (resp.status !== 204) {
-        try { await resp.json() } catch { /* ignore empty body */ }
-      }
-      // Refresh pending apps from server/local storage
+      console.log('[FranchiseMgmt] Application rejected')
+      
+      // Refresh pending applications list
       await fetchAllPending()
 
-      setNotification({ open: true, message: 'Application rejected successfully', type: 'success' })
+      setNotification({ 
+        open: true, 
+        message: 'Application rejected successfully', 
+        type: 'success' 
+      })
+      
       handleCloseRejectModal()
       setRejectionReason('')
-      setIsLoading(false)
     } catch (error) {
-      console.error('Error rejecting application:', error)
+      console.error('[FranchiseMgmt] Error rejecting application:', error)
       setNotification({
         open: true,
         message: error.response?.data?.error || 'Failed to reject application',
         type: 'error'
       })
+    } finally {
       setIsLoading(false)
     }
   }

@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import '../../Styles/Administrator_Css/UserManagement.css';
 import Sidebar from './Sidebar';
 import AccountVerificationModal from '../Services/AccountVerificationModal';
+import { authAPI, userAPI } from '../Services/api';
 import {
   Box, 
   Typography, 
@@ -34,10 +35,8 @@ import PersonAddIcon from '@mui/icons-material/PersonAdd';
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
-
 // Styled components for table
-const StyledTableCell = styled(TableCell)(({ theme }) => ({
+const StyledTableCell = styled(TableCell)(() => ({
   [`&.${tableCellClasses.head}`]: {
     backgroundColor: '#0A356B',
     color: '#ffffff',
@@ -51,7 +50,7 @@ const StyledTableCell = styled(TableCell)(({ theme }) => ({
   },
 }));
 
-const StyledTableRow = styled(TableRow)(({ theme }) => ({
+const StyledTableRow = styled(TableRow)(() => ({
   '&:nth-of-type(odd)': {
     backgroundColor: '#f9f9f9',
   },
@@ -89,34 +88,29 @@ function UserManagement() {
   const [success, setSuccess] = useState('');
   const [showVerificationModal, setShowVerificationModal] = useState(false);
   const [pendingUserData, setPendingUserData] = useState(null);
-  const [showPassword, setShowPassword] = useState(false);
   
   const rowsPerPage = 5;
 
-  // Fetch users from backend (only admin users)
+  /**
+   * Fetch users from backend (only admin users)
+   * Uses secure userAPI.getAll() with automatic token refresh
+   */
   const fetchUsers = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${API_BASE_URL}/users`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
-      });
+      const response = await userAPI.getAll();
       
-      if (!response.ok) {
-        throw new Error('Failed to fetch users');
-      }
+      console.log('[UserManagement] Fetched users:', response.data?.length || 0);
       
-      const data = await response.json();
       // Filter to show only Sangguniang Bayan and BPLO admins
-      const adminUsers = Array.isArray(data) 
-        ? data.filter(user => user.role === 'sb-admin' || user.role === 'bplo-admin')
+      const adminUsers = Array.isArray(response.data) 
+        ? response.data.filter(user => user.role === 'sb-admin' || user.role === 'bplo-admin')
         : [];
       setUsers(adminUsers);
       setError('');
     } catch (err) {
-      console.error('Error fetching users:', err);
-      setError('Failed to load users. Please try again.');
+      console.error('[UserManagement] Error fetching users:', err);
+      setError(err.response?.data?.error || 'Failed to load users. Please try again.');
       setUsers([]);
     } finally {
       setLoading(false);
@@ -165,6 +159,16 @@ function UserManagement() {
     setOpenModal(true);
     setError('');
     setSuccess('');
+    
+    // Debug log to check user structure
+    if (user) {
+      console.log('[UserManagement] Opening modal for user:', {
+        userId: user.userId,
+        _id: user._id,
+        id: user.id,
+        fullUser: user
+      });
+    }
   }, []);
 
   const handleCloseModal = useCallback(() => {
@@ -175,29 +179,24 @@ function UserManagement() {
     setSuccess('');
   }, []);
 
-  // Request OTP for new user
+  /**
+   * Request OTP for email verification
+   * Uses secure authAPI.requestOTP()
+   */
   const requestOTP = async (email) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/auth/request-otp`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email })
-      });
-      
-      const data = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to send verification code');
-      }
-      
+      await authAPI.requestOTP(email);
+      console.log('[UserManagement] OTP sent to:', email);
       return true;
     } catch (err) {
-      console.error('OTP request error:', err);
-      throw err;
+      console.error('[UserManagement] OTP request error:', err);
+      throw new Error(err.response?.data?.error || 'Failed to send verification code');
     }
   };
 
-  // Handle add/update user
+  /**
+   * Handle add/update user
+   */
   const handleAddUser = useCallback(async () => {
     // Validation
     if (!newUser.name || !newUser.username || !newUser.email || !newUser.role) {
@@ -233,20 +232,18 @@ function UserManagement() {
           updateData.password = newUser.password;
         }
         
-        const response = await fetch(`${API_BASE_URL}/users/${selectedUser._id}`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-          },
-          body: JSON.stringify(updateData)
-        });
+        // Get the correct user ID (try userId first, then _id, then id)
+        const userId = selectedUser.userId || selectedUser._id || selectedUser.id;
         
-        const data = await response.json();
+        console.log('[UserManagement] Updating user with ID:', userId);
         
-        if (!response.ok) {
-          throw new Error(data.error || 'Failed to update user');
+        if (!userId) {
+          throw new Error('User ID not found');
         }
+        
+        const response = await userAPI.update(userId, updateData);
+        
+        console.log('[UserManagement] User updated:', response.data);
         
         setSuccess('User updated successfully');
         await fetchUsers();
@@ -254,8 +251,8 @@ function UserManagement() {
           handleCloseModal();
         }, 1500);
       } catch (err) {
-        console.error('Error updating user:', err);
-        setError(err.message || 'Failed to update user');
+        console.error('[UserManagement] Error updating user:', err);
+        setError(err.response?.data?.error || 'Failed to update user');
       } finally {
         setLoading(false);
       }
@@ -289,27 +286,19 @@ function UserManagement() {
     }
   }, [isEditing, newUser, selectedUser, handleCloseModal, fetchUsers]);
 
-  // Handle verification success - create user
+  /**
+   * Handle verification success - create user
+   * Uses secure userAPI.create()
+   */
   const handleVerificationSuccess = useCallback(async () => {
     if (!pendingUserData) return;
     
     try {
       setLoading(true);
       
-      const response = await fetch(`${API_BASE_URL}/users`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify(pendingUserData)
-      });
+      const response = await userAPI.create(pendingUserData);
       
-      const data = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to create user');
-      }
+      console.log('[UserManagement] User created:', response.data);
       
       setSuccess('User created and verified successfully!');
       setPendingUserData(null);
@@ -319,32 +308,36 @@ function UserManagement() {
         setSuccess('');
       }, 3000);
     } catch (err) {
-      console.error('Error creating user:', err);
-      setError(err.message || 'Failed to create user');
+      console.error('[UserManagement] Error creating user:', err);
+      setError(err.response?.data?.error || 'Failed to create user');
     } finally {
       setLoading(false);
     }
   }, [pendingUserData, fetchUsers]);
 
-  // Handle delete user
-  const handleDeleteUser = useCallback(async (userId) => {
+  /**
+   * Handle delete user
+   * Uses secure userAPI.delete()
+   */
+  const handleDeleteUser = useCallback(async (user) => {
     if (!window.confirm("Are you sure you want to delete this user?")) return;
     
     try {
       setLoading(true);
       setError('');
       
-      const response = await fetch(`${API_BASE_URL}/users/${userId}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
-      });
+      // Get the correct user ID (try userId first, then _id, then id)
+      const userId = user.userId || user._id || user.id;
       
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Failed to delete user');
+      console.log('[UserManagement] Deleting user with ID:', userId);
+      
+      if (!userId) {
+        throw new Error('User ID not found');
       }
+      
+      await userAPI.delete(userId);
+      
+      console.log('[UserManagement] User deleted:', userId);
       
       setSuccess('User deleted successfully');
       await fetchUsers();
@@ -353,8 +346,8 @@ function UserManagement() {
         setSuccess('');
       }, 3000);
     } catch (err) {
-      console.error('Error deleting user:', err);
-      setError(err.message || 'Failed to delete user');
+      console.error('[UserManagement] Error deleting user:', err);
+      setError(err.response?.data?.error || 'Failed to delete user');
     } finally {
       setLoading(false);
     }
@@ -458,7 +451,7 @@ function UserManagement() {
                         </IconButton>
                         <IconButton 
                           size="small"
-                          onClick={() => handleDeleteUser(user._id || user.userId)}
+                          onClick={() => handleDeleteUser(user)}
                           color="error"
                           disabled={loading}
                         >
@@ -537,7 +530,7 @@ function UserManagement() {
               label="Password"
               name="password"
               margin="normal"
-              type={showPassword ? "text" : "password"}
+              type="password"
               value={newUser.password}
               onChange={(e) => handleFieldChange('password', e.target.value)}
               required={!isEditing}

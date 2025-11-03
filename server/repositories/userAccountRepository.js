@@ -49,11 +49,39 @@ exports.createUserAccount = async (userData) => {
 };
 
 exports.updateUserAccount = async (id, updateData) => {
-  return await User.findByIdAndUpdate(id, updateData, { new: true });
+  // Hash password if being updated
+  if (updateData.password) {
+    const saltRounds = 12;
+    updateData.password = await bcrypt.hash(updateData.password, saltRounds);
+  }
+  
+  // Try to find by userId first (UUID), then fall back to MongoDB _id
+  let user = await User.findOne({ userId: id });
+  if (!user) {
+    user = await User.findById(id);
+  }
+  
+  if (!user) {
+    throw new Error('User not found');
+  }
+  
+  // Update user
+  Object.assign(user, updateData);
+  return await user.save();
 };
 
 exports.deleteUserAccount = async (id) => {
-  return await User.findByIdAndDelete(id);
+  // Try to find by userId first (UUID), then fall back to MongoDB _id
+  let user = await User.findOne({ userId: id });
+  if (!user) {
+    user = await User.findById(id);
+  }
+  
+  if (!user) {
+    throw new Error('User not found');
+  }
+  
+  return await User.deleteOne({ _id: user._id });
 };
 
 
@@ -89,7 +117,12 @@ exports.findAccountsByEmail = async (email, { projection, lean = false, collatio
 };
 
 exports.findAccountById = async (id, { projection, lean = false } = {}) => {
-  return await User.findById(id, projection);
+  // Try to find by userId first (UUID), then fall back to MongoDB _id
+  let user = await User.findOne({ userId: id }, projection);
+  if (!user) {
+    user = await User.findById(id, projection);
+  }
+  return user;
 };
 
 // Find accounts by specific roles

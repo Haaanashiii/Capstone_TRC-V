@@ -1,10 +1,11 @@
 import React, { useState, useRef } from "react";
 import UnifiedSidebar from "../../components/UnifiedSidebar";
-import { TextField, Button, Snackbar, Alert } from "@mui/material";
+import { TextField, Button, Snackbar, Alert, CircularProgress } from "@mui/material";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import dayjs from "dayjs";
+import { franchiseAPI } from '../Services/api';
 import "../../Styles/Operator's_CSS/FranchiseApplication.css";
 
 export default function FranchiseApplication() {
@@ -492,18 +493,14 @@ export default function FranchiseApplication() {
 
               
                     try {
-                      // DEBUG: log payload so we can verify motorcycle fields are present
-                      // Remove this log after debugging
-                      console.log('Submitting newApp payload', newApp)
-
-                      const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170'
-                      const resp = await fetch(`${apiBase}/api/franchise-applications`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(newApp)
-                      })
-
-                      if (!resp.ok) throw new Error('Failed to submit application')
+                      // Use secure API method with proper error handling
+                      console.log('[FranchiseApplication] Submitting application...')
+                      
+                      // Use the secure franchiseAPI.create() method from api.js
+                      const response = await franchiseAPI.create(newApp)
+                      
+                      // Response is already parsed by axios
+                      if (!response.data) throw new Error('No response data received')
 
                       // Success: clear local form state (keep user on same page to avoid admin login redirect)
                       setFields({
@@ -528,10 +525,12 @@ export default function FranchiseApplication() {
                       setUploads({ registration: null, barangay: null, cedula: null, license: null, affidavit: null, picture: null })
 
                       // Provide feedback to the user via toast
+                      console.log('[FranchiseApplication] Application submitted successfully')
                       setToast({ open: true, message: 'Application submitted successfully. Administrators will be able to review it shortly.', severity: 'success' })
                     } catch (err) {
-                      console.error('Failed to POST application to server', err)
-                      setToast({ open: true, message: 'Failed to submit application. Please try again later.', severity: 'error' })
+                      console.error('[FranchiseApplication] Failed to submit application:', err)
+                      const errorMessage = err.response?.data?.message || err.message || 'Failed to submit application. Please try again later.'
+                      setToast({ open: true, message: errorMessage, severity: 'error' })
                     }
                   }}
                 >
