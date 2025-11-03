@@ -89,6 +89,7 @@ function UserManagement() {
   const [success, setSuccess] = useState('');
   const [showVerificationModal, setShowVerificationModal] = useState(false);
   const [pendingUserData, setPendingUserData] = useState(null);
+  const [showPassword, setShowPassword] = useState(false);
   
   const rowsPerPage = 5;
 
