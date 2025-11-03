@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react'
 import './FranchiseMgmt.css'
 import Sidebar from './Sidebar'
-import { franchiseAPI } from '../Services/api'
 import {
   Table,
   TableBody,
@@ -44,13 +43,16 @@ function FranchiseMgmt() {
   const [isLoading, setIsLoading] = useState(false)
   const [notification, setNotification] = useState({ open: false, message: '', type: 'info' })
   
-  // File preview modal state
+ 
   const [openFilePreview, setOpenFilePreview] = useState(false)
   const [previewFile, setPreviewFile] = useState({ name: '', type: '', path: '' })
   
-  // Pending applications state
-  const [pendingApplications, setPendingApplications] = useState([])
   
+  const [pendingApplications, setPendingApplications] = useState([])
+
+  // Polling interval (ms). Set to 0 to disable polling. 10000 = 10s
+  const POLL_INTERVAL_MS = 10000
+
   // State for the form when adding a new franchise
   const [formData, setFormData] = useState({
     date: new Date().toISOString().slice(0, 10),
@@ -78,139 +80,74 @@ function FranchiseMgmt() {
     documentPicture: null,
   })
 
-  /**
-   * Fetch pending franchise applications from the API
-   */
-  useEffect(() => {
-    const fetchPendingApplications = async () => {
-      setIsLoading(true)
-      try {
-  
-        setTimeout(() => {
-          // Merge mock data with any pending applications saved in localStorage by the operator submission form
-          const savedPending = (function() {
-            try {
-              return JSON.parse(localStorage.getItem('pending_franchise_applications') || '[]')
-            } catch (err) {
-              console.warn('Failed to parse pending_franchise_applications from localStorage', err)
-              return []
-            }
-          })()
+ 
+  const fetchAllPending = useCallback(async () => {
+    setIsLoading(true)
+    try {
+      const apiBase = 'http://localhost:5170'
+      const resp = await fetch(`${apiBase}/api/franchise-applications?status=pending`)
+      if (resp.ok) {
+        const serverApps = await resp.json()
+        console.log('FranchiseMgmt: fetched serverApps', serverApps)
+        const normalizedServerApps = Array.isArray(serverApps) ? serverApps.map((it) => ({
+          id: it.id,
+          franchiseNumber: it.franchiseNumber || it.franchise_number || '',
+          name: it.name || it.driverName || it.operatorName || '',
+          make: it.make || it.unitModel || it.vehicleMake || '',
+          plateNumber: it.plateNumber || it.mvPlate || it.plate_number || '',
+          applicationType: it.applicationType || it.type || 'New',
+          address: it.address || it.driverAddress || it.address_of_driver || '',
+          contactNumber: it.contactNumber || it.phone || it.contact || '',
+          sidecarPlateNumber: it.sidecarPlateNumber || it.sidecar_plate || '',
+          birthPlace: it.birthPlace || it.placeOfBirth || '',
+          birthDate: it.birthDate || it.dateOfBirth || '',
+          civilStatus: it.civilStatus || '',
+          citizenship: it.citizenship || '',
+          todaMembership: it.todaMembership || '',
+          unitModel: it.unitModel || it.make || '',
+          colorMotor: it.colorMotor || it.color || '',
+          colorSidecar: it.colorSidecar || it.sidecarColor || it.sidecar_color || '',
+          mvPlate: it.mvPlate || it.plateNumber || '',
+          motorEngineNumber: it.motorEngineNumber || it.engineNumber || '',
+          chassisNumber: it.chassisNumber || it.chassis || it.chassis_number || '',
+          driverName: it.driverName || it.name || it.operatorName || '',
+          driverAddress: it.driverAddress || it.address || '',
+          documentRegistration: it.documentRegistration || null,
+          documentBarangayClearance: it.documentBarangayClearance || null,
+          documentCedula: it.documentCedula || null,
+          documentDriversLicense: it.documentDriversLicense || null,
+          documentVotersAffidavit: it.documentVotersAffidavit || null,
+          documentPicture: it.documentPicture || null,
+        })) : []
 
-         
-
-          // If there are saved pending applications from the operator, append them
-          if (savedPending && savedPending.length) {
-            // Map saved items to the expected shape (ensure id uniqueness)
-            const normalized = savedPending.map((it, idx) => ({
-              id: it.id || (`s-${Date.now()}-${idx}`),
-              franchiseNumber: it.franchiseNumber || `P${String(Date.now()).slice(-4)}`,
-              name: it.name || '',
-              make: it.make || it.unitModel || '',
-              plateNumber: it.plateNumber || it.mvPlate || it.sidecarPlateNumber || '',
-              applicationType: it.applicationType || 'New',
-              address: it.address || it.driverAddress || '',
-              contactNumber: it.contactNumber || '',
-              sidecarPlateNumber: it.sidecarPlateNumber || '',
-              birthPlace: it.birthPlace || '',
-              birthDate: it.birthDate || '',
-              civilStatus: it.civilStatus || '',
-              citizenship: it.citizenship || '',
-              todaMembership: it.todaMembership || '',
-              unitModel: it.unitModel || '',
-              colorMotor: it.colorMotor || '',
-              colorSidecar: it.colorSidecar || '',
-              mvPlate: it.mvPlate || '',
-              motorEngineNumber: it.motorEngineNumber || '',
-              chassisNumber: it.chassisNumber || '',
-              driverName: it.driverName || '',
-              driverAddress: it.driverAddress || '',
-              documentRegistration: it.documentRegistration || null,
-              documentBarangayClearance: it.documentBarangayClearance || null,
-              documentCedula: it.documentCedula || null,
-              documentDriversLicense: it.documentDriversLicense || null,
-              documentVotersAffidavit: it.documentVotersAffidavit || null,
-              documentPicture: it.documentPicture || null,
-            }))
-
-            setPendingApplications(prev => [...prev, ...normalized])
-          }
-
-            //Server side pending
-            ;(async () => {
-              try {
-                const apiBase = 'http://localhost:5170'
-                const resp = await fetch(`${apiBase}/api/pending-apps`)
-                if (resp.ok) {
-                  const serverApps = await resp.json()
-                  // DEBUG: log server response so we can verify which keys the server returns
-                  console.log('FranchiseMgmt: fetched serverApps', serverApps)
-                  if (Array.isArray(serverApps) && serverApps.length) {
-                    const normalizedServerApps = serverApps.map((it) => ({
-                      id: it.id,
-                      franchiseNumber: it.franchiseNumber || it.franchise_number || '',
-                      name: it.name || it.driverName || it.operatorName || '',
-                      make: it.make || it.unitModel || it.vehicleMake || '',
-                      plateNumber: it.plateNumber || it.mvPlate || it.plate_number || '',
-                      applicationType: it.applicationType || it.type || 'New',
-                      address: it.address || it.driverAddress || it.address_of_driver || '',
-                      contactNumber: it.contactNumber || it.phone || it.contact || '',
-                      sidecarPlateNumber: it.sidecarPlateNumber || it.sidecar_plate || '',
-                      birthPlace: it.birthPlace || it.placeOfBirth || '',
-                      birthDate: it.birthDate || it.dateOfBirth || '',
-                      civilStatus: it.civilStatus || '',
-                      citizenship: it.citizenship || '',
-                      todaMembership: it.todaMembership || '',
-                      unitModel: it.unitModel || it.make || '',
-                      colorMotor: it.colorMotor || it.color || '',
-                      colorSidecar: it.colorSidecar || it.sidecarColor || '',
-                      mvPlate: it.mvPlate || it.plateNumber || '',
-                      motorEngineNumber: it.motorEngineNumber || it.engineNumber || '',
-                      chassisNumber: it.chassisNumber || it.chassis || '',
-                      driverName: it.driverName || it.name || it.operatorName || '',
-                      driverAddress: it.driverAddress || it.address || '',
-                      documentRegistration: it.documentRegistration || null,
-                      documentBarangayClearance: it.documentBarangayClearance || null,
-                      documentCedula: it.documentCedula || null,
-                      documentDriversLicense: it.documentDriversLicense || null,
-                      documentVotersAffidavit: it.documentVotersAffidavit || null,
-                      documentPicture: it.documentPicture || null,
-                    }))
-
-                    setPendingApplications(prev => {
-                      const existingIds = new Set(prev.map(p => String(p.id)))
-                      const toAdd = normalizedServerApps.filter(a => !existingIds.has(String(a.id)))
-                      return toAdd.length ? [...prev, ...toAdd] : prev
-                    })
-                  }
-                } else {
-                  console.warn('Failed to fetch server pending apps', resp.status)
-                }
-              } catch (err) {
-                console.warn('Error fetching /api/pending-apps', err)
-              }
-            })()
-
-            setIsLoading(false)
-            // Only fall back to empty array when no pending applications were loaded
-            setPendingApplications(prev => (prev && prev.length ? prev : []))
-            setIsLoading(false)
-        }, 1000)
-      } catch (error) {
-        console.error('Error fetching applications:', error)
-        setNotification({
-          open: true,
-          message: 'Failed to load franchise applications',
-          type: 'error'
-        })
-        setIsLoading(false)
+        setPendingApplications(normalizedServerApps)
+      } else {
+        console.warn('Failed to fetch server pending apps', resp.status)
+        setPendingApplications([])
       }
+    } catch (err) {
+      console.warn('Error fetching /api/franchise-applications', err)
+      setPendingApplications([])
+    } finally {
+      setIsLoading(false)
     }
-
-    fetchPendingApplications()
   }, [])
 
-  // Handle search with debouncing
+  
+  useEffect(() => {
+    fetchAllPending()
+    let pollId = null
+    if (POLL_INTERVAL_MS > 0) {
+      pollId = setInterval(() => {
+        fetchAllPending()
+      }, POLL_INTERVAL_MS)
+    }
+    return () => {
+      if (pollId) clearInterval(pollId)
+    }
+  }, [fetchAllPending])
+
+
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('')
   
   useEffect(() => {
@@ -221,126 +158,7 @@ function FranchiseMgmt() {
     return () => clearTimeout(timer)
   }, [searchTerm])
 
-  // Keep in-sync with submissions saved to localStorage by the operator form
-  // Some parts of the app (the `FranchiseApplication` page) save new pending
-  // applications to localStorage under 'pending_franchise_applications'. That
-  // write may happen while this component is mounted and won't automatically
-  // update state here. Listen for storage events and window focus to merge
-  // any newly-saved items into `pendingApplications` so submissions appear
-  // without a full reload.
-  useEffect(() => {
-    const mergeSavedPending = async () => {
-      try {
-        // First merge any saved pending apps from localStorage
-        const saved = JSON.parse(localStorage.getItem('pending_franchise_applications') || '[]')
-        if (Array.isArray(saved) && saved.length) {
-          setPendingApplications(prev => {
-            const existingIds = new Set(prev.map(p => String(p.id)))
-            const normalized = saved.map((it, idx) => ({
-              id: it.id || (`s-${Date.now()}-${idx}`),
-              franchiseNumber: it.franchiseNumber || `P${String(Date.now()).slice(-4)}`,
-              name: it.name || it.driverName || '',
-              make: it.make || it.unitModel || '',
-              plateNumber: it.plateNumber || it.mvPlate || it.sidecarPlateNumber || '',
-              applicationType: it.applicationType || 'New',
-              address: it.address || it.driverAddress || '',
-              contactNumber: it.contactNumber || it.phone || it.contact || '',
-              sidecarPlateNumber: it.sidecarPlateNumber || '',
-              birthPlace: it.birthPlace || '',
-              birthDate: it.birthDate || '',
-              civilStatus: it.civilStatus || '',
-              citizenship: it.citizenship || '',
-              todaMembership: it.todaMembership || '',
-              unitModel: it.unitModel || it.make || '',
-              colorMotor: it.colorMotor || it.color || '',
-              colorSidecar: it.colorSidecar || it.sidecarColor || '',
-              mvPlate: it.mvPlate || it.plateNumber || '',
-              motorEngineNumber: it.motorEngineNumber || it.engineNumber || '',
-              chassisNumber: it.chassisNumber || it.chassis || '',
-              driverName: it.driverName || it.name || '',
-              driverAddress: it.driverAddress || it.address || '',
-              documentRegistration: it.documentRegistration || null,
-              documentBarangayClearance: it.documentBarangayClearance || null,
-              documentCedula: it.documentCedula || null,
-              documentDriversLicense: it.documentDriversLicense || null,
-              documentVotersAffidavit: it.documentVotersAffidavit || null,
-              documentPicture: it.documentPicture || null,
-            }))
 
-            const toAdd = normalized.filter(a => !existingIds.has(String(a.id)))
-            return toAdd.length ? [...prev, ...toAdd] : prev
-          })
-        }
-
-        // Then fetch latest server-side pending apps and merge them too
-        try {
-          const apiBase = 'http://localhost:5170'
-          const resp = await fetch(`${apiBase}/api/pending-apps`)
-          if (resp.ok) {
-            const serverApps = await resp.json()
-            if (Array.isArray(serverApps) && serverApps.length) {
-              const normalizedServerApps = serverApps.map((it) => ({
-                id: it.id,
-                franchiseNumber: it.franchiseNumber || it.franchise_number || '',
-                name: it.name || it.driverName || it.operatorName || '',
-                make: it.make || it.unitModel || it.vehicleMake || '',
-                plateNumber: it.plateNumber || it.mvPlate || it.plate_number || '',
-                applicationType: it.applicationType || it.type || 'New',
-                address: it.address || it.driverAddress || it.address_of_driver || '',
-                contactNumber: it.contactNumber || it.phone || it.contact || '',
-                sidecarPlateNumber: it.sidecarPlateNumber || it.sidecar_plate || '',
-                birthPlace: it.birthPlace || it.placeOfBirth || '',
-                birthDate: it.birthDate || it.dateOfBirth || '',
-                civilStatus: it.civilStatus || '',
-                citizenship: it.citizenship || '',
-                todaMembership: it.todaMembership || '',
-                unitModel: it.unitModel || it.make || '',
-                colorMotor: it.colorMotor || it.color || '',
-                colorSidecar: it.colorSidecar || it.sidecarColor || '',
-                mvPlate: it.mvPlate || it.plateNumber || '',
-                motorEngineNumber: it.motorEngineNumber || it.engineNumber || '',
-                chassisNumber: it.chassisNumber || it.chassis || '',
-                driverName: it.driverName || it.name || it.operatorName || '',
-                driverAddress: it.driverAddress || it.address || '',
-                documentRegistration: it.documentRegistration || null,
-                documentBarangayClearance: it.documentBarangayClearance || null,
-                documentCedula: it.documentCedula || null,
-                documentDriversLicense: it.documentDriversLicense || null,
-                documentVotersAffidavit: it.documentVotersAffidavit || null,
-                documentPicture: it.documentPicture || null,
-              }))
-
-              setPendingApplications(prev => {
-                const existingIds = new Set(prev.map(p => String(p.id)))
-                const toAdd = normalizedServerApps.filter(a => !existingIds.has(String(a.id)))
-                return toAdd.length ? [...prev, ...toAdd] : prev
-              })
-            }
-        } catch (err) {
-          console.warn('Error fetching /api/franchise-applications during merge', err)
-        }
-      } catch (err) {
-        console.warn('Failed to merge pending_franchise_applications from localStorage', err)
-      }
-    }
-
-    // Merge once on mount in case items were saved while this component wasn't mounted
-    mergeSavedPending()
-
-    window.addEventListener('storage', mergeSavedPending)
-    window.addEventListener('focus', mergeSavedPending)
-
-    return () => {
-      window.removeEventListener('storage', mergeSavedPending)
-      window.removeEventListener('focus', mergeSavedPending)
-    }
-  }, [])
-  
-  const handleSearch = useCallback((e) => {
-    setSearchTerm(e.target.value)
-  }, [])
-  
-  // Filter applications based on search term (memoized)
   const filteredApplications = useMemo(() => {
     return pendingApplications.filter(app => 
       app.name?.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
@@ -348,18 +166,14 @@ function FranchiseMgmt() {
       app.plateNumber?.toLowerCase().includes(debouncedSearchTerm.toLowerCase())
     )
   }, [pendingApplications, debouncedSearchTerm])
+
   
-  /**
-   * Modal handlers
-   */
+
   const handleOpenAddModal = useCallback(() => setOpenAddModal(true), [])
   const handleCloseAddModal = useCallback(() => setOpenAddModal(false), [])
   
   const handleOpenViewModal = useCallback((application) => {
-    // Normalize incoming application objects to the shape expected by the view modal.
-    // Some sources (server, form submissions, third-party) may use different keys
-    // (e.g. `make` vs `unitModel`, `plateNumber` vs `mvPlate`). Use sensible fallbacks
-    // so the modal always shows any available tricycle information.
+   
     const normalized = {
       ...application,
       unitModel: application.unitModel || application.make || application.vehicleModel || '',
@@ -385,7 +199,7 @@ function FranchiseMgmt() {
   const handleCloseRejectModal = useCallback(() => setOpenRejectModal(false), [])
   
   /**
-   * File preview handlers
+   *For PReview ng files
    */
   const handleOpenFilePreview = useCallback((file) => {
     if (!file) {
@@ -450,7 +264,7 @@ function FranchiseMgmt() {
           name: file.name,
           type: file.type,
           path: objectURL,
-          file: file // Store the actual file object for upload
+          file: file 
         }
       }))
     }
@@ -506,7 +320,8 @@ function FranchiseMgmt() {
         address: formData.driverAddress || formData.address || ''
       }
 
-      const resp = await fetch(`${apiBase}/api/pending-apps`, {
+      // Post to the DB-backed franchise applications endpoint so submissions are stored in MongoDB
+      const resp = await fetch(`${apiBase}/api/franchise-applications`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -514,11 +329,12 @@ function FranchiseMgmt() {
 
       if (!resp.ok) throw new Error('Failed to submit application')
 
-      const created = await resp.json()
-      setPendingApplications(prev => [...prev, created])
+  await resp.json()
+  // Refresh full list from server/local storage so UI reflects authoritative data
+  await fetchAllPending()
       handleCloseAddModal()
       
-      // Reset form data
+     
       setFormData({
         date: new Date().toISOString().slice(0, 10),
         sidecarPlateNumber: '',
@@ -572,16 +388,17 @@ function FranchiseMgmt() {
     setIsLoading(true)
     
     try {
-      // Call dev server to approve the application so it becomes visible to drivers
+      
       const apiBase = 'http://localhost:5170'
-      const resp = await fetch(`${apiBase}/api/pending-apps/${selectedApplication.id}/approve`, {
+      // Approve via DB-backed endpoint so approval logic (QR generation, persistence) runs on the server
+      const resp = await fetch(`${apiBase}/api/franchise-applications/${selectedApplication.id}/approve`, {
         method: 'PUT'
       })
 
       if (!resp.ok) throw new Error('Failed to approve application')
 
-      // Remove from pending list locally
-      setPendingApplications(prev => prev.filter(app => String(app.id) !== String(selectedApplication.id)))
+  // Refresh list from server to reflect approval
+  await fetchAllPending()
 
       setNotification({ 
         open: true, 
@@ -623,14 +440,19 @@ function FranchiseMgmt() {
       
       // Delete the pending application from server so it is persisted
       const apiBase = 'http://localhost:5170'
-      const resp = await fetch(`${apiBase}/api/pending-apps/${selectedApplication.id}`, {
+      
+      const resp = await fetch(`${apiBase}/api/franchise-applications/${selectedApplication.id}`, {
         method: 'DELETE'
       })
 
       if (!resp.ok) throw new Error('Failed to reject application')
 
-      await resp.json()
-      setPendingApplications(prev => prev.filter(app => String(app.id) !== String(selectedApplication.id)))
+     
+      if (resp.status !== 204) {
+        try { await resp.json() } catch { /* ignore empty body */ }
+      }
+      // Refresh pending apps from server/local storage
+      await fetchAllPending()
 
       setNotification({ open: true, message: 'Application rejected successfully', type: 'success' })
       handleCloseRejectModal()
