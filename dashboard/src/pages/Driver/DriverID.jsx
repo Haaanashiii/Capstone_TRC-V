@@ -1,15 +1,19 @@
 import React, { useState, useEffect } from "react";
+import { useNavigate } from 'react-router-dom';
 import { Box, Typography, Button, Paper, Avatar, TextField } from '@mui/material';
 import PersonIcon from '@mui/icons-material/Person';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import UnifiedSidebar from '../../components/UnifiedSidebar';
+import './DriverID.css';
+import dayjs from 'dayjs';
 
 function DriverID() {
   const [user, setUser] = useState(null);
   const [language, setLanguage] = useState('en'); // Language state
   const [franchiseStatus, setFranchiseStatus] = useState(null); // Franchise status state
+  const [matchedFranchise, setMatchedFranchise] = useState(null);
   
   // Translation object
   const translations = {
@@ -62,7 +66,7 @@ function DriverID() {
   };
 
   // Fetch full user details from the server
-  const fetchUserDetails = async () => {
+  const fetchUserDetails = React.useCallback(async () => {
     try {
       const token = localStorage.getItem('accessToken');
       if (!token) return;
@@ -84,46 +88,254 @@ function DriverID() {
         console.log('DriverID: User details received:', data);
         setUser(data.user);
       } else {
-        console.log('DriverID: API failed, using token data');
-        // Fallback to token data if API fails
+        console.log('DriverID: /auth/me returned non-ok. Clearing any stored franchise info to avoid stale data.');
+        // If server says the user is not available (e.g., deleted), clear any stored franchise
+        try { localStorage.removeItem('userFranchiseInfo') } catch { /* ignore */ }
+        try { localStorage.removeItem('franchiseLinked') } catch { /* ignore */ }
+        try { localStorage.removeItem('franchiseMenuReplaced') } catch { /* ignore */ }
+        try { localStorage.removeItem('franchiseOwnerEmail') } catch { /* ignore */ }
+        setFranchiseStatus(null);
+        // Do not blindly trust token fallback when server indicates user missing. Use token data only as display fallback.
         const tokenUser = getUserInfo();
-        if (tokenUser) {
-          setUser(tokenUser);
-        }
+        setUser(tokenUser || null);
       }
     } catch (error) {
       console.error('DriverID: Error fetching user details:', error);
-      // Fallback to token data
+     
+      try { localStorage.removeItem('userFranchiseInfo') } catch { /* ignore */ }
+      try { localStorage.removeItem('franchiseLinked') } catch { /* ignore */ }
+      try { localStorage.removeItem('franchiseOwnerEmail') } catch { /* ignore */ }
+      setFranchiseStatus(null);
       const tokenUser = getUserInfo();
-      if (tokenUser) {
-        setUser(tokenUser);
-      }
+      setUser(tokenUser || null);
     }
-  };
+  }, []);
 
   // Fetch user details on component mount
   useEffect(() => {
     const token = localStorage.getItem('accessToken');
     if (token) {
-      // Get token user data immediately
+    
       const tokenUser = getUserInfo();
       if (tokenUser) {
         setUser(tokenUser);
       }
-      // Then try to fetch detailed user data
+    
       fetchUserDetails();
     }
     // Check franchise status
     checkFranchiseStatus();
-  }, []);  // eslint-disable-line react-hooks/exhaustive-deps
+   
+  }, []);  
+
   
-  // Validation state for number-only fields
-  const [errors, setErrors] = useState({
-    orNumber: false,
-    franchiseNumber: false,
-    sidecarNumber: false,
-    plateNumber: false
-  });
+  useEffect(() => {
+    try {
+      if (!user) return;
+      const storedOwner = localStorage.getItem('franchiseOwnerEmail');
+      const email = user.email || user.username || user.name || '';
+      if (!storedOwner || storedOwner !== String(email)) {
+        // clear any stale franchise info for other users
+        try { localStorage.removeItem('userFranchiseInfo') } catch { /* ignore */ }
+        try { localStorage.removeItem('franchiseLinked') } catch { /* ignore */ }
+      }
+
+
+      (async () => {
+        try {
+          const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170'
+          const token = localStorage.getItem('accessToken');
+        
+          if (token) {
+            try {
+              const mineRes = await fetch(`${API_BASE_URL}/api/franchise-applications/mine`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+              });
+              if (mineRes.ok) {
+                const matched = await mineRes.json();
+                console.debug('DriverID: matched application from /mine', matched);
+           
+                if (matched) {
+                  const franchiseInfo = {
+                    orNumber: matched.franchiseNumber,
+                    status: 'ACTIVE',
+                    linkedDate: matched.approvedAt || new Date().toLocaleDateString()
+                  }
+                  setFranchiseStatus('ACTIVE')
+                  try { localStorage.setItem('userFranchiseInfo', JSON.stringify(franchiseInfo)) } catch { /* ignore */ }
+                  try { localStorage.setItem('franchiseLinked', 'true') } catch { /* ignore */ }
+                  try { localStorage.setItem('franchiseOwnerEmail', email) } catch { /* ignore */ }
+                  setMatchedFranchise(matched);
+            
+                  const approvedRaw = matched.approvedAt || '';
+                  const expiryRaw = matched.expiryDate || '';
+                  const parsedApproved = approvedRaw ? dayjs(approvedRaw) : null;
+                  const parsedExpiry = expiryRaw ? dayjs(expiryRaw) : null;
+                  setFields(prev => ({
+                    ...prev,
+                    orNumber: matched.orNumber || matched.franchiseNumber || '',
+                    franchiseNumber: matched.franchiseNumber || matched.orNumber || '',
+                    dateApproved: parsedApproved,
+                    expiryDate: parsedExpiry,
+                    make: matched.make || '',
+                    sidecarNumber: matched.sidecarPlateNumber || '',
+                    plateNumber: matched.plateNumber || matched.plateNumber || matched.mvPlate || '',
+                    chassisNumber: matched.chassisNumber || '',
+                    motorNumber: matched.motorEngineNumber || ''
+                  }))
+                  return; 
+                }
+              }
+            } catch (e) {
+              console.warn('DriverID: /mine lookup failed', e)
+            }
+          }
+
+         
+          const resp = await fetch(`${API_BASE_URL}/api/franchise-applications?status=approved`)
+          if (!resp.ok) return
+          const apps = await resp.json()
+          console.debug('DriverID: approved applications fetched', Array.isArray(apps) ? apps.length : 'not-array', apps)
+          if (!Array.isArray(apps) || !apps.length) return
+
+          const tokenEmail = email && String(email).toLowerCase()
+        
+          const userIdentifiers = new Set();
+          if (email) userIdentifiers.add(String(email).toLowerCase());
+          if (user.username) userIdentifiers.add(String(user.username).toLowerCase());
+          if (user.name) userIdentifiers.add(String(user.name).toLowerCase());
+          if (user.operatorId) userIdentifiers.add(String(user.operatorId).toLowerCase());
+          if (user.driversID) userIdentifiers.add(String(user.driversID).toLowerCase());
+          if (user.driverId) userIdentifiers.add(String(user.driverId).toLowerCase());
+          if (user.mvPlate) userIdentifiers.add(String(user.mvPlate).toLowerCase());
+          if (user.plateNumber) userIdentifiers.add(String(user.plateNumber).toLowerCase());
+          if (user.mvPlateNo) userIdentifiers.add(String(user.mvPlateNo).toLowerCase());
+
+          const matched = apps.find(a => {
+            if (!a) return false
+            const appEmail = (a.operatorEmail || a.email || '') && String(a.operatorEmail || a.email || '').toLowerCase()
+            if (appEmail && userIdentifiers.has(appEmail)) return true
+
+        
+            const appDriverId = String(a.driverName || a.driversID || a.driverId || '').toLowerCase()
+            if (appDriverId && userIdentifiers.has(appDriverId)) return true
+
+            const appPlate = String(a.plateNumber || a.mvPlate || a.mvPlateNo || a.sidecarPlateNumber || '').toLowerCase()
+            if (appPlate && userIdentifiers.has(appPlate)) return true
+
+
+            const nm = (a.name || a.operatorName || '').toLowerCase()
+            if (user.name && nm && String(user.name).toLowerCase() && nm.includes(String(user.name).toLowerCase())) return true
+
+            return false
+          })
+
+          if (matched) {
+            const franchiseInfo = {
+              orNumber: matched.franchiseNumber,
+              status: 'ACTIVE',
+              linkedDate: matched.approvedAt || new Date().toLocaleDateString()
+            }
+            setFranchiseStatus('ACTIVE')
+           
+            try { localStorage.setItem('userFranchiseInfo', JSON.stringify(franchiseInfo)) } catch { /* ignore */ }
+            try { localStorage.setItem('franchiseLinked', 'true') } catch { /* ignore */ }
+            try { localStorage.setItem('franchiseOwnerEmail', tokenEmail) } catch { /* ignore */ }
+
+            setMatchedFranchise(matched);
+    
+            try {
+              // Debug: log raw date fields
+              console.debug('DriverID: matched raw dates ->', { approvedAt: matched.approvedAt, expiryDate: matched.expiryDate });
+
+
+              const approvedRaw = matched.approvedAt || matched.approved_at || matched.approved_at_string || '';
+              const expiryRaw = matched.expiryDate || matched.expiry_date || matched.expiry_date_string || '';
+
+              const parseToDayjs = (raw) => {
+                if (!raw && raw !== 0) return null;
+           
+                try {
+                  const asDay = dayjs(raw);
+                  if (asDay && asDay.isValid && asDay.isValid()) return asDay;
+                } catch {
+                  // fallthrough
+                }
+                // numeric timestamp
+                if (!isNaN(Number(raw))) {
+                  try {
+                    const asNum = dayjs(Number(raw));
+                    if (asNum && asNum.isValid && asNum.isValid()) return asNum;
+                  } catch {
+                    // fallthrough
+                  }
+                }
+              
+                try {
+                  const d = new Date(String(raw));
+                  if (!isNaN(d.getTime())) return dayjs(d);
+                } catch {
+                  // give up
+                }
+                return null;
+              };
+
+              let parsedApproved = parseToDayjs(approvedRaw);
+              let parsedExpiry = parseToDayjs(expiryRaw);
+              
+              if (!parsedApproved && (approvedRaw || approvedRaw === 0)) {
+                try { parsedApproved = dayjs(new Date(String(approvedRaw))); } catch { /* ignore */ }
+              }
+              if (!parsedExpiry && (expiryRaw || expiryRaw === 0)) {
+                try { parsedExpiry = dayjs(new Date(String(expiryRaw))); } catch { /* ignore */ }
+              }
+              console.debug('DriverID: parsed dates valid ->', { approved: parsedApproved ? parsedApproved.isValid() : false, expiry: parsedExpiry ? parsedExpiry.isValid() : false });
+
+              setFields(prev => ({
+                ...prev,
+               
+                orNumber: matched.orNumber || matched.franchiseNumber || '',
+                franchiseNumber: matched.franchiseNumber || matched.orNumber || '',
+                dateApproved: parsedApproved,
+                expiryDate: parsedExpiry,
+                make: matched.unitModel || matched.make || '',
+                sidecarNumber: matched.sidecarPlateNumber || matched.sideCar || '',
+                plateNumber: matched.mvPlate || matched.plateNumber || matched.mvPlateNo || '',
+                chassisNumber: matched.chassisNumber || matched.chasisNo || '',
+                motorNumber: matched.motorEngineNumber || matched.motorEngineNo || ''
+              }))
+            } catch (e) {
+              console.debug('Failed to populate franchise fields from matched application', e)
+            }
+          }
+          else {
+          
+            setMatchedFranchise(null);
+            setFranchiseStatus(null);
+          
+          }
+        } catch (err) {
+          console.warn('DriverID: error fetching approved franchises', err)
+        }
+      })()
+    } catch {
+      // ignore
+    }
+  }, [user])
+
+  
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') {
+       
+        fetchUserDetails().catch(() => {});
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => document.removeEventListener('visibilitychange', onVisibility);
+  }, [fetchUserDetails])
+  
+
 
   const [fields, setFields] = useState({
     orNumber: '',
@@ -136,24 +348,29 @@ function DriverID() {
     chassisNumber: '',
     motorNumber: ''
   });
-  const handleChange = (field) => (e) => {
-    let value = e.target?.value ?? e;
+  
 
-    if (["orNumber", "franchiseNumber", "sidecarNumber", "plateNumber"].includes(field)) {
-     
-      if (!/^\d*$/.test(value)) {
-        setErrors({ ...errors, [field]: true });
-        value = value.replace(/[^\d]/g, "");
-      } else {
-        setErrors({ ...errors, [field]: false });
-      }
-    }
-    setFields({ ...fields, [field]: value });
-  };
+  const navigate = useNavigate();
+
+
+  const handleOpenFranchisePage = () => {
+    navigate('/operator/franchise');
+  }
+
+  // Palagay muna for dev test 
+
+  const handleResetFranchiseDev = () => {
+    try { localStorage.removeItem('franchiseMenuReplaced'); } catch { /* ignore */ }
+    try { localStorage.removeItem('franchiseLinked'); } catch { /* ignore */ }
+    try { localStorage.removeItem('userFranchiseInfo'); } catch { /* ignore */ }
+    try { localStorage.removeItem('franchiseOwnerEmail'); } catch { /* ignore */ }
+    setFranchiseStatus(null);
+    navigate('/operator/franchise');
+  }
 
   return (
     <Box sx={{ minHeight: '100vh', width: '100%', maxWidth: '100vw', bgcolor: '#f5f7fa', overflowX: 'hidden' }}>
-      {/* Unified Sidebar */}
+   
       <UnifiedSidebar 
         userType="operator" 
         language={language}
@@ -161,25 +378,34 @@ function DriverID() {
         translations={t}
       />
       
-      {/* Top Blue Bar */}
-      <Box sx={{ background: '#0a3576', width: '100vw', minHeight: 340, position: 'relative', pt: 5, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-        <Box sx={{ position: 'relative', width: '100vw', mt: 4, display: 'flex', alignItems: 'flex-start' }}>
-          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 180 }}>
-            <Avatar src="/public/Logos/clipboard.gif" alt="Profile" sx={{ width: 120, height: 120, mb: 2, boxShadow: '0 2px 8px rgba(0,0,0,0.10)', border: '6px solid #fff' }} />
+
+  <Box sx={{ background: '#0a3576', width: '100vw', minHeight: 220, position: 'relative', pt: 3, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+        <Box sx={{ position: 'relative', width: '100vw', mt: 4, display: 'flex', alignItems: 'flex-start', justifyContent: 'flex-start', pl: '120px' }}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 200 }}>
+            <Avatar src="/public/Logos/clipboard.gif" alt="Profile" sx={{ width: 140, height: 140, mb: 2, boxShadow: '0 2px 8px rgba(0,0,0,0.10)', border: '6px solid #fff' }} />
           </Box>
 
-          <Box sx={{ ml: 4, pt: 2, flex: 1 }}>
+          <Box sx={{ ml: 4, pt: 2, flex: '0 0 auto' }}>
             <Typography variant="h4" sx={{ color: '#fff', fontWeight: 700, mb: 1 }}>
               {user?.name || 'User Name'}
             </Typography>
             <Typography sx={{ color: '#fff', fontWeight: 500, fontSize: 16 }}>
-              {user?.address || t.addressNotProvided}
+             
+              {user?.address || matchedFranchise?.address || matchedFranchise?.driverAddress || t.addressNotProvided}
             </Typography>
             <Typography sx={{ color: '#fff', fontWeight: 500, fontSize: 16 }}>
-              {t.singleNoCoOwner}
+              
+              { (
+                  (user && (user.civilStatus || user.civil_status)) ||
+                  (matchedFranchise && (matchedFranchise.civilStatus || matchedFranchise.civil_status))
+                ) ?
+                String(user?.civilStatus || user?.civil_status || matchedFranchise?.civilStatus || matchedFranchise?.civil_status).toUpperCase()
+                : t.singleNoCoOwner
+              }
             </Typography>
             <Button 
               variant="contained" 
+              onClick={handleOpenFranchisePage}
               sx={{ 
                 background: franchiseStatus ? '#2ecc71' : '#e74c3c', 
                 color: '#fff', 
@@ -196,150 +422,82 @@ function DriverID() {
             >
               {franchiseStatus ? t.activeFranchise : t.noFranchise}
             </Button>
+            {/* Temporary dev-only control to reset franchise state for testing */}
+            {import.meta.env && import.meta.env.DEV && (
+              <Button
+                variant="outlined"
+                onClick={handleResetFranchiseDev}
+                sx={{ ml: 2, mt: 1, color: '#fff', borderColor: '#fff', textTransform: 'none' }}
+              >
+                DEV: Reset Franchise
+              </Button>
+            )}
           </Box>
-          <Box sx={{ background: '#ffe600', color: '#0a3576', fontWeight: 'bold', borderRadius: 1, px: 4, py: 2, fontSize: '1.2rem', position: 'absolute', right: 48, top: '100%', transform: 'translateY(-50%)', zIndex: 20, boxShadow: '0 2px 8px rgba(0,0,0,0.10)' }}>
-            ID NO: {user?.operatorId || user?.id?.toString().slice(-4) || '0000'}
-          </Box>
+          {/* ID badge moved below into the card area for precise alignment */}
         </Box>
       </Box>
 
-      {/* Main Content */}
-  <Box sx={{ display: 'flex', gap: 0, mt: -5, px: -5, alignItems: 'flex-start', justifyContent: 'center', width: '124vw', boxSizing: 'border-box' }}>
-        <Paper sx={{ flex: 10  , position: 'relative', borderRadius: 2, p: 5, background: '#fff', boxShadow: '0 2px 8px rgba(0,0,0,0.08)', minWidth: 0 }}>
-          {/* Main Content Section Start */}
+      {/* Main Content - redesigned to match provided card layout */}
+      <div className="driver-id-wrapper">
+        <div className="driver-id-card">
+          <div className="id-left">
+            <h3 className="id-title">MOTORIZED TRICYCLE OPERATORS FRANCHISE</h3>
+            <div className="divider" />
 
+            <div className="fields-grid">
+              <div className="field-group">
+                <div className="label">OR NUMBER</div>
+                <div className="value">{fields.orNumber || ''}</div>
+              </div>
+              <div className="field-group">
+                <div className="label">FRANCHISE NUMBER</div>
+                <div className="value">{fields.franchiseNumber || ''}</div>
+              </div>
 
-            <Box sx={{ mb: 3 }}>
-              <Typography sx={{ fontWeight: 700, color: '#0a3576', fontSize: '1.1rem', mb: 1 }}>MOTORIZED TRICYCLE OPERATORS FRANCHISE</Typography>
-              <hr style={{ border: 'none', borderTop: '2px solid #222', margin: '8px 0 16px 0' }} />
-              <Box sx={{ display: 'flex', gap: 3, mb: 2 }}>
-                <Box sx={{ flex: 1 }}>
-                  <Typography sx={{ fontWeight: 500, mb: 1 }}>OR NUMBER</Typography>
-                  <TextField 
-                    value={fields.orNumber}
-                    onChange={handleChange('orNumber')}
-                    size="small"
-                    fullWidth
-                      type="text"
-                    inputProps={{ inputMode: 'numeric', pattern: '[0-9]*', min: 0 }}
-                      error={errors.orNumber}
-                      helperText={errors.orNumber ? "Please fill with numbers only" : ""}
-                  />
-                </Box>
+              <div className="field-group">
+                <div className="label">DATE APPROVED</div>
+                <div className="value">{(fields.dateApproved && fields.dateApproved.isValid && fields.dateApproved.isValid()) ? fields.dateApproved.format('MM/DD/YYYY') : (matchedFranchise?.approvedAt ? new Date(matchedFranchise.approvedAt).toLocaleDateString() : '')}</div>
+              </div>
+              <div className="field-group">
+                <div className="label">EXPIRY DATE</div>
+                <div className="value">{(fields.expiryDate && fields.expiryDate.isValid && fields.expiryDate.isValid()) ? fields.expiryDate.format('MM/DD/YYYY') : (matchedFranchise?.expiryDate ? new Date(matchedFranchise.expiryDate).toLocaleDateString() : '')}</div>
+              </div>
 
+              <div className="subheading">MOTORCYCLE INFORMATION</div>
 
-                <Box sx={{ flex: 1 }}>
-                  <Typography sx={{ fontWeight: 500, mb: 1 }}>FRANCHISE NUMBER</Typography>
-                  <TextField 
-                    value={fields.franchiseNumber}
-                    onChange={handleChange('franchiseNumber')}
-                    size="small"
-                    fullWidth
-                    type="text"
-                    inputProps={{ inputMode: 'numeric', pattern: '[0-9]*', min: 0 }}
-                    error={errors.franchiseNumber}
-                    helperText={errors.franchiseNumber ? "Please fill with numbers only" : ""}
-                  />
-                </Box>
-              </Box>
+              <div className="field-group wide">
+                <div className="label">MAKE</div>
+                <div className="value">{fields.make || ''}</div>
+              </div>
+              <div className="field-group">
+                <div className="label">SIDECAR NUMBER</div>
+                <div className="value">{fields.sidecarNumber || ''}</div>
+              </div>
+              <div className="field-group">
+                <div className="label">PLATE NUMBER</div>
+                <div className="value">{fields.plateNumber || ''}</div>
+              </div>
 
+              <div className="field-group">
+                <div className="label">CHASSIS NUMBER</div>
+                <div className="value">{fields.chassisNumber || ''}</div>
+              </div>
+              <div className="field-group">
+                <div className="label">MOTOR NUMBER</div>
+                <div className="value">{fields.motorNumber || ''}</div>
+              </div>
+            </div>
+          </div>
 
-
-              <LocalizationProvider dateAdapter={AdapterDayjs}>
-                <Box sx={{ display: 'flex', gap: 3, mb: 2 }}>
-                  <Box sx={{ flex: 1 }}>
-                    <Typography sx={{ fontWeight: 500, mb: 1 }}>DATE APPROVED</Typography>
-                    <DatePicker
-                      label="Select date approved"
-                      value={fields.dateApproved}
-                      onChange={(newValue) => setFields({ ...fields, dateApproved: newValue })}
-                      slotProps={{ textField: { size: 'small', fullWidth: true } }}
-                    />
-                  </Box>
-
-
-                  <Box sx={{ flex: 1 }}>
-                    <Typography sx={{ fontWeight: 500, mb: 1 }}>EXPIRY DATE</Typography>
-                    <DatePicker
-                      label="Select expiry date"
-                      value={fields.expiryDate}
-                      onChange={(newValue) => setFields({ ...fields, expiryDate: newValue })}
-                      slotProps={{ textField: { size: 'small', fullWidth: true } }}
-                    />
-                  </Box>
-                </Box>
-              </LocalizationProvider>
-
-
-              <Typography sx={{ fontWeight: 700, color: '#0a3576', fontSize: '1.1rem', mb: 1 }}>MOTORCYCLE INFORMATION</Typography>
-              <hr style={{ border: 'none', borderTop: '2px solid #222', margin: '8px 0 16px 0' }} />
-              <Box sx={{ display: 'flex', gap: 3, mb: 2 }}>
-                <Box sx={{ flex: 1 }}>
-                  <Typography sx={{ fontWeight: 500, mb: 1 }}>MAKE</Typography>
-                  <TextField 
-                    value={fields.make}
-                    onChange={handleChange('make')}
-                    size="small"
-                    fullWidth
-                  />
-                </Box>
-                <Box sx={{ flex: 1 }}>
-                  <Typography sx={{ fontWeight: 500, mb: 1 }}>SIDECAR NUMBER</Typography>
-                    <TextField 
-                      value={fields.sidecarNumber}
-                      onChange={handleChange('sidecarNumber')}
-                      size="small"
-                      fullWidth
-                      type="text"
-                      inputProps={{ inputMode: 'numeric', pattern: '[0-9]*', min: 0 }}
-                      error={errors.sidecarNumber}
-                      helperText={errors.sidecarNumber ? "Please fill with numbers only" : ""}
-                    />
-                </Box>
-                <Box sx={{ flex: 1 }}>
-                  <Typography sx={{ fontWeight: 500, mb: 1 }}>PLATE NUMBER</Typography>
-                    <TextField 
-                      value={fields.plateNumber}
-                      onChange={handleChange('plateNumber')}
-                      size="small"
-                      fullWidth
-                      type="text"
-                      inputProps={{ inputMode: 'numeric', pattern: '[0-9]*', min: 0 }}
-                      error={errors.plateNumber}
-                      helperText={errors.plateNumber ? "Please fill with numbers only" : ""}
-                    />
-                </Box>
-              </Box>
-              <Box sx={{ display: 'flex', gap: 3, mb: 2 }}>
-                <Box sx={{ flex: 1 }}>
-                  <Typography sx={{ fontWeight: 500, mb: 1 }}>CHASSIS NUMBER</Typography>
-                  <TextField 
-                    value={fields.chassisNumber}
-                    onChange={handleChange('chassisNumber')}
-                    size="small"
-                    error={errors.chassisNumber}
-                    helperText={errors.chassisNumber ? "Please fill with numbers only" : ""}
-                    fullWidth
-                  />
-                </Box>
-                <Box sx={{ flex: 1 }}>
-                  <Typography sx={{ fontWeight: 500, mb: 1 }}>MOTOR NUMBER</Typography>
-                  <TextField 
-                    value={fields.motorNumber}
-                    onChange={handleChange('motorNumber')}
-                    size="small"
-                    fullWidth
-                  />
-                </Box>
-              </Box>
-            </Box>
-
-        </Paper>
-        <Box sx={{ width: 380, height: '100%', borderRadius: 3, background: '#0a3576', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', overflow: 'hidden', p: 2 }}>
-          <img src="/public/Logos/SBLogo.png" alt="Seal" style={{ width: '80%', height: 'auto', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.08)', position: 'absolute', right: 0, bottom: 0, opacity: 0.2 }} />
-         
-        </Box>
-      </Box>
+          <div className="id-right">
+            <div className="qr-container" aria-hidden="true">
+              {/* intentionally empty - image removed per request */}
+            </div>
+          </div>
+        </div>
+        {/* external badge: positioned relative to the wrapper so its right edge matches the card's right edge */}
+        <div className="driver-id-badge">ID NO: {user?.operatorId || user?.id?.toString().slice(-4) || '0000'}</div>
+      </div>
     </Box>
   );
 }

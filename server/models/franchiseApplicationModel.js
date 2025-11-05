@@ -27,6 +27,9 @@ const franchiseApplicationSchema = new mongoose.Schema({
 
   actionTaken: { type: String },
   remarks: { type: String },
+  franchiseNumber: { type: String },
+  approvedAt: { type: Date },
+  expiryDate: { type: Date },
   submittedAt: { type: Date, default: Date.now },
 }, { collection: 'franchiseapplications' });
 

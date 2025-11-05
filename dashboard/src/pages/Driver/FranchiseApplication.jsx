@@ -1,4 +1,5 @@
 import React, { useState, useRef } from "react";
+import { useNavigate } from 'react-router-dom';
 import UnifiedSidebar from "../../components/UnifiedSidebar";
 import { TextField, Button, Snackbar, Alert, CircularProgress } from "@mui/material";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
@@ -192,6 +193,8 @@ export default function FranchiseApplication() {
 
   // Toast / Snackbar state
   const [toast, setToast] = useState({ open: false, message: '', severity: 'success' });
+
+  const navigate = useNavigate();
 
   const handleToastClose = (event, reason) => {
     if (reason === 'clickaway') return;
@@ -502,7 +505,7 @@ export default function FranchiseApplication() {
                       // Response is already parsed by axios
                       if (!response.data) throw new Error('No response data received')
 
-                      // Success: clear local form state (keep user on same page to avoid admin login redirect)
+                      // Success: clear local form state
                       setFields({
                         date: dayjs(),
                         sidecarPlate: "",
@@ -526,7 +529,29 @@ export default function FranchiseApplication() {
 
                       // Provide feedback to the user via toast
                       console.log('[FranchiseApplication] Application submitted successfully')
+                      // Mark that the operator has submitted an application so nav/sidebar labels can be updated
+                      try { localStorage.setItem('franchiseMenuReplaced', 'true') } catch { /* ignore */ }
+                      // persist owner email so the operator mapping is consistent
+                      try {
+                        const token = localStorage.getItem('accessToken') || sessionStorage.getItem('accessToken')
+                        if (token) {
+                          try {
+                            const payload = JSON.parse(atob(token.split('.')[1]));
+                            if (payload?.email) localStorage.setItem('franchiseOwnerEmail', String(payload.email).toLowerCase())
+                          } catch { /* ignore */ }
+                        }
+                      } catch { /* ignore */ }
+
                       setToast({ open: true, message: 'Application submitted successfully. Administrators will be able to review it shortly.', severity: 'success' })
+
+                      
+                      try {
+                        setTimeout(() => {
+                          navigate('/operator/id')
+                        }, 5000) 
+                      } catch {
+                        navigate('/operator/id')
+                      }
                     } catch (err) {
                       console.error('[FranchiseApplication] Failed to submit application:', err)
                       const errorMessage = err.response?.data?.message || err.message || 'Failed to submit application. Please try again later.'

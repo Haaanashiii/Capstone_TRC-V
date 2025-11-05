@@ -9,6 +9,7 @@ import LandingPage from './pages/Landing/LandingPage';
 import Login from './pages/Login/Login';
 import Franchise from './pages/Driver/Franchise';
 import FranchiseApplication from './pages/Driver/FranchiseApplication';
+import RequestAmendment from './pages/Driver/RequestAmendment';
 import MaintenancePage from './pages/Maintenance/MaintenancePage';
 import AdminDashboard from './pages/Administration/AdminDashboard';
 import UserManagement from './pages/Administration/UserManagement';
@@ -64,6 +65,14 @@ function App() {
               <FranchiseApplication />
             </ProtectedRoute>
           } 
+        />
+        <Route 
+          path="/request-amendment"
+          element={
+            <ProtectedRoute requiredRole="operator">
+              <RequestAmendment />
+            </ProtectedRoute>
+          }
         />
         
         {/* Protected Admin Routes */}

@@ -77,6 +77,17 @@ export const AuthProvider = ({ children }) => {
                 role: decoded.role,
                 ...userDetails
               });
+              // If there's saved franchise info for a different user, clear it to avoid leaking data
+              try {
+                const savedOwner = localStorage.getItem('franchiseOwnerEmail');
+                const tokenEmail = decoded?.email ? String(decoded.email).toLowerCase() : null;
+                if (savedOwner && tokenEmail && savedOwner !== tokenEmail) {
+                  try { localStorage.removeItem('userFranchiseInfo') } catch { /* ignore */ }
+                  try { localStorage.removeItem('franchiseLinked') } catch { /* ignore */ }
+                  try { localStorage.removeItem('franchiseMenuReplaced') } catch { /* ignore */ }
+                  try { localStorage.removeItem('franchiseOwnerEmail') } catch { /* ignore */ }
+                }
+              } catch { /* ignore */ }
             } else {
               // Fallback to basic info from token
               setUser({
@@ -84,6 +95,17 @@ export const AuthProvider = ({ children }) => {
                 role: decoded.role,
                 name: 'User' // Default name
               });
+              // Also clear saved franchise info on fallback to token-only user if owner mismatch
+              try {
+                const savedOwner = localStorage.getItem('franchiseOwnerEmail');
+                const tokenEmail = decoded?.email ? String(decoded.email).toLowerCase() : null;
+                if (savedOwner && tokenEmail && savedOwner !== tokenEmail) {
+                  try { localStorage.removeItem('userFranchiseInfo') } catch { /* ignore */ }
+                  try { localStorage.removeItem('franchiseLinked') } catch { /* ignore */ }
+                  try { localStorage.removeItem('franchiseMenuReplaced') } catch { /* ignore */ }
+                  try { localStorage.removeItem('franchiseOwnerEmail') } catch { /* ignore */ }
+                }
+              } catch { /* ignore */ }
             }
           } else {
             // Token expired, remove it from both storages
@@ -112,8 +134,14 @@ export const AuthProvider = ({ children }) => {
   const logout = () => {
     sessionStorage.removeItem('accessToken');
     localStorage.removeItem('accessToken');
+    // Also clear any franchise-related persisted state to avoid leaking to another user
+    try { localStorage.removeItem('userFranchiseInfo') } catch { /* ignore */ }
+    try { localStorage.removeItem('franchiseLinked') } catch { /* ignore */ }
+    try { localStorage.removeItem('franchiseMenuReplaced') } catch { /* ignore */ }
+    try { localStorage.removeItem('franchiseOwnerEmail') } catch { /* ignore */ }
     setUser(null);
   };
+  
 
   const value = {
     user,

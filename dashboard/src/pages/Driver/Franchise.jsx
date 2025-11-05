@@ -24,6 +24,7 @@ const Franchise = () => {
   // Get user from token
   const user = getUserInfo();
   
+  
   // Fetch user details from the server (same logic as UnifiedSidebar)
   const fetchUserDetails = async () => {
     try {
@@ -61,15 +62,27 @@ const Franchise = () => {
     // session storage for identifying linked franchise if ever meron 
     const savedFranchiseInfo = localStorage.getItem('userFranchiseInfo');
     const savedFranchiseLinked = localStorage.getItem('franchiseLinked');
-    
-    if (savedFranchiseInfo && savedFranchiseLinked === 'true') {
-      try {
-        const parsedInfo = JSON.parse(savedFranchiseInfo);
-        setUserFranchiseInfo(parsedInfo);
-        setFranchiseLinked(true);
-      } catch (error) {
-        console.error('Error parsing saved franchise info:', error);
+    const savedOwnerEmail = localStorage.getItem('franchiseOwnerEmail');
+
+    // Only restore saved franchise info if it belongs to the currently logged-in user
+    try {
+      const token = sessionStorage.getItem('accessToken') || localStorage.getItem('accessToken');
+      let tokenEmail = null;
+      if (token) {
+        try { tokenEmail = JSON.parse(atob(token.split('.')[1])).email?.toLowerCase() } catch { tokenEmail = null }
       }
+
+      if (savedFranchiseInfo && savedFranchiseLinked === 'true' && savedOwnerEmail && tokenEmail && savedOwnerEmail === tokenEmail) {
+        try {
+          const parsedInfo = JSON.parse(savedFranchiseInfo);
+          setUserFranchiseInfo(parsedInfo);
+          setFranchiseLinked(true);
+        } catch (error) {
+          console.error('Error parsing saved franchise info:', error);
+        }
+      }
+    } catch {
+      console.warn('Error while restoring franchise info from storage')
     }
   }, []);
 
@@ -86,8 +99,10 @@ const Franchise = () => {
         // Try to match by operator name or contact
         const token = localStorage.getItem('accessToken')
         let userName = null
+        let userEmail = null
         if (token) {
           try { userName = JSON.parse(atob(token.split('.')[1])).name } catch { /* ignore */ }
+          try { userEmail = JSON.parse(atob(token.split('.')[1])).email } catch { userEmail = null }
         }
 
         const matched = apps.find(a => {
@@ -108,6 +123,10 @@ const Franchise = () => {
           setFranchiseLinked(true)
           localStorage.setItem('userFranchiseInfo', JSON.stringify(franchiseInfo))
           localStorage.setItem('franchiseLinked', 'true')
+          // persist owner email so only that user is recognized as linked
+          try {
+            if (userEmail) localStorage.setItem('franchiseOwnerEmail', String(userEmail).toLowerCase())
+          } catch { /* ignore */ }
         }
       } catch (err) {
         console.warn('Error fetching approved franchises', err)
@@ -184,6 +203,28 @@ const Franchise = () => {
   const [userFranchiseInfo, setUserFranchiseInfo] = useState(null);
   const navigate = useNavigate();
 
+  useEffect(() => {
+    try {
+      const replaced = localStorage.getItem('franchiseMenuReplaced') === 'true'
+      const linked = localStorage.getItem('franchiseLinked') === 'true'
+      const ownerEmail = localStorage.getItem('franchiseOwnerEmail')
+
+      const token = sessionStorage.getItem('accessToken') || localStorage.getItem('accessToken')
+      let tokenEmail = null
+      if (token) {
+        try { tokenEmail = JSON.parse(atob(token.split('.')[1])).email?.toLowerCase() } catch { tokenEmail = null }
+      }
+
+      // Only redirect if the saved franchise state belongs to the currently logged-in user
+      if (replaced || (linked && ownerEmail && tokenEmail && ownerEmail === tokenEmail)) {
+        // user already applied/linked -> redirect to Operator ID
+        navigate('/operator/id')
+      }
+    } catch {
+      // If localStorage fails, don't block the page by default.
+    }
+  }, [navigate])
+
   const handleSubmitFranchiseLink = () => {
     if (!orNumber || !mtopFile) {
       alert(t.pleaseProvideWarning);
@@ -201,8 +242,15 @@ const Franchise = () => {
     setFranchiseLinked(true);
     
     // para sa Storing ng  franchise info in localStorage so DriverID can access it
-    localStorage.setItem('userFranchiseInfo', JSON.stringify(franchiseInfo));
-    localStorage.setItem('franchiseLinked', 'true');
+    try { localStorage.setItem('userFranchiseInfo', JSON.stringify(franchiseInfo)) } catch { /* ignore */ }
+    try { localStorage.setItem('franchiseLinked', 'true') } catch { /* ignore */ }
+    // persist owner email so other users won't pick up this data
+    try {
+      const token = localStorage.getItem('accessToken') || sessionStorage.getItem('accessToken')
+      if (token) {
+        try { const payload = JSON.parse(atob(token.split('.')[1])); if (payload?.email) localStorage.setItem('franchiseOwnerEmail', String(payload.email).toLowerCase()) } catch { /* ignore */ }
+      }
+    } catch { /* ignore */ }
     
     setShowModal(false);
     

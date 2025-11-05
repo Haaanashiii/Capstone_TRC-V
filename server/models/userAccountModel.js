@@ -30,6 +30,17 @@ const userAccountSchema = new mongoose.Schema({
     oauthProvider: { type: String },
     oauthId: { type: String },
     googleId: { type: String }
+    ,
+   
+    franchiseStatus: { type: String, enum: ['active', 'expired', 'inactive'], default: 'inactive' },
+    operatorId: { type: String },
+    address: { type: String },
+    phoneNumber: { type: String },
+    profilePicture: { type: String }
+    ,
+
+    approvedAt: { type: Date },
+    expiryDate: { type: Date }
     
 });
 

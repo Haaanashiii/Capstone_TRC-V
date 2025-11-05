@@ -195,14 +195,42 @@ const UnifiedSidebar = ({ userType = "operator", language, onLanguageToggle, tra
 
   const getNavigationItems = () => {
     switch (userType) {
-      case "operator":
-        return [
-         
-          { label: "HOME", path: "/", isActive: location.pathname === "/" },
-          { label: "MY FRANCHISE", path: "/operator/franchise", isActive: location.pathname === "/operator/franchise" },
-          { label: "OPERATOR ID", path: "/operator/id", isActive: location.pathname === "/operator/id" },
+      case "operator": {
+       
+        let franchiseLabel = 'MY FRANCHISE'
+        try {
+          if (typeof window !== 'undefined' && window.localStorage) {
+            const replaced = localStorage.getItem('franchiseMenuReplaced')
+            const linked = localStorage.getItem('franchiseLinked')
+            const storedOwner = localStorage.getItem('franchiseOwnerEmail')
+            let tokenEmail = null
+            try {
+              const token = sessionStorage.getItem('accessToken') || localStorage.getItem('accessToken')
+              if (token) tokenEmail = JSON.parse(atob(token.split('.')[1])).email?.toLowerCase()
+            } catch {
+              tokenEmail = null
+            }
 
+            const ownerMatches = storedOwner && tokenEmail && String(storedOwner).toLowerCase() === String(tokenEmail).toLowerCase()
+
+           
+            const effectiveReplaced = replaced === 'true' && ownerMatches
+            const effectiveLinked = linked === 'true' && ownerMatches
+
+            if (effectiveReplaced || effectiveLinked) franchiseLabel = 'REQUEST FOR AMENDMENT'
+          }
+        } catch {
+          // ignore localStorage/token errors
+        }
+
+        // If label replaced, route to the Request Amendment page instead of the franchise page
+        const franchisePath = franchiseLabel === 'REQUEST FOR AMENDMENT' ? '/request-amendment' : '/operator/franchise'
+        return [
+          { label: "HOME", path: "/", isActive: location.pathname === "/" },
+          { label: franchiseLabel, path: franchisePath, isActive: location.pathname === franchisePath },
+          { label: "OPERATOR ID", path: "/operator/id", isActive: location.pathname === "/operator/id" },
         ];
+      }
       case "admin": //for bplo-admin?
         return [
           { label: "DASHBOARD", path: "/admin", isActive: location.pathname === "/admin" },
@@ -224,7 +252,7 @@ const UnifiedSidebar = ({ userType = "operator", language, onLanguageToggle, tra
     <StyledAppBar position="sticky">
       <Toolbar sx={{ paddingTop: '12px', paddingBottom: '12px', paddingLeft: '32px', paddingRight: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', position: 'relative', overflowX: 'hidden' }}>
         
-        {/* Logo and Title Section */}
+    
         <LogoSection>
           <img 
             src="/Logos/TRC-vLogo.png" 
@@ -241,7 +269,7 @@ const UnifiedSidebar = ({ userType = "operator", language, onLanguageToggle, tra
         </LogoSection>
 
   {/* Navigation Section */}
-  {/* Center area: grow and center the nav so it appears visually centered between logo and language */}
+
   <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flex: 1 }}>
     <NavigationSection sx={{ marginLeft: 0 }}>
       {/* Navigation Items */}
@@ -257,7 +285,7 @@ const UnifiedSidebar = ({ userType = "operator", language, onLanguageToggle, tra
           </NavButton>
         ))}
 
-        {/* User Section: show logged-in user via AuthContext; clickable menu */}
+     
         <Box sx={{ display: 'flex', alignItems: 'center' }}>
           {displayName && displayName !== 'USER' ? (
             <>
