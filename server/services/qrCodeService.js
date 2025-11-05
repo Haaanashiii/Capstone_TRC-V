@@ -22,7 +22,7 @@ async function generateOperatorQRCode(operatorId, options = {}) {
 
   // Create verification URL with operator ID
   const baseUrl = (process.env.BASE_URL || 'http://localhost:5173').replace(/\/+$/, '');
-  const verificationUrl = `${baseUrl}/operator/id/${operatorId}`;
+  const verificationUrl = `${baseUrl}/operators/qr/${operatorId}`;
   
   // Generate QR code options
   const qrOptions = {

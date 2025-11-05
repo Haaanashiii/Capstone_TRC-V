@@ -19,6 +19,7 @@ const reportsRoutes = require('./routes/reportsRoutes');
 const announcementRoutes = require('./routes/announcementRoutes');
 const operatorInformationRoutes = require('./routes/operatorInformationRoutes');
 const franchiseApplicationRoutes = require('./routes/franchiseApplicationRoutes');
+const qrCodeRoutes = require('./routes/qrCodeRoutes');
 
 
 dotenv.config();
@@ -131,6 +132,7 @@ app.use('/api/franchise-applications', franchiseApplicationRoutes);
 app.use('/reports', reportsRoutes);
 app.use('/announcements', announcementRoutes);
 app.use('/operators', operatorInformationRoutes);
+app.use('/qr', qrCodeRoutes);
 
 
 // Health check endpoint
