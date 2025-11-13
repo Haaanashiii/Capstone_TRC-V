@@ -1,5 +1,15 @@
 const mongoose = require('mongoose');
 
+const documentSchema = new mongoose.Schema({
+  motorRegistration: { type: String, required: true },
+  barangayClearance: { type: String, required: true },
+  cedula: { type: String, required: true },
+  driversLicense: { type: String, required: true },
+  votersAffidavit: { type: String, required: true },
+  motorChassisStencil: { type: String, required: true },
+  picture: { type: String, required: true }
+});
+
 const franchiseApplicationSchema = new mongoose.Schema({
   operatorName: { type: String, required: true },
   operatorContact: { type: String, required: true },
@@ -7,13 +17,7 @@ const franchiseApplicationSchema = new mongoose.Schema({
   actionType: { type: String, enum: ['NEW', 'RENEWAL', 'AMMENDMENTS'], required: true, uppercase: true ,trim: true},
   operatorAddress: { type: String, required: true },
   profilePhoto: { type: String },
-  // Document metadata for uploaded files (name, mime type, public path)
-  documentRegistration: { name: { type: String }, type: { type: String }, path: { type: String } },
-  documentBarangayClearance: { name: { type: String }, type: { type: String }, path: { type: String } },
-  documentCedula: { name: { type: String }, type: { type: String }, path: { type: String } },
-  documentDriversLicense: { name: { type: String }, type: { type: String }, path: { type: String } },
-  documentVotersAffidavit: { name: { type: String }, type: { type: String }, path: { type: String } },
-  documentPicture: { name: { type: String }, type: { type: String }, path: { type: String } },
+  
   qrCode: { type: String }, // Path to QR code image (generated when franchise is approved)
 
   driversID: { type: String, required: true },
@@ -38,6 +42,7 @@ const franchiseApplicationSchema = new mongoose.Schema({
   approvedAt: { type: Date },
   expiryDate: { type: Date },
   submittedAt: { type: Date, default: Date.now },
+  documents: documentSchema,
 }, { collection: 'franchiseapplications' });
 
 

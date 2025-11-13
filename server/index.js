@@ -14,6 +14,7 @@ const { auditLogService } = require('./services/auditLogService');
 //routes
 const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userAccountRoutes');
+const adminRoutes = require('./routes/adminAccountRoutes');
 const pendingAppsRoutes = require('./routes/pendingAppsRoutes');
 const reportsRoutes = require('./routes/reportsRoutes');
 const announcementRoutes = require('./routes/announcementRoutes');
@@ -127,6 +128,7 @@ if (process.env.NODE_ENV !== 'production') {
 // Routes
 app.use('/auth', authRoutes);
 app.use('/users', userRoutes);
+app.use('/admins', adminRoutes);
 app.use('/api/pending-apps', pendingAppsRoutes);
 app.use('/api/franchise-applications', franchiseApplicationRoutes);
 app.use('/reports', reportsRoutes);

@@ -11,23 +11,26 @@ const documentSchema = new mongoose.Schema({
 });
 
 const operatorSchema = new mongoose.Schema({
-  operatorId: { type: mongoose.Schema.Types.ObjectId, ref: 'Operator' },
-  firstName: { type: String, required: true },
-  lastName: { type: String, required: true },
-  middleName: { type: String, required: true },
-  suffix: { type: String },
+  operatorId: { type: String, required: true, unique: true },
+  operatorName: { type: String, required: true },
   contactNumber: { type: String, required: true, trim: true, match: [/^\+?[0-9]{10,15}$/, 'Invalid contact number'] },
   address: { type: String, required: true },
   barangay: { type: String, required: true },
-  contactNumber: { type: String, required: true },
   civilStatus: { type: String, required: true },
+
+  contactNumber: { type: String, required: true },
   email: { type: String, required: true, unique: true, lowercase: true, trim: true, match: [/^\S+@\S+\.\S+$/, 'Invalid email address'] },
-  password: { type: String, required: true, minlength: 8, select: false },
+  
   driversID: { type: String, required: true, unique: true },
+  
   profilePhoto: { type: String },
-  qrCode: { type: String }, // Path to generated QR code image
+  qrCode: { type: String }, 
+
+  approvedAt: { type: Date },
+  expiryDate: { type: Date },
+
   documents: documentSchema,
-  applications: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Application' }],
+
   franchiseStatus: { type: String, enum: ['active', 'expired'], required: true }
 }, { timestamps: true });
 
