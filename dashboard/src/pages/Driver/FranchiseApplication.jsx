@@ -124,15 +124,8 @@ export default function FranchiseApplication() {
   };
   
   const t = translations[language];
-  
-  // Digital signature upload state and handler - REMOVED
-  // const [digitalSignature, setDigitalSignature] = useState(null);
-  // const digitalSignatureRef = useRef();
-  // const handleDigitalSignatureChange = (e) => {
-  //   setDigitalSignature(e.target.files[0]);
-  // };
-  // Modal state for document upload (dynamic per document)
-  const [modalDocKey, setModalDocKey] = useState(null); // null or one of the doc keys
+
+  const [modalDocKey, setModalDocKey] = useState(null);
   const [modalFile, setModalFile] = useState(null);
   const modalFileRef = useRef();
 
@@ -363,6 +356,8 @@ export default function FranchiseApplication() {
           <div className="franchise-app-field">
             <TextField label={t.todaMembership} size="small" className="franchise-app-input" value={fields.todaMembership} onChange={handleChange('todaMembership')} />
           </div>
+
+
           {/* Motorcycle Information Section */}
           <div className="franchise-app-section" style={{ marginTop: 32 }}>
             {t.motorcycleInfo}
@@ -452,60 +447,44 @@ export default function FranchiseApplication() {
                   variant="contained"
                   sx={{ bgcolor: '#174D7A', color: '#fff', fontWeight: 700, borderRadius: 2, fontSize: 18, px: 4, py: 1 }}
                   onClick={async () => {
-                    // Build application payload
-                    const timestamp = Date.now()
-                    const franchiseNumber = `F${String(Math.floor(Math.random() * 900) + 1).padStart(3, '0')}`
+                
+                      const formDataToSend = new FormData();
 
-                      const mapFile = (file) => {
-                        if (!file) return null
-                        // Do not include blob/object URLs in server payload (not accessible from other clients)
-                        return { name: file.name || '', type: file.type || 'application/octet-stream' }
-                      }
+                      formDataToSend.append('name', fields.operatorName || '');
+                      formDataToSend.append('applicationType', 'New');
+                      formDataToSend.append('address', fields.driverAddress || '');
+                      formDataToSend.append('contactNumber', fields.contact || '');
+                      formDataToSend.append('sidecarPlateNumber', fields.sidecarPlate || '');
+                      formDataToSend.append('birthPlace', fields.birthPlace || '');
+                      formDataToSend.append('birthDate', fields.birthDate ? (fields.birthDate.format ? fields.birthDate.format('YYYY-MM-DD') : fields.birthDate) : '');
+                      formDataToSend.append('civilStatus', fields.civilStatus || '');
+                      formDataToSend.append('citizenship', fields.citizenship || '');
+                      formDataToSend.append('todaMembership', fields.todaMembership || '');
+                      formDataToSend.append('unitModel', fields.unitModel || '');
+                      formDataToSend.append('colorMotor', fields.colorMotor || '');
+                      formDataToSend.append('colorSidecar', fields.colorSidecar || '');
+                      formDataToSend.append('mvPlate', fields.mvPlate || '');
+                      formDataToSend.append('motorEngineNumber', fields.motorEngineNumber || '');
+                      formDataToSend.append('chassisNumber', fields.chassisNumber || '');
+                      formDataToSend.append('driverName', fields.driverName || '');
+                      formDataToSend.append('driverAddress', fields.driverAddress || '');
 
-                    const newApp = {
-                      id: timestamp,
-                      franchiseNumber,
-                      name: fields.operatorName,
-                      make: '',
-                      plateNumber: fields.sidecarPlate || '',
-                      applicationType: 'New',
-                      // Use driverAddress as the primary address shown in admin table
-                      address: fields.driverAddress || '',
-                      contactNumber: fields.contact,
-                      sidecarPlateNumber: fields.sidecarPlate,
-                      birthPlace: fields.birthPlace,
-                      birthDate: fields.birthDate ? fields.birthDate.format ? fields.birthDate.format('YYYY-MM-DD') : fields.birthDate : '',
-                      civilStatus: fields.civilStatus,
-                      citizenship: fields.citizenship,
-                      todaMembership: fields.todaMembership,
-                      unitModel: fields.unitModel || '',
-                      colorMotor: fields.colorMotor || '',
-                      colorSidecar: fields.colorSidecar || '',
-                      mvPlate: fields.mvPlate || '',
-                      motorEngineNumber: fields.motorEngineNumber || '',
-                      chassisNumber: fields.chassisNumber || '',
-                      driverName: fields.driverName || '',
-                      driverAddress: fields.driverAddress || '',
-                      documentRegistration: mapFile(uploads.registration),
-                      documentBarangayClearance: mapFile(uploads.barangay),
-                      documentCedula: mapFile(uploads.cedula),
-                      documentDriversLicense: mapFile(uploads.license),
-                      documentVotersAffidavit: mapFile(uploads.affidavit),
-                      documentPicture: mapFile(uploads.picture),
-                    }
+                      
+                      if (uploads.registration) formDataToSend.append('documentRegistration', uploads.registration);
+                      if (uploads.barangay) formDataToSend.append('documentBarangayClearance', uploads.barangay);
+                      if (uploads.cedula) formDataToSend.append('documentCedula', uploads.cedula);
+                      if (uploads.license) formDataToSend.append('documentDriversLicense', uploads.license);
+                      if (uploads.affidavit) formDataToSend.append('documentVotersAffidavit', uploads.affidavit);
+                      if (uploads.picture) formDataToSend.append('documentPicture', uploads.picture);
 
-              
                     try {
-                      // Use secure API method with proper error handling
                       console.log('[FranchiseApplication] Submitting application...')
+                      const response = await franchiseAPI.create(formDataToSend)
                       
-                      // Use the secure franchiseAPI.create() method from api.js
-                      const response = await franchiseAPI.create(newApp)
-                      
-                      // Response is already parsed by axios
+          
                       if (!response.data) throw new Error('No response data received')
 
-                      // Success: clear local form state
+                  
                       setFields({
                         date: dayjs(),
                         sidecarPlate: "",
@@ -527,9 +506,9 @@ export default function FranchiseApplication() {
                       })
                       setUploads({ registration: null, barangay: null, cedula: null, license: null, affidavit: null, picture: null })
 
-                      // Provide feedback to the user via toast
+                      
                       console.log('[FranchiseApplication] Application submitted successfully')
-                      // Mark that the operator has submitted an application so nav/sidebar labels can be updated
+                     
                       try { localStorage.setItem('franchiseMenuReplaced', 'true') } catch { /* ignore */ }
                       // persist owner email so the operator mapping is consistent
                       try {

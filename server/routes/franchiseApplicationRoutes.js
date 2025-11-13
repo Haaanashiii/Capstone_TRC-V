@@ -2,8 +2,10 @@ const express = require('express');
 const router = express.Router();
 const franchiseApplicationController = require('../controllers/franchiseApplicationController');
 const authenticate = require('../middlewares/authenticate');
+const upload = require('../middlewares/upload');
 
-router.post('/', franchiseApplicationController.createFranchiseApplication);
+// Accept multipart/form-data for application creation (documents)
+router.post('/', upload.uploadOperatorDocuments, franchiseApplicationController.createFranchiseApplication);
 router.get('/', franchiseApplicationController.getAllFranchiseApplications);
 router.get('/mine', authenticate, franchiseApplicationController.getMyFranchiseApplication);
 router.get('/:id', franchiseApplicationController.getFranchiseApplication);

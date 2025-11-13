@@ -378,16 +378,23 @@ export const franchiseAPI = {
    */
   create: (applicationData) => {
     // Use base axios instance without authentication
+    // If applicationData is FormData, do NOT set Content-Type so the
+    // browser/axios can set the multipart/form-data boundary correctly.
+    // For regular JSON payloads, preserve the original behavior and
+    // send Content-Type: application/json (this is important for other
+    // callers which may expect JSON behavior such as QR generation flows).
     const publicApi = axios.create({
       baseURL: API_BASE_URL,
       timeout: 60000,
       withCredentials: true,
-      headers: {
-        'Content-Type': 'application/json'
-      }
     });
-    
-    return publicApi.post('/api/franchise-applications', applicationData);
+
+    const config = {};
+    if (!(applicationData instanceof FormData)) {
+      config.headers = { 'Content-Type': 'application/json' };
+    }
+
+    return publicApi.post('/api/franchise-applications', applicationData, config);
   },
 
   /**

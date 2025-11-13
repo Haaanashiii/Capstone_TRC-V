@@ -7,6 +7,13 @@ const franchiseApplicationSchema = new mongoose.Schema({
   actionType: { type: String, enum: ['NEW', 'RENEWAL', 'AMMENDMENTS'], required: true, uppercase: true ,trim: true},
   operatorAddress: { type: String, required: true },
   profilePhoto: { type: String },
+  // Document metadata for uploaded files (name, mime type, public path)
+  documentRegistration: { name: { type: String }, type: { type: String }, path: { type: String } },
+  documentBarangayClearance: { name: { type: String }, type: { type: String }, path: { type: String } },
+  documentCedula: { name: { type: String }, type: { type: String }, path: { type: String } },
+  documentDriversLicense: { name: { type: String }, type: { type: String }, path: { type: String } },
+  documentVotersAffidavit: { name: { type: String }, type: { type: String }, path: { type: String } },
+  documentPicture: { name: { type: String }, type: { type: String }, path: { type: String } },
   qrCode: { type: String }, // Path to QR code image (generated when franchise is approved)
 
   driversID: { type: String, required: true },

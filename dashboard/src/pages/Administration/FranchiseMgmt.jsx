@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react'
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import './FranchiseMgmt.css'
 import Sidebar from './Sidebar'
-import { franchiseAPI } from '../Services/api'
+import { franchiseAPI, API_BASE_URL } from '../Services/api'
 import {
   Table,
   TableBody,
@@ -47,6 +47,7 @@ function FranchiseMgmt() {
  
   const [openFilePreview, setOpenFilePreview] = useState(false)
   const [previewFile, setPreviewFile] = useState({ name: '', type: '', path: '' })
+  const currentBlobUrlRef = useRef(null)
   
   
   const [pendingApplications, setPendingApplications] = useState([])
@@ -215,11 +216,86 @@ function FranchiseMgmt() {
       setNotification({ open: true, message: 'File not available for preview', type: 'info' })
       return
     }
-    setPreviewFile(file)
-    setOpenFilePreview(true)
+
+    // Normalize legacy values: the backend previously stored string paths for files
+    // (e.g. "/uploads/..") or newly stores objects { name, type, path }.
+    let normalized = { name: '', type: '', path: '' }
+
+    // If file is an object with expected properties, shallow-copy it
+    if (typeof file === 'object' && (file.path || file.name)) {
+      normalized = {
+        name: file.name || file.originalname || '',
+        type: file.type || file.mimetype || '',
+        path: file.path || file.pathname || ''
+      }
+    } else if (typeof file === 'string') {
+      // Legacy string path -> construct object
+      normalized = {
+        name: file.split('/').pop() || file,
+        type: '',
+        path: file
+      }
+    }
+
+    // If the path is relative (starts with '/') or missing protocol, prefix API_BASE_URL
+    try {
+      if (normalized.path && !/^https?:\/\//i.test(normalized.path)) {
+        // Ensure no double slash when concatenating
+        const pathPart = normalized.path.startsWith('/') ? normalized.path : '/' + normalized.path
+        normalized.path = API_BASE_URL.replace(/\/$/, '') + pathPart
+      }
+    } catch {
+      // If API_BASE_URL isn't available for some reason, leave path as-is
+    }
+
+    // If it's an image or PDF, try fetching it and creating an object URL so
+    // the browser does not need to embed the backend URL in an iframe (which
+    // can be blocked by X-Frame-Options: SAMEORIGIN). This also avoids CORS
+    // framing issues by loading the bytes via fetch and serving them from a
+    // same-origin blob URL.
+    const tryFetchAndPreview = async () => {
+      const path = normalized.path
+      const isImage = (normalized.type || '').includes('image') || /\.(png|jpe?g|webp|gif)$/i.test(path)
+      const isPdf = (normalized.type || '').includes('pdf') || /\.pdf$/i.test(path)
+
+      if (isImage || isPdf) {
+        try {
+          const resp = await fetch(path, { mode: 'cors' })
+          if (!resp.ok) throw new Error(`Failed to fetch file: ${resp.status}`)
+          const blob = await resp.blob()
+          const objectUrl = URL.createObjectURL(blob)
+          // Revoke previous if any
+          if (currentBlobUrlRef.current) URL.revokeObjectURL(currentBlobUrlRef.current)
+          currentBlobUrlRef.current = objectUrl
+          setPreviewFile({ ...normalized, path: objectUrl })
+          setOpenFilePreview(true)
+          return
+        } catch (err) {
+          console.warn('[FilePreview] fetch failed, falling back to direct URL', err)
+          setNotification({ open: true, message: 'Preview unavailable, file will open/download instead', type: 'info' })
+          // fallthrough to open direct link in iframe/fallback
+        }
+      }
+
+      // Not an image/pdf or fetch failed — use the path as-is (download link will still work)
+      setPreviewFile(normalized)
+      setOpenFilePreview(true)
+    }
+
+    tryFetchAndPreview()
   }, [])
   
   const handleCloseFilePreview = useCallback(() => {
+    // Revoke any temporary object URL created from fetch
+    try {
+      if (currentBlobUrlRef.current) {
+        URL.revokeObjectURL(currentBlobUrlRef.current)
+        currentBlobUrlRef.current = null
+      }
+    } catch (err) {
+      console.warn('Failed to revoke object URL', err)
+    }
+
     setOpenFilePreview(false)
   }, [])
   
@@ -786,7 +862,7 @@ function FranchiseMgmt() {
                 required
                 InputLabelProps={{ shrink: true }}
                 inputProps={{ 
-                  accept: "image/jpeg,image/png,application/pdf"
+                  accept: "image/jpeg,image/png,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.doc,.docx"
                 }}
               />
             </div>
@@ -803,7 +879,7 @@ function FranchiseMgmt() {
                 required
                 InputLabelProps={{ shrink: true }}
                 inputProps={{ 
-                  accept: "image/jpeg,image/png,application/pdf"
+                  accept: "image/jpeg,image/png,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.doc,.docx"
                 }}
               />
             </div>
@@ -820,7 +896,7 @@ function FranchiseMgmt() {
                 required
                 InputLabelProps={{ shrink: true }}
                 inputProps={{ 
-                  accept: "image/jpeg,image/png,application/pdf"
+                  accept: "image/jpeg,image/png,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.doc,.docx"
                 }}
               />
             </div>
@@ -837,7 +913,7 @@ function FranchiseMgmt() {
                 required
                 InputLabelProps={{ shrink: true }}
                 inputProps={{ 
-                  accept: "image/jpeg,image/png,application/pdf"
+                  accept: "image/jpeg,image/png,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.doc,.docx"
                 }}
               />
             </div>
@@ -854,7 +930,7 @@ function FranchiseMgmt() {
                 required
                 InputLabelProps={{ shrink: true }}
                 inputProps={{ 
-                  accept: "image/jpeg,image/png,application/pdf"
+                  accept: "image/jpeg,image/png,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.doc,.docx"
                 }}
               />
             </div>

@@ -58,6 +58,67 @@ exports.createFranchiseApplication = async (req, res, next) => {
             remarks: body.remarks || undefined
         };
 
+        // If files were uploaded via multipart/form-data (multer), map them into the normalized payload
+        try {
+            const files = req.files || {};
+
+            const mapFile = (field) => {
+                const f = files[field];
+                if (Array.isArray(f) && f[0]) {
+                    const file = f[0];
+                    // Normalize path to URL path served by express static
+                    let p = file.path || (file.destination && file.filename ? `${file.destination}/${file.filename}` : '');
+                    if (typeof p === 'string') {
+                        // Convert backslashes (windows) to forward slashes for URLs
+                        p = p.replace(/\\/g, '/');
+                        if (!p.startsWith('/')) p = '/' + p;
+                    }
+
+                    // Build an absolute URL so the frontend (which may run on a different origin
+                    // during development) requests the file from the backend host where it's served.
+                    // Fallback: if req is not available or host is missing, return the normalized path.
+                    let absolutePath = p;
+                    try {
+                        const host = req && req.get && req.get('host');
+                        const proto = req && req.protocol ? req.protocol : 'http';
+                        if (host) {
+                            absolutePath = `${proto}://${host}${p}`;
+                        }
+                    } catch (e) {
+                        // keep the normalized path if something goes wrong
+                    }
+
+                    return {
+                        name: file.originalname || file.filename,
+                        type: file.mimetype || '',
+                        path: absolutePath
+                    };
+                }
+                return null;
+            };
+
+            // Map expected frontend document field names (fallback to legacy names)
+            const docRegistration = mapFile('documentRegistration') || mapFile('motorRegistration');
+            const docBarangay = mapFile('documentBarangayClearance') || mapFile('barangayClearance');
+            const docCedula = mapFile('documentCedula') || mapFile('cedula');
+            const docDriversLicense = mapFile('documentDriversLicense') || mapFile('driversLicense');
+            const docVoters = mapFile('documentVotersAffidavit') || mapFile('votersAffidavit');
+            const docPicture = mapFile('documentPicture') || mapFile('picture');
+
+            if (docRegistration) normalized.documentRegistration = docRegistration;
+            if (docBarangay) normalized.documentBarangayClearance = docBarangay;
+            if (docCedula) normalized.documentCedula = docCedula;
+            if (docDriversLicense) normalized.documentDriversLicense = docDriversLicense;
+            if (docVoters) normalized.documentVotersAffidavit = docVoters;
+            if (docPicture) normalized.documentPicture = docPicture;
+
+            // If a profilePhoto was uploaded, map it as well
+            const profile = mapFile('profilePhoto');
+            if (profile) normalized.profilePhoto = profile.path;
+        } catch (fileMapErr) {
+            console.warn('Error while mapping uploaded files into franchise application payload', fileMapErr);
+        }
+
         try {
             const application = await franchiseApplicationRepository.createFranchiseApplication(normalized);
             // Log persistence details to help debug where documents are being stored
@@ -94,6 +155,45 @@ exports.getAllFranchiseApplications = async (req, res, next) => {
         }
 
         const applications = await franchiseApplicationRepository.getAllFranchiseApplications(query);
+
+        // Helper to ensure document objects contain absolute URLs where possible
+        const normalizeDoc = (doc) => {
+            if (!doc) return null;
+            // If doc is an object with path
+            if (typeof doc === 'object' && doc.path) {
+                let p = doc.path;
+                try {
+                    if (typeof p === 'string') {
+                        p = p.replace(/\\/g, '/');
+                        if (!/^https?:\/\//i.test(p)) {
+                            if (!p.startsWith('/')) p = '/' + p;
+                            const host = req && req.get && req.get('host');
+                            const proto = req && req.protocol ? req.protocol : 'http';
+                            if (host) p = `${proto}://${host}${p}`;
+                        }
+                    }
+                } catch (e) {
+                    // fallback to original
+                }
+                return Object.assign({}, doc, { path: p });
+            }
+
+            // If doc is a string path, convert to absolute URL
+            if (typeof doc === 'string') {
+                let p = doc.replace(/\\/g, '/');
+                try {
+                    if (!/^https?:\/\//i.test(p)) {
+                        if (!p.startsWith('/')) p = '/' + p;
+                        const host = req && req.get && req.get('host');
+                        const proto = req && req.protocol ? req.protocol : 'http';
+                        if (host) p = `${proto}://${host}${p}`;
+                    }
+                } catch (e) {}
+                return { name: p.split('/').pop() || p, type: '', path: p };
+            }
+
+            return null;
+        };
 
         const normalized = (applications || []).map(it => ({
             id: it._id ? String(it._id) : (it.id || ''),

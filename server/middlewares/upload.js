@@ -58,7 +58,10 @@ const imageFileFilter = (req, file, cb) => {
 const documentFileFilter = (req, file, cb) => {
   const allowedMimes = [
     'image/jpeg', 'image/jpg', 'image/png', 'image/webp',
-    'application/pdf'
+    'application/pdf',
+    // Microsoft Word
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
   ];
   
   if (allowedMimes.includes(file.mimetype)) {
@@ -85,13 +88,13 @@ const uploadOperatorDocuments = multer({
     fileSize: 10 * 1024 * 1024, // 10MB per file
   }
 }).fields([
-  { name: 'motorRegistration', maxCount: 1 },
-  { name: 'barangayClearance', maxCount: 1 },
-  { name: 'cedula', maxCount: 1 },
-  { name: 'driversLicense', maxCount: 1 },
-  { name: 'votersAffidavit', maxCount: 1 },
-  { name: 'motorChassisStencil', maxCount: 1 },
-  { name: 'picture', maxCount: 1 }
+  // Field names matching the dashboard form inputs
+  { name: 'documentRegistration', maxCount: 1 },
+  { name: 'documentBarangayClearance', maxCount: 1 },
+  { name: 'documentCedula', maxCount: 1 },
+  { name: 'documentDriversLicense', maxCount: 1 },
+  { name: 'documentVotersAffidavit', maxCount: 1 },
+  { name: 'documentPicture', maxCount: 1 }
 ]);
 
 // Combined upload for operator creation (profile + documents)
@@ -103,13 +106,13 @@ const uploadOperatorComplete = multer({
   }
 }).fields([
   { name: 'profilePhoto', maxCount: 1 },
-  { name: 'motorRegistration', maxCount: 1 },
-  { name: 'barangayClearance', maxCount: 1 },
-  { name: 'cedula', maxCount: 1 },
-  { name: 'driversLicense', maxCount: 1 },
-  { name: 'votersAffidavit', maxCount: 1 },
-  { name: 'motorChassisStencil', maxCount: 1 },
-  { name: 'picture', maxCount: 1 }
+  // Accept both legacy and current frontend field names
+  { name: 'documentRegistration', maxCount: 1 },
+  { name: 'documentBarangayClearance', maxCount: 1 },
+  { name: 'documentCedula', maxCount: 1 },
+  { name: 'documentDriversLicense', maxCount: 1 },
+  { name: 'documentVotersAffidavit', maxCount: 1 },
+  { name: 'documentPicture', maxCount: 1 }
 ]);
 
 // Error handler middleware for multer errors
