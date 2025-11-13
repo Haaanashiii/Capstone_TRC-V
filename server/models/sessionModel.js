@@ -39,8 +39,7 @@ const sessionSchema = new mongoose.Schema({
   // Session metadata
   createdAt: {
     type: Date,
-    default: Date.now,
-    index: true
+    default: Date.now
   },
   
   lastUsed: {
@@ -50,8 +49,7 @@ const sessionSchema = new mongoose.Schema({
   
   expiresAt: {
     type: Date,
-    required: true,
-    index: true
+    required: true
   },
   
   // Status
@@ -63,11 +61,10 @@ const sessionSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Index for efficient querying
+// Compound index for efficient querying
 sessionSchema.index({ userId: 1, isActive: 1 });
-sessionSchema.index({ expiresAt: 1 }); // For TTL cleanup
 
-// Auto-delete expired sessions (TTL index)
+// TTL index - MongoDB automatically deletes expired documents
 sessionSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
 module.exports = mongoose.model('Session', sessionSchema);

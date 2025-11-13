@@ -1,5 +1,5 @@
 
-const rateLimit = require('express-rate-limit');
+const { rateLimit } = require('express-rate-limit');
 
 /**
  * Creates a rate limiter middleware with configurable options
@@ -44,18 +44,15 @@ const authLimiter = createRateLimiter({
   }
 });
 
-// Rate limit by email/username - Stricter per-account limits
+// Rate limit by IP - Stricter per-account limits
+// Note: Per-account limiting is better handled at application level
+// to avoid IPv6 bypass issues with custom keyGenerators
 const accountLimiter = createRateLimiter({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 5, // 5 attempts per account
+  max: 5, // 5 attempts per IP
   skipSuccessfulRequests: true,
-  // Use email/identifier as key instead of IP
-  keyGenerator: (req) => {
-    // Use the identifier from request body (email or username)
-    return req.body.identifier || req.body.email || req.body.username || req.ip;
-  },
   message: {
-    error: 'Too many login attempts for this account, please try again after 15 minutes',
+    error: 'Too many login attempts, please try again after 15 minutes',
     code: 'ACCOUNT_RATE_LIMIT_EXCEEDED'
   }
 });

@@ -15,13 +15,11 @@ const adminAccountSchema = new mongoose.Schema({
   username: { 
     type: String, 
     required: true,
-    unique: true,
     trim: true
   },
   email: { 
     type: String, 
     required: true, 
-    unique: true, 
     lowercase: true, 
     trim: true, 
     match: [/^\S+@\S+\.\S+$/, 'Please use a valid email address'] 
@@ -75,9 +73,11 @@ const adminAccountSchema = new mongoose.Schema({
   }]
 }, { timestamps: true });
 
-// Index for faster queries
-adminAccountSchema.index({ email: 1 });
-adminAccountSchema.index({ username: 1 });
+// Unique indexes for email and username
+adminAccountSchema.index({ email: 1 }, { unique: true });
+adminAccountSchema.index({ username: 1 }, { unique: true });
+
+// Non-unique indexes for faster queries
 adminAccountSchema.index({ role: 1 });
 adminAccountSchema.index({ isActive: 1 });
 
