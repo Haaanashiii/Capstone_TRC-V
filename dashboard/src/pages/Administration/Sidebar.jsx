@@ -25,23 +25,52 @@ function Sidebar() {
     return () => clearInterval(timerId);
   }, []);
 
-  // Get user info from localStorage token
+  // Get user info from sessionStorage token (primary), fallback to localStorage
   useEffect(() => {
-    const token = localStorage.getItem('accessToken');
+    const token = sessionStorage.getItem('accessToken') || localStorage.getItem('accessToken');
+    console.log('[AdminSidebar] Token found:', !!token);
+    
     if (token) {
       try {
         const decoded = JSON.parse(atob(token.split('.')[1]));
+        console.log('[AdminSidebar] Decoded user:', decoded);
         setUser(decoded);
       } catch (error) {
-        console.error('Error decoding token:', error);
+        console.error('[AdminSidebar] Error decoding token:', error);
       }
+    } else {
+      console.warn('[AdminSidebar] No token found in storage');
     }
   }, []);
 
-  const handleLogout = () => {
-    localStorage.removeItem('accessToken');
-    sessionStorage.removeItem('accessToken');
-    navigate('/login');
+  const handleLogout = async () => {
+    console.log('[AdminSidebar] Logout initiated');
+    
+    try {
+      // Call backend to invalidate refresh token
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170';
+      const token = sessionStorage.getItem('accessToken') || localStorage.getItem('accessToken');
+      
+      if (token) {
+        await fetch(`${API_BASE_URL}/auth/logout`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          credentials: 'include'
+        });
+        console.log('[AdminSidebar] Backend logout successful');
+      }
+    } catch (error) {
+      console.error('[AdminSidebar] Backend logout failed:', error);
+    } finally {
+      // Always clear frontend storage
+      sessionStorage.removeItem('accessToken');
+      localStorage.removeItem('accessToken');
+      console.log('[AdminSidebar] Storage cleared, navigating to login');
+      navigate('/login');
+    }
   };
 
   const toggleLogout = () => {
@@ -50,12 +79,19 @@ function Sidebar() {
 
   // Get first name from user object
   const getFirstName = () => {
+    console.log('[AdminSidebar] Getting first name from user:', user);
+    
     if (user?.firstName) return user.firstName;
     if (user?.name) {
       // If full name is stored, split and get first name
-      return user.name.split(' ')[0];
+      const firstName = user.name.split(' ')[0];
+      console.log('[AdminSidebar] First name extracted:', firstName);
+      return firstName;
     }
     if (user?.username) return user.username;
+    if (user?.email) return user.email.split('@')[0];
+    
+    console.warn('[AdminSidebar] No name fields found, using default');
     return 'User';
   };
 
@@ -65,6 +101,7 @@ function Sidebar() {
     
     // Map role codes to display names
     const roleMap = {
+      'super-admin': 'Super Administrator',
       'sb-admin': 'SB Employee',
       'bplo-admin': 'BPLO Employee',
       'operator': 'Operator',

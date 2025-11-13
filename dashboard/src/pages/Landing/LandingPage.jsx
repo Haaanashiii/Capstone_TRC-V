@@ -20,7 +20,21 @@ const LandingPage = () => {
   const handleMenuOpen = (e) => setAnchorEl(e.currentTarget);
   const handleMenuClose = () => setAnchorEl(null);
   const handleGoToId = () => { handleMenuClose(); navigate('/operator/id'); };
-  const handleLogout = () => { try { logout(); } catch { sessionStorage.removeItem('accessToken'); localStorage.removeItem('accessToken'); } handleMenuClose(); navigate('/'); };
+  
+  const handleLogout = async () => {
+    console.log('[LandingPage] Logout initiated');
+    handleMenuClose();
+    try {
+      await logout(); // Now async - calls backend
+      console.log('[LandingPage] Logout successful');
+    } catch (error) {
+      console.error('[LandingPage] Logout error:', error);
+      sessionStorage.removeItem('accessToken');
+      localStorage.removeItem('accessToken');
+    } finally {
+      navigate('/');
+    }
+  };
   
   useEffect(() => {
     try {

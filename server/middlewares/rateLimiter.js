@@ -36,10 +36,27 @@ const otpLimiter = createRateLimiter({
 // Create specific rate limiters for different routes
 const authLimiter = createRateLimiter({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 5, // 5 attempts per 15 minutes
+  max: 20, // number of allowed attempts
+  skipSuccessfulRequests: true,
   message: {
-    error: 'Too many login attempts, please try again after 15 minutes',
+    error: 'Too many login attempts from this network, please try again after 15 minutes',
     code: 'AUTH_RATE_LIMIT_EXCEEDED'
+  }
+});
+
+// Rate limit by email/username - Stricter per-account limits
+const accountLimiter = createRateLimiter({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, // 5 attempts per account
+  skipSuccessfulRequests: true,
+  // Use email/identifier as key instead of IP
+  keyGenerator: (req) => {
+    // Use the identifier from request body (email or username)
+    return req.body.identifier || req.body.email || req.body.username || req.ip;
+  },
+  message: {
+    error: 'Too many login attempts for this account, please try again after 15 minutes',
+    code: 'ACCOUNT_RATE_LIMIT_EXCEEDED'
   }
 });
 
@@ -55,6 +72,7 @@ const qrVerificationLimiter = createRateLimiter({
 
 module.exports = {
   authLimiter,
+  accountLimiter,
   apiLimiter,
   qrVerificationLimiter,
   otpLimiter,

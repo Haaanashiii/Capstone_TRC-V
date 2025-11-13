@@ -54,7 +54,8 @@ function DriverID() {
   
   // Get user info from token
   const getUserInfo = () => {
-    const token = localStorage.getItem('accessToken');
+    // Check sessionStorage first (where Login stores it), fallback to localStorage
+    const token = sessionStorage.getItem('accessToken') || localStorage.getItem('accessToken');
     if (!token) return null;
     
     try {
@@ -68,11 +69,12 @@ function DriverID() {
   // Fetch full user details from the server
   const fetchUserDetails = React.useCallback(async () => {
     try {
-      const token = localStorage.getItem('accessToken');
+      // Check sessionStorage first (where Login stores it), fallback to localStorage
+      const token = sessionStorage.getItem('accessToken') || localStorage.getItem('accessToken');
       if (!token) return;
 
       const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170';
-      console.log('DriverID: Fetching user details from:', `${API_BASE_URL}/auth/me`);
+      console.log('[DriverID] Fetching user details from:', `${API_BASE_URL}/auth/me`);
       
       const response = await fetch(`${API_BASE_URL}/auth/me`, {
         headers: {
@@ -113,15 +115,19 @@ function DriverID() {
 
   // Fetch user details on component mount
   useEffect(() => {
-    const token = localStorage.getItem('accessToken');
+    // Check sessionStorage first (where Login stores it), fallback to localStorage
+    const token = sessionStorage.getItem('accessToken') || localStorage.getItem('accessToken');
     if (token) {
-    
+      console.log('[DriverID] Token found, initializing user data...');
       const tokenUser = getUserInfo();
       if (tokenUser) {
+        console.log('[DriverID] User from token:', tokenUser);
         setUser(tokenUser);
       }
     
       fetchUserDetails();
+    } else {
+      console.warn('[DriverID] No token found in storage');
     }
     // Check franchise status
     checkFranchiseStatus();
@@ -144,7 +150,8 @@ function DriverID() {
       (async () => {
         try {
           const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170'
-          const token = localStorage.getItem('accessToken');
+          // Check sessionStorage first (where Login stores it), fallback to localStorage
+          const token = sessionStorage.getItem('accessToken') || localStorage.getItem('accessToken');
         
           if (token) {
             try {
@@ -153,7 +160,7 @@ function DriverID() {
               });
               if (mineRes.ok) {
                 const matched = await mineRes.json();
-                console.debug('DriverID: matched application from /mine', matched);
+                console.debug('[DriverID] matched application from /mine', matched);
            
                 if (matched) {
                   const franchiseInfo = {
@@ -195,7 +202,7 @@ function DriverID() {
           const resp = await fetch(`${API_BASE_URL}/api/franchise-applications?status=approved`)
           if (!resp.ok) return
           const apps = await resp.json()
-          console.debug('DriverID: approved applications fetched', Array.isArray(apps) ? apps.length : 'not-array', apps)
+          console.debug('[DriverID] approved applications fetched', Array.isArray(apps) ? apps.length : 'not-array', apps)
           if (!Array.isArray(apps) || !apps.length) return
 
           const tokenEmail = email && String(email).toLowerCase()

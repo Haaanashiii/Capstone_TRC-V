@@ -10,7 +10,8 @@ const Franchise = () => {
   
   // Get user info from token (same as UnifiedSidebar)
   const getUserInfo = () => {
-    const token = localStorage.getItem('accessToken');
+    // Check sessionStorage first (where Login stores it), fallback to localStorage
+    const token = sessionStorage.getItem('accessToken') || localStorage.getItem('accessToken');
     if (!token) return null;
     
     try {
@@ -28,12 +29,13 @@ const Franchise = () => {
   // Fetch user details from the server (same logic as UnifiedSidebar)
   const fetchUserDetails = async () => {
     try {
-      const token = localStorage.getItem('accessToken');
-      console.log('Token found:', !!token);
+      // Check sessionStorage first (where Login stores it), fallback to localStorage
+      const token = sessionStorage.getItem('accessToken') || localStorage.getItem('accessToken');
+      console.log('[Franchise] Token found:', !!token);
       if (!token) return;
 
       const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170';
-      console.log('Fetching from:', `${API_BASE_URL}/auth/me`);
+      console.log('[Franchise] Fetching from:', `${API_BASE_URL}/auth/me`);
       
       const response = await fetch(`${API_BASE_URL}/auth/me`, {
         headers: {
@@ -42,16 +44,16 @@ const Franchise = () => {
         }
       });
       
-      console.log('Response status:', response.status);
+      console.log('[Franchise] Response status:', response.status);
       if (response.ok) {
         const data = await response.json();
-        console.log('User data received:', data);
+        console.log('[Franchise] User data received:', data);
         setUserDetails(data.user);
       } else {
-        console.error('Failed to fetch user details:', response.status);
+        console.error('[Franchise] Failed to fetch user details:', response.status);
       }
     } catch (error) {
-      console.error('Error fetching user details:', error);
+      console.error('[Franchise] Error fetching user details:', error);
     }
   };
 
@@ -97,7 +99,7 @@ const Franchise = () => {
         if (!Array.isArray(apps) || !apps.length) return
 
         // Try to match by operator name or contact
-        const token = localStorage.getItem('accessToken')
+        const token = sessionStorage.getItem('accessToken')
         let userName = null
         let userEmail = null
         if (token) {
@@ -314,7 +316,7 @@ const Franchise = () => {
           ) : (
             <div className="application-section">
               <div className="application-inner">
-                <div className="text-center mb-12">
+                <div className="mb-12 text-center">
                   <h2 className="application-title">Franchise Application</h2>
                   <p className="application-sub">Do you already have a franchise with us?</p>
                 </div>

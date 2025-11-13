@@ -1,12 +1,13 @@
 const express = require('express');
 const router = express.Router();
 const authController = require('../controllers/authController');
-const { authLimiter } = require('../middlewares/rateLimiter');
+const { authLimiter, accountLimiter } = require('../middlewares/rateLimiter');
 const authenticate = require('../middlewares/authenticate');
 
 
 // Login route (identifier can be username or email)
-router.post('/login', authLimiter, authController.login);
+// Use both IP-based and account-based rate limiting
+router.post('/login', authLimiter, accountLimiter, authController.login);
 
 // Signup (local) - create a username/email/password account
 router.post('/signup', authController.signup);

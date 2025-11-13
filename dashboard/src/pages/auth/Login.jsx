@@ -5,7 +5,7 @@ import { Visibility, VisibilityOff } from "@mui/icons-material";
 import GoogleIcon from "@mui/icons-material/Google"; 
 import AccountVerificationModal from '../Services/AccountVerificationModal';
 import { useNavigate } from 'react-router-dom';
-import api from '../Services/api';
+import api, { TokenManager } from '../Services/api';
 
 import '../../Styles/LoginCss/Login.css';
 
@@ -29,6 +29,7 @@ const Login = () => {
   const [error, setError] = React.useState("");
   const [success, setSuccess] = React.useState("");
   const [showVerificationModal, setShowVerificationModal] = React.useState(false);
+  const [isLoading, setIsLoading] = React.useState(false);
 
   const navigate = useNavigate();
 
@@ -42,28 +43,43 @@ const Login = () => {
     e.preventDefault();
     setError("");
     setSuccess("");
+    setIsLoading(true);
     
     // login attempt started (no sensitive data logged)
     
     try {
       console.log("Making login API call");
+      // Backend accepts 'identifier' which can be username or email
       const response = await api.post('/auth/login', {
-        email: form.email,
+        identifier: form.email, // Can be email or username
         password: form.password
       });
 
       const data = response.data;
 
-      // Save accessToken to both sessionStorage and localStorage for future API calls
+      // Save accessToken using TokenManager (stores in sessionStorage)
       if (data.accessToken) {
-        try { 
-          sessionStorage.setItem('accessToken', data.accessToken);
-          localStorage.setItem('accessToken', data.accessToken);
-          localStorage.setItem('token', data.accessToken); // For axios interceptor
-        } catch (err) { 
-          console.warn('Storage unavailable', err); 
+        TokenManager.setTokens(data.accessToken);
+        console.log('[Login] Access token stored in sessionStorage');
+        
+        // Store user info in sessionStorage (matching token storage location)
+        if (data.user) {
+          try {
+            sessionStorage.setItem('user', JSON.stringify(data.user));
+            console.log('[Login] User data stored:', data.user);
+            
+            // Log operator info if available
+            if (data.user.operator) {
+              console.log('[Login] Operator info available:', data.user.operator);
+            }
+          } catch (err) {
+            console.warn('[Login] Failed to store user data:', err);
+          }
         }
       }
+
+      // Refresh token is automatically stored in HTTP-only cookie by backend
+      console.log('[Login] Refresh token stored in HTTP-only cookie by backend');
 
       // Open verification modal. The backend has attempted to send the OTP
       // to the user's email on record; the modal will POST to /auth/verify-otp.
@@ -71,28 +87,75 @@ const Login = () => {
     } catch (error) {
       console.error("Login error:", error);
       setError(error.response?.data?.error || error.response?.data?.message || "Login failed. Please try again.");
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const handleVerificationSuccess = () => {
     setSuccess("Login successful!");
-    // Check user role and redirect appropriately
-    const token = localStorage.getItem('accessToken');
-    if (token) {
-      try {
-        const decoded = JSON.parse(atob(token.split('.')[1]));
-        if (decoded.role === 'operator') {
-          navigate('/operator/franchise');
-        } else if (decoded.role === 'sb-admin') {
-          navigate('/sb-admin');
-        } else if (decoded.role === 'bplo-admin') {
-          navigate('/bplo-admin');
-        } else {
-          navigate('/');
-        }
-      } catch {
-        navigate('/admin'); // fallback
+    setIsLoading(true);
+    
+    console.log('[Login] OTP verification successful, checking stored data...');
+    
+    // Verify token is still in storage
+    const token = TokenManager.getAccessToken();
+    console.log('[Login] Access token present:', !!token);
+    
+    if (!token) {
+      console.error('[Login] ERROR: No token found after OTP verification!');
+      setError('Session expired. Please login again.');
+      setIsLoading(false);
+      return;
+    }
+    
+    // Get user data from sessionStorage (matching token storage location)
+    let userData = null;
+    try {
+      const storedUser = sessionStorage.getItem('user');
+      console.log('[Login] Stored user data:', storedUser);
+      if (storedUser) {
+        userData = JSON.parse(storedUser);
       }
+    } catch (err) {
+      console.warn('[Login] Failed to parse stored user data:', err.message);
+    }
+    
+    // Fallback to decoding JWT if user data not in sessionStorage
+    if (!userData) {
+      console.log('[Login] No stored user data, decoding from JWT...');
+      try {
+        userData = TokenManager.decodeToken(token);
+        console.log('[Login] Decoded user data:', userData);
+      } catch (err) {
+        console.error('[Login] Failed to decode JWT:', err.message);
+      }
+    }
+    
+    // Redirect based on role
+    if (userData && userData.role) {
+      console.log('[Login] User data found. Role:', userData.role, 'Full data:', userData);
+      console.log('[Login] Attempting navigation to role-based route...');
+      
+      if (userData.role === 'operator') {
+        console.log('[Login] Navigating to /operator/franchise');
+        navigate('/operator/franchise', { replace: true });
+      } else if (userData.role === 'sb-admin') {
+        navigate('/sb-admin', { replace: true });
+      } else if (userData.role === 'bplo-admin') {
+        navigate('/bplo-admin', { replace: true });
+      } else if (userData.role === 'super-admin') {
+        navigate('/sb-admin', { replace: true });
+      } else {
+        console.log('[Login] Unknown role, navigating to /dashboard');
+        navigate('/dashboard', { replace: true });
+      }
+    } else {
+      // Fallback if role is not found
+      console.error('[Login] ERROR: No user data or role found!');
+      console.error('[Login] userData:', userData);
+      setError('Unable to determine user role. Please login again.');
+      setIsLoading(false);
     }
   };
 
@@ -155,7 +218,9 @@ const Login = () => {
               </Box>
               {error && <Typography color="error">{error}</Typography>}
               {success && <Typography color="primary">{success}</Typography>}
-              <Button type="submit" variant="contained" fullWidth className="login-signin-btn">Sign in</Button>
+              <Button type="submit" variant="contained" fullWidth className="login-signin-btn" disabled={isLoading}>
+                {isLoading ? 'Signing In...' : 'Sign in'}
+              </Button>
             </form>
           </Box>
           <Box className="login-divider-box">
@@ -169,6 +234,7 @@ const Login = () => {
             fullWidth
             className="login-google-btn"
             onClick={() => { window.location.href = `${API_BASE_URL}/auth/google`; }}
+            disabled={isLoading}
           >
             Continue with Google
           </Button>

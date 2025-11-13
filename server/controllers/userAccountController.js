@@ -2,7 +2,17 @@ const userAccountRepository = require('../repositories/userAccountRepository');
 
 exports.getAllUsers = async (req, res, next) => {
   try {
-    const users = await userAccountRepository.getAllUsers();
+    const User = require('../models/userAccountModel');
+    
+    // Option to populate operator info if includeOperator query param is true
+    const includeOperator = req.query.includeOperator === 'true';
+    
+    let users;
+    if (includeOperator) {
+      users = await User.find({}).select('-password').populate('operatorInfo').lean();
+    } else {
+      users = await userAccountRepository.getAllUsers();
+    }
     
     // Don't return passwords in response
     const usersResponse = users.map(user => ({
@@ -12,7 +22,8 @@ exports.getAllUsers = async (req, res, next) => {
       username: user.username,
       email: user.email,
       role: user.role,
-      oauthProvider: user.oauthProvider
+      oauthProvider: user.oauthProvider,
+      operatorInfo: user.operatorInfo || null // Include operator info if populated
     }));
     
     res.status(200).json(usersResponse);
@@ -112,7 +123,19 @@ exports.deleteUserAccount = async (req, res, next) => {
 
 exports.getUserAccountById = async (req, res, next) => {
   try {
-    const user = await userAccountRepository.findAccountById(req.params.id);
+    const User = require('../models/userAccountModel');
+    
+    // Option to populate operator info if includeOperator query param is true
+    const includeOperator = req.query.includeOperator === 'true';
+    
+    let user;
+    if (includeOperator) {
+      user = await User.findOne({ userId: req.params.id }).populate('operatorInfo') ||
+             await User.findById(req.params.id).populate('operatorInfo');
+    } else {
+      user = await userAccountRepository.findAccountById(req.params.id);
+    }
+    
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }

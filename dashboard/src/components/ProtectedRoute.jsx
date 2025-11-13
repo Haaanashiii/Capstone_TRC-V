@@ -2,10 +2,12 @@ import React from 'react';
 import { Navigate } from 'react-router-dom';
 
 const ProtectedRoute = ({ children, requiredRole = null }) => {
-  const token = localStorage.getItem('accessToken');
+  // Check sessionStorage first (primary location), fallback to localStorage for backward compatibility
+  const token = sessionStorage.getItem('accessToken') || localStorage.getItem('accessToken');
   
   // Check if user is authenticated
   if (!token) {
+    console.warn('[ProtectedRoute] No token found, redirecting to login');
     return <Navigate to="/login" replace />;
   }
 
@@ -15,7 +17,7 @@ const ProtectedRoute = ({ children, requiredRole = null }) => {
       const payload = JSON.parse(atob(token.split('.')[1]));
       return payload;
     } catch (error) {
-      console.error('Error decoding token:', error);
+      console.error('[ProtectedRoute] Error decoding token:', error);
       return null;
     }
   };
@@ -24,15 +26,23 @@ const ProtectedRoute = ({ children, requiredRole = null }) => {
   
   // Check if token is valid
   if (!decoded || decoded.exp * 1000 < Date.now()) {
+    console.warn('[ProtectedRoute] Token expired or invalid, clearing storage');
+    sessionStorage.removeItem('accessToken');
     localStorage.removeItem('accessToken');
     return <Navigate to="/login" replace />;
   }
 
-  // Check role if required
-  if (requiredRole && decoded.role !== requiredRole) {
-    return <Navigate to="/login" replace />;
+  // Check role if required (supports single role or array of roles)
+  if (requiredRole) {
+    const allowedRoles = Array.isArray(requiredRole) ? requiredRole : [requiredRole];
+    
+    if (!allowedRoles.includes(decoded.role)) {
+      console.warn('[ProtectedRoute] Role mismatch. Required:', allowedRoles, 'Got:', decoded.role);
+      return <Navigate to="/login" replace />;
+    }
   }
 
+  console.log('[ProtectedRoute] Access granted for role:', decoded.role);
   return children;
 };
 

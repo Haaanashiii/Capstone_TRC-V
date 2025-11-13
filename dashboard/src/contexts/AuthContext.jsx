@@ -35,7 +35,8 @@ export const AuthProvider = ({ children }) => {
   // Function to fetch user details from the server
   const fetchUserDetails = async () => {
     try {
-      const token = localStorage.getItem('accessToken');
+      // Check sessionStorage first, then localStorage for compatibility
+      const token = sessionStorage.getItem('accessToken') || localStorage.getItem('accessToken');
       if (!token) return null;
 
       const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170';
@@ -131,15 +132,47 @@ export const AuthProvider = ({ children }) => {
     setUser(userInfo);
   };
 
-  const logout = () => {
-    sessionStorage.removeItem('accessToken');
-    localStorage.removeItem('accessToken');
-    // Also clear any franchise-related persisted state to avoid leaking to another user
-    try { localStorage.removeItem('userFranchiseInfo') } catch { /* ignore */ }
-    try { localStorage.removeItem('franchiseLinked') } catch { /* ignore */ }
-    try { localStorage.removeItem('franchiseMenuReplaced') } catch { /* ignore */ }
-    try { localStorage.removeItem('franchiseOwnerEmail') } catch { /* ignore */ }
-    setUser(null);
+  const logout = async () => {
+    try {
+      console.log('[AuthContext] Logging out...');
+      
+      // Call backend to invalidate refresh token (HTTP-only cookie)
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170';
+      const token = sessionStorage.getItem('accessToken') || localStorage.getItem('accessToken');
+      
+      if (token) {
+        try {
+          await fetch(`${API_BASE_URL}/auth/logout`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            },
+            credentials: 'include' // Important: Send HTTP-only cookie
+          });
+          console.log('[AuthContext] Backend logout successful');
+        } catch (error) {
+          console.error('[AuthContext] Backend logout failed:', error);
+          // Continue with frontend cleanup even if backend fails
+        }
+      }
+    } catch (error) {
+      console.error('[AuthContext] Logout error:', error);
+    } finally {
+      // Always clear frontend storage regardless of backend response
+      console.log('[AuthContext] Clearing frontend storage');
+      sessionStorage.removeItem('accessToken');
+      localStorage.removeItem('accessToken');
+      
+      // Also clear any franchise-related persisted state to avoid leaking to another user
+      try { localStorage.removeItem('userFranchiseInfo') } catch { /* ignore */ }
+      try { localStorage.removeItem('franchiseLinked') } catch { /* ignore */ }
+      try { localStorage.removeItem('franchiseMenuReplaced') } catch { /* ignore */ }
+      try { localStorage.removeItem('franchiseOwnerEmail') } catch { /* ignore */ }
+      
+      setUser(null);
+      console.log('[AuthContext] Logout complete');
+    }
   };
   
 

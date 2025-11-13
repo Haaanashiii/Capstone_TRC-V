@@ -138,3 +138,18 @@ exports.findAllAccounts = async () => {
 exports.getAllUsers = async () => {
   return await User.find({}).select('-password').lean();
 };
+
+// Get user with populated operator information
+exports.findAccountByIdWithOperator = async (id) => {
+  // Try to find by userId first (UUID), then fall back to MongoDB _id
+  let user = await User.findOne({ userId: id }).populate('operatorInfo');
+  if (!user) {
+    user = await User.findById(id).populate('operatorInfo');
+  }
+  return user;
+};
+
+// Get all users with populated operator information
+exports.getAllUsersWithOperator = async () => {
+  return await User.find({}).select('-password').populate('operatorInfo').lean();
+};

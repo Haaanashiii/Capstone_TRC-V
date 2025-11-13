@@ -174,18 +174,23 @@ const UnifiedSidebar = ({ userType = "operator", language, onLanguageToggle, tra
 
   const displayName = getDisplayName(authUser);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    console.log('[UnifiedSidebar] Logout initiated');
+    handleMenuClose();
+    
     // use AuthContext logout then navigate to landing page
     try {
-      logout();
+      await logout(); // Now async - calls backend
+      console.log('[UnifiedSidebar] Logout successful, navigating to home');
     } catch (error) {
       // best-effort: log and remove tokens
-      console.error('Error during logout:', error);
+      console.error('[UnifiedSidebar] Error during logout:', error);
       sessionStorage.removeItem('accessToken');
       localStorage.removeItem('accessToken');
+    } finally {
+      // Always navigate to home page after logout
+      navigate('/');
     }
-    handleMenuClose();
-    navigate('/');
   };
 
   const handleGoToId = () => {

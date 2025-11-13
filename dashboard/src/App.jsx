@@ -1,12 +1,12 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, useNavigate } from 'react-router-dom';
 import ProtectedRoute from './components/ProtectedRoute';
-import SignUp from './pages/signup/SignUp';
-import OAuthCallback from './pages/Services/OAuthCallback';
+import SignUp from './pages/auth/SignUp';
+import OAuthCallback from './pages/auth/OAuthCallback';
 import Sidebar from './pages/Administration/Sidebar';
 import DriverID from './pages/Driver/DriverID';
 import LandingPage from './pages/Landing/LandingPage';
-import Login from './pages/Login/Login';
+import Login from './pages/auth/Login';
 import Franchise from './pages/Driver/Franchise';
 import FranchiseApplication from './pages/Driver/FranchiseApplication';
 import RequestAmendment from './pages/Driver/RequestAmendment';
@@ -79,7 +79,7 @@ function App() {
         <Route 
           path="/sb-admin" 
           element={
-            <ProtectedRoute requiredRole="sb-admin">
+            <ProtectedRoute requiredRole={["sb-admin", "super-admin"]}>
               <Dashboard />
             </ProtectedRoute>
           } 
@@ -87,7 +87,7 @@ function App() {
         <Route 
           path="/bplo-admin" 
           element={
-            <ProtectedRoute requiredRole="bplo-admin">
+            <ProtectedRoute requiredRole={["bplo-admin", "super-admin"]}>
               <Dashboard />
             </ProtectedRoute>
           } 
@@ -95,7 +95,7 @@ function App() {
         <Route 
           path="/admin" 
           element={
-            <ProtectedRoute>
+            <ProtectedRoute requiredRole={["sb-admin", "super-admin"]}>
               <Dashboard />
             </ProtectedRoute>
           } 
@@ -103,7 +103,7 @@ function App() {
         <Route 
           path="/user-management" 
           element={
-            <ProtectedRoute requiredRole="sb-admin">
+            <ProtectedRoute requiredRole={["sb-admin", "super-admin"]}>
               <UserManagement />
             </ProtectedRoute>
           } 
@@ -111,7 +111,7 @@ function App() {
         <Route 
           path="/sb-admin/user-management" 
           element={
-            <ProtectedRoute requiredRole="sb-admin">
+            <ProtectedRoute requiredRole={["sb-admin", "super-admin"]}>
               <UserManagement />
             </ProtectedRoute>
           } 
@@ -119,7 +119,7 @@ function App() {
         <Route 
           path="/sb-admin/franchisee-list" 
           element={
-            <ProtectedRoute requiredRole="sb-admin">
+            <ProtectedRoute requiredRole={["sb-admin", "super-admin"]}>
               <FranchiseeList />
             </ProtectedRoute>
           } 
@@ -127,7 +127,7 @@ function App() {
         <Route 
           path="/sb-admin/franchise-management" 
           element={
-            <ProtectedRoute requiredRole="sb-admin">
+            <ProtectedRoute requiredRole={["sb-admin", "super-admin"]}>
               <FranchiseMgmt />
             </ProtectedRoute>
           } 
@@ -135,7 +135,7 @@ function App() {
         <Route 
           path="/sb-admin/dashboard" 
           element={
-            <ProtectedRoute requiredRole="sb-admin">
+            <ProtectedRoute requiredRole={["sb-admin", "super-admin"]}>
               <Dashboard />
             </ProtectedRoute>
           } 
@@ -143,7 +143,7 @@ function App() {
         <Route 
           path="/sb-admin/reports" 
           element={
-            <ProtectedRoute requiredRole="sb-admin">
+            <ProtectedRoute requiredRole={["sb-admin", "super-admin"]}>
               <Reports />
             </ProtectedRoute>
           } 

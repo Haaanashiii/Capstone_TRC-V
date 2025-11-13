@@ -23,21 +23,26 @@ const userAccountSchema = new mongoose.Schema({
     password: { type: String, required: function() { return !this.oauthProvider; }, minlength: 8, select: false },
     role: { 
         type: String, 
-        enum: ['sb-admin','bplo-admin', 'operator'],
         default: 'operator',
         required: true 
     },
     oauthProvider: { type: String },
     oauthId: { type: String },
-    googleId: { type: String }
-    ,
+    googleId: { type: String },
+   
+    // REFERENCE to OperatorInformation (null for non-operators or pending applications)
+    operatorInfo: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Operator Information',
+        required: false,
+        default: null
+    },
    
     franchiseStatus: { type: String, enum: ['active', 'expired', 'inactive'], default: 'inactive' },
-    operatorId: { type: String },
+    operatorId: { type: String }, // Keep for backward compatibility
     address: { type: String },
     phoneNumber: { type: String },
-    profilePicture: { type: String }
-    ,
+    profilePicture: { type: String },
 
     approvedAt: { type: Date },
     expiryDate: { type: Date }

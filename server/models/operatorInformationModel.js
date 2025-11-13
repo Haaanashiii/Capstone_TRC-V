@@ -22,7 +22,7 @@ const operatorSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true, lowercase: true, trim: true, match: [/^\S+@\S+\.\S+$/, 'Invalid email address'] },
   
   driversID: { type: String, required: true, unique: true },
-  
+
   profilePhoto: { type: String },
   qrCode: { type: String }, 
 
@@ -31,7 +31,15 @@ const operatorSchema = new mongoose.Schema({
 
   documents: documentSchema,
 
-  franchiseStatus: { type: String, enum: ['active', 'expired'], required: true }
+  franchiseStatus: { type: String, enum: ['active', 'expired'], required: true },
+  
+  // Reference back to user account (optional but useful for bidirectional relationship)
+  linkedUser: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User Accounts',
+    required: false,
+    default: null
+  }
 }, { timestamps: true });
 
 module.exports = mongoose.model('Operator Information', operatorSchema);

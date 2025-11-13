@@ -4,6 +4,7 @@ const { sendOTPEmail } = require('../services/emailService');
 
 
 const userAccountRepository = require('../repositories/userAccountRepository');
+const sessionRepository = require('../repositories/sessionRepository');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
@@ -104,31 +105,87 @@ exports.resetPassword = async (req, res, next) => {
 };
 
 
-// Store refresh tokens (in production, use Redis or a database)
-const refreshTokens = new Map();
-
-// Generate access token
-const generateAccessToken = (user) => {
-  console.log('Generating access token for user:', { id: user._id, role: user.role, name: user.name }); // Debug log
-  return jwt.sign(
-    { 
-      id: user._id, 
-      role: user.role,
-      name: user.name,
-      email: user.email
-    }, 
-    process.env.JWT_SECRET, 
-    { expiresIn: '1h' }
-  );
+// Helper function to extract device info from request
+const getDeviceInfo = (req) => {
+  const userAgent = req.headers['user-agent'] || '';
+  
+  // Simple browser detection
+  let browser = 'Unknown';
+  if (userAgent.includes('Chrome')) browser = 'Chrome';
+  else if (userAgent.includes('Firefox')) browser = 'Firefox';
+  else if (userAgent.includes('Safari')) browser = 'Safari';
+  else if (userAgent.includes('Edge')) browser = 'Edge';
+  
+  // Simple OS detection
+  let os = 'Unknown';
+  if (userAgent.includes('Windows')) os = 'Windows';
+  else if (userAgent.includes('Mac')) os = 'macOS';
+  else if (userAgent.includes('Linux')) os = 'Linux';
+  else if (userAgent.includes('Android')) os = 'Android';
+  else if (userAgent.includes('iOS')) os = 'iOS';
+  
+  // Simple device detection
+  let device = 'Desktop';
+  if (userAgent.includes('Mobile')) device = 'Mobile';
+  else if (userAgent.includes('Tablet')) device = 'Tablet';
+  
+  return {
+    userAgent,
+    browser,
+    os,
+    device,
+    ip: req.ip || req.connection.remoteAddress || 'Unknown'
+  };
 };
 
-// Generate refresh token
-const generateRefreshToken = (user) => {
+const generateAccessToken = (user, operatorInfo = null, isAdmin = false) => {
+  console.log('Generating access token for user:', { id: user._id, role: user.role, name: user.name, isAdmin }); // Debug log
+  
+  const payload = { 
+    id: user._id, 
+    role: user.role,
+    name: user.name,
+    email: user.email,
+    accountType: isAdmin ? 'admin' : 'user'
+  };
+  
+  // Add operator information if available
+  if (operatorInfo) {
+    payload.operator = {
+      operatorId: operatorInfo.operatorId,
+      operatorName: operatorInfo.operatorName,
+      franchiseStatus: operatorInfo.franchiseStatus,
+      qrCode: operatorInfo.qrCode,
+      profilePhoto: operatorInfo.profilePhoto
+    };
+  }
+  
+  // Add admin information if applicable
+  if (isAdmin) {
+    payload.admin = {
+      adminId: user.adminId,
+      permissions: user.permissions || []
+    };
+  }
+  
+  return jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '1h' });
+};
+
+// Generate refresh token and store in database
+const generateRefreshToken = async (user, accountType, req) => {
   const refreshToken = crypto.randomBytes(40).toString('hex');
-  refreshTokens.set(refreshToken, {
-    userId: user._id,
-    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days
-  });
+  const deviceInfo = getDeviceInfo(req);
+  
+  // Store in database
+  await sessionRepository.createSession(
+    user._id,
+    accountType,
+    refreshToken,
+    deviceInfo,
+    7 // expires in 7 days
+  );
+  
+  console.log('[Auth] Refresh token created and stored in database');
   return refreshToken;
 };
 
@@ -139,8 +196,10 @@ exports.login = async (req, res, next) => {
     identifier = identifier || email || username;
     if (!identifier || !password) return res.status(400).json({ error: 'Identifier and password are required' });
 
-    // Try by username first. If not found, try by email.
     let user = null;
+    let isAdmin = false;
+    
+    // Step 1: Try to find in User accounts (operators)
     try { user = await userAccountRepository.findAccountByUsername(identifier, { projection: '+password' }); } catch (e) {}
     if (!user) {
       try {
@@ -153,9 +212,27 @@ exports.login = async (req, res, next) => {
           user = await userAccountRepository.findAccountByEmail(identifier, { projection: '+password' }).catch(() => null);
         }
       } catch (e) {
-        // swallow and let subsequent checks handle null user
+        // swallow and continue to check admin accounts
       }
     }
+    
+    // Step 2: If not found in User accounts, try Admin accounts
+    if (!user) {
+      const adminAccountRepository = require('../repositories/adminAccountRepository');
+      
+      try {
+        user = await adminAccountRepository.findAdminByUsername(identifier, { projection: '+password' });
+        if (user) isAdmin = true;
+      } catch (e) {}
+      
+      if (!user) {
+        try {
+          user = await adminAccountRepository.findAdminByEmail(identifier, { projection: '+password' });
+          if (user) isAdmin = true;
+        } catch (e) {}
+      }
+    }
+    
     if (!user) return res.status(401).json({ error: 'Invalid credentials' });
 
     // If the account was created via OAuth (no local password), reject password login
@@ -174,9 +251,24 @@ exports.login = async (req, res, next) => {
     }
     if (!validPassword) return res.status(401).json({ error: 'Invalid credentials' });
     
-    // Generate tokens
-    const accessToken = generateAccessToken(user);
-    const refreshToken = generateRefreshToken(user);
+    // Populate operator information if available (only for regular users, not admins)
+    let operatorInfo = null;
+    if (!isAdmin && user.operatorInfo) {
+      try {
+        const User = require('../models/userAccountModel');
+        const populatedUser = await User.findById(user._id).populate('operatorInfo');
+        if (populatedUser && populatedUser.operatorInfo) {
+          operatorInfo = populatedUser.operatorInfo;
+        }
+      } catch (e) {
+        console.error('Error populating operator info:', e && e.message);
+      }
+    }
+    
+    // Generate tokens (include operator info for users, admin info for admins)
+    const accessToken = generateAccessToken(user, operatorInfo, isAdmin);
+    const accountType = isAdmin ? 'admin' : 'user';
+    const refreshToken = await generateRefreshToken(user, accountType, req);
 
     // Attempt to generate & send OTP for second-factor/account verification.
     // This should not block login on email/send failure; we log errors and
@@ -197,22 +289,49 @@ exports.login = async (req, res, next) => {
     res.cookie('refreshToken', refreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax', // 'lax' for development (different ports)
       maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
     });
 
     // Return access token and basic user info. Frontend should open the
     // verification modal and proceed to call verify-otp. The server has
     // already attempted to send the OTP to the email on file.
-    res.json({ 
+    const responseData = { 
       accessToken,
       user: {
         id: user._id,
         name: user.name,
         role: user.role,
-        email: user.email
+        email: user.email,
+        accountType: isAdmin ? 'admin' : 'user' // Indicate account type
       }
-    });
+    };
+    
+    // Include operator info in response if available (for regular users)
+    if (operatorInfo) {
+      responseData.user.operator = {
+        operatorId: operatorInfo.operatorId,
+        operatorName: operatorInfo.operatorName,
+        franchiseStatus: operatorInfo.franchiseStatus,
+        qrCode: operatorInfo.qrCode,
+        profilePhoto: operatorInfo.profilePhoto,
+        contactNumber: operatorInfo.contactNumber,
+        address: operatorInfo.address,
+        barangay: operatorInfo.barangay
+      };
+    }
+    
+    // Include admin-specific info if this is an admin account
+    if (isAdmin) {
+      responseData.user.admin = {
+        adminId: user.adminId,
+        department: user.department,
+        position: user.position,
+        permissions: user.permissions || []
+      };
+    }
+    
+    res.json(responseData);
   } catch (err) {
     next(err);
   }
@@ -231,7 +350,8 @@ exports.signup = async (req, res, next) => {
     const existingByUsername = username ? await userAccountRepository.findAccountByUsername(username).catch(() => null) : null;
     if (existingByUsername) return res.status(409).json({ error: 'Username already taken' });
 
-    const user = await userAccountRepository.createUserAccount({ name, username, email, password, oauthProvider: null });
+    // Create local account - omit oauthProvider field entirely (not null)
+    const user = await userAccountRepository.createUserAccount({ name, username, email, password });
     res.status(201).json({ message: 'Account created', user: { id: user._id, name: user.name, email: user.email } });
   } catch (err) {
     next(err);
@@ -246,38 +366,81 @@ exports.refreshToken = async (req, res, next) => {
       return res.status(401).json({ error: 'Refresh token required' });
     }
     
-    const tokenData = refreshTokens.get(refreshToken);
-    if (!tokenData) {
+    // Find session in database
+    const session = await sessionRepository.findSessionByToken(refreshToken);
+    
+    if (!session) {
       return res.status(403).json({ error: 'Invalid refresh token' });
     }
     
-    // Check if token is expired
-    if (new Date() > new Date(tokenData.expiresAt)) {
-      refreshTokens.delete(refreshToken);
-      return res.status(403).json({ error: 'Refresh token expired' });
+    // Session exists and is active, update last used
+    await sessionRepository.updateSessionLastUsed(session._id);
+    
+    // Get user based on account type
+    let user = null;
+    let isAdmin = false;
+    let operatorInfo = null;
+    
+    if (session.accountType === 'admin') {
+      const Admin = require('../models/adminAccountModel');
+      user = await Admin.findById(session.userId);
+      isAdmin = true;
+    } else {
+      const User = require('../models/userAccountModel');
+      user = await User.findById(session.userId).populate('operatorInfo');
+      if (user && user.operatorInfo) {
+        operatorInfo = user.operatorInfo;
+      }
     }
     
-    // Get user and generate new access token
-    const user = await userRepository.findById(tokenData.userId);
     if (!user) {
-      refreshTokens.delete(refreshToken);
+      // User deleted but session exists, clean up
+      await sessionRepository.deleteSession(session._id);
       return res.status(403).json({ error: 'User not found' });
     }
     
-    const accessToken = generateAccessToken(user);
+    // Generate new access token
+    const accessToken = generateAccessToken(user, operatorInfo, isAdmin);
+    
+    console.log('[RefreshToken] Token refreshed for user:', user._id, 'Type:', session.accountType);
     res.json({ accessToken });
   } catch (err) {
+    console.error('[RefreshToken] Error:', err);
     next(err);
   }
 };
 
-exports.logout = (req, res) => {
-  const refreshToken = req.cookies.refreshToken;
-  if (refreshToken) {
-    refreshTokens.delete(refreshToken);
-    res.clearCookie('refreshToken');
+exports.logout = async (req, res) => {
+  try {
+    const refreshToken = req.cookies.refreshToken;
+    
+    if (refreshToken) {
+      // Revoke session in database
+      await sessionRepository.revokeSession(refreshToken);
+      console.log('[Logout] Session revoked in database');
+    }
+    
+    // Clear refresh token cookie with all possible configurations
+    res.clearCookie('refreshToken', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
+      path: '/' // Ensure path matches cookie creation
+    });
+    
+    // Also clear any OAuth state cookies
+    res.clearCookie('oauth_state', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax'
+    });
+    
+    console.log('[Logout] All cookies cleared');
+    res.status(200).json({ message: 'Logged out successfully' });
+  } catch (error) {
+    console.error('[Logout] Error during logout:', error);
+    res.status(500).json({ error: 'Logout failed' });
   }
-  res.status(200).json({ message: 'Logged out successfully' });
 };
 
 // Return the current authenticated user (detailed info)
@@ -285,8 +448,10 @@ exports.getCurrentUser = async (req, res, next) => {
   try {
     if (!req.user) return res.status(401).json({ error: 'Not authenticated' });
     
-    // Fetch full user details from database
-    const user = await userAccountRepository.findAccountById(req.user.id);
+    // Fetch full user details from database and populate operator info
+    const User = require('../models/userAccountModel');
+    const user = await User.findById(req.user.id).populate('operatorInfo');
+    
     if (!user) return res.status(404).json({ error: 'User not found' });
     
     // Return comprehensive user info (excluding sensitive data)
@@ -298,14 +463,42 @@ exports.getCurrentUser = async (req, res, next) => {
       role: user.role,
       isEmailVerified: user.isEmailVerified,
       profilePicture: user.profilePicture,
-      // Add operator-specific fields if they exist
+      // Add user-level fields
       address: user.address,
       phoneNumber: user.phoneNumber,
-      operatorId: user.operatorId || user.franchiseNumber,
+      operatorId: user.operatorId,
       franchiseStatus: user.franchiseStatus,
       dateCreated: user.createdAt,
       lastLogin: user.lastLogin
     };
+    
+    // Add operator information if populated
+    if (user.operatorInfo) {
+      userInfo.operator = {
+        operatorId: user.operatorInfo.operatorId,
+        operatorName: user.operatorInfo.operatorName,
+        contactNumber: user.operatorInfo.contactNumber,
+        email: user.operatorInfo.email,
+        address: user.operatorInfo.address,
+        barangay: user.operatorInfo.barangay,
+        civilStatus: user.operatorInfo.civilStatus,
+        driversID: user.operatorInfo.driversID,
+        profilePhoto: user.operatorInfo.profilePhoto,
+        qrCode: user.operatorInfo.qrCode,
+        franchiseStatus: user.operatorInfo.franchiseStatus,
+        approvedAt: user.operatorInfo.approvedAt,
+        expiryDate: user.operatorInfo.expiryDate,
+        documents: user.operatorInfo.documents ? {
+          motorRegistration: user.operatorInfo.documents.motorRegistration,
+          barangayClearance: user.operatorInfo.documents.barangayClearance,
+          cedula: user.operatorInfo.documents.cedula,
+          driversLicense: user.operatorInfo.documents.driversLicense,
+          votersAffidavit: user.operatorInfo.documents.votersAffidavit,
+          motorChassisStencil: user.operatorInfo.documents.motorChassisStencil,
+          picture: user.operatorInfo.documents.picture
+        } : null
+      };
+    }
     
     res.json({ user: userInfo });
   } catch (err) {
@@ -391,15 +584,29 @@ exports.googleCallback = async (req, res, next) => {
       }
     }
 
-    // Issue tokens (reuse existing helpers)
-    const accessToken = generateAccessToken(user);
-    const refreshToken = generateRefreshToken(user);
+    // Populate operator information if available
+    let operatorInfo = null;
+    if (user.operatorInfo) {
+      try {
+        const User = require('../models/userAccountModel');
+        const populatedUser = await User.findById(user._id).populate('operatorInfo');
+        if (populatedUser && populatedUser.operatorInfo) {
+          operatorInfo = populatedUser.operatorInfo;
+        }
+      } catch (e) {
+        console.error('Error populating operator info in OAuth:', e && e.message);
+      }
+    }
+
+    // Issue tokens (reuse existing helpers, include operator info)
+    const accessToken = generateAccessToken(user, operatorInfo);
+    const refreshToken = await generateRefreshToken(user, 'user', req);
 
     // Set refresh token cookie
     res.cookie('refreshToken', refreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax', // 'lax' for development (different ports)
       maxAge: 7 * 24 * 60 * 60 * 1000
     });
 
