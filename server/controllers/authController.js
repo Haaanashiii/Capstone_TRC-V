@@ -141,60 +141,48 @@ const getDeviceInfo = (req) => {
 const generateAccessToken = (user, operatorInfo = null, isAdmin = false) => {
   console.log('Generating access token for user:', { id: user._id, role: user.role, name: user.name, isAdmin }); // Debug log
   
+  // MINIMAL JWT PAYLOAD - Only include non-sensitive, essential data
+  // Detailed user/operator info should be fetched via /auth/me when needed
   const payload = { 
     id: user._id, 
     role: user.role,
     name: user.name,
-    email: user.email,
-    accountType: isAdmin ? 'admin' : 'user'
+    accountType: isAdmin ? 'admin' : 'user',
+    // Boolean flag to indicate if user has linked operator info (for UX decisions)
+    hasOperator: !!operatorInfo
   };
   
-  // Add operator information if available
-  if (operatorInfo) {
-    payload.operator = {
-      operatorId: operatorInfo.operatorId,
-      operatorName: operatorInfo.operatorName,
-      franchiseStatus: operatorInfo.franchiseStatus,
-      qrCode: operatorInfo.qrCode,
-      profilePhoto: operatorInfo.profilePhoto
-    };
-  }
-  
-  // Add admin information if applicable
-  if (isAdmin) {
-    payload.admin = {
-      adminId: user.adminId,
-      permissions: user.permissions || []
-    };
-  }
-  
-  return jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '1h' });
+  return jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '15m' }); // Reduced to 15 minutes for better security
 };
 
 // Generate refresh token and store in database
-const generateRefreshToken = async (user, accountType, req) => {
+const generateRefreshToken = async (user, accountType, req, expiresInDays = 7) => {
   const refreshToken = crypto.randomBytes(40).toString('hex');
   const deviceInfo = getDeviceInfo(req);
   
-  // Store in database
+  // Store in database with custom expiry (7 days default, 30 days if "Remember Me")
   await sessionRepository.createSession(
     user._id,
     accountType,
     refreshToken,
     deviceInfo,
-    7 // expires in 7 days
+    expiresInDays
   );
   
-  console.log('[Auth] Refresh token created and stored in database');
+  console.log('[Auth] Refresh token created and stored in database with', expiresInDays, 'days expiry');
   return refreshToken;
 };
 
 exports.login = async (req, res, next) => {
   try {
     // Allow logging in with either username or email; support legacy frontends that send 'email' or 'identifier'
-    let { identifier, email, username, password } = req.body;
+    let { identifier, email, username, password, rememberMe } = req.body;
     identifier = identifier || email || username;
     if (!identifier || !password) return res.status(400).json({ error: 'Identifier and password are required' });
+    
+    // rememberMe flag extends refresh token expiry from 7 days to 30 days
+    const refreshTokenDays = rememberMe ? 30 : 7;
+    console.log('[Login] Remember Me:', rememberMe, '- Refresh token expiry:', refreshTokenDays, 'days');
 
     let user = null;
     let isAdmin = false;
@@ -268,7 +256,7 @@ exports.login = async (req, res, next) => {
     // Generate tokens (include operator info for users, admin info for admins)
     const accessToken = generateAccessToken(user, operatorInfo, isAdmin);
     const accountType = isAdmin ? 'admin' : 'user';
-    const refreshToken = await generateRefreshToken(user, accountType, req);
+    const refreshToken = await generateRefreshToken(user, accountType, req, refreshTokenDays);
 
     // Attempt to generate & send OTP for second-factor/account verification.
     // This should not block login on email/send failure; we log errors and
@@ -285,12 +273,12 @@ exports.login = async (req, res, next) => {
       console.error('Failed to generate/send OTP during login for', user && user.email, e && e.message ? e.message : e);
     }
 
-    // Set refresh token in HTTP-only cookie
+    // Set refresh token in HTTP-only cookie (duration based on rememberMe flag)
     res.cookie('refreshToken', refreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax', // 'lax' for development (different ports)
-      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+      maxAge: refreshTokenDays * 24 * 60 * 60 * 1000 // 7 days (default) or 30 days (remember me)
     });
 
     // Return access token and basic user info. Frontend should open the

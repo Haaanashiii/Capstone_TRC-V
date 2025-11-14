@@ -26,21 +26,22 @@ function Sidebar() {
     return () => clearInterval(timerId);
   }, []);
 
-  // Get user info from sessionStorage token (primary), fallback to localStorage
+  // Get user info from sessionStorage token (JWT is single source of truth)
   useEffect(() => {
-    const token = sessionStorage.getItem('accessToken') || localStorage.getItem('accessToken');
+    const token = sessionStorage.getItem('accessToken');
     console.log('[AdminSidebar] Token found:', !!token);
     
     if (token) {
       try {
         const decoded = JSON.parse(atob(token.split('.')[1]));
         console.log('[AdminSidebar] Decoded user:', decoded);
+        // JWT now contains: { id, role, name, accountType, hasOperator }
         setUser(decoded);
       } catch (error) {
         console.error('[AdminSidebar] Error decoding token:', error);
       }
     } else {
-      console.warn('[AdminSidebar] No token found in storage');
+      console.warn('[AdminSidebar] No token found in sessionStorage');
     }
   }, []);
 
@@ -50,7 +51,7 @@ function Sidebar() {
     try {
       // Call backend to invalidate refresh token
       const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170';
-      const token = sessionStorage.getItem('accessToken') || localStorage.getItem('accessToken');
+      const token = sessionStorage.getItem('accessToken');
       
       if (token) {
         await fetch(`${API_BASE_URL}/auth/logout`, {
@@ -68,7 +69,10 @@ function Sidebar() {
     } finally {
       // Always clear frontend storage
       sessionStorage.removeItem('accessToken');
-      localStorage.removeItem('accessToken');
+      sessionStorage.removeItem('userFranchiseInfo');
+      sessionStorage.removeItem('franchiseLinked');
+      sessionStorage.removeItem('franchiseMenuReplaced');
+      sessionStorage.removeItem('franchiseOwnerUserId');
       console.log('[AdminSidebar] Storage cleared, navigating to login');
       navigate('/login');
     }
@@ -78,7 +82,7 @@ function Sidebar() {
     setShowLogout(!showLogout);
   };
 
-  // Get first name from user object
+  // Get first name from user object (JWT now contains: id, role, name, accountType, hasOperator)
   const getFirstName = () => {
     console.log('[AdminSidebar] Getting first name from user:', user);
     
@@ -89,11 +93,9 @@ function Sidebar() {
       console.log('[AdminSidebar] First name extracted:', firstName);
       return firstName;
     }
-    if (user?.username) return user.username;
-    if (user?.email) return user.email.split('@')[0];
     
-    console.warn('[AdminSidebar] No name fields found, using default');
-    return 'User';
+    console.warn('[AdminSidebar] No name field found, using default');
+    return 'Admin';
   };
 
   // Get role display name

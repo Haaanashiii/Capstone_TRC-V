@@ -23,12 +23,10 @@ const franchiseApplicationRoutes = require('./routes/franchiseApplicationRoutes'
 const qrCodeRoutes = require('./routes/qrCodeRoutes');
 const sessionRoutes = require('./routes/sessionRoutes');
 
-
 dotenv.config();
 const app = express();
 
-// Performance-optimized middleware order
-// Essential security middleware first
+// Performance-optimized middleware order Essential security middleware first
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
@@ -53,9 +51,7 @@ app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 app.use(cookieParser()); 
 
-// CORS after parsing but before routes
-// CORS configuration: allow a comma-separated list in CORS_ORIGIN or be
-// permissive in development when CORS_ORIGIN is not set.
+// CORS configuration
 const corsOriginEnv = process.env.CORS_ORIGIN || '';
 let corsOptions;
 const corsMethods = ['GET', 'POST', 'PUT', 'DELETE'];
@@ -64,7 +60,6 @@ if (corsOriginEnv) {
   const allowedOrigins = corsOriginEnv.split(',').map(s => s.trim()).filter(Boolean);
   corsOptions = {
     origin: function(origin, callback) {
-      // allow requests with no origin (curl, server-to-server)
       if (!origin) return callback(null, true);
       if (allowedOrigins.indexOf(origin) !== -1) return callback(null, true);
       return callback(new Error('Not allowed by CORS'));
@@ -75,7 +70,7 @@ if (corsOriginEnv) {
   };
 } else if (process.env.NODE_ENV === 'development') {
   corsOptions = {
-    origin: true, // reflect request origin
+    origin: true, 
     credentials: true,
     methods: corsMethods,
     allowedHeaders: corsAllowedHeaders
@@ -92,7 +87,7 @@ app.use(cors(corsOptions));
 
 // Logging and security checks
 app.use(morgan('dev'));
-app.use(sanitizeRequest); // Sanitize all request inputs
+app.use(sanitizeRequest); 
 
 // Static file serving
 app.use('/uploads', express.static('uploads', {
@@ -118,13 +113,6 @@ if (process.env.NODE_ENV !== 'production') {
   });
 }
 
-// Rate limiting (just before routes) examples can be insisde routes t
-// for specification and should avoid double limiting with api limiter
-// app.use('/auth', authLimiter);  Stricter limits for auth routes
-// app.use('/verify', qrVerificationLimiter); QR verification rate limits
-// app.use('/', apiLimiter);  General API rate limiting
-// app.use('/', urlRoutes); URL masking routes at root level
-// app.use('/', require('./routes/verificationRoutes')); Ephemeral verification routes
 
 // Routes
 app.use('/auth', authRoutes);

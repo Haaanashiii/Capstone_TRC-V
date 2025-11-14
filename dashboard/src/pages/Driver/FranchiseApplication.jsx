@@ -502,14 +502,14 @@ export default function FranchiseApplication() {
                       
                       console.log('[FranchiseApplication] Application submitted successfully')
                      
-                      try { localStorage.setItem('franchiseMenuReplaced', 'true') } catch { /* ignore */ }
-                      // persist owner email so the operator mapping is consistent
+                      try { sessionStorage.setItem('franchiseMenuReplaced', 'true') } catch { /* ignore */ }
+                      // persist owner userId so the operator mapping is consistent
                       try {
-                        const token = localStorage.getItem('accessToken') || sessionStorage.getItem('accessToken')
+                        const token = sessionStorage.getItem('accessToken')
                         if (token) {
                           try {
                             const payload = JSON.parse(atob(token.split('.')[1]));
-                            if (payload?.email) localStorage.setItem('franchiseOwnerEmail', String(payload.email).toLowerCase())
+                            if (payload?.id) sessionStorage.setItem('franchiseOwnerUserId', payload.id)
                           } catch { /* ignore */ }
                         }
                       } catch { /* ignore */ }

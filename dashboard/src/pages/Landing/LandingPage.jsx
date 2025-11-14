@@ -29,12 +29,10 @@ const LandingPage = () => {
     console.log('[LandingPage] Logout initiated');
     handleMenuClose();
     try {
-      await logout(); // Now async - calls backend
+      await logout(); // Now async - calls backend and clears tokens
       console.log('[LandingPage] Logout successful');
     } catch (error) {
       console.error('[LandingPage] Logout error:', error);
-      sessionStorage.removeItem('accessToken');
-      localStorage.removeItem('accessToken');
     } finally {
       navigate('/');
     }
@@ -72,16 +70,17 @@ const LandingPage = () => {
         const params = new URLSearchParams(hash.substring(1));
         const token = params.get('access_token');
         if (token) {
-          localStorage.setItem('accessToken', token);
+          // Store in sessionStorage (secure) instead of localStorage
+          sessionStorage.setItem('accessToken', token);
           // Also notify AuthContext about the new login so components update immediately
           try {
             const decoded = JSON.parse(atob(token.split('.')[1]));
             const userInfo = {
               id: decoded.id,
               role: decoded.role,
-              name: decoded.name || decoded.username || decoded.email,
-              full_name: decoded.full_name || decoded.name || decoded.username,
-              username: decoded.username,
+              name: decoded.name,
+              accountType: decoded.accountType,
+              hasOperator: decoded.hasOperator
             };
             // call AuthContext login if available
             if (typeof login === 'function') {

@@ -97,7 +97,7 @@ export const TokenManager = {
   },
 
   /**
-   * Check if token is expired (with 5 minute buffer)
+   * Check if token is expired (with 2 minute buffer)
    * @param {string} token - JWT token to check
    * @returns {boolean} True if expired
    */
@@ -105,8 +105,8 @@ export const TokenManager = {
     const decoded = TokenManager.decodeToken(token);
     if (!decoded || !decoded.exp) return true;
     
-    // Add 5 minute buffer (300000 ms)
-    const bufferTime = 300000;
+    // Add 2 minute buffer (120000 ms) - tokens are short-lived (15min)
+    const bufferTime = 120000;
     return (decoded.exp * 1000) <= (Date.now() + bufferTime);
   },
 
