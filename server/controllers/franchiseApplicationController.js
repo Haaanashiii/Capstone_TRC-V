@@ -4,6 +4,7 @@ const operatorInformationRepository = require('../repositories/operatorInformati
 const OperatorInformation = require('../models/operatorInformationModel');
 const FranchiseApplication = require('../models/franchiseApplicationModel');
 const { generateOperatorQRCode } = require('../services/qrCodeService');
+const { uploadToR2 } = require('../services/cloudflareService');
 
 exports.createFranchiseApplication = async (req, res, next) => {
   try {
@@ -58,104 +59,107 @@ exports.createFranchiseApplication = async (req, res, next) => {
             remarks: body.remarks || undefined
         };
 
-        // If files were uploaded via multipart/form-data (multer), map them into the normalized payload
         try {
-            const files = req.files || {};
-
-            const mapFile = (field) => {
-                const f = files[field];
-                if (Array.isArray(f) && f[0]) {
-                    const file = f[0];
-                    // Normalize path to URL path served by express static
-                    let p = file.path || (file.destination && file.filename ? `${file.destination}/${file.filename}` : '');
-                    if (typeof p === 'string') {
-                        // Convert backslashes (windows) to forward slashes for URLs
-                        p = p.replace(/\\/g, '/');
-                        if (!p.startsWith('/')) p = '/' + p;
-                    }
-
-                    // Build an absolute URL so the frontend (which may run on a different origin
-                    // during development) requests the file from the backend host where it's served.
-                    // Fallback: if req is not available or host is missing, return the normalized path.
-                    let absolutePath = p;
-                    try {
-                        const host = req && req.get && req.get('host');
-                        const proto = req && req.protocol ? req.protocol : 'http';
-                        if (host) {
-                            absolutePath = `${proto}://${host}${p}`;
-                        }
-                    } catch (e) {
-                        // keep the normalized path if something goes wrong
-                    }
-
-                    return {
-                        name: file.originalname || file.filename,
-                        type: file.mimetype || '',
-                        path: absolutePath
-                    };
-                }
-                return null;
-            };
-
-            // Map expected frontend document field names (fallback to legacy names)
-            const docRegistration = mapFile('documentRegistration') || mapFile('motorRegistration');
-            const docBarangay = mapFile('documentBarangayClearance') || mapFile('barangayClearance');
-            const docCedula = mapFile('documentCedula') || mapFile('cedula');
-            const docDriversLicense = mapFile('documentDriversLicense') || mapFile('driversLicense');
-            const docVoters = mapFile('documentVotersAffidavit') || mapFile('votersAffidavit');
-            const docPicture = mapFile('documentPicture') || mapFile('picture');
-
-            if (docRegistration) normalized.documentRegistration = docRegistration;
-            if (docBarangay) normalized.documentBarangayClearance = docBarangay;
-            if (docCedula) normalized.documentCedula = docCedula;
-            if (docDriversLicense) normalized.documentDriversLicense = docDriversLicense;
-            if (docVoters) normalized.documentVotersAffidavit = docVoters;
-            if (docPicture) normalized.documentPicture = docPicture;
-
-            // If a profilePhoto was uploaded, map it as well
-            const profile = mapFile('profilePhoto');
-            if (profile) normalized.profilePhoto = profile.path;
-        } catch (fileMapErr) {
-            console.warn('Error while mapping uploaded files into franchise application payload', fileMapErr);
-        }
-
-        try {
+            // Step 1: Create the application first to get the real ID
             const application = await franchiseApplicationRepository.createFranchiseApplication(normalized);
-            // After creating the application, try to generate a QR code for this record.
-            try {
-                // Only generate if a QR does not already exist on the newly created document
-                if (!application.qrCode) {
-                    const qrCodeData = await generateOperatorQRCode(String(application._id), { saveToFile: true });
-                    if (qrCodeData && qrCodeData.filePath) {
-                        // Persist the qrCode path on the franchise application document
-                        try {
-                            await franchiseApplicationRepository.updateFranchiseApplication(application._id, { qrCode: qrCodeData.filePath });
-                            // reflect change on returned object when possible
-                            if (application.toObject) {
-                                const tmp = application.toObject();
-                                tmp.qrCode = qrCodeData.filePath;
-                                // return the object form below
-                            }
-                        } catch (uerr) {
-                            console.warn('Failed to save QR path to franchise application after creation', uerr);
+            const applicationId = String(application._id);
+            
+            console.log(`[FRANCHISE CREATE] Application created with ID: ${applicationId}`);
+
+            // Step 2: Upload files to Cloudflare R2 using the REAL application ID
+            const files = req.files || {};
+            
+            if (Object.keys(files).length > 0) {
+                const uploadFile = async (field, documentType = 'documents') => {
+                    const f = files[field];
+                    if (Array.isArray(f) && f[0]) {
+                        const file = f[0];
+                        
+                        // Validate file size on server (not just client)
+                        const MAX_SIZE = 10 * 1024 * 1024; // 10MB
+                        if (file.size > MAX_SIZE) {
+                            throw new Error(`${field} exceeds maximum size of 10MB`);
                         }
+                        
+                        try {
+                            // Upload to Cloudflare R2 with the REAL application ID
+                            const cloudflareUrl = await uploadToR2(
+                                file.buffer,
+                                file.originalname,
+                                file.mimetype,
+                                {
+                                    folder: 'franchise-applications',
+                                    applicationId: applicationId, // Use REAL ID from created application
+                                    documentType: documentType
+                                }
+                            );
+                            console.log(`[CLOUDFLARE] Uploaded ${field}: ${cloudflareUrl}`);
+                            return cloudflareUrl;
+                        } catch (uploadErr) {
+                            console.error(`[CLOUDFLARE] Failed to upload ${field}:`, uploadErr);
+                            throw new Error(`Failed to upload ${field} to Cloudflare`);
+                        }
+                    }
+                    return null;
+                };
+
+                // Upload all documents in parallel for efficiency
+                const [
+                    docRegistration,
+                    docBarangay,
+                    docCedula,
+                    docDriversLicense,
+                    docVoters,
+                    docChassisStencil,
+                    docPicture,
+                    profilePhotoUrl
+                ] = await Promise.all([
+                    uploadFile('documentRegistration', 'documents'),
+                    uploadFile('documentBarangayClearance', 'documents'),
+                    uploadFile('documentCedula', 'documents'),
+                    uploadFile('documentDriversLicense', 'documents'),
+                    uploadFile('documentVotersAffidavit', 'documents'),
+                    uploadFile('documentChassisStencil', 'documents'),
+                    uploadFile('documentPicture', 'profile'),
+                    uploadFile('profilePhoto', 'profile')
+                ]);
+
+                // Step 3: Update the application with Cloudflare URLs
+                const documentUpdates = {};
+                if (docRegistration) documentUpdates.documentRegistration = docRegistration;
+                if (docBarangay) documentUpdates.documentBarangayClearance = docBarangay;
+                if (docCedula) documentUpdates.documentCedula = docCedula;
+                if (docDriversLicense) documentUpdates.documentDriversLicense = docDriversLicense;
+                if (docVoters) documentUpdates.documentVotersAffidavit = docVoters;
+                if (docChassisStencil) documentUpdates.documentChassisStencil = docChassisStencil;
+                if (docPicture) documentUpdates.documentPicture = docPicture;
+                if (profilePhotoUrl) documentUpdates.profilePhoto = profilePhotoUrl;
+
+                // Update the application with file URLs
+                if (Object.keys(documentUpdates).length > 0) {
+                    await franchiseApplicationRepository.updateFranchiseApplication(applicationId, documentUpdates);
+                    console.log(`[CLOUDFLARE] Updated application ${applicationId} with ${Object.keys(documentUpdates).length} document URLs`);
+                }
+            }
+            
+            // Step 4: Generate QR code
+            // Generate QR code for the application
+            try {
+                if (!application.qrCode) {
+                    const qrCodeData = await generateOperatorQRCode(applicationId, { saveToFile: true });
+                    if (qrCodeData && qrCodeData.filePath) {
+                        await franchiseApplicationRepository.updateFranchiseApplication(applicationId, { qrCode: qrCodeData.filePath });
+                        console.log(`[QR GENERATED] Application: ${applicationId}, File: ${qrCodeData.filePath}`);
                     }
                 }
             } catch (qrCreateErr) {
-                console.warn('QR generation during franchise creation failed (continuing):', qrCreateErr);
+                console.warn('QR generation failed (continuing):', qrCreateErr);
             }
-            // Log persistence details to help debug where documents are being stored
-            try {
-                const mongoose = require('mongoose');
-                console.log('[FRANCHISE CREATE] saved id=', application && application._id ? String(application._id) : '(no id)');
-                console.log('[FRANCHISE CREATE] mongoose db=', mongoose.connection && mongoose.connection.name);
-                console.log('[FRANCHISE CREATE] collection=', application && application.collection && application.collection.name);
-                console.log('[FRANCHISE CREATE] document=', JSON.stringify(application.toObject ? application.toObject() : application));
-            } catch (logErr) {
-                console.warn('Failed to log franchise save details', logErr);
-            }
-            // Return the freshest document for the client to consume (including qrCode if saved)
-            const fresh = await franchiseApplicationRepository.getFranchiseApplicationById(application._id);
+            
+            // Return the complete application with all file URLs
+            const fresh = await franchiseApplicationRepository.getFranchiseApplicationById(applicationId);
+            console.log(`[FRANCHISE CREATE] Complete! Application ${applicationId} with ${fresh.documentRegistration ? 'documents uploaded' : 'no documents'}`);
+            
             return res.status(201).json(fresh || application);
         } catch (innerErr) {
             if (innerErr && innerErr.name === 'ValidationError') {

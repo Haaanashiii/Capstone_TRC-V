@@ -1,24 +1,30 @@
 const mongoose = require('mongoose');
 
+// Documents are now stored as Cloudflare R2 URLs (compressed to ~300KB)
 const documentSchema = new mongoose.Schema({
-  motorRegistration: { type: String, required: true },
-  barangayClearance: { type: String, required: true },
-  cedula: { type: String, required: true },
-  driversLicense: { type: String, required: true },
-  votersAffidavit: { type: String, required: true },
-  motorChassisStencil: { type: String, required: true },
-  picture: { type: String, required: true }
+  motorRegistration: { type: String, required: true }, // Cloudflare R2 URL
+  barangayClearance: { type: String, required: true }, // Cloudflare R2 URL
+  cedula: { type: String, required: true }, // Cloudflare R2 URL
+  driversLicense: { type: String, required: true }, // Cloudflare R2 URL
+  votersAffidavit: { type: String, required: true }, // Cloudflare R2 URL
+  motorChassisStencil: { type: String, required: true }, // Cloudflare R2 URL
+  picture: { type: String, required: true } // Cloudflare R2 URL
 });
 
 const franchiseApplicationSchema = new mongoose.Schema({
   operatorName: { type: String, required: true },
   operatorContact: { type: String, required: true },
-  operatorEmail: { type: String, required: true , lowercase: true, trim: true, match: [/^\S+@\S+\.\S+$/, 'Invalid email address'] , unique: true , index: true },
+  operatorEmail: { type: String, lowercase: true, trim: true, match: [/^\S+@\S+\.\S+$/, 'Invalid email address'] },
   actionType: { type: String, enum: ['NEW', 'RENEWAL', 'AMMENDMENTS'], required: true, uppercase: true ,trim: true},
   operatorAddress: { type: String, required: true },
-  profilePhoto: { type: String },
-  
-  qrCode: { type: String }, // Path to QR code image (generated when franchise is approved)
+  profilePhoto: { type: String }, // Cloudflare R2 URL
+  documentRegistration: { type: String }, // Cloudflare R2 URL
+  documentBarangayClearance: { type: String }, // Cloudflare R2 URL
+  documentCedula: { type: String }, // Cloudflare R2 URL
+  documentDriversLicense: { type: String }, // Cloudflare R2 URL
+  documentVotersAffidavit: { type: String }, // Cloudflare R2 URL
+  documentChassisStencil: { type: String }, // Cloudflare R2 URL
+  documentPicture: { type: String }, // Cloudflare R2 URL
 
   driversID: { type: String, required: true },
   birthPlace: { type: String, required: true },
@@ -42,6 +48,7 @@ const franchiseApplicationSchema = new mongoose.Schema({
   approvedAt: { type: Date },
   expiryDate: { type: Date },
   submittedAt: { type: Date, default: Date.now },
+
   documents: documentSchema,
 }, { collection: 'franchiseapplications' });
 
