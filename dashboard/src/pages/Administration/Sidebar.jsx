@@ -9,6 +9,7 @@ import AssessmentIcon from '@mui/icons-material/Assessment'
 import PeopleAltIcon from '@mui/icons-material/PeopleAlt'
 import AccountCircleIcon from '@mui/icons-material/AccountCircle'
 import LogoutIcon from '@mui/icons-material/Logout'
+import CampaignIcon from '@mui/icons-material/Campaign'
 
 function Sidebar() {
   const location = useLocation();
@@ -117,7 +118,9 @@ function Sidebar() {
     { name: 'Franchisee List', icon: <ListAltIcon />, path: '/sb-admin/franchisee-list' },
     { name: 'Franchise Management', icon: <BusinessIcon />, path: '/sb-admin/franchise-management' },
     { name: 'Reports', icon: <AssessmentIcon />, path: '/sb-admin/reports' },
+    { name: 'Announcements', icon: <CampaignIcon />, path: '/sb-admin/announcements' },
     { name: 'User Management', icon: <PeopleAltIcon />, path: '/sb-admin/user-management' }
+
   ]
 
   return (

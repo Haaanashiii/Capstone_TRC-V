@@ -586,7 +586,7 @@ function FranchiseMgmt() {
             <CircularProgress />
           </Box>
         ) : (
-          <TableContainer component={Paper} elevation={2}>
+          <TableContainer component={Paper} className="table-container" elevation={2}>
             <Table className="pending-table" aria-label="pending franchises table">
               <TableHead>
                 <TableRow>

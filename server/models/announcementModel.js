@@ -19,14 +19,19 @@ const announcementSchema = new mongoose.Schema({
     required: true,
     index: true
   },
+  published: {
+    type: Boolean,
+    default: false,
+    index: true
+  },
   createdBy: {
     userId: {
       type: String,
-      required: true
+      required: false
     },
     name: {
       type: String,
-      required: true
+      required: false
     }
   }
 }, {
@@ -36,5 +41,6 @@ const announcementSchema = new mongoose.Schema({
 
 // Index for sorting by date
 announcementSchema.index({ date: -1 });
+announcementSchema.index({ published: 1, date: -1 });
 
 module.exports = mongoose.model('Announcement', announcementSchema);

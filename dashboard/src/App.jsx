@@ -18,6 +18,7 @@ import FranchiseeList from './pages/Administration/FranchiseeList';
 import FranchiseMgmt from './pages/Administration/FranchiseMgmt';
 import Dashboard from './pages/Administration/Dashboard';
 import Reports from './pages/Administration/Reports';
+import Announcement from './pages/Administration/Announcement';
 import QROperatorID from './pages/Driver/QROperatorID';
 
 function LandingPageWithNav() {
@@ -145,6 +146,14 @@ function App() {
           element={
             <ProtectedRoute requiredRole={["sb-admin", "super-admin"]}>
               <Reports />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/sb-admin/announcements" 
+          element={
+            <ProtectedRoute requiredRole="sb-admin">
+              <Announcement />
             </ProtectedRoute>
           } 
         />

@@ -6,8 +6,9 @@ class AnnouncementController {
    */
   async createAnnouncement(req, res) {
     try {
-      const { title, description, date } = req.body;
-      const { userId, name } = req.user;
+      const { title, description, date, published } = req.body;
+      const userId = req.user?.userId || 'system';
+      const name = req.user?.name || 'System Admin';
 
       // Validation
       if (!title || !description) {
@@ -17,10 +18,22 @@ class AnnouncementController {
         });
       }
 
+      // Check published limit
+      if (published) {
+        const publishedCount = await announcementRepository.countPublished();
+        if (publishedCount >= 3) {
+          return res.status(400).json({
+            success: false,
+            message: 'Only 3 announcements can be published at a time'
+          });
+        }
+      }
+
       const announcementData = {
         title,
         description,
         date: date || new Date(),
+        published: published || false,
         createdBy: {
           userId,
           name
@@ -102,12 +115,27 @@ class AnnouncementController {
   async updateAnnouncement(req, res) {
     try {
       const { id } = req.params;
-      const { title, description, date } = req.body;
+      const { title, description, date, published } = req.body;
+
+      // Get current announcement
+      const currentAnnouncement = await announcementRepository.getById(id);
+
+      // Check published limit if trying to publish
+      if (published && !currentAnnouncement.published) {
+        const publishedCount = await announcementRepository.countPublished();
+        if (publishedCount >= 3) {
+          return res.status(400).json({
+            success: false,
+            message: 'Only 3 announcements can be published at a time'
+          });
+        }
+      }
 
       const updateData = {};
-      if (title) updateData.title = title;
-      if (description) updateData.description = description;
-      if (date) updateData.date = date;
+      if (title !== undefined) updateData.title = title;
+      if (description !== undefined) updateData.description = description;
+      if (date !== undefined) updateData.date = date;
+      if (published !== undefined) updateData.published = published;
 
       const announcement = await announcementRepository.update(id, updateData);
 
@@ -169,6 +197,27 @@ class AnnouncementController {
       res.status(500).json({
         success: false,
         message: 'Failed to get recent announcements',
+        error: error.message
+      });
+    }
+  }
+
+  /**
+   * Get published announcements (Public)
+   */
+  async getPublishedAnnouncements(req, res) {
+    try {
+      const announcements = await announcementRepository.getPublished();
+
+      res.status(200).json({
+        success: true,
+        announcements
+      });
+    } catch (error) {
+      console.error('Error getting published announcements:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to get published announcements',
         error: error.message
       });
     }

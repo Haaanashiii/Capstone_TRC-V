@@ -372,10 +372,11 @@ function UserManagement() {
     <div className="user-management-container">
       <Sidebar />
       <div className="content-area">
-        <Box className="user-management-box">
-          <Typography variant="h5" component="h1" className="user-management-title">
+        <div className="header-container">
+          <div className="page-title">
             User Management
-          </Typography>
+          </div>
+        </div>
 
           {/* Success/Error Messages */}
           {error && (
@@ -389,7 +390,7 @@ function UserManagement() {
             </Alert>
           )}
           
-          <Box className="user-management-toolbar">
+          <div className="user-management-toolbar">
             <TextField
               placeholder="Search users..."
               variant="outlined"
@@ -413,7 +414,7 @@ function UserManagement() {
             >
               Add User
             </Button>
-          </Box>
+          </div>
 
           {loading && !openModal && (
             <Box display="flex" justifyContent="center" my={4}>
@@ -421,7 +422,7 @@ function UserManagement() {
             </Box>
           )}
 
-          <TableContainer component={Paper} elevation={2}>
+          <TableContainer component={Paper} className="table-container" elevation={2}>
             <Table stickyHeader>
               <TableHead>
                 <TableRow>
@@ -479,7 +480,6 @@ function UserManagement() {
             rowsPerPage={rowsPerPage}
             rowsPerPageOptions={[]}
           />
-        </Box>
 
         {/* Add/Edit User Modal */}
         <Modal open={openModal} onClose={handleCloseModal}>

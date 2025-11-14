@@ -1,18 +1,67 @@
+* {
+    font-family: 'Poppins', sans-serif !important;
+}
+
 .main {
-    background-color: white;
+    display: flex;
+    background-color: #f5f7fa;
     min-height: 100vh;
+}
+
+.content-container {
+    flex: 1;
+    padding: 24px;
+    margin-left: 240px;
+    width: calc(100% - 240px);
 }
 
 .title {
     font-size: 32px;
     font-weight: bold;
-    margin-bottom: 20px;
+    margin-bottom: 24px;
+    color: #000;
+    margin-top: 0;
+}
+
+.pending-header {
+    font-size: 18px !important;
+    font-weight: bold !important;
+    margin-bottom: 16px !important;
+    margin-top: 24px !important;
+    color: #000 !important;
 }
 
 .search-bar {
     display: flex;
     margin-bottom: 20px;
     gap: 10px;
+}
+
+.add-button {
+    background-color: #0A356B !important;
+    color: white !important;
+    font-weight: bold !important;
+}
+
+.add-button:hover {
+    background-color: #083057 !important;
+}
+
+.loading-container {
+    display: flex;
+    justify-content: center;
+    padding: 40px;
+}
+
+.table-container {
+    margin-bottom: 24px;
+    background-color: #ffffff;
+    max-height: 600px;
+    overflow-y: auto;
+}
+
+.pending-table {
+    min-width: 100%;
 }
 
 /* Table Cell Styles */
@@ -267,6 +316,11 @@
 
 .button-primary:hover {
     background-color: #1565c0;
+}
+
+.circular-progress-small {
+    width: 20px !important;
+    height: 20px !important;
 }
 
 .button-error {

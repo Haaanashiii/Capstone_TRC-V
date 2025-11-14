@@ -6,6 +6,8 @@ import { Menu, MenuItem, ListItemIcon } from '@mui/material';
 import PermIdentityIcon from '@mui/icons-material/PermIdentity';
 import LogoutIcon from '@mui/icons-material/Logout';
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+
 const Card = ({ children, className }) => (
   <div className={className}>{children}</div>
 );
@@ -14,6 +16,8 @@ const LandingPage = () => {
   const navigate = useNavigate();
   const { user, logout, login } = useAuth();
   const [anchorEl, setAnchorEl] = useState(null);
+  const [announcements, setAnnouncements] = useState([]);
+  const [loadingAnnouncements, setLoadingAnnouncements] = useState(true);
   const menuOpen = Boolean(anchorEl);
   const displayName = user ? (user.full_name || user.name || user.username) : null;
 
@@ -36,6 +40,31 @@ const LandingPage = () => {
     }
   };
   
+  // Fetch published announcements
+  useEffect(() => {
+    const fetchPublishedAnnouncements = async () => {
+      try {
+        setLoadingAnnouncements(true);
+        const response = await fetch(`${API_BASE_URL}/announcements/published`);
+        
+        if (response.ok) {
+          const data = await response.json();
+          setAnnouncements(data.announcements || []);
+        } else {
+          console.error('Failed to fetch announcements');
+          setAnnouncements([]);
+        }
+      } catch (error) {
+        console.error('Error fetching announcements:', error);
+        setAnnouncements([]);
+      } finally {
+        setLoadingAnnouncements(false);
+      }
+    };
+
+    fetchPublishedAnnouncements();
+  }, []);
+
   useEffect(() => {
     try {
       const hash = window.location.hash || '';
@@ -70,6 +99,11 @@ const LandingPage = () => {
       }
   } catch { /* ignore */ }
   }, [login]);
+
+  const formatDate = (dateString) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).toUpperCase();
+  };
 
   
   return (
@@ -140,32 +174,33 @@ const LandingPage = () => {
         </div>
       </main>
 
-            {/* Announcements Pagee ni papa\pi lucas ni jakey */}
+            {/* Announcements Section - Dynamic */}
       <section className="announcements-section">
         <div className="announcements-title">ANNOUNCEMENTS</div>
         <div className="announcements-list">
-          <div className="announcement-card">
-            <div className="announcement-card-header">NOTICE TO ALL TRICYCLE FRANCHISE HOLDERS</div>
-            <div className="announcement-card-date">SEP 3, 2025</div>
-            <div className="announcement-card-body">
-              This is to inform all registered tricycle operators that renewal of franchise permits for the year 2025–2026 shall commence on September 10, 2025. All submissions must be completed through the TRC-V portal before September 30, 2025.
+          {loadingAnnouncements ? (
+            <div className="announcement-card">
+              <div className="announcement-card-body" style={{ textAlign: 'center', padding: '40px' }}>
+                Loading announcements...
+              </div>
             </div>
-          </div>
-          <div className="announcement-card">
-             
-            <div className="announcement-card-header">SYSTEM MAINTENANCE ADVISORY</div>
-            <div className="announcement-card-date">SEP 5, 2025</div> 
-            <div className="announcement-card-body">
-              Please be advised that the TRC-V online portal will undergo scheduled maintenance on September 8, 2025, from 12:00 AM to 6:00 AM. During this period, online services including QR code validation and document submissions will be temporarily unavailable…
+          ) : announcements.length > 0 ? (
+            announcements.map((announcement) => (
+              <div className="announcement-card" key={announcement._id}>
+                <div className="announcement-card-header">{announcement.title}</div>
+                <div className="announcement-card-date">{formatDate(announcement.date)}</div>
+                <div className="announcement-card-body">
+                  {announcement.description}
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="announcement-card">
+              <div className="announcement-card-body" style={{ textAlign: 'center', padding: '40px' }}>
+                No announcements at this time.
+              </div>
             </div>
-          </div>
-          <div className="announcement-card">
-            <div className="announcement-card-header">OFFICE CLOSURE ANNOUNCEMENT</div>
-            <div className="announcement-card-date">SEP 12, 2025</div>
-            <div className="announcement-card-body">
-              The Municipal Tricycle Regulatory Office will be closed on September 15, 2025 (Monday) in observance of municipal administrative activities. Online services will remain accessible.
-            </div>
-          </div>
+          )}
         </div>
       </section>
 

@@ -136,6 +136,34 @@ class AnnouncementRepository {
       throw new Error(`Failed to get recent announcements: ${error.message}`);
     }
   }
+
+  /**
+   * Get published announcements (max 3)
+   */
+  async getPublished() {
+    try {
+      const announcements = await Announcement.find({ published: true })
+        .sort({ date: -1 })
+        .limit(3)
+        .lean();
+      
+      return announcements;
+    } catch (error) {
+      throw new Error(`Failed to get published announcements: ${error.message}`);
+    }
+  }
+
+  /**
+   * Count published announcements
+   */
+  async countPublished() {
+    try {
+      const count = await Announcement.countDocuments({ published: true });
+      return count;
+    } catch (error) {
+      throw new Error(`Failed to count published announcements: ${error.message}`);
+    }
+  }
 }
 
 module.exports = new AnnouncementRepository();

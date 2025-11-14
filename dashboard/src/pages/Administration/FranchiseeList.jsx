@@ -565,9 +565,7 @@ function FranchiseeList() {
 
   return (
     <div className="franchisee-list-container">
-      <div className="sidebar">
-        <Sidebar />
-      </div>
+      <Sidebar />
       <div className="content-container">
         <div className="header-container">
           <div className="page-title">
