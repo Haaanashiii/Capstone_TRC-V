@@ -121,6 +121,29 @@ exports.createFranchiseApplication = async (req, res, next) => {
 
         try {
             const application = await franchiseApplicationRepository.createFranchiseApplication(normalized);
+            // After creating the application, try to generate a QR code for this record.
+            try {
+                // Only generate if a QR does not already exist on the newly created document
+                if (!application.qrCode) {
+                    const qrCodeData = await generateOperatorQRCode(String(application._id), { saveToFile: true });
+                    if (qrCodeData && qrCodeData.filePath) {
+                        // Persist the qrCode path on the franchise application document
+                        try {
+                            await franchiseApplicationRepository.updateFranchiseApplication(application._id, { qrCode: qrCodeData.filePath });
+                            // reflect change on returned object when possible
+                            if (application.toObject) {
+                                const tmp = application.toObject();
+                                tmp.qrCode = qrCodeData.filePath;
+                                // return the object form below
+                            }
+                        } catch (uerr) {
+                            console.warn('Failed to save QR path to franchise application after creation', uerr);
+                        }
+                    }
+                }
+            } catch (qrCreateErr) {
+                console.warn('QR generation during franchise creation failed (continuing):', qrCreateErr);
+            }
             // Log persistence details to help debug where documents are being stored
             try {
                 const mongoose = require('mongoose');
@@ -131,7 +154,9 @@ exports.createFranchiseApplication = async (req, res, next) => {
             } catch (logErr) {
                 console.warn('Failed to log franchise save details', logErr);
             }
-            return res.status(201).json(application);
+            // Return the freshest document for the client to consume (including qrCode if saved)
+            const fresh = await franchiseApplicationRepository.getFranchiseApplicationById(application._id);
+            return res.status(201).json(fresh || application);
         } catch (innerErr) {
             if (innerErr && innerErr.name === 'ValidationError') {
                 const details = Object.keys(innerErr.errors || {}).map(k => ({ field: k, message: innerErr.errors[k].message }));
@@ -228,6 +253,7 @@ exports.getAllFranchiseApplications = async (req, res, next) => {
             documentDriversLicense: it.documentDriversLicense || null,
             documentVotersAffidavit: it.documentVotersAffidavit || null,
             documentPicture: it.profilePhoto || it.documentPicture || null,
+            qrCode: it.qrCode || null,
         }));
 
         res.status(200).json(normalized);
@@ -242,7 +268,10 @@ exports.getFranchiseApplication = async (req, res, next) => {
     if (!application) {
       return res.status(404).json({ error: 'Application not found' });
     }   
-    res.status(200).json(application);
+    // Ensure qrCode is present in single-application response
+    const appObj = application;
+    if (appObj) appObj.qrCode = appObj.qrCode || appObj.qrcode || appObj.qr || null;
+    res.status(200).json(appObj);
     } catch (error) {
         next(error);
     }
@@ -292,6 +321,8 @@ exports.getMyFranchiseApplication = async (req, res, next) => {
             // include chassis and motor engine numbers so frontend can populate correctly
             chassisNumber: it.chasisNo || it.chasisNumber || it.chasis || it.chasis_no || '',
             motorEngineNumber: it.motorEngineNo || it.motorEngineNumber || it.motor_engine_no || it.engineNumber || ''
+            ,
+            qrCode: it.qrCode || null
         };
 
         res.status(200).json(normalized);
@@ -428,12 +459,18 @@ exports.approveFranchiseApplication = async (req, res, next) => {
             console.warn('Failed to generate franchise metadata during approval', genErr);
         }
         
-        // Generate QR code for the approved franchise
+        // Generate QR code for the approved franchise if one does not already exist
         try {
-            const qrCodeData = await generateOperatorQRCode(id, { saveToFile: true });
-            updateData.qrCode = qrCodeData.filePath;
-            
-            console.log(`[QR GENERATED] Franchise Application: ${id}, File: ${qrCodeData.filePath}`);
+            if (!application.qrCode) {
+                const qrCodeData = await generateOperatorQRCode(id, { saveToFile: true });
+                if (qrCodeData && qrCodeData.filePath) {
+                    updateData.qrCode = qrCodeData.filePath;
+                    console.log(`[QR GENERATED] Franchise Application: ${id}, File: ${qrCodeData.filePath}`);
+                }
+            } else {
+                // Keep existing QR
+                updateData.qrCode = application.qrCode;
+            }
         } catch (qrError) {
             console.error('QR Code generation failed during approval:', qrError);
             // Continue with approval even if QR generation fails

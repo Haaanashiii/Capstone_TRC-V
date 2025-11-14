@@ -48,6 +48,8 @@ function FranchiseMgmt() {
   const [openFilePreview, setOpenFilePreview] = useState(false)
   const [previewFile, setPreviewFile] = useState({ name: '', type: '', path: '' })
   const currentBlobUrlRef = useRef(null)
+  const [qrBlobUrl, setQrBlobUrl] = useState(null)
+  const qrBlobUrlRef = useRef(null)
   
   
   const [pendingApplications, setPendingApplications] = useState([])
@@ -125,6 +127,7 @@ function FranchiseMgmt() {
         documentDriversLicense: it.documentDriversLicense || null,
         documentVotersAffidavit: it.documentVotersAffidavit || null,
         documentPicture: it.documentPicture || null,
+        qrCode: it.qrCode || null,
       })) : []
 
       setPendingApplications(normalizedServerApps)
@@ -201,6 +204,39 @@ function FranchiseMgmt() {
     setOpenViewModal(true)
   }, [])
   const handleCloseViewModal = useCallback(() => setOpenViewModal(false), [])
+
+  // When a selected application changes, attempt to fetch its QR image and create a blob URL
+  React.useEffect(() => {
+    let cancelled = false
+    // cleanup previous blob
+  try { if (qrBlobUrlRef.current) { URL.revokeObjectURL(qrBlobUrlRef.current); qrBlobUrlRef.current = null; } } catch (e) { console.warn('Failed to revoke previous qr blob', e) }
+
+    const fetchQr = async () => {
+      if (!selectedApplication || !selectedApplication.qrCode) return
+      try {
+        const raw = selectedApplication.qrCode
+        const url = /^https?:\/\//i.test(raw) ? raw : (API_BASE_URL.replace(/\/$/, '') + (raw.startsWith('/') ? raw : '/' + raw))
+        const resp = await fetch(url)
+        if (!resp.ok) throw new Error('Failed to fetch QR')
+        const blob = await resp.blob()
+        if (cancelled) return
+        const objUrl = URL.createObjectURL(blob)
+        qrBlobUrlRef.current = objUrl
+        setQrBlobUrl(objUrl)
+      } catch (err) {
+        console.warn('[FranchiseMgmt] Failed to fetch QR blob for inline display', err)
+        setQrBlobUrl(null)
+      }
+    }
+
+    fetchQr()
+
+    return () => {
+      cancelled = true
+  try { if (qrBlobUrlRef.current) { URL.revokeObjectURL(qrBlobUrlRef.current); qrBlobUrlRef.current = null; } } catch (e) { console.warn('Failed to revoke qr blob on cleanup', e) }
+      setQrBlobUrl(null)
+    }
+  }, [selectedApplication])
   
   const handleOpenRejectModal = useCallback(() => {
     setOpenViewModal(false)
@@ -635,6 +671,16 @@ function FranchiseMgmt() {
                         >
                           <VisibilityIcon />
                         </IconButton>
+                        {application.qrCode && (
+                          <IconButton
+                            size="small"
+                            className="view-icon-button"
+                            onClick={(e) => { e.stopPropagation(); handleOpenFilePreview({ name: application.name + '-qr.png', type: 'image/png', path: application.qrCode }); }}
+                            title="View QR"
+                          >
+                            <img src={(application.qrCode && !/^https?:\/\//i.test(application.qrCode) ? (API_BASE_URL.replace(/\/$/, '') + (application.qrCode.startsWith('/') ? application.qrCode : '/' + application.qrCode)) : application.qrCode)} alt="QR" style={{ width: 28, height: 28, objectFit: 'contain' }} />
+                          </IconButton>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))
@@ -1086,6 +1132,29 @@ function FranchiseMgmt() {
                 <span>{selectedApplication.documentPicture?.name || 'No file'}</span>
               </Link>
             </div>
+
+            {/* QR Code display */}
+            <Typography variant="h6" className="section-header">
+              QR CODE
+            </Typography>
+            <div className="info-grid">
+              <Typography variant="subtitle2" className="label">Operator QR:</Typography>
+              {selectedApplication.qrCode ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <img
+                    src={qrBlobUrl || (!/^https?:\/\//i.test(selectedApplication.qrCode) ? (API_BASE_URL.replace(/\/$/, '') + (selectedApplication.qrCode.startsWith('/') ? selectedApplication.qrCode : '/' + selectedApplication.qrCode)) : selectedApplication.qrCode)}
+                    alt="QR"
+                    style={{ width: 140, height: 140, objectFit: 'contain', border: '1px solid #eee', borderRadius: 8 }}
+                  />
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <Button className="button-primary" onClick={() => handleOpenFilePreview({ name: 'qr.png', type: 'image/png', path: selectedApplication.qrCode })}>Preview</Button>
+                    <Button className="button-primary" href={(!/^https?:\/\//i.test(selectedApplication.qrCode) ? (API_BASE_URL.replace(/\/$/, '') + (selectedApplication.qrCode.startsWith('/') ? selectedApplication.qrCode : '/' + selectedApplication.qrCode)) : selectedApplication.qrCode)} download>Download</Button>
+                  </div>
+                </div>
+              ) : (
+                <Typography>No QR generated yet</Typography>
+              )}
+            </div>
             
             <div className="action-buttons">
               <Button
@@ -1196,7 +1265,6 @@ function FranchiseMgmt() {
         </Box>
       </Modal>
       
-      {/* Notifications */}
       <Snackbar 
         open={notification.open} 
         autoHideDuration={6000} 

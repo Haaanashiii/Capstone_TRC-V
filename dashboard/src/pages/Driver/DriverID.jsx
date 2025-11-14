@@ -132,7 +132,7 @@ function DriverID() {
     // Check franchise status
     checkFranchiseStatus();
    
-  }, []);  
+  }, [fetchUserDetails]);
 
   
   useEffect(() => {
@@ -330,6 +330,56 @@ function DriverID() {
     }
   }, [user])
 
+  // When matchedFranchise changes, fetch QR as blob and create an object URL
+  useEffect(() => {
+    let cancelled = false;
+    // revoke previous
+    try {
+      if (qrBlobRef.current) {
+        URL.revokeObjectURL(qrBlobRef.current);
+        qrBlobRef.current = null;
+      }
+    } catch (e) {
+      console.warn('Failed to revoke previous driver qr blob', e);
+    }
+
+    const fetchQr = async () => {
+      if (!matchedFranchise || !matchedFranchise.qrCode) {
+        setQrBlobUrl(null);
+        return;
+      }
+      try {
+        const raw = matchedFranchise.qrCode;
+        const url = /^https?:\/\//i.test(raw) ? raw : ((import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170').replace(/\/$/, '') + (raw.startsWith('/') ? raw : '/' + raw));
+        const resp = await fetch(url);
+        if (!resp.ok) throw new Error('Failed fetching driver QR image: ' + resp.status);
+        const blob = await resp.blob();
+        if (cancelled) return;
+        const obj = URL.createObjectURL(blob);
+        qrBlobRef.current = obj;
+        setQrBlobUrl(obj);
+      } catch (err) {
+        console.warn('DriverID: failed to fetch qr blob', err);
+        setQrBlobUrl(null);
+      }
+    };
+
+    fetchQr();
+
+    return () => {
+      cancelled = true;
+      try {
+        if (qrBlobRef.current) {
+          URL.revokeObjectURL(qrBlobRef.current);
+          qrBlobRef.current = null;
+        }
+      } catch (e) {
+        console.warn('Failed to revoke driver qr blob on cleanup', e);
+      }
+      setQrBlobUrl(null);
+    };
+  }, [matchedFranchise]);
+
   
   useEffect(() => {
     const onVisibility = () => {
@@ -340,7 +390,7 @@ function DriverID() {
     };
     document.addEventListener('visibilitychange', onVisibility);
     return () => document.removeEventListener('visibilitychange', onVisibility);
-  }, [fetchUserDetails])
+  }, [fetchUserDetails]);
   
 
 
@@ -355,6 +405,9 @@ function DriverID() {
     chassisNumber: '',
     motorNumber: ''
   });
+
+  const [qrBlobUrl, setQrBlobUrl] = useState(null);
+  const qrBlobRef = React.useRef(null);
   
 
   const navigate = useNavigate();
@@ -410,6 +463,7 @@ function DriverID() {
                 : t.singleNoCoOwner
               }
             </Typography>
+            {/* QR is displayed on the right panel (see the blue card area) */}
             <Button 
               variant="contained" 
               onClick={handleOpenFranchisePage}
@@ -497,8 +551,27 @@ function DriverID() {
           </div>
 
           <div className="id-right">
-            <div className="qr-container" aria-hidden="true">
-              {/* intentionally empty - image removed per request */}
+            <div className="qr-container" aria-hidden={matchedFranchise?.qrCode ? 'false' : 'true'}>
+              {matchedFranchise?.qrCode ? (
+                (() => {
+                  const raw = matchedFranchise.qrCode;
+                  const serverUrl = /^https?:\/\//i.test(raw) ? raw : ((import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170').replace(/\/$/, '') + (raw.startsWith('/') ? raw : '/' + raw));
+                  return (
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+                      <img
+                        src={qrBlobUrl || serverUrl}
+                        alt="QR Code"
+                        style={{ width: 260, height: 260, objectFit: 'contain', background: '#fff', padding: 12, borderRadius: 8 }}
+                      />
+                      {/* <div style={{ display: 'flex', gap: 8 }}>
+                        <Button variant="outlined" onClick={() => { const a = document.createElement('a'); a.href = serverUrl; a.download = 'qr.png'; document.body.appendChild(a); a.click(); a.remove(); }}>Download QR</Button>
+                      </div> */}
+                    </div>
+                  )
+                })()
+              ) : (
+                <div style={{ color: '#fff', fontWeight: 700 }}>QR not available</div>
+              )}
             </div>
           </div>
         </div>

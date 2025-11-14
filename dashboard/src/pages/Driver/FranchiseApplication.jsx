@@ -129,7 +129,6 @@ export default function FranchiseApplication() {
   const [modalFile, setModalFile] = useState(null);
   const modalFileRef = useRef();
 
-  // Handler for modal file upload (modal)
   const handleModalFileChange = (e) => {
     setModalFile(e.target.files[0]);
   };
@@ -143,7 +142,6 @@ export default function FranchiseApplication() {
     civilStatus: "",
     citizenship: "",
     todaMembership: "",
-    // Motorcycle / driver fields (previously inputs were uncontrolled)
     unitModel: "",
     colorMotor: "",
     colorSidecar: "",
@@ -154,14 +152,12 @@ export default function FranchiseApplication() {
     driverAddress: "",
   });
 
-  // State for contact number validation
   const [contactError, setContactError] = useState("");
 
   const handleChange = (field) => (e) => {
     setFields({ ...fields, [field]: e.target.value });
   };
 
-  // Special handler for contact number that only allows numbers
   const handleContactChange = (e) => {
     const value = e.target.value;
     const numbersOnly = /^[0-9]*$/;
@@ -174,7 +170,6 @@ export default function FranchiseApplication() {
     }
   };
 
-  // State for each document upload
   const [uploads, setUploads] = useState({
     registration: null,
     barangay: null,
@@ -184,7 +179,6 @@ export default function FranchiseApplication() {
     picture: null,
   });
 
-  // Toast / Snackbar state
   const [toast, setToast] = useState({ open: false, message: '', severity: 'success' });
 
   const navigate = useNavigate();
@@ -194,13 +188,12 @@ export default function FranchiseApplication() {
     setToast(t => ({ ...t, open: false }));
   };
 
-  // Handlers for file input (main form)
-  const handleFileChange = (key) => (e) => {
+  const _handleFileChange = (key) => (e) => {
     setUploads({ ...uploads, [key]: e.target.files[0] });
   };
 
 
-  const fileRefs = {
+  const _fileRefs = {
     registration: useRef(),
     barangay: useRef(),
     cedula: useRef(),
@@ -542,7 +535,6 @@ export default function FranchiseApplication() {
                 </Button>
               </div>
 
-          {/* Sworn Statement Section */}
           <div className="franchise-app-section" style={{ marginTop: 32 }}>
             {t.swornStatement}
             <div className="franchise-app-section-line" />
