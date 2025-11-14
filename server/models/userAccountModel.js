@@ -4,10 +4,6 @@ const mongoose = require('mongoose');
 const userAccountSchema = new mongoose.Schema({
     userId: { type: String, default: uuidv4, unique: true },
     name: { type: String, required: true },
-    // username is required for local accounts. Make the requirement conditional so OAuth users can omit it.
-    // NOTE: we DO NOT set `unique: true` here because we declare a schema-level index below
-    // with a partialFilterExpression. That gives us full control (we index only documents
-    // where username is present and is a string) and avoids duplicate schema index declarations.
     username: { 
         type: String,
         required: function() { return !this.oauthProvider; }

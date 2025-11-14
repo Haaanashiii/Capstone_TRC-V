@@ -75,8 +75,8 @@ const NavigationSection = styled(Box)(() => ({
   boxShadow: 'none'
 }));
 
-const NavButton = styled(Button)(({ isActive }) => ({
-  color: isActive ? 'white' : '#111',
+const NavButton = styled(Button)(({ isActive, disabled }) => ({
+  color: disabled ? '#999' : (isActive ? 'white' : '#111'),
   backgroundColor: isActive ? '#143c6e' : 'transparent', // active uses the requested blue
   fontWeight: 600,
   padding: '8px 12px',
@@ -85,11 +85,14 @@ const NavButton = styled(Button)(({ isActive }) => ({
   textTransform: 'none',
   minWidth: 'auto',
   whiteSpace: 'nowrap',
+  cursor: disabled ? 'not-allowed' : 'pointer',
+  opacity: disabled ? 0.5 : 1,
   '&:hover': {
-    backgroundColor: isActive ? '#143c6e' : '#f0f0f0',
-    transform: 'translateY(-2px)',
+    backgroundColor: disabled ? 'transparent' : (isActive ? '#143c6e' : '#f0f0f0'),
+    transform: disabled ? 'none' : 'translateY(-2px)',
   },
   flexShrink: 0,
+  pointerEvents: disabled ? 'none' : 'auto',
 }));
 
 const UserSection = styled(Box)(() => ({
@@ -217,6 +220,17 @@ const UnifiedSidebar = ({ userType = "operator", language, onLanguageToggle, tra
   const getNavigationItems = () => {
     switch (userType) {
       case "operator": {
+        // Check if user has operator information from JWT token
+        let hasOperator = false;
+        try {
+          const token = sessionStorage.getItem('accessToken');
+          if (token) {
+            const decoded = JSON.parse(atob(token.split('.')[1]));
+            hasOperator = decoded.hasOperator === true;
+          }
+        } catch {
+          hasOperator = false;
+        }
        
         let franchiseLabel = 'MY FRANCHISE'
         try {
@@ -246,10 +260,16 @@ const UnifiedSidebar = ({ userType = "operator", language, onLanguageToggle, tra
 
         // If label replaced, route to the Request Amendment page instead of the franchise page
         const franchisePath = franchiseLabel === 'REQUEST FOR AMENDMENT' ? '/request-amendment' : '/operator/franchise'
+        
+        // Determine if franchise menu should be disabled
+        // Only disable if it's "REQUEST FOR AMENDMENT" and user lacks operator info
+        const franchiseDisabled = franchiseLabel === 'REQUEST FOR AMENDMENT' && !hasOperator;
+        
+        // If user doesn't have operator info yet, disable REQUEST FOR AMENDMENT and OPERATOR ID
         return [
-          { label: "HOME", path: "/", isActive: location.pathname === "/" },
-          { label: franchiseLabel, path: franchisePath, isActive: location.pathname === franchisePath },
-          { label: "OPERATOR ID", path: "/operator/id", isActive: location.pathname === "/operator/id" },
+          { label: "HOME", path: "/", isActive: location.pathname === "/", disabled: false },
+          { label: franchiseLabel, path: franchisePath, isActive: location.pathname === franchisePath, disabled: franchiseDisabled },
+          { label: "OPERATOR ID", path: "/operator/id", isActive: location.pathname === "/operator/id", disabled: !hasOperator },
         ];
       }
       case "admin": //for bplo-admin?
@@ -298,9 +318,12 @@ const UnifiedSidebar = ({ userType = "operator", language, onLanguageToggle, tra
         {navigationItems.map((item, index) => (
           <NavButton
             key={index}
-            component={Link}
-            to={item.path}
+            component={item.disabled ? 'button' : Link}
+            to={item.disabled ? undefined : item.path}
             isActive={item.isActive}
+            disabled={item.disabled}
+            onClick={item.disabled ? (e) => e.preventDefault() : undefined}
+            title={item.disabled ? 'Complete your franchise application first' : undefined}
           >
             {item.label}
           </NavButton>

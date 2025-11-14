@@ -122,17 +122,26 @@ function DriverID() {
       const tokenUser = getUserInfo();
       if (tokenUser) {
         console.log('[DriverID] User from token:', tokenUser);
+        
+        // GATE-KEEPING: Check if user has operator information
+        if (!tokenUser.hasOperator) {
+          console.warn('[DriverID] User does not have operator info yet, redirecting to Franchise page');
+          navigate('/operator/franchise');
+          return;
+        }
+        
         setUser(tokenUser);
       }
     
       fetchUserDetails();
     } else {
       console.warn('[DriverID] No token found in sessionStorage');
+      navigate('/login');
     }
     // Check franchise status
     checkFranchiseStatus();
    
-  }, [fetchUserDetails]);
+  }, [fetchUserDetails, navigate]);
 
   
   useEffect(() => {

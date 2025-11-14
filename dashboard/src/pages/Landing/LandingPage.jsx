@@ -19,7 +19,52 @@ const LandingPage = () => {
   const [announcements, setAnnouncements] = useState([]);
   const [loadingAnnouncements, setLoadingAnnouncements] = useState(true);
   const menuOpen = Boolean(anchorEl);
-  const displayName = user ? (user.full_name || user.name || user.username) : null;
+  
+  // Get display name from AuthContext user or fallback to token decode (consistent with UnifiedSidebar)
+  const getDisplayName = () => {
+    if (user?.name) {
+      const parts = String(user.name).trim().split(/\s+/);
+      const first = parts[0];
+      const last = parts.slice(1).join(' ');
+      return last ? `${first} ${String(last).charAt(0).toUpperCase()}` : first;
+    }
+    
+    // Fallback: decode token directly from sessionStorage
+    try {
+      const token = sessionStorage.getItem('accessToken');
+      if (token) {
+        const decoded = JSON.parse(atob(token.split('.')[1]));
+        if (decoded?.name) {
+          const parts = String(decoded.name).trim().split(/\s+/);
+          const first = parts[0];
+          const last = parts.slice(1).join(' ');
+          return last ? `${first} ${String(last).charAt(0).toUpperCase()}` : first;
+        }
+      }
+    } catch (error) {
+      console.error('[LandingPage] Error decoding token:', error);
+    }
+    
+    return null;
+  };
+  
+  const displayName = getDisplayName();
+  
+  // Check if user has operator information (for disabling REQUEST FOR AMENDMENT)
+  const checkHasOperator = () => {
+    try {
+      const token = sessionStorage.getItem('accessToken');
+      if (token) {
+        const decoded = JSON.parse(atob(token.split('.')[1]));
+        return decoded.hasOperator === true;
+      }
+    } catch {
+      return false;
+    }
+    return false;
+  };
+  
+  const userHasOperator = checkHasOperator();
 
   const handleMenuOpen = (e) => setAnchorEl(e.currentTarget);
   const handleMenuClose = () => setAnchorEl(null);
@@ -122,11 +167,22 @@ const LandingPage = () => {
           <button className="nav-link" onClick={() => navigate('/')}>HOME</button>
           {/* Show different label & route when user is logged in */}
           {displayName ? (
-            <button className="nav-link" onClick={() => navigate('/request-amendment')}>REQUEST FOR AMENDMENT</button>
+            <button 
+              className="nav-link" 
+              onClick={() => userHasOperator ? navigate('/request-amendment') : navigate('/operator/franchise')}
+              style={{ 
+                opacity: userHasOperator ? 1 : 0.5, 
+                cursor: userHasOperator ? 'pointer' : 'not-allowed',
+                pointerEvents: userHasOperator ? 'auto' : 'none'
+              }}
+              title={!userHasOperator ? 'Complete your franchise application first' : ''}
+            >
+              REQUEST FOR AMENDMENT
+            </button>
           ) : (
             <button className="nav-link" onClick={() => navigate('/login')}>VERIFY TRICYCLE</button>
           )}
-          <button className="nav-link" onClick={() => navigate('/login')}>NEW APPLICATION</button>
+          <button className="nav-link" onClick={() => navigate('/operator/franchise/application')}>NEW APPLICATION</button>
           {/* If user is logged in show name and menu, otherwise show Login button */}
           {displayName ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>

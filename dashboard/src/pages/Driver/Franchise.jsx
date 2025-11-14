@@ -175,25 +175,24 @@ const Franchise = () => {
   const [userFranchiseInfo, setUserFranchiseInfo] = useState(null);
   const navigate = useNavigate();
 
+  // Removed auto-redirect - users stay on Franchise page until they complete application
+  // and backend approves it (hasOperator becomes true in JWT)
   useEffect(() => {
+    console.log('[Franchise] User can now choose to link or apply for franchise');
+    // Check if user already has operator info in JWT
     try {
-      const replaced = sessionStorage.getItem('franchiseMenuReplaced') === 'true'
-      const linked = sessionStorage.getItem('franchiseLinked') === 'true'
-      const ownerUserId = sessionStorage.getItem('franchiseOwnerUserId')
-
-      const token = sessionStorage.getItem('accessToken')
-      let tokenUserId = null
+      const token = sessionStorage.getItem('accessToken');
       if (token) {
-        try { tokenUserId = JSON.parse(atob(token.split('.')[1])).id } catch { tokenUserId = null }
+        const decoded = JSON.parse(atob(token.split('.')[1]));
+        if (decoded.hasOperator === true) {
+          console.log('[Franchise] User has operator info, they can navigate to Operator ID');
+          // Don't auto-redirect, let user navigate via menu
+        } else {
+          console.log('[Franchise] User needs to complete franchise application');
+        }
       }
-
-      // Only redirect if the saved franchise state belongs to the currently logged-in user
-      if (replaced || (linked && ownerUserId && tokenUserId && ownerUserId === tokenUserId)) {
-        // user already applied/linked -> redirect to Operator ID
-        navigate('/operator/id')
-      }
-    } catch {
-      // If sessionStorage fails, don't block the page by default.
+    } catch (e) {
+      console.error('[Franchise] Error checking operator status:', e);
     }
   }, [navigate])
 
@@ -271,6 +270,11 @@ const Franchise = () => {
               <div className="profile-info">
                 <h3 className="profile-name">{(currentUser?.full_name || currentUser?.name || t.user).toUpperCase()}</h3>
                 <span className={badgeClass}>{franchiseLinked ? t.franchiseLinked : t.noFranchise}</span>
+                {!currentUser?.hasOperator && (
+                  <p className="profile-desc" style={{ color: '#e74c3c', fontWeight: 600, marginTop: '8px', background: '#fee', padding: '8px 12px', borderRadius: '8px' }}>
+                    ⚠️ Complete your franchise application to access all features
+                  </p>
+                )}
                 <p className="profile-desc">Welcome! You don't have an active franchise yet. Choose an option below to get started on your franchise journey.</p>
               </div>
             </div>
