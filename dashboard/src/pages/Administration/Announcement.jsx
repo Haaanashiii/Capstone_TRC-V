@@ -87,7 +87,7 @@ function Announcement() {
       setLoading(true);
       const response = await fetch(`${API_BASE_URL}/announcements?limit=100`, {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          'Authorization': `Bearer ${sessionStorage.getItem('accessToken')}`
         }
       });
 
@@ -202,7 +202,7 @@ function Announcement() {
         method: isEditing ? 'PUT' : 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          'Authorization': `Bearer ${sessionStorage.getItem('accessToken')}`
         },
         body: JSON.stringify(announcementData)
       });
@@ -238,7 +238,7 @@ function Announcement() {
       const response = await fetch(`${API_BASE_URL}/announcements/${announcementId}`, {
         method: 'DELETE',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          'Authorization': `Bearer ${sessionStorage.getItem('accessToken')}`
         }
       });
 
@@ -286,7 +286,7 @@ function Announcement() {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          'Authorization': `Bearer ${sessionStorage.getItem('accessToken')}`
         },
         body: JSON.stringify({
           ...announcement,

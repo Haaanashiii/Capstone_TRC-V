@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import '../../Styles/Administrator_Css/Sidebar.css'
 import logoImage from '../../assets/TRC-vLogo.png'
@@ -78,29 +78,22 @@ function Sidebar() {
     setShowLogout(!showLogout);
   };
 
-  // Get first name from user object
-  const getFirstName = () => {
-    console.log('[AdminSidebar] Getting first name from user:', user);
+  // Memoize first name - only recalculate when user changes
+  const firstName = useMemo(() => {
+    if (!user) return 'User';
     
-    if (user?.firstName) return user.firstName;
-    if (user?.name) {
-      // If full name is stored, split and get first name
-      const firstName = user.name.split(' ')[0];
-      console.log('[AdminSidebar] First name extracted:', firstName);
-      return firstName;
-    }
-    if (user?.username) return user.username;
-    if (user?.email) return user.email.split('@')[0];
+    if (user.firstName) return user.firstName;
+    if (user.name) return user.name.split(' ')[0];
+    if (user.username) return user.username;
+    if (user.email) return user.email.split('@')[0];
     
-    console.warn('[AdminSidebar] No name fields found, using default');
     return 'User';
-  };
+  }, [user]);
 
-  // Get role display name
-  const getRoleDisplay = () => {
+  // Memoize role display - only recalculate when user changes
+  const roleDisplay = useMemo(() => {
     if (!user?.role) return 'Employee';
     
-    // Map role codes to display names
     const roleMap = {
       'super-admin': 'Super Administrator',
       'sb-admin': 'SB Employee',
@@ -111,7 +104,7 @@ function Sidebar() {
     };
     
     return roleMap[user.role] || user.role;
-  };
+  }, [user]);
 
   const menuItems = [
     { name: 'Dashboard', icon: <DashboardIcon />, path: '/sb-admin/dashboard' },
@@ -166,8 +159,8 @@ function Sidebar() {
       <div className="user-profile" onClick={toggleLogout}>
         <AccountCircleIcon className="profile-image-fallback" />
         <div className="user-info">
-          <div className="user-name">{getFirstName()}</div>
-          <div className="user-role">{getRoleDisplay()}</div>
+          <div className="user-name">{firstName}</div>
+          <div className="user-role">{roleDisplay}</div>
         </div>
         {showLogout && (
           <div className="logout-dropdown" onClick={(e) => e.stopPropagation()}>
