@@ -8,6 +8,10 @@ const upload = require('../middlewares/upload');
 router.post('/', upload.uploadOperatorDocuments, franchiseApplicationController.createFranchiseApplication);
 router.get('/', franchiseApplicationController.getAllFranchiseApplications);
 router.get('/mine', authenticate, franchiseApplicationController.getMyFranchiseApplication);
+
+// Proxy route to fetch Cloudflare files (must come before /:id to avoid conflict)
+router.get('/proxy-file', franchiseApplicationController.proxyCloudflareFile);
+
 router.get('/:id', franchiseApplicationController.getFranchiseApplication);
 router.put('/:id', franchiseApplicationController.updateFranchiseApplication);
 router.put('/:id/approve', franchiseApplicationController.approveFranchiseApplication);

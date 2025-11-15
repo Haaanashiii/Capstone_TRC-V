@@ -152,7 +152,7 @@ function App() {
         <Route 
           path="/sb-admin/announcements" 
           element={
-            <ProtectedRoute requiredRole="sb-admin">
+            <ProtectedRoute requiredRole={["sb-admin", "super-admin"]}>
               <Announcement />
             </ProtectedRoute>
           } 

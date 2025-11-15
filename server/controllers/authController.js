@@ -239,17 +239,17 @@ exports.login = async (req, res, next) => {
     }
     if (!validPassword) return res.status(401).json({ error: 'Invalid credentials' });
     
-    // Populate operator information if available (only for regular users, not admins)
+    // Populate franchise information if available (only for regular users, not admins)
     let operatorInfo = null;
-    if (!isAdmin && user.operatorInfo) {
+    if (!isAdmin && user.franchiseInfo) {
       try {
         const User = require('../models/userAccountModel');
-        const populatedUser = await User.findById(user._id).populate('operatorInfo');
-        if (populatedUser && populatedUser.operatorInfo) {
-          operatorInfo = populatedUser.operatorInfo;
+        const populatedUser = await User.findById(user._id).populate('franchiseInfo');
+        if (populatedUser && populatedUser.franchiseInfo) {
+          operatorInfo = populatedUser.franchiseInfo;
         }
       } catch (e) {
-        console.error('Error populating operator info:', e && e.message);
+        console.error('Error populating franchise info:', e && e.message);
       }
     }
     
@@ -375,9 +375,9 @@ exports.refreshToken = async (req, res, next) => {
       isAdmin = true;
     } else {
       const User = require('../models/userAccountModel');
-      user = await User.findById(session.userId).populate('operatorInfo');
-      if (user && user.operatorInfo) {
-        operatorInfo = user.operatorInfo;
+      user = await User.findById(session.userId).populate('franchiseInfo');
+      if (user && user.franchiseInfo) {
+        operatorInfo = user.franchiseInfo;
       }
     }
     

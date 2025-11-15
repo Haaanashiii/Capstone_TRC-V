@@ -9,10 +9,15 @@ import {
   Menu,
   MenuItem,
   ListItemIcon,
-  styled
+  styled,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions
 } from "@mui/material";
 import PermIdentityIcon from '@mui/icons-material/PermIdentity';
 import LogoutIcon from '@mui/icons-material/Logout';
+import WarningIcon from '@mui/icons-material/Warning';
 import { useAuth } from "../contexts/AuthContext";
 
 // Styled components for horizontal navbar
@@ -158,6 +163,7 @@ const UnifiedSidebar = ({ userType = "operator", language, onLanguageToggle, tra
   const navigate = useNavigate();
   const { user: authUser, logout, loading } = useAuth();
   const [anchorEl, setAnchorEl] = useState(null);
+  const [warningDialogOpen, setWarningDialogOpen] = useState(false);
   const menuOpen = Boolean(anchorEl);
 
   const handleMenuOpen = (e) => setAnchorEl(e.currentTarget);
@@ -214,7 +220,34 @@ const UnifiedSidebar = ({ userType = "operator", language, onLanguageToggle, tra
 
   const handleGoToId = () => {
     handleMenuClose();
-    navigate('/operator/id');
+    
+    // Check if user has operator information
+    let hasOperator = false;
+    try {
+      const token = sessionStorage.getItem('accessToken');
+      if (token) {
+        const decoded = JSON.parse(atob(token.split('.')[1]));
+        hasOperator = decoded.hasOperator === true;
+      }
+    } catch {
+      hasOperator = false;
+    }
+    
+    if (!hasOperator) {
+      // Show warning dialog instead of navigating
+      setWarningDialogOpen(true);
+    } else {
+      navigate('/operator/id');
+    }
+  };
+  
+  const handleWarningClose = () => {
+    setWarningDialogOpen(false);
+  };
+  
+  const handleGoToFranchise = () => {
+    setWarningDialogOpen(false);
+    navigate('/operator/franchise/application');
   };
 
   const getNavigationItems = () => {
@@ -361,6 +394,54 @@ const UnifiedSidebar = ({ userType = "operator", language, onLanguageToggle, tra
                   Logout
                 </MenuItem>
               </Menu>
+              
+              {/* Warning Dialog for No Operator Information */}
+              <Dialog
+                open={warningDialogOpen}
+                onClose={handleWarningClose}
+                PaperProps={{
+                  sx: {
+                    borderRadius: 3,
+                    padding: 2,
+                    maxWidth: 500
+                  }
+                }}
+              >
+                <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1, color: '#d32f2f' }}>
+                  <WarningIcon sx={{ fontSize: 32 }} />
+                  No Operator Information Found
+                </DialogTitle>
+                <DialogContent>
+                  <Typography variant="body1" sx={{ mb: 2 }}>
+                    You don't have any operator information linked to your account yet.
+                  </Typography>
+                  <Typography variant="body2" sx={{ color: '#666' }}>
+                    To view your Operator ID, you need to either:
+                  </Typography>
+                  <Box component="ul" sx={{ mt: 1, pl: 2 }}>
+                    <li><Typography variant="body2">Submit a new franchise application, or</Typography></li>
+                    <li><Typography variant="body2">Link an existing franchise to your account</Typography></li>
+                  </Box>
+                </DialogContent>
+                <DialogActions sx={{ px: 3, pb: 2 }}>
+                  <Button 
+                    onClick={handleWarningClose} 
+                    sx={{ color: '#666' }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button 
+                    onClick={handleGoToFranchise}
+                    variant="contained"
+                    sx={{ 
+                      bgcolor: '#143c6e',
+                      '&:hover': { bgcolor: '#0a3970' }
+                    }}
+                  >
+                    Submit Application
+                  </Button>
+                </DialogActions>
+              </Dialog>
             </>
           ) : (
             <UserSection>

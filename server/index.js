@@ -18,7 +18,7 @@ const adminRoutes = require('./routes/adminAccountRoutes');
 const pendingAppsRoutes = require('./routes/pendingAppsRoutes');
 const reportsRoutes = require('./routes/reportsRoutes');
 const announcementRoutes = require('./routes/announcementRoutes');
-const operatorInformationRoutes = require('./routes/operatorInformationRoutes');
+const franchiseInformationRoutes = require('./routes/franchiseInformationRoutes');
 const franchiseApplicationRoutes = require('./routes/franchiseApplicationRoutes');
 const qrCodeRoutes = require('./routes/qrCodeRoutes');
 const sessionRoutes = require('./routes/sessionRoutes');
@@ -122,7 +122,7 @@ app.use('/api/pending-apps', pendingAppsRoutes);
 app.use('/api/franchise-applications', franchiseApplicationRoutes);
 app.use('/reports', reportsRoutes);
 app.use('/announcements', announcementRoutes);
-app.use('/operators', operatorInformationRoutes);
+app.use('/franchise-information', franchiseInformationRoutes);
 app.use('/qr', qrCodeRoutes);
 app.use('/api/sessions', sessionRoutes);
 

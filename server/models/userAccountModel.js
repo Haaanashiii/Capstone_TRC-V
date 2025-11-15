@@ -26,10 +26,10 @@ const userAccountSchema = new mongoose.Schema({
     oauthId: { type: String },
     googleId: { type: String },
    
-    // REFERENCE to OperatorInformation (null for non-operators or pending applications)
-    operatorInfo: {
+    // REFERENCE to FranchiseInformation (null for non-operators or pending applications)
+    franchiseInfo: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'Operator Information',
+        ref: 'Franchise Information',
         required: false,
         default: null
     },
