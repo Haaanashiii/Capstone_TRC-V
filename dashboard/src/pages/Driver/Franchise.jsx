@@ -1,80 +1,54 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import UnifiedSidebar from "../../components/UnifiedSidebar";
+import { useAuth } from "../../contexts/AuthContext";
 import "../../Styles/Operator's_CSS/Franchise.css";
 import { Sparkles, Link2, CheckCircle, PlusCircle } from 'lucide-react';
 
 const Franchise = () => {
-  // User state for displaying user information
-  const [userDetails, setUserDetails] = useState(null);
+  // Use AuthContext for user data (consistent with UnifiedSidebar)
+  const { user: authUser } = useAuth();
   
-  // Get user info from token (same as UnifiedSidebar)
-  const getUserInfo = () => {
-    // Check sessionStorage first (where Login stores it), fallback to localStorage
-    const token = sessionStorage.getItem('accessToken') || localStorage.getItem('accessToken');
-    if (!token) return null;
+  // Get user data from AuthContext or fallback to direct token decode
+  const getUser = () => {
+    if (authUser) return authUser;
     
+    // Fallback: decode token directly (same approach as Admin Sidebar)
     try {
-      const payload = JSON.parse(atob(token.split('.')[1]));
-      return payload;
-    } catch {
-      return null;
-    }
-  };
-
-  // Get user from token
-  const user = getUserInfo();
-  
-  
-  // Fetch user details from the server (same logic as UnifiedSidebar)
-  const fetchUserDetails = async () => {
-    try {
-      // Check sessionStorage first (where Login stores it), fallback to localStorage
-      const token = sessionStorage.getItem('accessToken') || localStorage.getItem('accessToken');
-      console.log('[Franchise] Token found:', !!token);
-      if (!token) return;
-
-      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170';
-      console.log('[Franchise] Fetching from:', `${API_BASE_URL}/auth/me`);
-      
-      const response = await fetch(`${API_BASE_URL}/auth/me`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      console.log('[Franchise] Response status:', response.status);
-      if (response.ok) {
-        const data = await response.json();
-        console.log('[Franchise] User data received:', data);
-        setUserDetails(data.user);
-      } else {
-        console.error('[Franchise] Failed to fetch user details:', response.status);
+      const token = sessionStorage.getItem('accessToken');
+      if (token) {
+        const decoded = JSON.parse(atob(token.split('.')[1]));
+        return decoded;
       }
     } catch (error) {
-      console.error('[Franchise] Error fetching user details:', error);
+      console.error('[Franchise] Error decoding token:', error);
     }
-  };
-
-  // Fetch user details on component mount
-  useEffect(() => {
-    fetchUserDetails();
     
-    // session storage for identifying linked franchise if ever meron 
-    const savedFranchiseInfo = localStorage.getItem('userFranchiseInfo');
-    const savedFranchiseLinked = localStorage.getItem('franchiseLinked');
-    const savedOwnerEmail = localStorage.getItem('franchiseOwnerEmail');
+    return null;
+  };
+  
+  const currentUser = getUser();
+  
+  // Use authUser from context instead of fetching separately
+  useEffect(() => {
+    if (currentUser) {
+      console.log('[Franchise] User data:', currentUser);
+    }
+    
+    // Use sessionStorage for franchise info (cleared on tab close - more secure)
+    const savedFranchiseInfo = sessionStorage.getItem('userFranchiseInfo');
+    const savedFranchiseLinked = sessionStorage.getItem('franchiseLinked');
+    const savedOwnerUserId = sessionStorage.getItem('franchiseOwnerUserId');
 
     // Only restore saved franchise info if it belongs to the currently logged-in user
     try {
-      const token = sessionStorage.getItem('accessToken') || localStorage.getItem('accessToken');
-      let tokenEmail = null;
+      const token = sessionStorage.getItem('accessToken');
+      let tokenUserId = null;
       if (token) {
-        try { tokenEmail = JSON.parse(atob(token.split('.')[1])).email?.toLowerCase() } catch { tokenEmail = null }
+        try { tokenUserId = JSON.parse(atob(token.split('.')[1])).id } catch { tokenUserId = null }
       }
 
-      if (savedFranchiseInfo && savedFranchiseLinked === 'true' && savedOwnerEmail && tokenEmail && savedOwnerEmail === tokenEmail) {
+      if (savedFranchiseInfo && savedFranchiseLinked === 'true' && savedOwnerUserId && tokenUserId && savedOwnerUserId === tokenUserId) {
         try {
           const parsedInfo = JSON.parse(savedFranchiseInfo);
           setUserFranchiseInfo(parsedInfo);
@@ -86,7 +60,7 @@ const Franchise = () => {
     } catch {
       console.warn('Error while restoring franchise info from storage')
     }
-  }, []);
+  }, [authUser]);
 
   // Fetch approved franchises and auto-link if the logged-in operator has one
   useEffect(() => {
@@ -98,21 +72,17 @@ const Franchise = () => {
         const apps = await resp.json()
         if (!Array.isArray(apps) || !apps.length) return
 
-        // Try to match by operator name or contact
+        // Try to match by user ID from JWT
         const token = sessionStorage.getItem('accessToken')
-        let userName = null
-        let userEmail = null
+        let userId = null
         if (token) {
-          try { userName = JSON.parse(atob(token.split('.')[1])).name } catch { /* ignore */ }
-          try { userEmail = JSON.parse(atob(token.split('.')[1])).email } catch { userEmail = null }
+          try { userId = JSON.parse(atob(token.split('.')[1])).id } catch { /* ignore */ }
         }
 
         const matched = apps.find(a => {
-          if (!a) return false
-          const nm = (a.name || '').toLowerCase()
-          if (userName && nm.includes(String(userName).toLowerCase())) return true
-          // fallback: if driverName or contact matches local storage user info
-          return false
+          if (!a || !a.userId) return false
+          // Match franchise to logged-in user by userId
+          return a.userId === userId
         })
 
         if (matched) {
@@ -123,11 +93,11 @@ const Franchise = () => {
           }
           setUserFranchiseInfo(franchiseInfo)
           setFranchiseLinked(true)
-          localStorage.setItem('userFranchiseInfo', JSON.stringify(franchiseInfo))
-          localStorage.setItem('franchiseLinked', 'true')
-          // persist owner email so only that user is recognized as linked
+          sessionStorage.setItem('userFranchiseInfo', JSON.stringify(franchiseInfo))
+          sessionStorage.setItem('franchiseLinked', 'true')
+          // persist owner userId so only that user is recognized as linked
           try {
-            if (userEmail) localStorage.setItem('franchiseOwnerEmail', String(userEmail).toLowerCase())
+            if (userId) sessionStorage.setItem('franchiseOwnerUserId', userId)
           } catch { /* ignore */ }
         }
       } catch (err) {
@@ -205,25 +175,24 @@ const Franchise = () => {
   const [userFranchiseInfo, setUserFranchiseInfo] = useState(null);
   const navigate = useNavigate();
 
+  // Removed auto-redirect - users stay on Franchise page until they complete application
+  // and backend approves it (hasOperator becomes true in JWT)
   useEffect(() => {
+    console.log('[Franchise] User can now choose to link or apply for franchise');
+    // Check if user already has operator info in JWT
     try {
-      const replaced = localStorage.getItem('franchiseMenuReplaced') === 'true'
-      const linked = localStorage.getItem('franchiseLinked') === 'true'
-      const ownerEmail = localStorage.getItem('franchiseOwnerEmail')
-
-      const token = sessionStorage.getItem('accessToken') || localStorage.getItem('accessToken')
-      let tokenEmail = null
+      const token = sessionStorage.getItem('accessToken');
       if (token) {
-        try { tokenEmail = JSON.parse(atob(token.split('.')[1])).email?.toLowerCase() } catch { tokenEmail = null }
+        const decoded = JSON.parse(atob(token.split('.')[1]));
+        if (decoded.hasOperator === true) {
+          console.log('[Franchise] User has operator info, they can navigate to Operator ID');
+          // Don't auto-redirect, let user navigate via menu
+        } else {
+          console.log('[Franchise] User needs to complete franchise application');
+        }
       }
-
-      // Only redirect if the saved franchise state belongs to the currently logged-in user
-      if (replaced || (linked && ownerEmail && tokenEmail && ownerEmail === tokenEmail)) {
-        // user already applied/linked -> redirect to Operator ID
-        navigate('/operator/id')
-      }
-    } catch {
-      // If localStorage fails, don't block the page by default.
+    } catch (e) {
+      console.error('[Franchise] Error checking operator status:', e);
     }
   }, [navigate])
 
@@ -243,14 +212,14 @@ const Franchise = () => {
     setUserFranchiseInfo(franchiseInfo);
     setFranchiseLinked(true);
     
-    // para sa Storing ng  franchise info in localStorage so DriverID can access it
-    try { localStorage.setItem('userFranchiseInfo', JSON.stringify(franchiseInfo)) } catch { /* ignore */ }
-    try { localStorage.setItem('franchiseLinked', 'true') } catch { /* ignore */ }
-    // persist owner email so other users won't pick up this data
+    // Store franchise info in sessionStorage so DriverID can access it
+    try { sessionStorage.setItem('userFranchiseInfo', JSON.stringify(franchiseInfo)) } catch { /* ignore */ }
+    try { sessionStorage.setItem('franchiseLinked', 'true') } catch { /* ignore */ }
+    // persist owner userId so other users won't pick up this data
     try {
-      const token = localStorage.getItem('accessToken') || sessionStorage.getItem('accessToken')
+      const token = sessionStorage.getItem('accessToken')
       if (token) {
-        try { const payload = JSON.parse(atob(token.split('.')[1])); if (payload?.email) localStorage.setItem('franchiseOwnerEmail', String(payload.email).toLowerCase()) } catch { /* ignore */ }
+        try { const payload = JSON.parse(atob(token.split('.')[1])); if (payload?.id) sessionStorage.setItem('franchiseOwnerUserId', payload.id) } catch { /* ignore */ }
       }
     } catch { /* ignore */ }
     
@@ -285,10 +254,10 @@ const Franchise = () => {
             <div className="profile-header-inner">
               <div className="avatar-wrap">
                 <div className="avatar-square">
-                  {userDetails?.avatar_url || user?.avatar_url ? (
+                  {currentUser?.avatar_url ? (
                     <img
-                      src={userDetails?.avatar_url || user?.avatar_url}
-                      alt={(userDetails?.full_name || userDetails?.name || user?.name) || ''}
+                      src={currentUser.avatar_url}
+                      alt={(currentUser?.full_name || currentUser?.name) || ''}
                       className="avatar-img"
                     />
                   ) : (
@@ -299,8 +268,13 @@ const Franchise = () => {
               </div>
 
               <div className="profile-info">
-                <h3 className="profile-name">{(userDetails?.full_name || userDetails?.name || user?.name || t.user).toUpperCase()}</h3>
+                <h3 className="profile-name">{(currentUser?.full_name || currentUser?.name || t.user).toUpperCase()}</h3>
                 <span className={badgeClass}>{franchiseLinked ? t.franchiseLinked : t.noFranchise}</span>
+                {!currentUser?.hasOperator && (
+                  <p className="profile-desc" style={{ color: '#e74c3c', fontWeight: 600, marginTop: '8px', background: '#fee', padding: '8px 12px', borderRadius: '8px' }}>
+                    ⚠️ Complete your franchise application to access all features
+                  </p>
+                )}
                 <p className="profile-desc">Welcome! You don't have an active franchise yet. Choose an option below to get started on your franchise journey.</p>
               </div>
             </div>

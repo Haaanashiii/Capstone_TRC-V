@@ -2,8 +2,8 @@ import React from 'react';
 import { Navigate } from 'react-router-dom';
 
 const ProtectedRoute = ({ children, requiredRole = null }) => {
-  // Check sessionStorage first (primary location), fallback to localStorage for backward compatibility
-  const token = sessionStorage.getItem('accessToken') || localStorage.getItem('accessToken');
+  // Token is ONLY in sessionStorage (secure, cleared on tab close)
+  const token = sessionStorage.getItem('accessToken');
   
   // Check if user is authenticated
   if (!token) {
@@ -24,11 +24,14 @@ const ProtectedRoute = ({ children, requiredRole = null }) => {
 
   const decoded = decodeToken(token);
   
-  // Check if token is valid
+  // Check if token is valid (JWT contains: id, role, name, accountType, hasOperator)
   if (!decoded || decoded.exp * 1000 < Date.now()) {
     console.warn('[ProtectedRoute] Token expired or invalid, clearing storage');
     sessionStorage.removeItem('accessToken');
-    localStorage.removeItem('accessToken');
+    sessionStorage.removeItem('userFranchiseInfo');
+    sessionStorage.removeItem('franchiseLinked');
+    sessionStorage.removeItem('franchiseMenuReplaced');
+    sessionStorage.removeItem('franchiseOwnerUserId');
     return <Navigate to="/login" replace />;
   }
 

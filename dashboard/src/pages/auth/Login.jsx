@@ -26,6 +26,7 @@ const Login = () => {
     email: "",
     password: ""
   });
+  const [rememberMe, setRememberMe] = React.useState(false);
   const [error, setError] = React.useState("");
   const [success, setSuccess] = React.useState("");
   const [showVerificationModal, setShowVerificationModal] = React.useState(false);
@@ -50,9 +51,11 @@ const Login = () => {
     try {
       console.log("Making login API call");
       // Backend accepts 'identifier' which can be username or email
+      // Send rememberMe flag to extend refresh token expiry
       const response = await api.post('/auth/login', {
         identifier: form.email, // Can be email or username
-        password: form.password
+        password: form.password,
+        rememberMe: rememberMe // If true, backend issues 30-day refresh token
       });
 
       const data = response.data;
@@ -62,20 +65,10 @@ const Login = () => {
         TokenManager.setTokens(data.accessToken);
         console.log('[Login] Access token stored in sessionStorage');
         
-        // Store user info in sessionStorage (matching token storage location)
-        if (data.user) {
-          try {
-            sessionStorage.setItem('user', JSON.stringify(data.user));
-            console.log('[Login] User data stored:', data.user);
-            
-            // Log operator info if available
-            if (data.user.operator) {
-              console.log('[Login] Operator info available:', data.user.operator);
-            }
-          } catch (err) {
-            console.warn('[Login] Failed to store user data:', err);
-          }
-        }
+        // User data is now in JWT - no need to store separately
+        // All user info can be decoded from the token when needed
+        const tokenData = TokenManager.decodeToken(data.accessToken);
+        console.log('[Login] JWT contains:', tokenData);
       }
 
       // Refresh token is automatically stored in HTTP-only cookie by backend
@@ -96,7 +89,7 @@ const Login = () => {
     setSuccess("Login successful!");
     setIsLoading(true);
     
-    console.log('[Login] OTP verification successful, checking stored data...');
+    console.log('[Login] OTP verification successful, checking stored token...');
     
     // Verify token is still in storage
     const token = TokenManager.getAccessToken();
@@ -109,32 +102,21 @@ const Login = () => {
       return;
     }
     
-    // Get user data from sessionStorage (matching token storage location)
+    // Decode JWT to get user data (only source of truth)
     let userData = null;
     try {
-      const storedUser = sessionStorage.getItem('user');
-      console.log('[Login] Stored user data:', storedUser);
-      if (storedUser) {
-        userData = JSON.parse(storedUser);
-      }
+      userData = TokenManager.decodeToken(token);
+      console.log('[Login] Decoded JWT data:', userData);
     } catch (err) {
-      console.warn('[Login] Failed to parse stored user data:', err.message);
+      console.error('[Login] Failed to decode JWT:', err.message);
+      setError('Invalid session. Please login again.');
+      setIsLoading(false);
+      return;
     }
     
-    // Fallback to decoding JWT if user data not in sessionStorage
-    if (!userData) {
-      console.log('[Login] No stored user data, decoding from JWT...');
-      try {
-        userData = TokenManager.decodeToken(token);
-        console.log('[Login] Decoded user data:', userData);
-      } catch (err) {
-        console.error('[Login] Failed to decode JWT:', err.message);
-      }
-    }
-    
-    // Redirect based on role
+    // Redirect based on role from JWT
     if (userData && userData.role) {
-      console.log('[Login] User data found. Role:', userData.role, 'Full data:', userData);
+      console.log('[Login] Role:', userData.role, 'AccountType:', userData.accountType, 'HasOperator:', userData.hasOperator);
       console.log('[Login] Attempting navigation to role-based route...');
       
       if (userData.role === 'operator') {
@@ -152,8 +134,8 @@ const Login = () => {
       }
     } else {
       // Fallback if role is not found
-      console.error('[Login] ERROR: No user data or role found!');
-      console.error('[Login] userData:', userData);
+      console.error('[Login] ERROR: No role found in JWT!');
+      console.error('[Login] JWT payload:', userData);
       setError('Unable to determine user role. Please login again.');
       setIsLoading(false);
     }
@@ -208,7 +190,14 @@ const Login = () => {
               />
               <Box className="login-options">
                 <FormControlLabel
-                  control={<Checkbox size="small" className="login-checkbox" />}
+                  control={
+                    <Checkbox 
+                      size="small" 
+                      className="login-checkbox" 
+                      checked={rememberMe}
+                      onChange={(e) => setRememberMe(e.target.checked)}
+                    />
+                  }
                   label={<Typography variant="body2" style={{ fontSize: '0.9rem', fontFamily: 'Poppins, sans-serif' }}>Remember me</Typography>}
                   className="login-remember"
                 />

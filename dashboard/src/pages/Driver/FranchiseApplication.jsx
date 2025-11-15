@@ -7,6 +7,7 @@ import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import dayjs from "dayjs";
 import { franchiseAPI } from '../Services/api';
+import { validateFile, formatFileSize } from '../../utils/fileValidation';
 import "../../Styles/Operator's_CSS/FranchiseApplication.css";
 
 export default function FranchiseApplication() {
@@ -37,9 +38,9 @@ export default function FranchiseApplication() {
       reqDocuments: "DOCUMENTARY REQUIREMENTS",
       docInstructions: "Please upload clear scanned copies or photos of the following documents.",
       docFormat1: "Accepted formats: JPG, PNG, or PDF",
-      docFormat2: "Maximum file size: 5MB per file",
+      docFormat2: "Maximum file size: 10MB per file (will be compressed to ~300KB)",
       docFormat3: "All documents must be valid, complete, and readable",
-      docFormat4: "Incomplete submissions will not be processed.",
+      docFormat4: "Files will be automatically optimized for quality and size",
       selectFile: "Select a File",
       upload: "Upload",
       photoRegistration: "Photocopy of Registration",
@@ -90,9 +91,9 @@ export default function FranchiseApplication() {
       reqDocuments: "MGA KINAKAILANGANG DOKUMENTO",
       docInstructions: "Mangyaring mag-upload ng malinaw na scanned copies o mga larawan ng mga sumusunod na dokumento.",
       docFormat1: "Mga tanggap na format: JPG, PNG, o PDF",
-      docFormat2: "Pinakamataas na laki ng file: 5MB bawat file",
+      docFormat2: "Pinakamataas na laki ng file: 10MB bawat file (awtomatikong ie-compress sa ~300KB)",
       docFormat3: "Ang lahat ng mga dokumento ay dapat na valid, kumpleto, at mababasa",
-      docFormat4: "Ang mga hindi kumpletong submission ay hindi mapoproseso.",
+      docFormat4: "Awtomatikong i-o-optimize ang mga file para sa kalidad at laki",
       selectFile: "Pumili ng File",
       upload: "I-upload",
       photoRegistration: "Photocopy ng Rehistrasyon",
@@ -130,7 +131,30 @@ export default function FranchiseApplication() {
   const modalFileRef = useRef();
 
   const handleModalFileChange = (e) => {
-    setModalFile(e.target.files[0]);
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    // Validate file
+    const validation = validateFile(file);
+    if (!validation.success) {
+      setToast({
+        open: true,
+        message: validation.message,
+        severity: 'error'
+      });
+      return;
+    }
+    
+    // Show compression info if file is large
+    if (validation.message && file.size > 300 * 1024) {
+      setToast({
+        open: true,
+        message: `${validation.message} - ${formatFileSize(file.size)} → ~300KB`,
+        severity: 'info'
+      });
+    }
+    
+    setModalFile(file);
   };
   const [fields, setFields] = useState({
     date: dayjs(),
@@ -443,26 +467,30 @@ export default function FranchiseApplication() {
                 
                       const formDataToSend = new FormData();
 
-                      formDataToSend.append('name', fields.operatorName || '');
-                      formDataToSend.append('applicationType', 'New');
-                      formDataToSend.append('address', fields.driverAddress || '');
-                      formDataToSend.append('contactNumber', fields.contact || '');
-                      formDataToSend.append('sidecarPlateNumber', fields.sidecarPlate || '');
+                      // Personal Information - Backend expects these exact field names
+                      formDataToSend.append('operatorName', fields.operatorName || '');
+                      formDataToSend.append('operatorContact', fields.contact || '');
+                      formDataToSend.append('operatorAddress', fields.driverAddress || '');
+                      formDataToSend.append('actionType', 'NEW'); // Backend expects uppercase
+                      
+                      // Driver/Operator Details
+                      formDataToSend.append('driversID', fields.driverName || '');
+                      formDataToSend.append('driversAddress', fields.driverAddress || '');
                       formDataToSend.append('birthPlace', fields.birthPlace || '');
                       formDataToSend.append('birthDate', fields.birthDate ? (fields.birthDate.format ? fields.birthDate.format('YYYY-MM-DD') : fields.birthDate) : '');
                       formDataToSend.append('civilStatus', fields.civilStatus || '');
                       formDataToSend.append('citizenship', fields.citizenship || '');
                       formDataToSend.append('todaMembership', fields.todaMembership || '');
+                      
+                      // Vehicle Information
                       formDataToSend.append('unitModel', fields.unitModel || '');
                       formDataToSend.append('colorMotor', fields.colorMotor || '');
-                      formDataToSend.append('colorSidecar', fields.colorSidecar || '');
-                      formDataToSend.append('mvPlate', fields.mvPlate || '');
-                      formDataToSend.append('motorEngineNumber', fields.motorEngineNumber || '');
-                      formDataToSend.append('chassisNumber', fields.chassisNumber || '');
-                      formDataToSend.append('driverName', fields.driverName || '');
-                      formDataToSend.append('driverAddress', fields.driverAddress || '');
+                      formDataToSend.append('sideCar', fields.colorSidecar || ''); // Backend expects 'sideCar' not 'colorSidecar'
+                      formDataToSend.append('mvPlateNo', fields.mvPlate || ''); // Backend expects 'mvPlateNo'
+                      formDataToSend.append('motorEngineNo', fields.motorEngineNumber || ''); // Backend expects 'motorEngineNo'
+                      formDataToSend.append('chasisNo', fields.chassisNumber || ''); // Backend expects 'chasisNo'
 
-                      
+                      // Documents - These will be uploaded to Cloudflare R2
                       if (uploads.registration) formDataToSend.append('documentRegistration', uploads.registration);
                       if (uploads.barangay) formDataToSend.append('documentBarangayClearance', uploads.barangay);
                       if (uploads.cedula) formDataToSend.append('documentCedula', uploads.cedula);
@@ -502,14 +530,14 @@ export default function FranchiseApplication() {
                       
                       console.log('[FranchiseApplication] Application submitted successfully')
                      
-                      try { localStorage.setItem('franchiseMenuReplaced', 'true') } catch { /* ignore */ }
-                      // persist owner email so the operator mapping is consistent
+                      try { sessionStorage.setItem('franchiseMenuReplaced', 'true') } catch { /* ignore */ }
+                      // persist owner userId so the operator mapping is consistent
                       try {
-                        const token = localStorage.getItem('accessToken') || sessionStorage.getItem('accessToken')
+                        const token = sessionStorage.getItem('accessToken')
                         if (token) {
                           try {
                             const payload = JSON.parse(atob(token.split('.')[1]));
-                            if (payload?.email) localStorage.setItem('franchiseOwnerEmail', String(payload.email).toLowerCase())
+                            if (payload?.id) sessionStorage.setItem('franchiseOwnerUserId', payload.id)
                           } catch { /* ignore */ }
                         }
                       } catch { /* ignore */ }
@@ -519,10 +547,10 @@ export default function FranchiseApplication() {
                       
                       try {
                         setTimeout(() => {
-                          navigate('/operator/id')
-                        }, 5000) 
+                          navigate('/')
+                        }, 3000) 
                       } catch {
-                        navigate('/operator/id')
+                        navigate('/')
                       }
                     } catch (err) {
                       console.error('[FranchiseApplication] Failed to submit application:', err)

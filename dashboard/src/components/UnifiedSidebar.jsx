@@ -75,8 +75,8 @@ const NavigationSection = styled(Box)(() => ({
   boxShadow: 'none'
 }));
 
-const NavButton = styled(Button)(({ isActive }) => ({
-  color: isActive ? 'white' : '#111',
+const NavButton = styled(Button)(({ isActive, disabled }) => ({
+  color: disabled ? '#999' : (isActive ? 'white' : '#111'),
   backgroundColor: isActive ? '#143c6e' : 'transparent', // active uses the requested blue
   fontWeight: 600,
   padding: '8px 12px',
@@ -85,11 +85,14 @@ const NavButton = styled(Button)(({ isActive }) => ({
   textTransform: 'none',
   minWidth: 'auto',
   whiteSpace: 'nowrap',
+  cursor: disabled ? 'not-allowed' : 'pointer',
+  opacity: disabled ? 0.5 : 1,
   '&:hover': {
-    backgroundColor: isActive ? '#143c6e' : '#f0f0f0',
-    transform: 'translateY(-2px)',
+    backgroundColor: disabled ? 'transparent' : (isActive ? '#143c6e' : '#f0f0f0'),
+    transform: disabled ? 'none' : 'translateY(-2px)',
   },
   flexShrink: 0,
+  pointerEvents: disabled ? 'none' : 'auto',
 }));
 
 const UserSection = styled(Box)(() => ({
@@ -153,26 +156,44 @@ const LangGroup = styled(Box)(() => ({
 const UnifiedSidebar = ({ userType = "operator", language, onLanguageToggle, translations }) => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user: authUser, logout } = useAuth();
+  const { user: authUser, logout, loading } = useAuth();
   const [anchorEl, setAnchorEl] = useState(null);
   const menuOpen = Boolean(anchorEl);
 
   const handleMenuOpen = (e) => setAnchorEl(e.currentTarget);
   const handleMenuClose = () => setAnchorEl(null);
 
-  // Build a friendly display name from AuthContext user or fall back to token username
-  const getDisplayName = (u) => {
-    if (!u) return 'USER';
-    const full = u.full_name || u.name || u.username || u.email;
-    if (!full) return 'USER';
-    // Prefer showing first name (and last initial if present)
-    const parts = String(full).trim().split(/\s+/);
-    const first = parts[0];
-    const last = parts.slice(1).join(' ');
-    return last ? `${first} ${String(last).charAt(0).toUpperCase()}` : first;
+  // Build a friendly display name from AuthContext user or fall back to direct token decode
+  const getDisplayName = () => {
+    // First, try to use AuthContext user (preferred)
+    if (authUser?.name) {
+      const parts = String(authUser.name).trim().split(/\s+/);
+      const first = parts[0];
+      const last = parts.slice(1).join(' ');
+      return last ? `${first} ${String(last).charAt(0).toUpperCase()}` : first;
+    }
+    
+    // Fallback: directly decode token from sessionStorage (same as Admin Sidebar)
+    try {
+      const token = sessionStorage.getItem('accessToken');
+      if (token) {
+        const decoded = JSON.parse(atob(token.split('.')[1]));
+        if (decoded?.name) {
+          const parts = String(decoded.name).trim().split(/\s+/);
+          const first = parts[0];
+          const last = parts.slice(1).join(' ');
+          return last ? `${first} ${String(last).charAt(0).toUpperCase()}` : first;
+        }
+      }
+    } catch (error) {
+      console.error('[UnifiedSidebar] Error decoding token:', error);
+    }
+    
+    return 'USER';
   };
 
-  const displayName = getDisplayName(authUser);
+  // Wait for loading to complete before displaying name
+  const displayName = loading ? 'Loading...' : getDisplayName();
 
   const handleLogout = async () => {
     console.log('[UnifiedSidebar] Logout initiated');
@@ -180,13 +201,11 @@ const UnifiedSidebar = ({ userType = "operator", language, onLanguageToggle, tra
     
     // use AuthContext logout then navigate to landing page
     try {
-      await logout(); // Now async - calls backend
+      await logout(); // Now async - calls backend and clears all tokens
       console.log('[UnifiedSidebar] Logout successful, navigating to home');
     } catch (error) {
-      // best-effort: log and remove tokens
       console.error('[UnifiedSidebar] Error during logout:', error);
-      sessionStorage.removeItem('accessToken');
-      localStorage.removeItem('accessToken');
+      // AuthContext logout handles token cleanup even on error
     } finally {
       // Always navigate to home page after logout
       navigate('/');
@@ -201,22 +220,33 @@ const UnifiedSidebar = ({ userType = "operator", language, onLanguageToggle, tra
   const getNavigationItems = () => {
     switch (userType) {
       case "operator": {
+        // Check if user has operator information from JWT token
+        let hasOperator = false;
+        try {
+          const token = sessionStorage.getItem('accessToken');
+          if (token) {
+            const decoded = JSON.parse(atob(token.split('.')[1]));
+            hasOperator = decoded.hasOperator === true;
+          }
+        } catch {
+          hasOperator = false;
+        }
        
         let franchiseLabel = 'MY FRANCHISE'
         try {
-          if (typeof window !== 'undefined' && window.localStorage) {
-            const replaced = localStorage.getItem('franchiseMenuReplaced')
-            const linked = localStorage.getItem('franchiseLinked')
-            const storedOwner = localStorage.getItem('franchiseOwnerEmail')
-            let tokenEmail = null
+          if (typeof window !== 'undefined' && window.sessionStorage) {
+            const replaced = sessionStorage.getItem('franchiseMenuReplaced')
+            const linked = sessionStorage.getItem('franchiseLinked')
+            const storedOwnerUserId = sessionStorage.getItem('franchiseOwnerUserId')
+            let tokenUserId = null
             try {
-              const token = sessionStorage.getItem('accessToken') || localStorage.getItem('accessToken')
-              if (token) tokenEmail = JSON.parse(atob(token.split('.')[1])).email?.toLowerCase()
+              const token = sessionStorage.getItem('accessToken')
+              if (token) tokenUserId = JSON.parse(atob(token.split('.')[1])).id
             } catch {
-              tokenEmail = null
+              tokenUserId = null
             }
 
-            const ownerMatches = storedOwner && tokenEmail && String(storedOwner).toLowerCase() === String(tokenEmail).toLowerCase()
+            const ownerMatches = storedOwnerUserId && tokenUserId && storedOwnerUserId === tokenUserId
 
            
             const effectiveReplaced = replaced === 'true' && ownerMatches
@@ -225,15 +255,21 @@ const UnifiedSidebar = ({ userType = "operator", language, onLanguageToggle, tra
             if (effectiveReplaced || effectiveLinked) franchiseLabel = 'REQUEST FOR AMENDMENT'
           }
         } catch {
-          // ignore localStorage/token errors
+          // ignore sessionStorage/token errors
         }
 
         // If label replaced, route to the Request Amendment page instead of the franchise page
         const franchisePath = franchiseLabel === 'REQUEST FOR AMENDMENT' ? '/request-amendment' : '/operator/franchise'
+        
+        // Determine if franchise menu should be disabled
+        // Only disable if it's "REQUEST FOR AMENDMENT" and user lacks operator info
+        const franchiseDisabled = franchiseLabel === 'REQUEST FOR AMENDMENT' && !hasOperator;
+        
+        // If user doesn't have operator info yet, disable REQUEST FOR AMENDMENT and OPERATOR ID
         return [
-          { label: "HOME", path: "/", isActive: location.pathname === "/" },
-          { label: franchiseLabel, path: franchisePath, isActive: location.pathname === franchisePath },
-          { label: "OPERATOR ID", path: "/operator/id", isActive: location.pathname === "/operator/id" },
+          { label: "HOME", path: "/", isActive: location.pathname === "/", disabled: false },
+          { label: franchiseLabel, path: franchisePath, isActive: location.pathname === franchisePath, disabled: franchiseDisabled },
+          { label: "OPERATOR ID", path: "/operator/id", isActive: location.pathname === "/operator/id", disabled: !hasOperator },
         ];
       }
       case "admin": //for bplo-admin?
@@ -282,9 +318,12 @@ const UnifiedSidebar = ({ userType = "operator", language, onLanguageToggle, tra
         {navigationItems.map((item, index) => (
           <NavButton
             key={index}
-            component={Link}
-            to={item.path}
+            component={item.disabled ? 'button' : Link}
+            to={item.disabled ? undefined : item.path}
             isActive={item.isActive}
+            disabled={item.disabled}
+            onClick={item.disabled ? (e) => e.preventDefault() : undefined}
+            title={item.disabled ? 'Complete your franchise application first' : undefined}
           >
             {item.label}
           </NavButton>

@@ -35,10 +35,10 @@ function DriverID() {
   
   const t = translations[language];
   
-  // Check franchise status from localStorage or API
+  // Check franchise status from sessionStorage or API
   const checkFranchiseStatus = () => {
-    // Check if user has linked franchise (this could be stored in localStorage or fetched from API)
-    const franchiseData = localStorage.getItem('userFranchiseInfo');
+    // Check if user has linked franchise (stored in sessionStorage - cleared on tab close)
+    const franchiseData = sessionStorage.getItem('userFranchiseInfo');
     if (franchiseData) {
       try {
         const parsedData = JSON.parse(franchiseData);
@@ -54,8 +54,8 @@ function DriverID() {
   
   // Get user info from token
   const getUserInfo = () => {
-    // Check sessionStorage first (where Login stores it), fallback to localStorage
-    const token = sessionStorage.getItem('accessToken') || localStorage.getItem('accessToken');
+    // Token is stored in sessionStorage (secure, cleared on tab close)
+    const token = sessionStorage.getItem('accessToken');
     if (!token) return null;
     
     try {
@@ -69,8 +69,8 @@ function DriverID() {
   // Fetch full user details from the server
   const fetchUserDetails = React.useCallback(async () => {
     try {
-      // Check sessionStorage first (where Login stores it), fallback to localStorage
-      const token = sessionStorage.getItem('accessToken') || localStorage.getItem('accessToken');
+      // Token is stored in sessionStorage
+      const token = sessionStorage.getItem('accessToken');
       if (!token) return;
 
       const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170';
@@ -92,10 +92,10 @@ function DriverID() {
       } else {
         console.log('DriverID: /auth/me returned non-ok. Clearing any stored franchise info to avoid stale data.');
         // If server says the user is not available (e.g., deleted), clear any stored franchise
-        try { localStorage.removeItem('userFranchiseInfo') } catch { /* ignore */ }
-        try { localStorage.removeItem('franchiseLinked') } catch { /* ignore */ }
-        try { localStorage.removeItem('franchiseMenuReplaced') } catch { /* ignore */ }
-        try { localStorage.removeItem('franchiseOwnerEmail') } catch { /* ignore */ }
+        sessionStorage.removeItem('userFranchiseInfo');
+        sessionStorage.removeItem('franchiseLinked');
+        sessionStorage.removeItem('franchiseMenuReplaced');
+        sessionStorage.removeItem('franchiseOwnerUserId');
         setFranchiseStatus(null);
         // Do not blindly trust token fallback when server indicates user missing. Use token data only as display fallback.
         const tokenUser = getUserInfo();
@@ -104,9 +104,9 @@ function DriverID() {
     } catch (error) {
       console.error('DriverID: Error fetching user details:', error);
      
-      try { localStorage.removeItem('userFranchiseInfo') } catch { /* ignore */ }
-      try { localStorage.removeItem('franchiseLinked') } catch { /* ignore */ }
-      try { localStorage.removeItem('franchiseOwnerEmail') } catch { /* ignore */ }
+      sessionStorage.removeItem('userFranchiseInfo');
+      sessionStorage.removeItem('franchiseLinked');
+      sessionStorage.removeItem('franchiseOwnerUserId');
       setFranchiseStatus(null);
       const tokenUser = getUserInfo();
       setUser(tokenUser || null);
@@ -115,43 +115,52 @@ function DriverID() {
 
   // Fetch user details on component mount
   useEffect(() => {
-    // Check sessionStorage first (where Login stores it), fallback to localStorage
-    const token = sessionStorage.getItem('accessToken') || localStorage.getItem('accessToken');
+    // Token is only in sessionStorage (secure storage)
+    const token = sessionStorage.getItem('accessToken');
     if (token) {
       console.log('[DriverID] Token found, initializing user data...');
       const tokenUser = getUserInfo();
       if (tokenUser) {
         console.log('[DriverID] User from token:', tokenUser);
+        
+        // GATE-KEEPING: Check if user has operator information
+        if (!tokenUser.hasOperator) {
+          console.warn('[DriverID] User does not have operator info yet, redirecting to Franchise page');
+          navigate('/operator/franchise');
+          return;
+        }
+        
         setUser(tokenUser);
       }
     
       fetchUserDetails();
     } else {
-      console.warn('[DriverID] No token found in storage');
+      console.warn('[DriverID] No token found in sessionStorage');
+      navigate('/login');
     }
     // Check franchise status
     checkFranchiseStatus();
    
-  }, [fetchUserDetails]);
+  }, [fetchUserDetails, navigate]);
 
   
   useEffect(() => {
     try {
       if (!user) return;
-      const storedOwner = localStorage.getItem('franchiseOwnerEmail');
-      const email = user.email || user.username || user.name || '';
-      if (!storedOwner || storedOwner !== String(email)) {
+      const storedOwnerUserId = sessionStorage.getItem('franchiseOwnerUserId');
+      const userId = user.id;
+      if (!storedOwnerUserId || storedOwnerUserId !== userId) {
         // clear any stale franchise info for other users
-        try { localStorage.removeItem('userFranchiseInfo') } catch { /* ignore */ }
-        try { localStorage.removeItem('franchiseLinked') } catch { /* ignore */ }
+        sessionStorage.removeItem('userFranchiseInfo');
+        sessionStorage.removeItem('franchiseLinked');
       }
 
 
       (async () => {
         try {
           const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170'
-          // Check sessionStorage first (where Login stores it), fallback to localStorage
-          const token = sessionStorage.getItem('accessToken') || localStorage.getItem('accessToken');
+          // Token is only in sessionStorage (secure storage)
+          const token = sessionStorage.getItem('accessToken');
         
           if (token) {
             try {
@@ -169,9 +178,9 @@ function DriverID() {
                     linkedDate: matched.approvedAt || new Date().toLocaleDateString()
                   }
                   setFranchiseStatus('ACTIVE')
-                  try { localStorage.setItem('userFranchiseInfo', JSON.stringify(franchiseInfo)) } catch { /* ignore */ }
-                  try { localStorage.setItem('franchiseLinked', 'true') } catch { /* ignore */ }
-                  try { localStorage.setItem('franchiseOwnerEmail', email) } catch { /* ignore */ }
+                  sessionStorage.setItem('userFranchiseInfo', JSON.stringify(franchiseInfo));
+                  sessionStorage.setItem('franchiseLinked', 'true');
+                  sessionStorage.setItem('franchiseOwnerUserId', userId);
                   setMatchedFranchise(matched);
             
                   const approvedRaw = matched.approvedAt || '';
@@ -245,9 +254,10 @@ function DriverID() {
             }
             setFranchiseStatus('ACTIVE')
            
-            try { localStorage.setItem('userFranchiseInfo', JSON.stringify(franchiseInfo)) } catch { /* ignore */ }
-            try { localStorage.setItem('franchiseLinked', 'true') } catch { /* ignore */ }
-            try { localStorage.setItem('franchiseOwnerEmail', tokenEmail) } catch { /* ignore */ }
+            sessionStorage.setItem('userFranchiseInfo', JSON.stringify(franchiseInfo));
+            sessionStorage.setItem('franchiseLinked', 'true');
+            const tokenUserId = getUserInfo()?.id;
+            if (tokenUserId) sessionStorage.setItem('franchiseOwnerUserId', tokenUserId);
 
             setMatchedFranchise(matched);
     
