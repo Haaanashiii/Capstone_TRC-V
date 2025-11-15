@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import '../../Styles/Administrator_Css/UserManagement.css';
 import Sidebar from './Sidebar';
 import AccountVerificationModal from '../Services/AccountVerificationModal';
-import { authAPI, userAPI } from '../Services/api';
+import { authAPI, adminAPI } from '../Services/api';
 import {
   Box, 
   Typography, 
@@ -92,25 +92,25 @@ function UserManagement() {
   const rowsPerPage = 5;
 
   /**
-   * Fetch users from backend (only admin users)
-   * Uses secure userAPI.getAll() with automatic token refresh
+   * Fetch admin accounts from backend
+   * Uses secure adminAPI.getAll() with automatic token refresh
    */
   const fetchUsers = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await userAPI.getAll();
+      const response = await adminAPI.getAll();
       
-      console.log('[UserManagement] Fetched users:', response.data?.length || 0);
+      console.log('[UserManagement] Fetched admins:', response.data?.length || 0);
       
-      // Filter to show only Sangguniang Bayan and BPLO admins
+      // Filter to show only Sangguniang Bayan and BPLO admins (exclude super-admin)
       const adminUsers = Array.isArray(response.data) 
         ? response.data.filter(user => user.role === 'sb-admin' || user.role === 'bplo-admin')
         : [];
       setUsers(adminUsers);
       setError('');
     } catch (err) {
-      console.error('[UserManagement] Error fetching users:', err);
-      setError(err.response?.data?.error || 'Failed to load users. Please try again.');
+      console.error('[UserManagement] Error fetching admins:', err);
+      setError(err.response?.data?.error || 'Failed to load admin accounts. Please try again.');
       setUsers([]);
     } finally {
       setLoading(false);
@@ -160,10 +160,10 @@ function UserManagement() {
     setError('');
     setSuccess('');
     
-    // Debug log to check user structure
+    // Debug log to check admin structure
     if (user) {
-      console.log('[UserManagement] Opening modal for user:', {
-        userId: user.userId,
+      console.log('[UserManagement] Opening modal for admin:', {
+        adminId: user.adminId,
         _id: user._id,
         id: user.id,
         fullUser: user
@@ -232,27 +232,27 @@ function UserManagement() {
           updateData.password = newUser.password;
         }
         
-        // Get the correct user ID (try userId first, then _id, then id)
-        const userId = selectedUser.userId || selectedUser._id || selectedUser.id;
+        // Get the correct admin ID (try adminId first, then _id, then id)
+        const adminId = selectedUser.adminId || selectedUser._id || selectedUser.id;
         
-        console.log('[UserManagement] Updating user with ID:', userId);
+        console.log('[UserManagement] Updating admin with ID:', adminId);
         
-        if (!userId) {
-          throw new Error('User ID not found');
+        if (!adminId) {
+          throw new Error('Admin ID not found');
         }
         
-        const response = await userAPI.update(userId, updateData);
+        const response = await adminAPI.update(adminId, updateData);
         
-        console.log('[UserManagement] User updated:', response.data);
+        console.log('[UserManagement] Admin updated:', response.data);
         
-        setSuccess('User updated successfully');
+        setSuccess('Admin account updated successfully');
         await fetchUsers();
         setTimeout(() => {
           handleCloseModal();
         }, 1500);
       } catch (err) {
-        console.error('[UserManagement] Error updating user:', err);
-        setError(err.response?.data?.error || 'Failed to update user');
+        console.error('[UserManagement] Error updating admin:', err);
+        setError(err.response?.data?.error || 'Failed to update admin account');
       } finally {
         setLoading(false);
       }
@@ -287,8 +287,8 @@ function UserManagement() {
   }, [isEditing, newUser, selectedUser, handleCloseModal, fetchUsers]);
 
   /**
-   * Handle verification success - create user
-   * Uses secure userAPI.create()
+   * Handle verification success - create admin account
+   * Uses secure adminAPI.create()
    */
   const handleVerificationSuccess = useCallback(async () => {
     if (!pendingUserData) return;
@@ -296,11 +296,11 @@ function UserManagement() {
     try {
       setLoading(true);
       
-      const response = await userAPI.create(pendingUserData);
+      const response = await adminAPI.create(pendingUserData);
       
-      console.log('[UserManagement] User created:', response.data);
+      console.log('[UserManagement] Admin created:', response.data);
       
-      setSuccess('User created and verified successfully!');
+      setSuccess('Admin account created and verified successfully!');
       setPendingUserData(null);
       await fetchUsers();
       
@@ -308,46 +308,46 @@ function UserManagement() {
         setSuccess('');
       }, 3000);
     } catch (err) {
-      console.error('[UserManagement] Error creating user:', err);
-      setError(err.response?.data?.error || 'Failed to create user');
+      console.error('[UserManagement] Error creating admin:', err);
+      setError(err.response?.data?.error || 'Failed to create admin account');
     } finally {
       setLoading(false);
     }
   }, [pendingUserData, fetchUsers]);
 
   /**
-   * Handle delete user
-   * Uses secure userAPI.delete()
+   * Handle delete admin account
+   * Uses secure adminAPI.delete()
    */
   const handleDeleteUser = useCallback(async (user) => {
-    if (!window.confirm("Are you sure you want to delete this user?")) return;
+    if (!window.confirm("Are you sure you want to delete this admin account?")) return;
     
     try {
       setLoading(true);
       setError('');
       
-      // Get the correct user ID (try userId first, then _id, then id)
-      const userId = user.userId || user._id || user.id;
+      // Get the correct admin ID (try adminId first, then _id, then id)
+      const adminId = user.adminId || user._id || user.id;
       
-      console.log('[UserManagement] Deleting user with ID:', userId);
+      console.log('[UserManagement] Deleting admin with ID:', adminId);
       
-      if (!userId) {
-        throw new Error('User ID not found');
+      if (!adminId) {
+        throw new Error('Admin ID not found');
       }
       
-      await userAPI.delete(userId);
+      await adminAPI.delete(adminId);
       
-      console.log('[UserManagement] User deleted:', userId);
+      console.log('[UserManagement] Admin deleted:', adminId);
       
-      setSuccess('User deleted successfully');
+      setSuccess('Admin account deleted successfully');
       await fetchUsers();
       
       setTimeout(() => {
         setSuccess('');
       }, 3000);
     } catch (err) {
-      console.error('[UserManagement] Error deleting user:', err);
-      setError(err.response?.data?.error || 'Failed to delete user');
+      console.error('[UserManagement] Error deleting admin:', err);
+      setError(err.response?.data?.error || 'Failed to delete admin account');
     } finally {
       setLoading(false);
     }
@@ -436,7 +436,7 @@ function UserManagement() {
               <TableBody>
                 {paginatedUsers.length > 0 ? (
                   paginatedUsers.map((user) => (
-                    <StyledTableRow key={user.userId || user._id}>
+                    <StyledTableRow key={user.adminId || user._id}>
                       <StyledTableCell>{user.name}</StyledTableCell>
                       <StyledTableCell>{user.username}</StyledTableCell>
                       <StyledTableCell>{user.email}</StyledTableCell>

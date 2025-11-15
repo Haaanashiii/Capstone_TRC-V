@@ -508,5 +508,77 @@ export const userAPI = {
   delete: (id) => api.delete(`/users/${id}`)
 };
 
+// ====================================================================
+// ADMIN ACCOUNT API METHODS
+// ====================================================================
+
+export const adminAPI = {
+  /**
+   * Get all admin accounts
+   * @param {object} params - Query parameters { includeInactive }
+   * @returns {Promise} Response with admin accounts array
+   */
+  getAll: (params = {}) => api.get('/admins', { params }),
+
+  /**
+   * Get admin by ID
+   * @param {string} id - Admin ID (adminId or _id)
+   * @returns {Promise} Response with admin details
+   */
+  getById: (id) => api.get(`/admins/${id}`),
+
+  /**
+   * Get admins by role
+   * @param {string} role - Admin role (sb-admin, bplo-admin, super-admin)
+   * @returns {Promise} Response with admins array
+   */
+  getByRole: (role) => api.get(`/admins/role/${role}`),
+
+  /**
+   * Create new admin account
+   * @param {object} adminData - Admin account data
+   * @returns {Promise} Response with created admin
+   */
+  create: (adminData) => api.post('/admins', adminData),
+
+  /**
+   * Update admin account
+   * @param {string} id - Admin ID (adminId or _id)
+   * @param {object} data - Updated admin data
+   * @returns {Promise} Response with updated admin
+   */
+  update: (id, data) => api.put(`/admins/${id}`, data),
+
+  /**
+   * Deactivate admin account (soft delete)
+   * @param {string} id - Admin ID (adminId or _id)
+   * @returns {Promise} Response
+   */
+  deactivate: (id) => api.patch(`/admins/${id}/deactivate`),
+
+  /**
+   * Delete admin account (hard delete)
+   * @param {string} id - Admin ID (adminId or _id)
+   * @returns {Promise} Response
+   */
+  delete: (id) => api.delete(`/admins/${id}`),
+
+  /**
+   * Add permission to admin
+   * @param {string} id - Admin ID (adminId or _id)
+   * @param {string} permission - Permission to add
+   * @returns {Promise} Response with updated admin
+   */
+  addPermission: (id, permission) => api.post(`/admins/${id}/permissions`, { permission }),
+
+  /**
+   * Remove permission from admin
+   * @param {string} id - Admin ID (adminId or _id)
+   * @param {string} permission - Permission to remove
+   * @returns {Promise} Response with updated admin
+   */
+  removePermission: (id, permission) => api.delete(`/admins/${id}/permissions`, { data: { permission } })
+};
+
 // Export default api instance for custom requests
 export default api;

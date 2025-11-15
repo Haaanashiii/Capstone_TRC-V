@@ -96,7 +96,7 @@ function Sidebar() {
     
     console.warn('[AdminSidebar] No name field found, using default');
     return 'Admin';
-  };
+  }, [user]);
 
   // Memoize role display - only recalculate when user changes
   const roleDisplay = useMemo(() => {

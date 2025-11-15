@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
-import './FranchiseMgmt.css'
+import '../../Styles/Administrator_Css/FranchiseMgmt.css'
 import Sidebar from './Sidebar'
 import { franchiseAPI, API_BASE_URL } from '../Services/api'
 import {
