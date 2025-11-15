@@ -52,13 +52,13 @@ const LandingPage = () => {
   
   const displayName = getDisplayName();
   
-  // Check if user has operator information (for disabling REQUEST FOR AMENDMENT)
-  const checkHasOperator = () => {
+  // Check if user has franchise (for enabling REQUEST FOR AMENDMENT)
+  const checkHasFranchise = () => {
     try {
       const token = sessionStorage.getItem('accessToken');
       if (token) {
         const decoded = JSON.parse(atob(token.split('.')[1]));
-        return decoded.hasOperator === true;
+        return decoded.hasFranchise === true;
       }
     } catch {
       return false;
@@ -66,7 +66,7 @@ const LandingPage = () => {
     return false;
   };
   
-  const userHasOperator = checkHasOperator();
+  const userHasFranchise = checkHasFranchise();
 
   const handleMenuOpen = (e) => setAnchorEl(e.currentTarget);
   const handleMenuClose = () => setAnchorEl(null);
@@ -74,19 +74,19 @@ const LandingPage = () => {
   const handleGoToId = () => { 
     handleMenuClose(); 
     
-    // Check if user has operator information
-    let hasOperator = false;
+    // Check if user has franchise
+    let hasFranchise = false;
     try {
       const token = sessionStorage.getItem('accessToken');
       if (token) {
         const decoded = JSON.parse(atob(token.split('.')[1]));
-        hasOperator = decoded.hasOperator === true;
+        hasFranchise = decoded.hasFranchise === true;
       }
     } catch {
-      hasOperator = false;
+      hasFranchise = false;
     }
     
-    if (!hasOperator) {
+    if (!hasFranchise) {
       // Show warning dialog instead of navigating
       setWarningDialogOpen(true);
     } else {
@@ -202,13 +202,13 @@ const LandingPage = () => {
           {displayName ? (
             <button 
               className="nav-link" 
-              onClick={() => userHasOperator ? navigate('/request-amendment') : navigate('/operator/franchise')}
+              onClick={() => userHasFranchise ? navigate('/request-amendment') : navigate('/operator/franchise')}
               style={{ 
-                opacity: userHasOperator ? 1 : 0.5, 
-                cursor: userHasOperator ? 'pointer' : 'not-allowed',
-                pointerEvents: userHasOperator ? 'auto' : 'none'
+                opacity: userHasFranchise ? 1 : 0.5, 
+                cursor: userHasFranchise ? 'pointer' : 'not-allowed',
+                pointerEvents: userHasFranchise ? 'auto' : 'none'
               }}
-              title={!userHasOperator ? 'Complete your franchise application first' : ''}
+              title={!userHasFranchise ? 'Complete your franchise application first' : ''}
             >
               REQUEST FOR AMENDMENT
             </button>
@@ -253,18 +253,17 @@ const LandingPage = () => {
               >
                 <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1, color: '#d32f2f' }}>
                   <WarningIcon sx={{ fontSize: 32 }} />
-                  No Operator Information Found
+                  No Franchise Found
                 </DialogTitle>
                 <DialogContent>
                   <Typography variant="body1" sx={{ mb: 2 }}>
-                    You don't have any operator information linked to your account yet.
+                    You need an approved franchise to access the Operator ID.
                   </Typography>
                   <Typography variant="body2" sx={{ color: '#666' }}>
-                    To view your Operator ID, you need to either:
+                    To view your Operator ID, you need to:
                   </Typography>
                   <Box component="ul" sx={{ mt: 1, pl: 2 }}>
-                    <li><Typography variant="body2">Submit a new franchise application, or</Typography></li>
-                    <li><Typography variant="body2">Link an existing franchise to your account</Typography></li>
+                    <li><Typography variant="body2">Submit a franchise application and get it approved</Typography></li>
                   </Box>
                 </DialogContent>
                 <DialogActions sx={{ px: 3, pb: 2 }}>

@@ -60,6 +60,7 @@ function FranchiseMgmt() {
     sidecarPlateNumber: '',
     name: '',
     contactNumber: '',
+    operatorEmail: '',
     birthPlace: '',
     birthDate: '',
     civilStatus: '',
@@ -433,6 +434,7 @@ function FranchiseMgmt() {
         sidecarPlateNumber: '',
         name: '',
         contactNumber: '',
+        operatorEmail: '',
         birthPlace: '',
         birthDate: '',
         civilStatus: '',
@@ -734,6 +736,18 @@ function FranchiseMgmt() {
                 required
               />
             </div>
+            
+            <TextField
+              label="Email Address (for account linking)"
+              name="operatorEmail"
+              type="email"
+              value={formData.operatorEmail}
+              onChange={handleFormChange}
+              fullWidth
+              required
+              placeholder="operator@example.com"
+              helperText="This email will be used to link the franchise to the operator's account"
+            />
             
             <div className="form-row">
               <TextField

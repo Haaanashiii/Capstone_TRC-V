@@ -8,6 +8,7 @@ import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import dayjs from "dayjs";
 import { franchiseAPI } from '../Services/api';
 import { validateFile, formatFileSize } from '../../utils/fileValidation';
+import { compressFile } from '../../utils/imageCompression';
 import "../../Styles/Operator's_CSS/FranchiseApplication.css";
 
 export default function FranchiseApplication() {
@@ -130,7 +131,7 @@ export default function FranchiseApplication() {
   const [modalFile, setModalFile] = useState(null);
   const modalFileRef = useRef();
 
-  const handleModalFileChange = (e) => {
+  const handleModalFileChange = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
     
@@ -145,16 +146,36 @@ export default function FranchiseApplication() {
       return;
     }
     
-    // Show compression info if file is large
-    if (validation.message && file.size > 300 * 1024) {
+    // Check if file needs compression
+    const willCompress = file.size > 300 * 1024;
+    
+    try {
+      // Compress the file (images and PDFs)
+      const processedFile = await compressFile(file);
+      
+      // Show compression success message only if file was compressed
+      if (willCompress && processedFile.size !== file.size) {
+        const originalSize = formatFileSize(file.size);
+        const newSize = formatFileSize(processedFile.size);
+        const savings = Math.round((1 - processedFile.size / file.size) * 100);
+        
+        setToast({
+          open: true,
+          message: ` ${originalSize} → ${newSize} (${savings}% smaller!)`,
+          severity: 'success'
+        });
+      }
+      
+      setModalFile(processedFile);
+    } catch (error) {
+      console.error('[FileCompression] Error:', error);
       setToast({
         open: true,
-        message: `${validation.message} - ${formatFileSize(file.size)} → ~300KB`,
-        severity: 'info'
+        message: '⚠️ Compression failed. Using original file.',
+        severity: 'warning'
       });
+      setModalFile(file);
     }
-    
-    setModalFile(file);
   };
   const [fields, setFields] = useState({
     date: dayjs(),
@@ -211,6 +232,16 @@ export default function FranchiseApplication() {
     if (reason === 'clickaway') return;
     setToast(t => ({ ...t, open: false }));
   };
+
+  // Auto-close toast after 3 seconds
+  React.useEffect(() => {
+    if (toast.open) {
+      const timer = setTimeout(() => {
+        setToast(t => ({ ...t, open: false }));
+      }, 6000);
+      return () => clearTimeout(timer);
+    }
+  }, [toast.open]);
 
   const _handleFileChange = (key) => (e) => {
     setUploads({ ...uploads, [key]: e.target.files[0] });
@@ -489,16 +520,45 @@ export default function FranchiseApplication() {
                       formDataToSend.append('mvPlateNo', fields.mvPlate || ''); // Backend expects 'mvPlateNo'
                       formDataToSend.append('motorEngineNo', fields.motorEngineNumber || ''); // Backend expects 'motorEngineNo'
                       formDataToSend.append('chasisNo', fields.chassisNumber || ''); // Backend expects 'chasisNo'
-
-                      // Documents - These will be uploaded to Cloudflare R2
-                      if (uploads.registration) formDataToSend.append('documentRegistration', uploads.registration);
-                      if (uploads.barangay) formDataToSend.append('documentBarangayClearance', uploads.barangay);
-                      if (uploads.cedula) formDataToSend.append('documentCedula', uploads.cedula);
-                      if (uploads.license) formDataToSend.append('documentDriversLicense', uploads.license);
-                      if (uploads.affidavit) formDataToSend.append('documentVotersAffidavit', uploads.affidavit);
-                      if (uploads.picture) formDataToSend.append('documentPicture', uploads.picture);
+                      
+                      if (uploads.registration) {
+                        formDataToSend.append('documentRegistration', uploads.registration);
+                      }
+                      if (uploads.barangay) {
+                        formDataToSend.append('documentBarangayClearance', uploads.barangay);
+                      }
+                      if (uploads.cedula) {
+                        formDataToSend.append('documentCedula', uploads.cedula);
+                      }
+                      if (uploads.license) {
+                        formDataToSend.append('documentDriversLicense', uploads.license);
+                      }
+                      if (uploads.affidavit) {
+                        formDataToSend.append('documentVotersAffidavit', uploads.affidavit);
+                      }
+                      if (uploads.picture) {
+                        formDataToSend.append('documentPicture', uploads.picture);
+                      }
+                      
 
                     try {
+                      // Debug: Check token before submission (axios interceptor handles refresh automatically)
+                      const token = sessionStorage.getItem('accessToken');
+                      
+                      if (!token) {
+                        setToast({ open: true, message: 'Session expired. Please log in again.', severity: 'error' });
+                        setTimeout(() => navigate('/login'), 2000);
+                        return;
+                      }
+                      
+                      // Decode and log token payload for debugging
+                      try {
+                        const decoded = JSON.parse(atob(token.split('.')[1]));
+                        console.log('[FranchiseApplication] Token payload:', decoded);
+                      } catch (e) {
+                        console.error('[FranchiseApplication] Failed to decode token:', e);
+                      }
+                      
                       console.log('[FranchiseApplication] Submitting application...')
                       const response = await franchiseAPI.create(formDataToSend)
                       

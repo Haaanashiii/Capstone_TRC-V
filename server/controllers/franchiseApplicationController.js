@@ -9,14 +9,51 @@ const { generateUniqueMTOPNumber, hashMTOPNumber } = require('../utils/mtopGener
 
 exports.createFranchiseApplication = async (req, res, next) => {
   try {
+        // Debug: Check if request has Authorization header
+        console.log('[CREATE_APPLICATION] Authorization header present:', !!req.headers.authorization);
+        
+        // Debug: Full JWT token payload
+        console.log('[CREATE_APPLICATION] Full req.user object:', JSON.stringify(req.user, null, 2));
+        
+        console.log('[CREATE_APPLICATION] Authenticated user:', {
+            id: req.user?.id,
+            role: req.user?.role,
+            name: req.user?.name,
+            accountType: req.user?.accountType,
+            hasFranchise: req.user?.hasFranchise
+        });
+        
         // Normalize incoming payload to match Mongoose schema expectations.
         // Accept many aliases from the frontend to keep backward compatibility.
         const body = req.body || {};
 
         const operatorName = body.operatorName || body.name || body.operatorName || body.operator || body.driverName || '';
         const operatorContact = body.operatorContact || body.contactNumber || body.contact || body.phone || '';
-        // Build a unique placeholder email if none provided to satisfy schema uniqueness in dev.
-        const operatorEmail = body.operatorEmail || body.email || `${(operatorName || 'user').toString().replace(/\s+/g, '.').toLowerCase()}.${Date.now()}@example.invalid`;
+        
+        // If user is authenticated, use their email; otherwise use provided email
+        let operatorEmail = body.operatorEmail || body.email || '';
+        if (req.user && req.user.id && !operatorEmail) {
+            // Fetch user's email from database if they're authenticated
+            try {
+                const User = require('../models/userAccountModel');
+                // req.user.id contains userId (UUID), so search by userId field
+                const user = await User.findOne({ userId: req.user.id });
+                if (user && user.email) {
+                    operatorEmail = user.email;
+                    console.log('[CREATE_APPLICATION] Using authenticated user email:', operatorEmail);
+                    console.log('[CREATE_APPLICATION] Found user by userId:', req.user.id);
+                }
+            } catch (err) {
+                console.warn('[CREATE_APPLICATION] Could not fetch user email:', err.message);
+            }
+        }
+        
+        // Validate email if provided
+        if (operatorEmail && !/^\S+@\S+\.\S+$/.test(operatorEmail)) {
+            return res.status(400).json({ error: 'Invalid email format' });
+        }
+        
+        console.log('[CREATE_APPLICATION] Operator email:', operatorEmail || 'NOT PROVIDED');
 
         const applicationType = (body.actionType || body.applicationType || 'NEW').toString().toUpperCase();
        
@@ -32,6 +69,8 @@ exports.createFranchiseApplication = async (req, res, next) => {
 
         // Provide sensible defaults for required fields so tests and partial submissions
         const normalized = {
+            // Only link userId if submitter is an operator (not admin creating on behalf)
+            userId: (req.user?.role === 'operator') ? req.user.id : null,
             operatorName: operatorName || 'UNKNOWN',
             operatorContact: operatorContact || '0000',
             operatorEmail,
@@ -69,6 +108,10 @@ exports.createFranchiseApplication = async (req, res, next) => {
 
             // Step 2: Upload files to Cloudflare R2 using the REAL application ID
             const files = req.files || {};
+            console.log(`[FRANCHISE CREATE] Files received:`, Object.keys(files).length);
+            Object.keys(files).forEach(field => {
+                console.log(`  - ${field}: ${files[field][0]?.originalname || 'no file'}`);
+            });
             
             if (Object.keys(files).length > 0) {
                 const uploadFile = async (field, documentType = 'documents') => {
@@ -144,29 +187,36 @@ exports.createFranchiseApplication = async (req, res, next) => {
                 }
 
                 // Update the application with file URLs
-                if (Object.keys(documentUpdates.documents).some(k => documentUpdates.documents[k])) {
-                    await franchiseApplicationRepository.updateFranchiseApplication(applicationId, documentUpdates);
-                    console.log(`[CLOUDFLARE] Updated application ${applicationId} with ${Object.keys(documentUpdates).length} document URLs`);
+                const hasDocuments = Object.keys(documentUpdates.documents).some(k => documentUpdates.documents[k]);
+                console.log(`[FRANCHISE CREATE] Document update check:`, {
+                    hasDocuments,
+                    motorRegistration: !!docRegistration,
+                    barangayClearance: !!docBarangay,
+                    cedula: !!docCedula,
+                    driversLicense: !!docDriversLicense,
+                    votersAffidavit: !!docVoters,
+                    motorChassisStencil: !!docChassisStencil,
+                    picture: !!docPicture
+                });
+                
+                if (hasDocuments) {
+                    const updateResult = await franchiseApplicationRepository.updateFranchiseApplication(applicationId, documentUpdates);
+                    console.log(`[CLOUDFLARE] Updated application ${applicationId} with documents`);
+                    console.log(`[CLOUDFLARE] Update result:`, updateResult ? 'SUCCESS' : 'FAILED');
+                } else {
+                    console.log(`[FRANCHISE CREATE] No documents to update`);
                 }
             }
             
-            // Step 4: Generate QR code
-            // Generate QR code for the application
-            try {
-                if (!application.qrCode) {
-                    const qrCodeData = await generateOperatorQRCode(applicationId, { saveToFile: true });
-                    if (qrCodeData && qrCodeData.filePath) {
-                        await franchiseApplicationRepository.updateFranchiseApplication(applicationId, { qrCode: qrCodeData.filePath });
-                        console.log(`[QR GENERATED] Application: ${applicationId}, File: ${qrCodeData.filePath}`);
-                    }
-                }
-            } catch (qrCreateErr) {
-                console.warn('QR generation failed (continuing):', qrCreateErr);
-            }
+            // NOTE: QR code generation happens during APPROVAL, not during application creation
+            // The admin will generate QR codes when they approve the application
             
             // Return the complete application with all file URLs
             const fresh = await franchiseApplicationRepository.getFranchiseApplicationById(applicationId);
-            console.log(`[FRANCHISE CREATE] Complete! Application ${applicationId} with ${fresh.documentRegistration ? 'documents uploaded' : 'no documents'}`);
+            
+            // Check if documents were uploaded (documents subdocument)
+            const hasDocuments = fresh?.documents && Object.values(fresh.documents).some(doc => doc && doc.trim() !== '');
+            console.log(`[FRANCHISE CREATE] Complete! Application ${applicationId} with ${hasDocuments ? 'documents uploaded' : 'no documents'}`);
             
             return res.status(201).json(fresh || application);
         } catch (innerErr) {
@@ -636,13 +686,58 @@ exports.approveFranchiseApplication = async (req, res, next) => {
         }
         
         // STEP 6: Link FranchiseInformation to user account
+        let linkedUserId = null;
         try {
+            const appUserId = application.userId;
             const appEmail = application.operatorEmail;
-            if (appEmail && franchiseInfo) {
-                const user = await userAccountRepository.findAccountByEmail(appEmail).catch(() => null);
+            
+            console.log(`[APPROVAL] Attempting to link franchise to user...`);
+            console.log(`[APPROVAL] Application userId: ${appUserId}`);
+            console.log(`[APPROVAL] Application email: ${appEmail}`);
+            
+            if (!franchiseInfo) {
+                console.warn('[APPROVAL] ⚠️  FranchiseInfo not created, cannot link');
+            } else if (appUserId) {
+                // PREFERRED METHOD: Use userId from application (UUID string)
+                try {
+                    const User = require('../models/userAccountModel');
+                    // appUserId is now a UUID string, search by userId field not _id
+                    const user = await User.findOne({ userId: appUserId });
+                    
+                    if (user) {
+                        const updateData = {
+                            franchiseInfo: franchiseInfo._id,
+                            franchiseStatus: 'active',
+                            operatorId: hashedMTOP,
+                            address: application.driversAddress || application.operatorAddress,
+                            phoneNumber: application.operatorContact,
+                            profilePicture: updatedProfilePhoto,
+                            approvedAt: franchiseInfo.approvedAt,
+                            expiryDate: franchiseInfo.expiryDate
+                        };
+                        
+                        await userAccountRepository.updateUserAccount(user._id, updateData);
+                        linkedUserId = user._id;
+                        console.log(`[APPROVAL] ✅ Successfully linked franchise to user by userId (UUID): ${appUserId}`);
+                        console.log(`[APPROVAL] User: ${user.name} (${user.email})`);
+                        console.log(`[APPROVAL] User MongoDB _id: ${user._id}`);
+                        console.log(`[APPROVAL] Franchise status set to: active`);
+                    } else {
+                        console.warn(`[APPROVAL] ⚠️  User not found with userId (UUID): ${appUserId}`);
+                        console.warn(`[APPROVAL] User may have been deleted. Franchise created but not linked.`);
+                    }
+                } catch (userError) {
+                    console.error('[APPROVAL] ❌ Error finding user by userId:', userError.message);
+                    throw userError;
+                }
+            } else if (appEmail) {
+                // FALLBACK METHOD: Use email (for backward compatibility with old applications)
+                console.log('[APPROVAL] No userId in application, falling back to email lookup...');
+                const user = await userAccountRepository.findAccountByEmail(appEmail);
+                
                 if (user) {
-                    await userAccountRepository.updateUserAccount(user._id, {
-                        franchiseInfo: franchiseInfo._id, // Link to FranchiseInformation
+                    const updateData = {
+                        franchiseInfo: franchiseInfo._id,
                         franchiseStatus: 'active',
                         operatorId: hashedMTOP,
                         address: application.driversAddress || application.operatorAddress,
@@ -650,12 +745,23 @@ exports.approveFranchiseApplication = async (req, res, next) => {
                         profilePicture: updatedProfilePhoto,
                         approvedAt: franchiseInfo.approvedAt,
                         expiryDate: franchiseInfo.expiryDate
-                    });
-                    console.log(`[APPROVAL] Linked FranchiseInformation to user: ${user._id}`);
+                    };
+                    
+                    await userAccountRepository.updateUserAccount(user._id, updateData);
+                    linkedUserId = user._id;
+                    console.log(`[APPROVAL] ✅ Successfully linked franchise to user by email: ${user._id}`);
+                    console.log(`[APPROVAL] User: ${user.name} (${user.email})`);
+                } else {
+                    console.warn(`[APPROVAL] ⚠️  No user found with email: ${appEmail}`);
+                    console.warn(`[APPROVAL] Franchise created but not linked to any user account`);
                 }
+            } else {
+                console.warn('[APPROVAL] ⚠️  Application has no userId or email, cannot link to user');
+                console.warn('[APPROVAL] Franchise created but not linked to any user account');
             }
         } catch (error) {
-            console.warn('[APPROVAL] Failed to link user account:', error);
+            console.error('[APPROVAL] ❌ FAILED to link user account:', error.message);
+            console.error('[APPROVAL] Stack:', error.stack);
         }
         
         // STEP 7: Mark application as approved (don't store MTOP/QR here)

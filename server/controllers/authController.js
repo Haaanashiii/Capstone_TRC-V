@@ -138,18 +138,27 @@ const getDeviceInfo = (req) => {
   };
 };
 
-const generateAccessToken = (user, operatorInfo = null, isAdmin = false) => {
-  console.log('Generating access token for user:', { id: user._id, role: user.role, name: user.name, isAdmin }); // Debug log
+const generateAccessToken = (user, franchiseInfo = null, isAdmin = false) => {
+  console.log('Generating access token for user:', { 
+    _id: user._id, 
+    userId: user.userId, 
+    role: user.role, 
+    name: user.name, 
+    isAdmin, 
+    hasFranchise: !!franchiseInfo 
+  });
   
   // MINIMAL JWT PAYLOAD - Only include non-sensitive, essential data
-  // Detailed user/operator info should be fetched via /auth/me when needed
+  // Use custom userId field (UUID) instead of MongoDB _id for better consistency
   const payload = { 
-    id: user._id, 
+    id: user.userId || user._id.toString(), // Prefer userId (UUID), fallback to _id
+    _id: user._id.toString(), // Keep _id for backward compatibility
     role: user.role,
     name: user.name,
     accountType: isAdmin ? 'admin' : 'user',
-    // Boolean flag to indicate if user has linked operator info (for UX decisions)
-    hasOperator: !!operatorInfo
+    // Boolean flag to indicate if user has linked franchise info (for UX decisions)
+    hasFranchise: !!franchiseInfo,
+    franchiseStatus: user.franchiseStatus || 'inactive'
   };
   
   return jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '15m' }); // Reduced to 15 minutes for better security
@@ -240,21 +249,22 @@ exports.login = async (req, res, next) => {
     if (!validPassword) return res.status(401).json({ error: 'Invalid credentials' });
     
     // Populate franchise information if available (only for regular users, not admins)
-    let operatorInfo = null;
+    let franchiseInfo = null;
     if (!isAdmin && user.franchiseInfo) {
       try {
         const User = require('../models/userAccountModel');
         const populatedUser = await User.findById(user._id).populate('franchiseInfo');
         if (populatedUser && populatedUser.franchiseInfo) {
-          operatorInfo = populatedUser.franchiseInfo;
+          franchiseInfo = populatedUser.franchiseInfo;
+          console.log('[Login] User has active franchise:', { operatorId: franchiseInfo.operatorId, status: franchiseInfo.franchiseStatus });
         }
       } catch (e) {
         console.error('Error populating franchise info:', e && e.message);
       }
     }
     
-    // Generate tokens (include operator info for users, admin info for admins)
-    const accessToken = generateAccessToken(user, operatorInfo, isAdmin);
+    // Generate tokens (include franchise info for users, admin info for admins)
+    const accessToken = generateAccessToken(user, franchiseInfo, isAdmin);
     const accountType = isAdmin ? 'admin' : 'user';
     const refreshToken = await generateRefreshToken(user, accountType, req, refreshTokenDays);
 
@@ -295,17 +305,20 @@ exports.login = async (req, res, next) => {
       }
     };
     
-    // Include operator info in response if available (for regular users)
-    if (operatorInfo) {
-      responseData.user.operator = {
-        operatorId: operatorInfo.operatorId,
-        operatorName: operatorInfo.operatorName,
-        franchiseStatus: operatorInfo.franchiseStatus,
-        qrCode: operatorInfo.qrCode,
-        profilePhoto: operatorInfo.profilePhoto,
-        contactNumber: operatorInfo.contactNumber,
-        address: operatorInfo.address,
-        barangay: operatorInfo.barangay
+    // Include franchise info in response if available (for regular users)
+    if (franchiseInfo) {
+      responseData.user.franchise = {
+        operatorId: franchiseInfo.operatorId,
+        operatorName: franchiseInfo.operatorName,
+        franchiseStatus: franchiseInfo.franchiseStatus,
+        qrCode: franchiseInfo.qrCode,
+        profilePhoto: franchiseInfo.profilePhoto,
+        contactNumber: franchiseInfo.contactNumber,
+        address: franchiseInfo.address,
+        barangay: franchiseInfo.barangay,
+        mtopNumber: franchiseInfo.mtopNumber,
+        approvedAt: franchiseInfo.approvedAt,
+        expiryDate: franchiseInfo.expiryDate
       };
     }
     
@@ -438,7 +451,7 @@ exports.getCurrentUser = async (req, res, next) => {
     
     // Fetch full user details from database and populate operator info
     const User = require('../models/userAccountModel');
-    const user = await User.findById(req.user.id).populate('operatorInfo');
+    const user = await User.findById(req.user.id).populate('franchiseInfo');
     
     if (!user) return res.status(404).json({ error: 'User not found' });
     
@@ -457,33 +470,35 @@ exports.getCurrentUser = async (req, res, next) => {
       operatorId: user.operatorId,
       franchiseStatus: user.franchiseStatus,
       dateCreated: user.createdAt,
-      lastLogin: user.lastLogin
+      lastLogin: user.lastLogin,
+      hasFranchise: !!user.franchiseInfo
     };
     
-    // Add operator information if populated
-    if (user.operatorInfo) {
-      userInfo.operator = {
-        operatorId: user.operatorInfo.operatorId,
-        operatorName: user.operatorInfo.operatorName,
-        contactNumber: user.operatorInfo.contactNumber,
-        email: user.operatorInfo.email,
-        address: user.operatorInfo.address,
-        barangay: user.operatorInfo.barangay,
-        civilStatus: user.operatorInfo.civilStatus,
-        driversID: user.operatorInfo.driversID,
-        profilePhoto: user.operatorInfo.profilePhoto,
-        qrCode: user.operatorInfo.qrCode,
-        franchiseStatus: user.operatorInfo.franchiseStatus,
-        approvedAt: user.operatorInfo.approvedAt,
-        expiryDate: user.operatorInfo.expiryDate,
-        documents: user.operatorInfo.documents ? {
-          motorRegistration: user.operatorInfo.documents.motorRegistration,
-          barangayClearance: user.operatorInfo.documents.barangayClearance,
-          cedula: user.operatorInfo.documents.cedula,
-          driversLicense: user.operatorInfo.documents.driversLicense,
-          votersAffidavit: user.operatorInfo.documents.votersAffidavit,
-          motorChassisStencil: user.operatorInfo.documents.motorChassisStencil,
-          picture: user.operatorInfo.documents.picture
+    // Add franchise information if populated
+    if (user.franchiseInfo) {
+      userInfo.franchise = {
+        operatorId: user.franchiseInfo.operatorId,
+        operatorName: user.franchiseInfo.operatorName,
+        contactNumber: user.franchiseInfo.contactNumber,
+        email: user.franchiseInfo.email,
+        address: user.franchiseInfo.address,
+        barangay: user.franchiseInfo.barangay,
+        civilStatus: user.franchiseInfo.civilStatus,
+        driversID: user.franchiseInfo.driversID,
+        profilePhoto: user.franchiseInfo.profilePhoto,
+        qrCode: user.franchiseInfo.qrCode,
+        franchiseStatus: user.franchiseInfo.franchiseStatus,
+        mtopNumber: user.franchiseInfo.mtopNumber,
+        approvedAt: user.franchiseInfo.approvedAt,
+        expiryDate: user.franchiseInfo.expiryDate,
+        documents: user.franchiseInfo.documents ? {
+          motorRegistration: user.franchiseInfo.documents.motorRegistration,
+          barangayClearance: user.franchiseInfo.documents.barangayClearance,
+          cedula: user.franchiseInfo.documents.cedula,
+          driversLicense: user.franchiseInfo.documents.driversLicense,
+          votersAffidavit: user.franchiseInfo.documents.votersAffidavit,
+          motorChassisStencil: user.franchiseInfo.documents.motorChassisStencil,
+          picture: user.franchiseInfo.documents.picture
         } : null
       };
     }

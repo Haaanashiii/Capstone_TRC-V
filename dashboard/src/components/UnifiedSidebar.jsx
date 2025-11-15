@@ -221,19 +221,19 @@ const UnifiedSidebar = ({ userType = "operator", language, onLanguageToggle, tra
   const handleGoToId = () => {
     handleMenuClose();
     
-    // Check if user has operator information
-    let hasOperator = false;
+    // Check if user has franchise
+    let hasFranchise = false;
     try {
       const token = sessionStorage.getItem('accessToken');
       if (token) {
         const decoded = JSON.parse(atob(token.split('.')[1]));
-        hasOperator = decoded.hasOperator === true;
+        hasFranchise = decoded.hasFranchise === true;
       }
     } catch {
-      hasOperator = false;
+      hasFranchise = false;
     }
     
-    if (!hasOperator) {
+    if (!hasFranchise) {
       // Show warning dialog instead of navigating
       setWarningDialogOpen(true);
     } else {
@@ -253,56 +253,31 @@ const UnifiedSidebar = ({ userType = "operator", language, onLanguageToggle, tra
   const getNavigationItems = () => {
     switch (userType) {
       case "operator": {
-        // Check if user has operator information from JWT token
-        let hasOperator = false;
+        // Check if user has franchise from JWT token
+        let hasFranchise = false;
         try {
           const token = sessionStorage.getItem('accessToken');
           if (token) {
             const decoded = JSON.parse(atob(token.split('.')[1]));
-            hasOperator = decoded.hasOperator === true;
+            hasFranchise = decoded.hasFranchise === true;
           }
         } catch {
-          hasOperator = false;
+          hasFranchise = false;
         }
        
-        let franchiseLabel = 'MY FRANCHISE'
-        try {
-          if (typeof window !== 'undefined' && window.sessionStorage) {
-            const replaced = sessionStorage.getItem('franchiseMenuReplaced')
-            const linked = sessionStorage.getItem('franchiseLinked')
-            const storedOwnerUserId = sessionStorage.getItem('franchiseOwnerUserId')
-            let tokenUserId = null
-            try {
-              const token = sessionStorage.getItem('accessToken')
-              if (token) tokenUserId = JSON.parse(atob(token.split('.')[1])).id
-            } catch {
-              tokenUserId = null
-            }
-
-            const ownerMatches = storedOwnerUserId && tokenUserId && storedOwnerUserId === tokenUserId
-
-           
-            const effectiveReplaced = replaced === 'true' && ownerMatches
-            const effectiveLinked = linked === 'true' && ownerMatches
-
-            if (effectiveReplaced || effectiveLinked) franchiseLabel = 'REQUEST FOR AMENDMENT'
-          }
-        } catch {
-          // ignore sessionStorage/token errors
+        // If user has no franchise, show limited navigation
+        if (!hasFranchise) {
+          return [
+            { label: "HOME", path: "/", isActive: location.pathname === "/", disabled: false },
+            { label: "MY FRANCHISE", path: "/operator/franchise", isActive: location.pathname === "/operator/franchise", disabled: false },
+          ];
         }
-
-        // If label replaced, route to the Request Amendment page instead of the franchise page
-        const franchisePath = franchiseLabel === 'REQUEST FOR AMENDMENT' ? '/request-amendment' : '/operator/franchise'
         
-        // Determine if franchise menu should be disabled
-        // Only disable if it's "REQUEST FOR AMENDMENT" and user lacks operator info
-        const franchiseDisabled = franchiseLabel === 'REQUEST FOR AMENDMENT' && !hasOperator;
-        
-        // If user doesn't have operator info yet, disable REQUEST FOR AMENDMENT and OPERATOR ID
+        // If user has franchise, show full navigation with REQUEST FOR AMENDMENT
         return [
           { label: "HOME", path: "/", isActive: location.pathname === "/", disabled: false },
-          { label: franchiseLabel, path: franchisePath, isActive: location.pathname === franchisePath, disabled: franchiseDisabled },
-          { label: "OPERATOR ID", path: "/operator/id", isActive: location.pathname === "/operator/id", disabled: !hasOperator },
+          { label: "REQUEST FOR AMENDMENT", path: "/request-amendment", isActive: location.pathname === "/request-amendment", disabled: false },
+          { label: "OPERATOR ID", path: "/operator/id", isActive: location.pathname === "/operator/id", disabled: false },
         ];
       }
       case "admin": //for bplo-admin?
@@ -409,18 +384,17 @@ const UnifiedSidebar = ({ userType = "operator", language, onLanguageToggle, tra
               >
                 <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1, color: '#d32f2f' }}>
                   <WarningIcon sx={{ fontSize: 32 }} />
-                  No Operator Information Found
+                  No Franchise Found
                 </DialogTitle>
                 <DialogContent>
                   <Typography variant="body1" sx={{ mb: 2 }}>
-                    You don't have any operator information linked to your account yet.
+                    You need an approved franchise to access the Operator ID.
                   </Typography>
                   <Typography variant="body2" sx={{ color: '#666' }}>
-                    To view your Operator ID, you need to either:
+                    To view your Operator ID, you need to:
                   </Typography>
                   <Box component="ul" sx={{ mt: 1, pl: 2 }}>
-                    <li><Typography variant="body2">Submit a new franchise application, or</Typography></li>
-                    <li><Typography variant="body2">Link an existing franchise to your account</Typography></li>
+                    <li><Typography variant="body2">Submit a franchise application and get it approved</Typography></li>
                   </Box>
                 </DialogContent>
                 <DialogActions sx={{ px: 3, pb: 2 }}>

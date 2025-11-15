@@ -116,12 +116,18 @@ const Login = () => {
     
     // Redirect based on role from JWT
     if (userData && userData.role) {
-      console.log('[Login] Role:', userData.role, 'AccountType:', userData.accountType, 'HasOperator:', userData.hasOperator);
+      console.log('[Login] Role:', userData.role, 'AccountType:', userData.accountType, 'HasFranchise:', userData.hasFranchise);
       console.log('[Login] Attempting navigation to role-based route...');
       
       if (userData.role === 'operator') {
-        console.log('[Login] Navigating to /operator/franchise');
-        navigate('/operator/franchise', { replace: true });
+        // Check if operator has franchise - redirect accordingly
+        if (userData.hasFranchise === true) {
+          console.log('[Login] Operator has franchise, navigating to /operator/id');
+          navigate('/operator/id', { replace: true });
+        } else {
+          console.log('[Login] Operator has no franchise, navigating to /operator/franchise');
+          navigate('/operator/franchise', { replace: true });
+        }
       } else if (userData.role === 'sb-admin') {
         navigate('/sb-admin', { replace: true });
       } else if (userData.role === 'bplo-admin') {

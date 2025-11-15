@@ -10,6 +10,8 @@ import './DriverID.css';
 import dayjs from 'dayjs';
 
 function DriverID() {
+  const navigate = useNavigate(); // Must be declared at the top before any useEffect that uses it
+  
   const [user, setUser] = useState(null);
   const [language, setLanguage] = useState('en'); // Language state
   const [franchiseStatus, setFranchiseStatus] = useState(null); // Franchise status state
@@ -123,9 +125,9 @@ function DriverID() {
       if (tokenUser) {
         console.log('[DriverID] User from token:', tokenUser);
         
-        // GATE-KEEPING: Check if user has operator information
-        if (!tokenUser.hasOperator) {
-          console.warn('[DriverID] User does not have operator info yet, redirecting to Franchise page');
+        // GATE-KEEPING: Check if user has franchise
+        if (!tokenUser.hasFranchise) {
+          console.warn('[DriverID] User does not have franchise yet, redirecting to Franchise page');
           navigate('/operator/franchise');
           return;
         }
@@ -213,11 +215,9 @@ function DriverID() {
           const apps = await resp.json()
           console.debug('[DriverID] approved applications fetched', Array.isArray(apps) ? apps.length : 'not-array', apps)
           if (!Array.isArray(apps) || !apps.length) return
-
-          const tokenEmail = email && String(email).toLowerCase()
         
           const userIdentifiers = new Set();
-          if (email) userIdentifiers.add(String(email).toLowerCase());
+          if (user.email) userIdentifiers.add(String(user.email).toLowerCase());
           if (user.username) userIdentifiers.add(String(user.username).toLowerCase());
           if (user.name) userIdentifiers.add(String(user.name).toLowerCase());
           if (user.operatorId) userIdentifiers.add(String(user.operatorId).toLowerCase());
@@ -418,9 +418,6 @@ function DriverID() {
 
   const [qrBlobUrl, setQrBlobUrl] = useState(null);
   const qrBlobRef = React.useRef(null);
-  
-
-  const navigate = useNavigate();
 
 
   const handleOpenFranchisePage = () => {
