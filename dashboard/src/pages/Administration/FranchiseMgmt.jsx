@@ -48,6 +48,8 @@ function FranchiseMgmt() {
   const [openFilePreview, setOpenFilePreview] = useState(false)
   const [previewFile, setPreviewFile] = useState({ name: '', type: '', path: '' })
   const currentBlobUrlRef = useRef(null)
+  const qrBlobUrlRef = useRef(null)
+  const [qrBlobUrl, setQrBlobUrl] = useState(null)
   
   const [pendingApplications, setPendingApplications] = useState([])
 
