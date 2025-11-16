@@ -97,7 +97,7 @@ export const TokenManager = {
   },
 
   /**
-   * Check if token is expired (with 2 minute buffer)
+   * Check if token is expired
    * @param {string} token - JWT token to check
    * @returns {boolean} True if expired
    */
@@ -105,9 +105,9 @@ export const TokenManager = {
     const decoded = TokenManager.decodeToken(token);
     if (!decoded || !decoded.exp) return true;
     
-    // Add 2 minute buffer (120000 ms) - tokens are short-lived (15min)
-    const bufferTime = 120000;
-    return (decoded.exp * 1000) <= (Date.now() + bufferTime);
+    // Check actual expiration time - no buffer needed
+    // The response interceptor will handle refresh when backend returns 401
+    return (decoded.exp * 1000) <= Date.now();
   },
 
   /**
@@ -169,14 +169,9 @@ api.interceptors.request.use(
     const token = TokenManager.getAccessToken();
     
     if (token) {
-      // Validate token before sending
-      if (TokenManager.isValid(token)) {
-        config.headers.Authorization = `Bearer ${token}`;
-      } else {
-        console.warn('[API] Token expired, clearing...');
-        TokenManager.clearTokens();
-        // Request will proceed without token (backend will return 401)
-      }
+      // Always send the token - let backend validate and return 401 if expired
+      // The response interceptor will automatically refresh the token on 401
+      config.headers.Authorization = `Bearer ${token}`;
     }
     
     return config;
@@ -372,29 +367,27 @@ export const franchiseAPI = {
   getById: (id) => api.get(`/api/franchise-applications/${id}`),
 
   /**
-   * Create new franchise application (PUBLIC - no authentication required)
-   * @param {object} applicationData - Application data (JSON object)
+   * Create new franchise application (supports both authenticated and public submissions)
+   * @param {object} applicationData - Application data (FormData or JSON object)
    * @returns {Promise} Response with created application
    */
   create: (applicationData) => {
-    // Use base axios instance without authentication
-    // If applicationData is FormData, do NOT set Content-Type so the
+    // Use the authenticated API instance which automatically includes JWT token
+    // If user is logged in, token will be sent; if not, request proceeds without auth
+    // If applicationData is FormData, EXPLICITLY DELETE Content-Type so the
     // browser/axios can set the multipart/form-data boundary correctly.
-    // For regular JSON payloads, preserve the original behavior and
-    // send Content-Type: application/json (this is important for other
-    // callers which may expect JSON behavior such as QR generation flows).
-    const publicApi = axios.create({
-      baseURL: API_BASE_URL,
-      timeout: 60000,
-      withCredentials: true,
-    });
-
     const config = {};
-    if (!(applicationData instanceof FormData)) {
+    
+    if (applicationData instanceof FormData) {
+      // CRITICAL: Delete Content-Type header for FormData
+      // Browser will automatically set it to multipart/form-data with boundary
+      config.headers = { 'Content-Type': undefined };
+      console.log('[franchiseAPI] Sending FormData - Content-Type will be set by browser');
+    } else {
       config.headers = { 'Content-Type': 'application/json' };
     }
 
-    return publicApi.post('/api/franchise-applications', applicationData, config);
+    return api.post('/api/franchise-applications', applicationData, config);
   },
 
   /**

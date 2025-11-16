@@ -178,21 +178,21 @@ const Franchise = () => {
   // Removed auto-redirect - users stay on Franchise page until they complete application
   // and backend approves it (hasOperator becomes true in JWT)
   useEffect(() => {
-    console.log('[Franchise] User can now choose to link or apply for franchise');
-    // Check if user already has operator info in JWT
+    console.log('[Franchise] Checking user franchise status');
+    // Check if user already has franchise in JWT
     try {
       const token = sessionStorage.getItem('accessToken');
       if (token) {
         const decoded = JSON.parse(atob(token.split('.')[1]));
-        if (decoded.hasOperator === true) {
-          console.log('[Franchise] User has operator info, they can navigate to Operator ID');
-          // Don't auto-redirect, let user navigate via menu
+        if (decoded.hasFranchise === true) {
+          console.log('[Franchise] User has franchise, redirecting to home');
+          navigate('/');
         } else {
-          console.log('[Franchise] User needs to complete franchise application');
+          console.log('[Franchise] User has no franchise, showing application options');
         }
       }
     } catch (e) {
-      console.error('[Franchise] Error checking operator status:', e);
+      console.error('[Franchise] Error checking franchise status:', e);
     }
   }, [navigate])
 
@@ -270,7 +270,7 @@ const Franchise = () => {
               <div className="profile-info">
                 <h3 className="profile-name">{(currentUser?.full_name || currentUser?.name || t.user).toUpperCase()}</h3>
                 <span className={badgeClass}>{franchiseLinked ? t.franchiseLinked : t.noFranchise}</span>
-                {!currentUser?.hasOperator && (
+                {!currentUser?.hasFranchise && (
                   <p className="profile-desc" style={{ color: '#e74c3c', fontWeight: 600, marginTop: '8px', background: '#fee', padding: '8px 12px', borderRadius: '8px' }}>
                     ⚠️ Complete your franchise application to access all features
                   </p>

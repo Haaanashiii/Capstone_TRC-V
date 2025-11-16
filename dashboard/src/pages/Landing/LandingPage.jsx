@@ -2,9 +2,10 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from 'react-router-dom';
 import '../../Styles/LandingCss/LandingPage.css';
 import { useAuth } from '../../contexts/AuthContext';
-import { Menu, MenuItem, ListItemIcon } from '@mui/material';
+import { Menu, MenuItem, ListItemIcon, Dialog, DialogTitle, DialogContent, DialogActions, Button, Typography, Box } from '@mui/material';
 import PermIdentityIcon from '@mui/icons-material/PermIdentity';
 import LogoutIcon from '@mui/icons-material/Logout';
+import WarningIcon from '@mui/icons-material/Warning';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
@@ -18,6 +19,7 @@ const LandingPage = () => {
   const [anchorEl, setAnchorEl] = useState(null);
   const [announcements, setAnnouncements] = useState([]);
   const [loadingAnnouncements, setLoadingAnnouncements] = useState(true);
+  const [warningDialogOpen, setWarningDialogOpen] = useState(false);
   const menuOpen = Boolean(anchorEl);
   
   // Get display name from AuthContext user or fallback to token decode (consistent with UnifiedSidebar)
@@ -50,13 +52,13 @@ const LandingPage = () => {
   
   const displayName = getDisplayName();
   
-  // Check if user has operator information (for disabling REQUEST FOR AMENDMENT)
-  const checkHasOperator = () => {
+  // Check if user has franchise (for enabling REQUEST FOR AMENDMENT)
+  const checkHasFranchise = () => {
     try {
       const token = sessionStorage.getItem('accessToken');
       if (token) {
         const decoded = JSON.parse(atob(token.split('.')[1]));
-        return decoded.hasOperator === true;
+        return decoded.hasFranchise === true;
       }
     } catch {
       return false;
@@ -64,11 +66,42 @@ const LandingPage = () => {
     return false;
   };
   
-  const userHasOperator = checkHasOperator();
+  const userHasFranchise = checkHasFranchise();
 
   const handleMenuOpen = (e) => setAnchorEl(e.currentTarget);
   const handleMenuClose = () => setAnchorEl(null);
-  const handleGoToId = () => { handleMenuClose(); navigate('/operator/id'); };
+  
+  const handleGoToId = () => { 
+    handleMenuClose(); 
+    
+    // Check if user has franchise
+    let hasFranchise = false;
+    try {
+      const token = sessionStorage.getItem('accessToken');
+      if (token) {
+        const decoded = JSON.parse(atob(token.split('.')[1]));
+        hasFranchise = decoded.hasFranchise === true;
+      }
+    } catch {
+      hasFranchise = false;
+    }
+    
+    if (!hasFranchise) {
+      // Show warning dialog instead of navigating
+      setWarningDialogOpen(true);
+    } else {
+      navigate('/operator/id');
+    }
+  };
+  
+  const handleWarningClose = () => {
+    setWarningDialogOpen(false);
+  };
+  
+  const handleGoToFranchise = () => {
+    setWarningDialogOpen(false);
+    navigate('/operator/franchise/application');
+  };
   
   const handleLogout = async () => {
     console.log('[LandingPage] Logout initiated');
@@ -169,13 +202,13 @@ const LandingPage = () => {
           {displayName ? (
             <button 
               className="nav-link" 
-              onClick={() => userHasOperator ? navigate('/request-amendment') : navigate('/operator/franchise')}
+              onClick={() => userHasFranchise ? navigate('/request-amendment') : navigate('/operator/franchise')}
               style={{ 
-                opacity: userHasOperator ? 1 : 0.5, 
-                cursor: userHasOperator ? 'pointer' : 'not-allowed',
-                pointerEvents: userHasOperator ? 'auto' : 'none'
+                opacity: userHasFranchise ? 1 : 0.5, 
+                cursor: userHasFranchise ? 'pointer' : 'not-allowed',
+                pointerEvents: userHasFranchise ? 'auto' : 'none'
               }}
-              title={!userHasOperator ? 'Complete your franchise application first' : ''}
+              title={!userHasFranchise ? 'Complete your franchise application first' : ''}
             >
               REQUEST FOR AMENDMENT
             </button>
@@ -205,6 +238,53 @@ const LandingPage = () => {
                   Logout
                 </MenuItem>
               </Menu>
+              
+              {/* Warning Dialog for No Operator Information */}
+              <Dialog
+                open={warningDialogOpen}
+                onClose={handleWarningClose}
+                PaperProps={{
+                  sx: {
+                    borderRadius: 3,
+                    padding: 2,
+                    maxWidth: 500
+                  }
+                }}
+              >
+                <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1, color: '#d32f2f' }}>
+                  <WarningIcon sx={{ fontSize: 32 }} />
+                  No Franchise Found
+                </DialogTitle>
+                <DialogContent>
+                  <Typography variant="body1" sx={{ mb: 2 }}>
+                    You need an approved franchise to access the Operator ID.
+                  </Typography>
+                  <Typography variant="body2" sx={{ color: '#666' }}>
+                    To view your Operator ID, you need to:
+                  </Typography>
+                  <Box component="ul" sx={{ mt: 1, pl: 2 }}>
+                    <li><Typography variant="body2">Submit a franchise application and get it approved</Typography></li>
+                  </Box>
+                </DialogContent>
+                <DialogActions sx={{ px: 3, pb: 2 }}>
+                  <Button 
+                    onClick={handleWarningClose} 
+                    sx={{ color: '#666' }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button 
+                    onClick={handleGoToFranchise}
+                    variant="contained"
+                    sx={{ 
+                      bgcolor: '#143c6e',
+                      '&:hover': { bgcolor: '#0a3970' }
+                    }}
+                  >
+                    Submit Application
+                  </Button>
+                </DialogActions>
+              </Dialog>
             </div>
           ) : (
             <button className="nav-login" onClick={() => navigate('/login')}>LOGIN</button>

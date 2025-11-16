@@ -48,9 +48,6 @@ function FranchiseMgmt() {
   const [openFilePreview, setOpenFilePreview] = useState(false)
   const [previewFile, setPreviewFile] = useState({ name: '', type: '', path: '' })
   const currentBlobUrlRef = useRef(null)
-  const [qrBlobUrl, setQrBlobUrl] = useState(null)
-  const qrBlobUrlRef = useRef(null)
-  
   
   const [pendingApplications, setPendingApplications] = useState([])
 
@@ -63,6 +60,7 @@ function FranchiseMgmt() {
     sidecarPlateNumber: '',
     name: '',
     contactNumber: '',
+    operatorEmail: '',
     birthPlace: '',
     birthDate: '',
     civilStatus: '',
@@ -105,7 +103,8 @@ function FranchiseMgmt() {
       
       console.log('[FranchiseMgmt] Fetched pending applications:', serverApps?.length || 0)
       
-      // Normalize application data structure
+      // Backend already normalizes documents to {name, type, path} objects
+      // Just pass through the data as-is
       const normalizedServerApps = Array.isArray(serverApps) ? serverApps.map((it) => ({
         id: it.id || it._id,
         franchiseNumber: it.franchiseNumber || it.franchise_number || '',
@@ -129,6 +128,7 @@ function FranchiseMgmt() {
         chassisNumber: it.chassisNumber || it.chassis || it.chassis_number || '',
         driverName: it.driverName || it.name || it.operatorName || '',
         driverAddress: it.driverAddress || it.address || '',
+        // Documents already normalized by backend
         documentRegistration: it.documentRegistration || null,
         documentBarangayClearance: it.documentBarangayClearance || null,
         documentCedula: it.documentCedula || null,
@@ -303,15 +303,26 @@ function FranchiseMgmt() {
       }
     }
 
-    // If the path is relative (starts with '/') or missing protocol, prefix API_BASE_URL
+    // Handle different URL formats
     try {
-      if (normalized.path && !/^https?:\/\//i.test(normalized.path)) {
-        // Ensure no double slash when concatenating
+      // New R2 format: r2://path/to/file -> route through backend proxy
+      if (normalized.path && normalized.path.startsWith('r2://')) {
+        const r2Key = normalized.path.substring(5) // Remove 'r2://' prefix
+        normalized.path = `${API_BASE_URL.replace(/\/$/, '')}/api/franchise-applications/proxy-file?url=${encodeURIComponent(normalized.path)}`
+        console.log('[Preview] R2 format detected, routing through proxy:', r2Key)
+      }
+      // Old Cloudflare public URL format -> route through backend proxy
+      else if (normalized.path && /^https?:\/\/pub-[a-f0-9]+\.r2\.dev/i.test(normalized.path)) {
+        normalized.path = `${API_BASE_URL.replace(/\/$/, '')}/api/franchise-applications/proxy-file?url=${encodeURIComponent(normalized.path)}`
+        console.log('[Preview] Cloudflare R2 public URL detected, routing through proxy')
+      }
+      // Relative path -> prefix with API_BASE_URL
+      else if (normalized.path && !/^https?:\/\//i.test(normalized.path)) {
         const pathPart = normalized.path.startsWith('/') ? normalized.path : '/' + normalized.path
         normalized.path = API_BASE_URL.replace(/\/$/, '') + pathPart
       }
-    } catch {
-      // If API_BASE_URL isn't available for some reason, leave path as-is
+    } catch (err) {
+      console.warn('[Preview] Error processing file path:', err)
     }
 
     // If it's an image or PDF, try fetching it and creating an object URL so
@@ -516,6 +527,7 @@ function FranchiseMgmt() {
         sidecarPlateNumber: '',
         name: '',
         contactNumber: '',
+        operatorEmail: '',
         birthPlace: '',
         birthDate: '',
         civilStatus: '',
@@ -794,6 +806,18 @@ function FranchiseMgmt() {
                 required
               />
             </div>
+            
+            <TextField
+              label="Email Address (for account linking)"
+              name="operatorEmail"
+              type="email"
+              value={formData.operatorEmail}
+              onChange={handleFormChange}
+              fullWidth
+              required
+              placeholder="operator@example.com"
+              helperText="This email will be used to link the franchise to the operator's account"
+            />
             
             <div className="form-row">
               <TextField
@@ -1169,29 +1193,6 @@ function FranchiseMgmt() {
                 <span>{selectedApplication.documentPicture?.name || 'No file'}</span>
               </Link>
             </div>
-
-            {/* QR Code display */}
-            <Typography variant="h6" className="section-header">
-              QR CODE
-            </Typography>
-            <div className="info-grid">
-              <Typography variant="subtitle2" className="label">Operator QR:</Typography>
-              {selectedApplication.qrCode ? (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <img
-                    src={qrBlobUrl || (!/^https?:\/\//i.test(selectedApplication.qrCode) ? (API_BASE_URL.replace(/\/$/, '') + (selectedApplication.qrCode.startsWith('/') ? selectedApplication.qrCode : '/' + selectedApplication.qrCode)) : selectedApplication.qrCode)}
-                    alt="QR"
-                    style={{ width: 140, height: 140, objectFit: 'contain', border: '1px solid #eee', borderRadius: 8 }}
-                  />
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    <Button className="button-primary" onClick={() => handleOpenFilePreview({ name: 'qr.png', type: 'image/png', path: selectedApplication.qrCode })}>Preview</Button>
-                    <Button className="button-primary" href={(!/^https?:\/\//i.test(selectedApplication.qrCode) ? (API_BASE_URL.replace(/\/$/, '') + (selectedApplication.qrCode.startsWith('/') ? selectedApplication.qrCode : '/' + selectedApplication.qrCode)) : selectedApplication.qrCode)} download>Download</Button>
-                  </div>
-                </div>
-              ) : (
-                <Typography>No QR generated yet</Typography>
-              )}
-            </div>
             
             <div className="action-buttons">
               <Button
@@ -1230,17 +1231,24 @@ function FranchiseMgmt() {
           </div>
           
           <div className="file-preview-content">
-            {previewFile.type?.includes('image') ? (
+            {previewFile.type?.includes('image') || /\.(jpg|jpeg|png|gif|webp)$/i.test(previewFile.name) ? (
               <img 
                 src={previewFile.path} 
                 alt={previewFile.name}
                 className="preview-image"
+                onError={(e) => {
+                  console.error('Image preview failed:', e);
+                  e.target.style.display = 'none';
+                }}
               />
-            ) : previewFile.type?.includes('pdf') ? (
+            ) : previewFile.type?.includes('pdf') || previewFile.name?.toLowerCase().endsWith('.pdf') ? (
               <iframe
                 src={previewFile.path}
                 title={previewFile.name}
                 className="preview-iframe"
+                onError={(e) => {
+                  console.error('PDF preview failed:', e);
+                }}
               />
             ) : (
               <div className="file-preview-fallback">
