@@ -563,6 +563,18 @@ exports.approveFranchiseApplication = async (req, res, next) => {
             return res.status(404).json({ error: 'Application not found' });
         }
         
+        // Check if application is already approved
+        if (application.actionTaken && String(application.actionTaken).toUpperCase().includes('APPROV')) {
+            console.log(`[APPROVAL] ⚠️ Application ${id} is already approved`);
+            console.log(`[APPROVAL] Action taken: ${application.actionTaken}`);
+            
+            return res.status(409).json({ 
+                error: 'Application already approved',
+                message: 'This application has already been processed and approved.',
+                actionTaken: application.actionTaken
+            });
+        }
+        
         // STEP 1: Generate unique MTOP number
         let mtopNumber;
         try {
@@ -631,10 +643,28 @@ exports.approveFranchiseApplication = async (req, res, next) => {
             // Get barangay if available (temporarily optional)
             const barangay = application.operatorBarangay || application.barangay || '';
 
-            // Check if franchise info already exists for this driver
+            // Check if franchise info already exists by operatorId (unique index) OR driversID
             const existingInfo = await FranchiseInformation.findOne({ 
-                driversID: application.driversID 
+                $or: [
+                    { operatorId: hashedMTOP },
+                    { driversID: application.driversID }
+                ]
             });
+            
+            if (existingInfo) {
+                console.log(`[APPROVAL] ⚠️ WARNING: FranchiseInformation already exists!`);
+                console.log(`[APPROVAL] Existing operatorId: ${existingInfo.operatorId}`);
+                console.log(`[APPROVAL] Existing driversID: ${existingInfo.driversID}`);
+                console.log(`[APPROVAL] New hashedMTOP: ${hashedMTOP}`);
+                console.log(`[APPROVAL] This appears to be a duplicate approval. Aborting.`);
+                
+                return res.status(409).json({ 
+                    error: 'Franchise information already exists',
+                    message: 'This application has already been approved or a franchise exists for this driver.',
+                    existingOperatorId: existingInfo.operatorId,
+                    existingMTOP: existingInfo.mtopNumber
+                });
+            }
             
             const franchiseData = {
                 operatorId: hashedMTOP,
@@ -666,16 +696,8 @@ exports.approveFranchiseApplication = async (req, res, next) => {
                 franchiseStatus: 'active'
             };
             
-            if (existingInfo) {
-                franchiseInfo = await franchiseInformationRepository.updateFranchiseInformation(
-                    existingInfo._id,
-                    franchiseData
-                );
-                console.log(`[APPROVAL] Updated existing FranchiseInformation: ${existingInfo._id}`);
-            } else {
-                franchiseInfo = await franchiseInformationRepository.createFranchiseInformation(franchiseData);
-                console.log(`[APPROVAL] Created new FranchiseInformation: ${franchiseInfo._id}`);
-            }
+            franchiseInfo = await franchiseInformationRepository.createFranchiseInformation(franchiseData);
+            console.log(`[APPROVAL] Created new FranchiseInformation: ${franchiseInfo._id}`);
         } catch (error) {
             console.error('[APPROVAL] CRITICAL ERROR - Failed to create FranchiseInformation:', error);
             return res.status(500).json({ 

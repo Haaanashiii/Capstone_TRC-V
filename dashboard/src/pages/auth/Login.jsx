@@ -74,9 +74,15 @@ const Login = () => {
       // Refresh token is automatically stored in HTTP-only cookie by backend
       console.log('[Login] Refresh token stored in HTTP-only cookie by backend');
 
-      // Open verification modal. The backend has attempted to send the OTP
-      // to the user's email on record; the modal will POST to /auth/verify-otp.
-      setShowVerificationModal(true);
+      // Check if OTP should be skipped (trusted device)
+      if (data.skipOTP) {
+        console.log('[Login] Trusted device - skipping OTP verification');
+        handleVerificationSuccess();
+      } else {
+        // Open verification modal. The backend has attempted to send the OTP
+        // to the user's email on record; the modal will POST to /auth/verify-otp.
+        setShowVerificationModal(true);
+      }
     } catch (error) {
       console.error("Login error:", error);
       setError(error.response?.data?.error || error.response?.data?.message || "Login failed. Please try again.");
@@ -247,6 +253,7 @@ const Login = () => {
           open={showVerificationModal}
           onClose={() => setShowVerificationModal(false)}
           email={form.email}
+          rememberMe={rememberMe}
           onVerificationSuccess={handleVerificationSuccess}
         />
       </Box>

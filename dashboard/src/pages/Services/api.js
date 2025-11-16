@@ -192,8 +192,12 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
-    // Handle 401 Unauthorized - attempt token refresh
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    // Don't attempt token refresh for login/signup endpoints (they're supposed to return 401 on bad credentials)
+    const authEndpoints = ['/auth/login', '/auth/signup', '/auth/refresh-token', '/auth/request-otp'];
+    const isAuthEndpoint = authEndpoints.some(endpoint => originalRequest.url?.includes(endpoint));
+
+    // Handle 401 Unauthorized - attempt token refresh (except for auth endpoints)
+    if (error.response?.status === 401 && !originalRequest._retry && !isAuthEndpoint) {
       if (isRefreshing) {
         // Wait for refresh to complete
         return new Promise((resolve, reject) => {

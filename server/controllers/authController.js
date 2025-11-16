@@ -62,7 +62,7 @@ function constantTimeCompare(a, b) {
 // Secure OTP verification for 2FA or forgot password
 exports.verifyOtp = async (req, res, next) => {
   try {
-    const { email, otp } = req.body;
+    const { email, otp, rememberMe } = req.body;
     if (!email || !otp) return res.status(400).json({ error: 'Email and OTP are required' });
     // Get stored OTP (do not reveal if email exists)
     let valid = false;
@@ -74,6 +74,46 @@ exports.verifyOtp = async (req, res, next) => {
       }
     } catch (e) {}
     if (!valid) return res.status(400).json({ error: 'Invalid or expired OTP' });
+    
+    // If rememberMe was checked, create a trusted device token
+    if (rememberMe) {
+      try {
+        // Find user to get their ID for trusted device token
+        const userAccountRepository = require('../repositories/userAccountRepository');
+        const adminAccountRepository = require('../repositories/adminAccountRepository');
+        
+        let user = await userAccountRepository.findAccountByEmail(email).catch(() => null);
+        if (!user) {
+          user = await adminAccountRepository.findAdminByEmail(email).catch(() => null);
+        }
+        
+        if (user) {
+          const crypto = require('crypto');
+          const secret = process.env.JWT_SECRET || 'default-secret';
+          const timestamp = Date.now();
+          const signature = crypto
+            .createHmac('sha256', secret)
+            .update(`${user._id}.${timestamp}`)
+            .digest('hex');
+          
+          const trustedDeviceToken = `${user._id}.${timestamp}.${signature}`;
+          
+          // Set trusted device cookie (30 days)
+          res.cookie('trustedDevice', trustedDeviceToken, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
+            maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
+          });
+          
+          console.log('[OTP] Trusted device token created for user:', email);
+        }
+      } catch (e) {
+        console.error('[OTP] Failed to create trusted device token:', e.message);
+        // Don't fail the OTP verification if this fails
+      }
+    }
+    
     res.json({ message: 'OTP verified' });
   } catch (err) {
     next(err);
@@ -161,7 +201,7 @@ const generateAccessToken = (user, franchiseInfo = null, isAdmin = false) => {
     franchiseStatus: user.franchiseStatus || 'inactive'
   };
   
-  return jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '15m' }); // Reduced to 15 minutes for better security
+  return jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '7d' }); // Temporary: Extended to 7 days for production testing
 };
 
 // Generate refresh token and store in database
@@ -268,19 +308,55 @@ exports.login = async (req, res, next) => {
     const accountType = isAdmin ? 'admin' : 'user';
     const refreshToken = await generateRefreshToken(user, accountType, req, refreshTokenDays);
 
-    // Attempt to generate & send OTP for second-factor/account verification.
+    // Check if this is a trusted device (Remember Me feature)
+    const trustedDeviceToken = req.cookies.trustedDevice;
+    let skipOTP = false;
+    
+    if (trustedDeviceToken && rememberMe) {
+      try {
+        // Verify trusted device token (simple HMAC verification)
+        const crypto = require('crypto');
+        const secret = process.env.JWT_SECRET || 'default-secret';
+        const [userId, timestamp, signature] = trustedDeviceToken.split('.');
+        
+        if (userId === String(user._id)) {
+          const expectedSignature = crypto
+            .createHmac('sha256', secret)
+            .update(`${userId}.${timestamp}`)
+            .digest('hex');
+          
+          if (signature === expectedSignature) {
+            const tokenAge = Date.now() - parseInt(timestamp);
+            const thirtyDays = 30 * 24 * 60 * 60 * 1000;
+            
+            if (tokenAge < thirtyDays) {
+              skipOTP = true;
+              console.log('[Login] Trusted device recognized - skipping OTP for user:', user.email);
+            } else {
+              console.log('[Login] Trusted device token expired');
+            }
+          }
+        }
+      } catch (e) {
+        console.error('[Login] Error validating trusted device token:', e.message);
+      }
+    }
+    
+    // Attempt to generate & send OTP for second-factor/account verification (unless trusted device)
     // This should not block login on email/send failure; we log errors and
     // still return successful login response. OTP is stored server-side via setOTP.
-    try {
-      const otp = generateOTP();
-      setOTP(user.email || user.username || identifier, otp);
-      // send to the canonical email on file
-      if (user.email) {
-        // fire-and-forget
-        sendOTPEmail(user.email, otp).catch((e) => console.error('sendOTPEmail error:', e && e.message ? e.message : e));
+    if (!skipOTP) {
+      try {
+        const otp = generateOTP();
+        setOTP(user.email || user.username || identifier, otp);
+        // send to the canonical email on file
+        if (user.email) {
+          // fire-and-forget
+          sendOTPEmail(user.email, otp).catch((e) => console.error('sendOTPEmail error:', e && e.message ? e.message : e));
+        }
+      } catch (e) {
+        console.error('Failed to generate/send OTP during login for', user && user.email, e && e.message ? e.message : e);
       }
-    } catch (e) {
-      console.error('Failed to generate/send OTP during login for', user && user.email, e && e.message ? e.message : e);
     }
 
     // Set refresh token in HTTP-only cookie (duration based on rememberMe flag)
@@ -296,6 +372,7 @@ exports.login = async (req, res, next) => {
     // already attempted to send the OTP to the email on file.
     const responseData = { 
       accessToken,
+      skipOTP, // Tell frontend whether to skip OTP verification (trusted device)
       user: {
         id: user._id,
         name: user.name,

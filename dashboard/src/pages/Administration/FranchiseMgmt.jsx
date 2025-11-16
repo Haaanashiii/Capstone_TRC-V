@@ -575,6 +575,12 @@ function FranchiseMgmt() {
   const handleApproveApplication = async () => {
     if (!selectedApplication) return
     
+    // Prevent double-submission
+    if (isLoading) {
+      console.log('[FranchiseMgmt] Already processing, ignoring duplicate click')
+      return
+    }
+    
     setIsLoading(true)
     
     try {
@@ -597,11 +603,24 @@ function FranchiseMgmt() {
       handleCloseViewModal()
     } catch (error) {
       console.error('[FranchiseMgmt] Error approving application:', error)
+      
+      // Handle specific error cases
+      const errorMessage = error.response?.data?.error || error.response?.data?.message || 'Failed to approve application'
+      const isConflict = error.response?.status === 409
+      
       setNotification({
         open: true,
-        message: error.response?.data?.error || 'Failed to approve application',
+        message: isConflict 
+          ? `Already approved: ${errorMessage}` 
+          : errorMessage,
         type: 'error'
       })
+      
+      // If it's a conflict (already approved), refresh the list and close modal
+      if (isConflict) {
+        await fetchAllPending()
+        handleCloseViewModal()
+      }
     } finally {
       setIsLoading(false)
     }

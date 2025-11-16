@@ -1,5 +1,5 @@
 const crypto = require('crypto');
-const FranchiseApplication = require('../models/franchiseApplicationModel');
+const FranchiseInformation = require('../models/franchiseInformationModel');
 
 /**
  * Generate a unique MTOP number
@@ -9,8 +9,8 @@ const FranchiseApplication = require('../models/franchiseApplicationModel');
 async function generateUniqueMTOPNumber() {
   const currentYear = new Date().getFullYear();
   
-  // Find the highest MTOP number for this year
-  const latestApplication = await FranchiseApplication
+  // Find the highest MTOP number for this year in FranchiseInformation (approved franchises)
+  const latestFranchise = await FranchiseInformation
     .findOne({ 
       mtopNumber: { $regex: `^MTOP-${currentYear}-` } 
     })
@@ -19,9 +19,9 @@ async function generateUniqueMTOPNumber() {
 
   let sequenceNumber = 1;
   
-  if (latestApplication && latestApplication.mtopNumber) {
+  if (latestFranchise && latestFranchise.mtopNumber) {
     // Extract sequence number from format MTOP-YYYY-XXXXX
-    const match = latestApplication.mtopNumber.match(/MTOP-\d{4}-(\d+)/);
+    const match = latestFranchise.mtopNumber.match(/MTOP-\d{4}-(\d+)/);
     if (match) {
       sequenceNumber = parseInt(match[1], 10) + 1;
     }
@@ -31,9 +31,10 @@ async function generateUniqueMTOPNumber() {
   const paddedSequence = String(sequenceNumber).padStart(5, '0');
   const mtopNumber = `MTOP-${currentYear}-${paddedSequence}`;
 
-  // Verify uniqueness (edge case protection)
-  const exists = await FranchiseApplication.findOne({ mtopNumber });
+  // Verify uniqueness in FranchiseInformation (edge case protection)
+  const exists = await FranchiseInformation.findOne({ mtopNumber });
   if (exists) {
+    console.log(`[MTOP_GEN] Collision detected for ${mtopNumber}, generating next number...`);
     // Recursively try next number if collision occurs
     return generateUniqueMTOPNumber();
   }
