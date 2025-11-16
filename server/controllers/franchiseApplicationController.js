@@ -717,11 +717,20 @@ exports.approveFranchiseApplication = async (req, res, next) => {
                         };
                         
                         await userAccountRepository.updateUserAccount(user._id, updateData);
+                        
+                        // BIDIRECTIONAL LINK: Update FranchiseInformation with linkedUser
+                        await FranchiseInformation.findByIdAndUpdate(
+                            franchiseInfo._id,
+                            { linkedUser: user._id },
+                            { new: true }
+                        );
+                        
                         linkedUserId = user._id;
                         console.log(`[APPROVAL] ✅ Successfully linked franchise to user by userId (UUID): ${appUserId}`);
                         console.log(`[APPROVAL] User: ${user.name} (${user.email})`);
                         console.log(`[APPROVAL] User MongoDB _id: ${user._id}`);
                         console.log(`[APPROVAL] Franchise status set to: active`);
+                        console.log(`[APPROVAL] ✅ Bidirectional link created: FranchiseInfo.linkedUser = ${user._id}`);
                     } else {
                         console.warn(`[APPROVAL] ⚠️  User not found with userId (UUID): ${appUserId}`);
                         console.warn(`[APPROVAL] User may have been deleted. Franchise created but not linked.`);
@@ -748,9 +757,18 @@ exports.approveFranchiseApplication = async (req, res, next) => {
                     };
                     
                     await userAccountRepository.updateUserAccount(user._id, updateData);
+                    
+                    // BIDIRECTIONAL LINK: Update FranchiseInformation with linkedUser
+                    await FranchiseInformation.findByIdAndUpdate(
+                        franchiseInfo._id,
+                        { linkedUser: user._id },
+                        { new: true }
+                    );
+                    
                     linkedUserId = user._id;
                     console.log(`[APPROVAL] ✅ Successfully linked franchise to user by email: ${user._id}`);
                     console.log(`[APPROVAL] User: ${user.name} (${user.email})`);
+                    console.log(`[APPROVAL] ✅ Bidirectional link created: FranchiseInfo.linkedUser = ${user._id}`);
                 } else {
                     console.warn(`[APPROVAL] ⚠️  No user found with email: ${appEmail}`);
                     console.warn(`[APPROVAL] Franchise created but not linked to any user account`);
