@@ -45,7 +45,6 @@ const ProtectedRoute = ({ children, requiredRole = null }) => {
     }
   }
 
-  console.log('[ProtectedRoute] Access granted for role:', decoded.role);
   return children;
 };
 

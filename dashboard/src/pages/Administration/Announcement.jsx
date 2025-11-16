@@ -339,35 +339,34 @@ function Announcement() {
     <div className="announcement-management-container">
       <Sidebar />
       <div className="content-area">
-        <Box className="announcement-management-box">
-          <Typography variant="h5" component="h1" className="announcement-management-title">
-            Announcement Management
+        <div className="page-title">
+          Announcement Management
+        </div>
+
+        {/* Success/Error Messages */}
+        {error && !openModal && (
+          <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>
+            {error}
+          </Alert>
+        )}
+        {success && !openModal && (
+          <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccess('')}>
+            {success}
+          </Alert>
+        )}
+
+        <Box sx={{ mb: 3, p: 2.5, bgcolor: 'white', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0, 0, 0, 0.08)' }}>
+          <Typography variant="body1" sx={{ color: '#0A356B', fontWeight: 600 }}>
+            Published Announcements: <strong style={{ color: '#0A356B', fontSize: '1.1em' }}>{publishedCount} / 3</strong>
+            {publishedCount >= 3 && (
+              <span style={{ color: '#d32f2f', marginLeft: 8, fontWeight: 500 }}>
+                (Maximum reached - unpublish one to publish another)
+              </span>
+            )}
           </Typography>
+        </Box>
 
-          {/* Success/Error Messages */}
-          {error && !openModal && (
-            <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>
-              {error}
-            </Alert>
-          )}
-          {success && !openModal && (
-            <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccess('')}>
-              {success}
-            </Alert>
-          )}
-
-          <Box sx={{ mb: 2, p: 2, bgcolor: '#f5f5f5', borderRadius: 1 }}>
-            <Typography variant="body2" color="text.secondary">
-              Published Announcements: <strong>{publishedCount} / 3</strong>
-              {publishedCount >= 3 && (
-                <span style={{ color: '#f57c00', marginLeft: 8 }}>
-                  (Maximum reached - unpublish one to publish another)
-                </span>
-              )}
-            </Typography>
-          </Box>
-
-          <Box className="announcement-management-toolbar">
+        <Box className="announcement-management-toolbar">
             <TextField
               placeholder="Search announcements..."
               variant="outlined"
@@ -391,15 +390,15 @@ function Announcement() {
             >
               Add Announcement
             </Button>
+        </Box>
+
+        {loading && !openModal && (
+          <Box display="flex" justifyContent="center" my={4}>
+            <CircularProgress />
           </Box>
+        )}
 
-          {loading && !openModal && (
-            <Box display="flex" justifyContent="center" my={4}>
-              <CircularProgress />
-            </Box>
-          )}
-
-          <TableContainer component={Paper} elevation={2}>
+        <TableContainer component={Paper} className="table-container" elevation={2}>
             <Table stickyHeader>
               <TableHead>
                 <TableRow>
@@ -458,17 +457,16 @@ function Announcement() {
                 )}
               </TableBody>
             </Table>
-          </TableContainer>
+        </TableContainer>
 
-          <TablePagination
-            component="div"
-            count={filteredAnnouncements.length}
-            page={page}
-            onPageChange={handleChangePage}
-            rowsPerPage={rowsPerPage}
-            rowsPerPageOptions={[]}
-          />
-        </Box>
+        <TablePagination
+          component="div"
+          count={filteredAnnouncements.length}
+          page={page}
+          onPageChange={handleChangePage}
+          rowsPerPage={rowsPerPage}
+          rowsPerPageOptions={[]}
+        />
 
         {/* Add/Edit Announcement Modal */}
         <Modal open={openModal} onClose={handleCloseModal}>

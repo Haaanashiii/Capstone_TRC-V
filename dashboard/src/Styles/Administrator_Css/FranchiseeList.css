@@ -6,13 +6,14 @@
   display: flex;
   min-height: 100vh;
   background-color: #f5f7fa;
+  position: relative;
 }
 
 .content-container {
   flex: 1;
-  padding: 24px;
+  padding: 32px;
   margin-left: 240px; 
-  width: calc(100% - 240px); 
+  width: calc(100% - 240px);
 }
 
 
@@ -24,36 +25,49 @@
 }
 
 .page-title {
-  font-weight: bold;
-  color: #000;
-  font-size: 32px;
+  font-size: 36px;
+  font-weight: 700;
+  margin-bottom: 32px;
+  color: #0A356B;
   margin: 0;
+  letter-spacing: -0.5px;
 }
 
 .search-container {
   display: flex;
-  margin-bottom: 20px;
+  margin-bottom: 28px;
+  gap: 16px;
+  align-items: center;
+  background: white;
+  padding: 20px;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(10, 53, 107, 0.08);
 }
 
 .search-field {
-  margin-right: 16px !important;
-  background-color: #e0e0e0;
-  border-color: #0a3161 !important;
-  border: 2px solid #0a3161 !important;
+  margin-right: 0 !important;
+  background-color: transparent;
 }
 
 .search-field .MuiOutlinedInput-notchedOutline {
-  border: none;
+  border-color: rgba(10, 53, 107, 0.2);
 }
 
 .search-button {
-  background-color: #0a3161 !important;
-  color: #ffffff !important;
-  font-weight: bold;
+  background-color: #0A356B !important;
+  color: white !important;
+  font-weight: 600 !important;
+  padding: 10px 24px !important;
+  border-radius: 8px !important;
+  text-transform: none !important;
+  box-shadow: 0 4px 12px rgba(10, 53, 107, 0.2) !important;
+  transition: all 0.3s ease !important;
 }
 
 .search-button:hover {
-  background-color: #c0c0c0;
+  background-color: #083057 !important;
+  box-shadow: 0 6px 16px rgba(10, 53, 107, 0.3) !important;
+  transform: translateY(-2px);
 }
 
 .table-container {
@@ -61,6 +75,9 @@
   background-color: #ffffff;
   max-height: 600px;
   overflow-y: auto;
+  border-radius: 12px !important;
+  box-shadow: 0 4px 16px rgba(10, 53, 107, 0.1) !important;
+  border: 1px solid rgba(10, 53, 107, 0.08);
 }
 
 /* For the table header */

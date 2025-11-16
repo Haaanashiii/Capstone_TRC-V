@@ -17,6 +17,7 @@ function Sidebar() {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [showLogout, setShowLogout] = useState(false);
   const [user, setUser] = useState(null);
+  const [tokenChecked, setTokenChecked] = useState(false);
 
   useEffect(() => {
     const timerId = setInterval(() => {
@@ -27,23 +28,24 @@ function Sidebar() {
   }, []);
 
   // Get user info from sessionStorage token (JWT is single source of truth)
+  // Only run once on mount
   useEffect(() => {
+    if (tokenChecked) return;
+    
     const token = sessionStorage.getItem('accessToken');
-    console.log('[AdminSidebar] Token found:', !!token);
     
     if (token) {
       try {
         const decoded = JSON.parse(atob(token.split('.')[1]));
-        console.log('[AdminSidebar] Decoded user:', decoded);
         // JWT now contains: { id, role, name, accountType, hasOperator }
         setUser(decoded);
       } catch (error) {
         console.error('[AdminSidebar] Error decoding token:', error);
       }
-    } else {
-      console.warn('[AdminSidebar] No token found in sessionStorage');
     }
-  }, []);
+    
+    setTokenChecked(true);
+  }, [tokenChecked]);
 
   const handleLogout = async () => {
     console.log('[AdminSidebar] Logout initiated');
@@ -89,12 +91,9 @@ function Sidebar() {
     if (user?.firstName) return user.firstName;
     if (user?.name) {
       // If full name is stored, split and get first name
-      const firstName = user.name.split(' ')[0];
-      console.log('[AdminSidebar] First name extracted:', firstName);
-      return firstName;
+      return user.name.split(' ')[0];
     }
     
-    console.warn('[AdminSidebar] No name field found, using default');
     return 'Admin';
   }, [user]);
 

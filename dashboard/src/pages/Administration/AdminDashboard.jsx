@@ -9,7 +9,6 @@ function AdminDashboard() {
       <div style={{ flex: 1, padding: '20px', background: '#f5f7fa' }}>
         <h1>Admin Dashboard</h1>
         <p>Welcome to the TRC-V Administration Panel</p>
-        {/* Dashboard content goes here */}
       </div>
     </div>
   );

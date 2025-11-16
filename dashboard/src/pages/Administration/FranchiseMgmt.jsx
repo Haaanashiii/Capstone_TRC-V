@@ -89,7 +89,15 @@ function FranchiseMgmt() {
    * Fetch all pending franchise applications from backend
    * Uses secure franchiseAPI.getPending() with automatic token refresh
    */
+  const isFetchingRef = useRef(false)
   const fetchAllPending = useCallback(async () => {
+    // Prevent duplicate simultaneous requests
+    if (isFetchingRef.current) {
+      console.log('[FranchiseMgmt] Fetch already in progress, skipping')
+      return
+    }
+    
+    isFetchingRef.current = true
     setIsLoading(true)
     try {
       const response = await franchiseAPI.getPending()
@@ -143,14 +151,18 @@ function FranchiseMgmt() {
       setPendingApplications([])
     } finally {
       setIsLoading(false)
+      isFetchingRef.current = false
     }
   }, [])
 
-  
+  // Pause polling when any modal is open
+  const isAnyModalOpen = openAddModal || openViewModal || openRejectModal || openFilePreview
+
   useEffect(() => {
     fetchAllPending()
     let pollId = null
-    if (POLL_INTERVAL_MS > 0) {
+    // Only poll when no modals are open
+    if (POLL_INTERVAL_MS > 0 && !isAnyModalOpen) {
       pollId = setInterval(() => {
         fetchAllPending()
       }, POLL_INTERVAL_MS)
@@ -158,7 +170,7 @@ function FranchiseMgmt() {
     return () => {
       if (pollId) clearInterval(pollId)
     }
-  }, [fetchAllPending])
+  }, [fetchAllPending, isAnyModalOpen])
 
 
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('')
@@ -208,11 +220,22 @@ function FranchiseMgmt() {
   // When a selected application changes, attempt to fetch its QR image and create a blob URL
   React.useEffect(() => {
     let cancelled = false
-    // cleanup previous blob
-  try { if (qrBlobUrlRef.current) { URL.revokeObjectURL(qrBlobUrlRef.current); qrBlobUrlRef.current = null; } } catch (e) { console.warn('Failed to revoke previous qr blob', e) }
+    
+    // Cleanup previous QR blob using centralized function
+    if (qrBlobUrlRef.current) {
+      try {
+        URL.revokeObjectURL(qrBlobUrlRef.current)
+        qrBlobUrlRef.current = null
+      } catch (e) {
+        console.warn('Failed to revoke previous QR blob:', e)
+      }
+    }
 
     const fetchQr = async () => {
-      if (!selectedApplication || !selectedApplication.qrCode) return
+      if (!selectedApplication || !selectedApplication.qrCode) {
+        setQrBlobUrl(null)
+        return
+      }
       try {
         const raw = selectedApplication.qrCode
         const url = /^https?:\/\//i.test(raw) ? raw : (API_BASE_URL.replace(/\/$/, '') + (raw.startsWith('/') ? raw : '/' + raw))
@@ -224,7 +247,7 @@ function FranchiseMgmt() {
         qrBlobUrlRef.current = objUrl
         setQrBlobUrl(objUrl)
       } catch (err) {
-        console.warn('[FranchiseMgmt] Failed to fetch QR blob for inline display', err)
+        console.warn('[FranchiseMgmt] Failed to fetch QR blob for inline display:', err)
         setQrBlobUrl(null)
       }
     }
@@ -233,7 +256,14 @@ function FranchiseMgmt() {
 
     return () => {
       cancelled = true
-  try { if (qrBlobUrlRef.current) { URL.revokeObjectURL(qrBlobUrlRef.current); qrBlobUrlRef.current = null; } } catch (e) { console.warn('Failed to revoke qr blob on cleanup', e) }
+      if (qrBlobUrlRef.current) {
+        try {
+          URL.revokeObjectURL(qrBlobUrlRef.current)
+          qrBlobUrlRef.current = null
+        } catch (e) {
+          console.warn('Failed to revoke QR blob on cleanup:', e)
+        }
+      }
       setQrBlobUrl(null)
     }
   }, [selectedApplication])
@@ -321,19 +351,22 @@ function FranchiseMgmt() {
     tryFetchAndPreview()
   }, [])
   
-  const handleCloseFilePreview = useCallback(() => {
-    // Revoke any temporary object URL created from fetch
+  // Centralized blob URL cleanup function
+  const revokeBlobUrl = useCallback((ref) => {
     try {
-      if (currentBlobUrlRef.current) {
-        URL.revokeObjectURL(currentBlobUrlRef.current)
-        currentBlobUrlRef.current = null
+      if (ref.current) {
+        URL.revokeObjectURL(ref.current)
+        ref.current = null
       }
     } catch (err) {
-      console.warn('Failed to revoke object URL', err)
+      console.warn('Failed to revoke blob URL:', err)
     }
-
-    setOpenFilePreview(false)
   }, [])
+
+  const handleCloseFilePreview = useCallback(() => {
+    revokeBlobUrl(currentBlobUrlRef)
+    setOpenFilePreview(false)
+  }, [revokeBlobUrl])
   
   /**
    * Get appropriate icon for file type (memoized)
@@ -367,7 +400,6 @@ function FranchiseMgmt() {
     if (files && files[0]) {
       const file = files[0]
       
-
       if (file.size > 5 * 1024 * 1024) { // 5MB limit
         setNotification({
           open: true,
@@ -377,33 +409,50 @@ function FranchiseMgmt() {
         return
       }
       
-      // Create object URL for preview
-      const objectURL = URL.createObjectURL(file)
-      setFormData(prev => ({
-        ...prev,
-        [name]: {
-          name: file.name,
-          type: file.type,
-          path: objectURL,
-          file: file 
+      setFormData(prev => {
+        // Revoke previous blob URL if exists
+        if (prev[name]?.path && prev[name].path.startsWith('blob:')) {
+          try {
+            URL.revokeObjectURL(prev[name].path)
+          } catch (e) {
+            console.warn('Failed to revoke previous file blob:', e)
+          }
         }
-      }))
+        
+        // Create object URL for preview
+        const objectURL = URL.createObjectURL(file)
+        return {
+          ...prev,
+          [name]: {
+            name: file.name,
+            type: file.type,
+            path: objectURL,
+            file: file 
+          }
+        }
+      })
     }
   }, [])
   
   /**
-   * Cleanup object URLs when component unmounts or form data changes
+   * Cleanup object URLs only when component unmounts
    */
   useEffect(() => {
+    const currentFormData = { ...formData }
     return () => {
       // Cleanup all object URLs to prevent memory leaks
-      Object.keys(formData).forEach(key => {
-        if (key.startsWith('document') && formData[key]?.path) {
-          URL.revokeObjectURL(formData[key].path)
+      Object.keys(currentFormData).forEach(key => {
+        if (key.startsWith('document') && currentFormData[key]?.path && currentFormData[key]?.path.startsWith('blob:')) {
+          try {
+            URL.revokeObjectURL(currentFormData[key].path)
+          } catch (e) {
+            console.warn('Failed to revoke blob URL:', e)
+          }
         }
       })
     }
-  }, [formData])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   
   /**
    * Submit new application (auto-approved by admin)
@@ -449,6 +498,17 @@ function FranchiseMgmt() {
       
       // Close modal
       handleCloseAddModal()
+      
+      // Revoke all blob URLs before resetting form
+      Object.keys(formData).forEach(key => {
+        if (key.startsWith('document') && formData[key]?.path && formData[key].path.startsWith('blob:')) {
+          try {
+            URL.revokeObjectURL(formData[key].path)
+          } catch (e) {
+            console.warn('Failed to revoke blob URL on form reset:', e)
+          }
+        }
+      })
       
       // Reset form
       setFormData({
@@ -578,7 +638,7 @@ function FranchiseMgmt() {
    * Handle notification close
    */
   const handleNotificationClose = useCallback(() => {
-    setNotification(prev => ({ ...prev, open: false }))
+    setNotification({ open: false, message: '', type: 'info' })
   }, [])
 
   return (
@@ -608,7 +668,7 @@ function FranchiseMgmt() {
             className="add-button"
             onClick={handleOpenAddModal}
           >
-            ADD NEW FRANCHISE
+            Add New Franchise
           </Button>
         </div>
         
@@ -633,7 +693,6 @@ function FranchiseMgmt() {
                   <TableCell className="table-cell-head">Plate Number</TableCell>
                   <TableCell className="table-cell-head">Application Type</TableCell>
                   <TableCell className="table-cell-head">Address</TableCell>
-                  <TableCell className="table-cell-head">Action</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -660,33 +719,11 @@ function FranchiseMgmt() {
                         />
                       </TableCell>
                       <TableCell className="table-cell-body">{application.address}</TableCell>
-                      <TableCell className="table-cell-body">
-                        <IconButton 
-                          size="small"
-                          className="view-icon-button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleOpenViewModal(application);
-                          }}
-                        >
-                          <VisibilityIcon />
-                        </IconButton>
-                        {application.qrCode && (
-                          <IconButton
-                            size="small"
-                            className="view-icon-button"
-                            onClick={(e) => { e.stopPropagation(); handleOpenFilePreview({ name: application.name + '-qr.png', type: 'image/png', path: application.qrCode }); }}
-                            title="View QR"
-                          >
-                            <img src={(application.qrCode && !/^https?:\/\//i.test(application.qrCode) ? (API_BASE_URL.replace(/\/$/, '') + (application.qrCode.startsWith('/') ? application.qrCode : '/' + application.qrCode)) : application.qrCode)} alt="QR" style={{ width: 28, height: 28, objectFit: 'contain' }} />
-                          </IconButton>
-                        )}
-                      </TableCell>
                     </TableRow>
                   ))
                 ) : (
                   <TableRow className="table-row">
-                    <TableCell className="table-cell-body table-cell-center" colSpan={8}>
+                    <TableCell className="table-cell-body table-cell-center" colSpan={7}>
                       {isLoading ? 'Loading...' : 'No pending applications found'}
                     </TableCell>
                   </TableRow>

@@ -1,34 +1,36 @@
 .announcement-management-container {
   display: flex;
   min-height: 100vh;
-  background-color: #f5f5f5;
+  background-color: #f5f7fa;
+  position: relative;
 }
 
 .content-area {
   flex: 1;
-  padding: 24px;
-  margin-left: 250px;
+  padding: 32px;
+  margin-left: 240px;
+  width: calc(100% - 240px);
 }
 
-.announcement-management-box {
-  background: white;
-  border-radius: 8px;
-  padding: 24px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-}
-
-.announcement-management-title {
+.page-title {
+  font-size: 36px;
+  font-weight: 700;
+  margin-bottom: 32px;
   color: #0A356B;
-  margin-bottom: 24px !important;
-  font-weight: 600 !important;
+  margin-top: 0;
+  letter-spacing: -0.5px;
 }
 
 .announcement-management-toolbar {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
+  margin-bottom: 28px;
   gap: 16px;
+  background: white;
+  padding: 20px;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
 .announcement-management-toolbar .MuiTextField-root {
@@ -40,12 +42,23 @@
   background-color: #0A356B !important;
   color: white !important;
   text-transform: none !important;
-  padding: 8px 24px !important;
-  font-weight: 500 !important;
+  padding: 10px 24px !important;
+  font-weight: 600 !important;
+  border-radius: 8px !important;
+  box-shadow: none !important;
+  transition: all 0.2s ease !important;
 }
 
 .add-announcement-btn:hover {
-  background-color: #082a54 !important;
+  background-color: #083057 !important;
+  box-shadow: 0 4px 12px rgba(10, 53, 107, 0.2) !important;
+}
+
+/* Table Container */
+.table-container {
+  border-radius: 12px !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08) !important;
+  overflow: hidden !important;
 }
 
 /* Modal Styles */
@@ -57,8 +70,8 @@
   width: 90%;
   max-width: 600px;
   background-color: white;
-  border-radius: 8px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
   padding: 32px;
   max-height: 90vh;
   overflow-y: auto;
@@ -66,8 +79,10 @@
 
 .announcement-modal-title {
   color: #0A356B;
-  margin-bottom: 16px !important;
+  margin-bottom: 24px !important;
   font-weight: 600 !important;
+  padding-bottom: 16px;
+  border-bottom: 2px solid rgba(10, 53, 107, 0.1);
 }
 
 .announcement-modal-actions {
