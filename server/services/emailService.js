@@ -1,5 +1,7 @@
 const nodemailer = require('nodemailer');
 const path = require('path');
+const fs = require('fs');
+const { google } = require('googleapis');
 
 // Build a fresh transporter using current environment variables. Creating a
 // transporter per send avoids stale auth when the server process is long-lived
@@ -31,6 +33,72 @@ function makeTransporter() {
   return nodemailer.createTransport(transportOptions);
 }
 
+// --- Gmail API integration ---
+
+function getGmailOAuth2Client() {
+  const client_id = process.env.GMAIL_API_CLIENT_ID;
+  const client_secret = process.env.GMAIL_API_CLIENT_SECRET;
+  const redirect_uri = process.env.GMAIL_API_REDIRECT_URI;
+  const refresh_token = process.env.GMAIL_API_REFRESH_TOKEN;
+  if (!client_id || !client_secret || !refresh_token) return null;
+  const oAuth2Client = new google.auth.OAuth2(client_id, client_secret, redirect_uri);
+  oAuth2Client.setCredentials({ refresh_token });
+  return oAuth2Client;
+}
+
+function getGmailOAuth2Client() {
+  const client_id = process.env.GMAIL_API_CLIENT_ID;
+  const client_secret = process.env.GMAIL_API_CLIENT_SECRET;
+  const redirect_uri = process.env.GMAIL_API_REDIRECT_URI;
+  const refresh_token = process.env.GMAIL_API_REFRESH_TOKEN;
+  if (!client_id || !client_secret || !refresh_token) return null;
+  const oAuth2Client = new google.auth.OAuth2(client_id, client_secret, redirect_uri);
+  oAuth2Client.setCredentials({ refresh_token });
+  return oAuth2Client;
+}
+
+async function sendViaGmailApi({ from, to, subject, text, html, attachments }) {
+  const oAuth2Client = getGmailOAuth2Client();
+  if (!oAuth2Client) throw new Error('Gmail API credentials not configured');
+  const gmail = google.gmail({ version: 'v1', auth: oAuth2Client });
+  const boundary = '----=_Part_' + Date.now();
+  let messageParts = [
+    `From: ${from}`,
+    `To: ${to}`,
+    `Subject: ${subject}`,
+    'MIME-Version: 1.0',
+    `Content-Type: multipart/alternative; boundary="${boundary}"`,
+    '',
+    `--${boundary}`,
+    'Content-Type: text/plain; charset="UTF-8"',
+    '',
+    text,
+    `--${boundary}`,
+    'Content-Type: text/html; charset="UTF-8"',
+    '',
+    html,
+  ];
+  if (attachments && attachments.length) {
+    for (const att of attachments) {
+      const attData = fs.readFileSync(att.path);
+      messageParts.push(`--${boundary}`);
+      messageParts.push(`Content-Type: image/png; name="${att.filename}"`);
+      messageParts.push('Content-Transfer-Encoding: base64');
+      messageParts.push(`Content-ID: <${att.cid}>`);
+      messageParts.push('Content-Disposition: inline');
+      messageParts.push('');
+      messageParts.push(attData.toString('base64'));
+    }
+  }
+  messageParts.push(`--${boundary}--`);
+  const rawMessage = Buffer.from(messageParts.join('\r\n')).toString('base64').replace(/\+/g, '-').replace(/\//g, '_');
+  await gmail.users.messages.send({
+    userId: 'me',
+    requestBody: { raw: rawMessage }
+  });
+  return { messageId: 'gmail-api' };
+}
+
 async function sendOTPEmail(to, otp) {
   const email = String(to || '').trim();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
@@ -45,7 +113,6 @@ async function sendOTPEmail(to, otp) {
   if (!fromAddress) {
     throw new Error('EMAIL_FROM or EMAIL_USER must be configured');
   }
-  
   const mailOptions = {
     from: `${fromName} <${fromAddress}>`,
     to: email,
@@ -149,16 +216,20 @@ async function sendOTPEmail(to, otp) {
       cid: 'logo'
     }]
   };
-  
-  const transporter = makeTransporter();
+  const useGmailApi = process.env.NODE_ENV === 'production' && getGmailOAuth2Client();
   try {
-    const info = await transporter.sendMail(mailOptions);
+    let info;
+    if (useGmailApi) {
+      info = await sendViaGmailApi(mailOptions);
+    } else {
+      const transporter = makeTransporter();
+      info = await transporter.sendMail(mailOptions);
+    }
     if (process.env.NODE_ENV !== 'production') {
       console.log('sendMail info:', info && info.messageId ? info.messageId : info);
     }
     return info;
   } catch (err) {
-    // rethrow with message so callers can log succinctly
     const errMsg = err && err.message ? err.message : String(err);
     throw new Error(`Failed to send email: ${errMsg}`);
   }
@@ -349,10 +420,15 @@ async function sendFranchiseExpiryEmail(to, operatorName, mtopNumber, expiryDate
       cid: 'logo'
     }]
   };
-  
-  const transporter = makeTransporter();
+  const useGmailApi = process.env.NODE_ENV === 'production' && getGmailOAuth2Client();
   try {
-    const info = await transporter.sendMail(mailOptions);
+    let info;
+    if (useGmailApi) {
+      info = await sendViaGmailApi(mailOptions);
+    } else {
+      const transporter = makeTransporter();
+      info = await transporter.sendMail(mailOptions);
+    }
     if (process.env.NODE_ENV !== 'production') {
       console.log('Franchise expiry email sent:', info && info.messageId ? info.messageId : info);
     }
