@@ -88,7 +88,10 @@ if (corsOriginEnv) {
 app.use(cors(corsOptions));
 
 // Logging and security checks
-app.use(morgan('dev'));
+// Skip logging for health checks to reduce noise
+app.use(morgan('dev', {
+  skip: (req, res) => req.path === '/health'
+}));
 app.use(sanitizeRequest); 
 
 // Static file serving
