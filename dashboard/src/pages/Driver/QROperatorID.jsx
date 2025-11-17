@@ -3,7 +3,7 @@ import { useParams } from "react-router-dom";
 import api from '../Services/api';
 
 function QROperatorID() {
-  const { operatorId } = useParams();
+  const { operatorId } = useParams(); // This is now the hashedMTOP
   const [operatorData, setOperatorData] = useState(null);
   const [showReportModal, setShowReportModal] = useState(false);
   const [showFareMatrixModal, setShowFareMatrixModal] = useState(false);
@@ -14,12 +14,12 @@ function QROperatorID() {
     const fetchOperatorData = async () => {
       try {
         setLoading(true);
-        // Use the PUBLIC QR endpoint instead of the authenticated endpoint
-        const response = await api.get(`/operators/qr/${operatorId}`);
+        // Use the new hashed MTOP endpoint for QR lookups
+        const response = await api.get(`/franchise-information/qr/hash/${operatorId}`);
         setOperatorData(response.data);
         setError(null);
       } catch (error) {
-        console.error("Error fetching operator data:", error);
+        console.error("Error fetching franchise data:", error);
         
         // Handle rate limit errors specifically
         if (error.response?.status === 429) {
@@ -40,7 +40,7 @@ function QROperatorID() {
     };
 
     if (operatorId) {
-      // Hide the operator ID from the URL IMMEDIATELY before fetching data
+      // Hide the hashed MTOP from the URL IMMEDIATELY before fetching data
       window.history.replaceState(null, 'TRC-V Operator Verification', '/');
       
       fetchOperatorData();

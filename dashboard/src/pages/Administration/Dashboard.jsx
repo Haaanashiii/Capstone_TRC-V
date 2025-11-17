@@ -4,8 +4,12 @@ import Sidebar from './Sidebar'
 
 function Dashboard() {
   return (
-    <div>
+    <div className="dashboard-container">
       <Sidebar />
+      <div className="content-container">
+        <h1 className="title">Dashboard</h1>
+        {/* Add your dashboard content here */}
+      </div>
     </div>
   )
 }

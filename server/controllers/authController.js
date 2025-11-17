@@ -4,6 +4,7 @@ const { sendOTPEmail } = require('../services/emailService');
 
 
 const userAccountRepository = require('../repositories/userAccountRepository');
+const sessionRepository = require('../repositories/sessionRepository');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
@@ -61,7 +62,7 @@ function constantTimeCompare(a, b) {
 // Secure OTP verification for 2FA or forgot password
 exports.verifyOtp = async (req, res, next) => {
   try {
-    const { email, otp } = req.body;
+    const { email, otp, rememberMe } = req.body;
     if (!email || !otp) return res.status(400).json({ error: 'Email and OTP are required' });
     // Get stored OTP (do not reveal if email exists)
     let valid = false;
@@ -73,6 +74,46 @@ exports.verifyOtp = async (req, res, next) => {
       }
     } catch (e) {}
     if (!valid) return res.status(400).json({ error: 'Invalid or expired OTP' });
+    
+    // If rememberMe was checked, create a trusted device token
+    if (rememberMe) {
+      try {
+        // Find user to get their ID for trusted device token
+        const userAccountRepository = require('../repositories/userAccountRepository');
+        const adminAccountRepository = require('../repositories/adminAccountRepository');
+        
+        let user = await userAccountRepository.findAccountByEmail(email).catch(() => null);
+        if (!user) {
+          user = await adminAccountRepository.findAdminByEmail(email).catch(() => null);
+        }
+        
+        if (user) {
+          const crypto = require('crypto');
+          const secret = process.env.JWT_SECRET || 'default-secret';
+          const timestamp = Date.now();
+          const signature = crypto
+            .createHmac('sha256', secret)
+            .update(`${user._id}.${timestamp}`)
+            .digest('hex');
+          
+          const trustedDeviceToken = `${user._id}.${timestamp}.${signature}`;
+          
+          // Set trusted device cookie (30 days)
+          res.cookie('trustedDevice', trustedDeviceToken, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
+            maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
+          });
+          
+          console.log('[OTP] Trusted device token created for user:', email);
+        }
+      } catch (e) {
+        console.error('[OTP] Failed to create trusted device token:', e.message);
+        // Don't fail the OTP verification if this fails
+      }
+    }
+    
     res.json({ message: 'OTP verified' });
   } catch (err) {
     next(err);
@@ -104,43 +145,98 @@ exports.resetPassword = async (req, res, next) => {
 };
 
 
-// Store refresh tokens (in production, use Redis or a database)
-const refreshTokens = new Map();
-
-// Generate access token
-const generateAccessToken = (user) => {
-  console.log('Generating access token for user:', { id: user._id, role: user.role, name: user.name }); // Debug log
-  return jwt.sign(
-    { 
-      id: user._id, 
-      role: user.role,
-      name: user.name,
-      email: user.email
-    }, 
-    process.env.JWT_SECRET, 
-    { expiresIn: '1h' }
-  );
+// Helper function to extract device info from request
+const getDeviceInfo = (req) => {
+  const userAgent = req.headers['user-agent'] || '';
+  
+  // Simple browser detection
+  let browser = 'Unknown';
+  if (userAgent.includes('Chrome')) browser = 'Chrome';
+  else if (userAgent.includes('Firefox')) browser = 'Firefox';
+  else if (userAgent.includes('Safari')) browser = 'Safari';
+  else if (userAgent.includes('Edge')) browser = 'Edge';
+  
+  // Simple OS detection
+  let os = 'Unknown';
+  if (userAgent.includes('Windows')) os = 'Windows';
+  else if (userAgent.includes('Mac')) os = 'macOS';
+  else if (userAgent.includes('Linux')) os = 'Linux';
+  else if (userAgent.includes('Android')) os = 'Android';
+  else if (userAgent.includes('iOS')) os = 'iOS';
+  
+  // Simple device detection
+  let device = 'Desktop';
+  if (userAgent.includes('Mobile')) device = 'Mobile';
+  else if (userAgent.includes('Tablet')) device = 'Tablet';
+  
+  return {
+    userAgent,
+    browser,
+    os,
+    device,
+    ip: req.ip || req.connection.remoteAddress || 'Unknown'
+  };
 };
 
-// Generate refresh token
-const generateRefreshToken = (user) => {
-  const refreshToken = crypto.randomBytes(40).toString('hex');
-  refreshTokens.set(refreshToken, {
-    userId: user._id,
-    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days
+const generateAccessToken = (user, franchiseInfo = null, isAdmin = false) => {
+  console.log('Generating access token for user:', { 
+    _id: user._id, 
+    userId: user.userId, 
+    role: user.role, 
+    name: user.name, 
+    isAdmin, 
+    hasFranchise: !!franchiseInfo 
   });
+  
+  // MINIMAL JWT PAYLOAD - Only include non-sensitive, essential data
+  // Use custom userId field (UUID) instead of MongoDB _id for better consistency
+  const payload = { 
+    id: user.userId || user._id.toString(), // Prefer userId (UUID), fallback to _id
+    _id: user._id.toString(), // Keep _id for backward compatibility
+    role: user.role,
+    name: user.name,
+    accountType: isAdmin ? 'admin' : 'user',
+    // Boolean flag to indicate if user has linked franchise info (for UX decisions)
+    hasFranchise: !!franchiseInfo,
+    franchiseStatus: user.franchiseStatus || 'inactive'
+  };
+  
+  return jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '7d' }); // Temporary: Extended to 7 days for production testing
+};
+
+// Generate refresh token and store in database
+const generateRefreshToken = async (user, accountType, req, expiresInDays = 7) => {
+  const refreshToken = crypto.randomBytes(40).toString('hex');
+  const deviceInfo = getDeviceInfo(req);
+  
+  // Store in database with custom expiry (7 days default, 30 days if "Remember Me")
+  await sessionRepository.createSession(
+    user._id,
+    accountType,
+    refreshToken,
+    deviceInfo,
+    expiresInDays
+  );
+  
+  console.log('[Auth] Refresh token created and stored in database with', expiresInDays, 'days expiry');
   return refreshToken;
 };
 
 exports.login = async (req, res, next) => {
   try {
     // Allow logging in with either username or email; support legacy frontends that send 'email' or 'identifier'
-    let { identifier, email, username, password } = req.body;
+    let { identifier, email, username, password, rememberMe } = req.body;
     identifier = identifier || email || username;
     if (!identifier || !password) return res.status(400).json({ error: 'Identifier and password are required' });
+    
+    // rememberMe flag extends refresh token expiry from 7 days to 30 days
+    const refreshTokenDays = rememberMe ? 30 : 7;
+    console.log('[Login] Remember Me:', rememberMe, '- Refresh token expiry:', refreshTokenDays, 'days');
 
-    // Try by username first. If not found, try by email.
     let user = null;
+    let isAdmin = false;
+    
+    // Step 1: Try to find in User accounts (operators)
     try { user = await userAccountRepository.findAccountByUsername(identifier, { projection: '+password' }); } catch (e) {}
     if (!user) {
       try {
@@ -153,9 +249,27 @@ exports.login = async (req, res, next) => {
           user = await userAccountRepository.findAccountByEmail(identifier, { projection: '+password' }).catch(() => null);
         }
       } catch (e) {
-        // swallow and let subsequent checks handle null user
+        // swallow and continue to check admin accounts
       }
     }
+    
+    // Step 2: If not found in User accounts, try Admin accounts
+    if (!user) {
+      const adminAccountRepository = require('../repositories/adminAccountRepository');
+      
+      try {
+        user = await adminAccountRepository.findAdminByUsername(identifier, { projection: '+password' });
+        if (user) isAdmin = true;
+      } catch (e) {}
+      
+      if (!user) {
+        try {
+          user = await adminAccountRepository.findAdminByEmail(identifier, { projection: '+password' });
+          if (user) isAdmin = true;
+        } catch (e) {}
+      }
+    }
+    
     if (!user) return res.status(401).json({ error: 'Invalid credentials' });
 
     // If the account was created via OAuth (no local password), reject password login
@@ -174,45 +288,128 @@ exports.login = async (req, res, next) => {
     }
     if (!validPassword) return res.status(401).json({ error: 'Invalid credentials' });
     
-    // Generate tokens
-    const accessToken = generateAccessToken(user);
-    const refreshToken = generateRefreshToken(user);
+    // Populate franchise information if available (only for regular users, not admins)
+    let franchiseInfo = null;
+    if (!isAdmin && user.franchiseInfo) {
+      try {
+        const User = require('../models/userAccountModel');
+        const populatedUser = await User.findById(user._id).populate('franchiseInfo');
+        if (populatedUser && populatedUser.franchiseInfo) {
+          franchiseInfo = populatedUser.franchiseInfo;
+          console.log('[Login] User has active franchise:', { operatorId: franchiseInfo.operatorId, status: franchiseInfo.franchiseStatus });
+        }
+      } catch (e) {
+        console.error('Error populating franchise info:', e && e.message);
+      }
+    }
+    
+    // Generate tokens (include franchise info for users, admin info for admins)
+    const accessToken = generateAccessToken(user, franchiseInfo, isAdmin);
+    const accountType = isAdmin ? 'admin' : 'user';
+    const refreshToken = await generateRefreshToken(user, accountType, req, refreshTokenDays);
 
-    // Attempt to generate & send OTP for second-factor/account verification.
+    // Check if this is a trusted device (Remember Me feature)
+    const trustedDeviceToken = req.cookies.trustedDevice;
+    let skipOTP = false;
+    
+    if (trustedDeviceToken && rememberMe) {
+      try {
+        // Verify trusted device token (simple HMAC verification)
+        const crypto = require('crypto');
+        const secret = process.env.JWT_SECRET || 'default-secret';
+        const [userId, timestamp, signature] = trustedDeviceToken.split('.');
+        
+        if (userId === String(user._id)) {
+          const expectedSignature = crypto
+            .createHmac('sha256', secret)
+            .update(`${userId}.${timestamp}`)
+            .digest('hex');
+          
+          if (signature === expectedSignature) {
+            const tokenAge = Date.now() - parseInt(timestamp);
+            const thirtyDays = 30 * 24 * 60 * 60 * 1000;
+            
+            if (tokenAge < thirtyDays) {
+              skipOTP = true;
+              console.log('[Login] Trusted device recognized - skipping OTP for user:', user.email);
+            } else {
+              console.log('[Login] Trusted device token expired');
+            }
+          }
+        }
+      } catch (e) {
+        console.error('[Login] Error validating trusted device token:', e.message);
+      }
+    }
+    
+    // Attempt to generate & send OTP for second-factor/account verification (unless trusted device)
     // This should not block login on email/send failure; we log errors and
     // still return successful login response. OTP is stored server-side via setOTP.
-    try {
-      const otp = generateOTP();
-      setOTP(user.email || user.username || identifier, otp);
-      // send to the canonical email on file
-      if (user.email) {
-        // fire-and-forget
-        sendOTPEmail(user.email, otp).catch((e) => console.error('sendOTPEmail error:', e && e.message ? e.message : e));
+    if (!skipOTP) {
+      try {
+        const otp = generateOTP();
+        setOTP(user.email || user.username || identifier, otp);
+        // send to the canonical email on file
+        if (user.email) {
+          // fire-and-forget
+          sendOTPEmail(user.email, otp).catch((e) => console.error('sendOTPEmail error:', e && e.message ? e.message : e));
+        }
+      } catch (e) {
+        console.error('Failed to generate/send OTP during login for', user && user.email, e && e.message ? e.message : e);
       }
-    } catch (e) {
-      console.error('Failed to generate/send OTP during login for', user && user.email, e && e.message ? e.message : e);
     }
 
-    // Set refresh token in HTTP-only cookie
+    // Set refresh token in HTTP-only cookie (duration based on rememberMe flag)
     res.cookie('refreshToken', refreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+      sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax', // 'lax' for development (different ports)
+      maxAge: refreshTokenDays * 24 * 60 * 60 * 1000 // 7 days (default) or 30 days (remember me)
     });
 
     // Return access token and basic user info. Frontend should open the
     // verification modal and proceed to call verify-otp. The server has
     // already attempted to send the OTP to the email on file.
-    res.json({ 
+    const responseData = { 
       accessToken,
+      skipOTP, // Tell frontend whether to skip OTP verification (trusted device)
       user: {
         id: user._id,
         name: user.name,
         role: user.role,
-        email: user.email
+        email: user.email,
+        accountType: isAdmin ? 'admin' : 'user' // Indicate account type
       }
-    });
+    };
+    
+    // Include franchise info in response if available (for regular users)
+    if (franchiseInfo) {
+      responseData.user.franchise = {
+        operatorId: franchiseInfo.operatorId,
+        operatorName: franchiseInfo.operatorName,
+        franchiseStatus: franchiseInfo.franchiseStatus,
+        qrCode: franchiseInfo.qrCode,
+        profilePhoto: franchiseInfo.profilePhoto,
+        contactNumber: franchiseInfo.contactNumber,
+        address: franchiseInfo.address,
+        barangay: franchiseInfo.barangay,
+        mtopNumber: franchiseInfo.mtopNumber,
+        approvedAt: franchiseInfo.approvedAt,
+        expiryDate: franchiseInfo.expiryDate
+      };
+    }
+    
+    // Include admin-specific info if this is an admin account
+    if (isAdmin) {
+      responseData.user.admin = {
+        adminId: user.adminId,
+        department: user.department,
+        position: user.position,
+        permissions: user.permissions || []
+      };
+    }
+    
+    res.json(responseData);
   } catch (err) {
     next(err);
   }
@@ -231,7 +428,8 @@ exports.signup = async (req, res, next) => {
     const existingByUsername = username ? await userAccountRepository.findAccountByUsername(username).catch(() => null) : null;
     if (existingByUsername) return res.status(409).json({ error: 'Username already taken' });
 
-    const user = await userAccountRepository.createUserAccount({ name, username, email, password, oauthProvider: null });
+    // Create local account - omit oauthProvider field entirely (not null)
+    const user = await userAccountRepository.createUserAccount({ name, username, email, password });
     res.status(201).json({ message: 'Account created', user: { id: user._id, name: user.name, email: user.email } });
   } catch (err) {
     next(err);
@@ -246,38 +444,81 @@ exports.refreshToken = async (req, res, next) => {
       return res.status(401).json({ error: 'Refresh token required' });
     }
     
-    const tokenData = refreshTokens.get(refreshToken);
-    if (!tokenData) {
+    // Find session in database
+    const session = await sessionRepository.findSessionByToken(refreshToken);
+    
+    if (!session) {
       return res.status(403).json({ error: 'Invalid refresh token' });
     }
     
-    // Check if token is expired
-    if (new Date() > new Date(tokenData.expiresAt)) {
-      refreshTokens.delete(refreshToken);
-      return res.status(403).json({ error: 'Refresh token expired' });
+    // Session exists and is active, update last used
+    await sessionRepository.updateSessionLastUsed(session._id);
+    
+    // Get user based on account type
+    let user = null;
+    let isAdmin = false;
+    let operatorInfo = null;
+    
+    if (session.accountType === 'admin') {
+      const Admin = require('../models/adminAccountModel');
+      user = await Admin.findById(session.userId);
+      isAdmin = true;
+    } else {
+      const User = require('../models/userAccountModel');
+      user = await User.findById(session.userId).populate('franchiseInfo');
+      if (user && user.franchiseInfo) {
+        operatorInfo = user.franchiseInfo;
+      }
     }
     
-    // Get user and generate new access token
-    const user = await userRepository.findById(tokenData.userId);
     if (!user) {
-      refreshTokens.delete(refreshToken);
+      // User deleted but session exists, clean up
+      await sessionRepository.deleteSession(session._id);
       return res.status(403).json({ error: 'User not found' });
     }
     
-    const accessToken = generateAccessToken(user);
+    // Generate new access token
+    const accessToken = generateAccessToken(user, operatorInfo, isAdmin);
+    
+    console.log('[RefreshToken] Token refreshed for user:', user._id, 'Type:', session.accountType);
     res.json({ accessToken });
   } catch (err) {
+    console.error('[RefreshToken] Error:', err);
     next(err);
   }
 };
 
-exports.logout = (req, res) => {
-  const refreshToken = req.cookies.refreshToken;
-  if (refreshToken) {
-    refreshTokens.delete(refreshToken);
-    res.clearCookie('refreshToken');
+exports.logout = async (req, res) => {
+  try {
+    const refreshToken = req.cookies.refreshToken;
+    
+    if (refreshToken) {
+      // Revoke session in database
+      await sessionRepository.revokeSession(refreshToken);
+      console.log('[Logout] Session revoked in database');
+    }
+    
+    // Clear refresh token cookie with all possible configurations
+    res.clearCookie('refreshToken', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
+      path: '/' // Ensure path matches cookie creation
+    });
+    
+    // Also clear any OAuth state cookies
+    res.clearCookie('oauth_state', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax'
+    });
+    
+    console.log('[Logout] All cookies cleared');
+    res.status(200).json({ message: 'Logged out successfully' });
+  } catch (error) {
+    console.error('[Logout] Error during logout:', error);
+    res.status(500).json({ error: 'Logout failed' });
   }
-  res.status(200).json({ message: 'Logged out successfully' });
 };
 
 // Return the current authenticated user (detailed info)
@@ -285,8 +526,10 @@ exports.getCurrentUser = async (req, res, next) => {
   try {
     if (!req.user) return res.status(401).json({ error: 'Not authenticated' });
     
-    // Fetch full user details from database
-    const user = await userAccountRepository.findAccountById(req.user.id);
+    // Fetch full user details from database and populate operator info
+    const User = require('../models/userAccountModel');
+    const user = await User.findById(req.user.id).populate('franchiseInfo');
+    
     if (!user) return res.status(404).json({ error: 'User not found' });
     
     // Return comprehensive user info (excluding sensitive data)
@@ -298,14 +541,44 @@ exports.getCurrentUser = async (req, res, next) => {
       role: user.role,
       isEmailVerified: user.isEmailVerified,
       profilePicture: user.profilePicture,
-      // Add operator-specific fields if they exist
+      // Add user-level fields
       address: user.address,
       phoneNumber: user.phoneNumber,
-      operatorId: user.operatorId || user.franchiseNumber,
+      operatorId: user.operatorId,
       franchiseStatus: user.franchiseStatus,
       dateCreated: user.createdAt,
-      lastLogin: user.lastLogin
+      lastLogin: user.lastLogin,
+      hasFranchise: !!user.franchiseInfo
     };
+    
+    // Add franchise information if populated
+    if (user.franchiseInfo) {
+      userInfo.franchise = {
+        operatorId: user.franchiseInfo.operatorId,
+        operatorName: user.franchiseInfo.operatorName,
+        contactNumber: user.franchiseInfo.contactNumber,
+        email: user.franchiseInfo.email,
+        address: user.franchiseInfo.address,
+        barangay: user.franchiseInfo.barangay,
+        civilStatus: user.franchiseInfo.civilStatus,
+        driversID: user.franchiseInfo.driversID,
+        profilePhoto: user.franchiseInfo.profilePhoto,
+        qrCode: user.franchiseInfo.qrCode,
+        franchiseStatus: user.franchiseInfo.franchiseStatus,
+        mtopNumber: user.franchiseInfo.mtopNumber,
+        approvedAt: user.franchiseInfo.approvedAt,
+        expiryDate: user.franchiseInfo.expiryDate,
+        documents: user.franchiseInfo.documents ? {
+          motorRegistration: user.franchiseInfo.documents.motorRegistration,
+          barangayClearance: user.franchiseInfo.documents.barangayClearance,
+          cedula: user.franchiseInfo.documents.cedula,
+          driversLicense: user.franchiseInfo.documents.driversLicense,
+          votersAffidavit: user.franchiseInfo.documents.votersAffidavit,
+          motorChassisStencil: user.franchiseInfo.documents.motorChassisStencil,
+          picture: user.franchiseInfo.documents.picture
+        } : null
+      };
+    }
     
     res.json({ user: userInfo });
   } catch (err) {
@@ -391,15 +664,29 @@ exports.googleCallback = async (req, res, next) => {
       }
     }
 
-    // Issue tokens (reuse existing helpers)
-    const accessToken = generateAccessToken(user);
-    const refreshToken = generateRefreshToken(user);
+    // Populate operator information if available
+    let operatorInfo = null;
+    if (user.operatorInfo) {
+      try {
+        const User = require('../models/userAccountModel');
+        const populatedUser = await User.findById(user._id).populate('operatorInfo');
+        if (populatedUser && populatedUser.operatorInfo) {
+          operatorInfo = populatedUser.operatorInfo;
+        }
+      } catch (e) {
+        console.error('Error populating operator info in OAuth:', e && e.message);
+      }
+    }
+
+    // Issue tokens (reuse existing helpers, include operator info)
+    const accessToken = generateAccessToken(user, operatorInfo);
+    const refreshToken = await generateRefreshToken(user, 'user', req);
 
     // Set refresh token cookie
     res.cookie('refreshToken', refreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax', // 'lax' for development (different ports)
       maxAge: 7 * 24 * 60 * 60 * 1000
     });
 

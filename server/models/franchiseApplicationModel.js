@@ -1,20 +1,30 @@
 const mongoose = require('mongoose');
 
+// Documents are now stored as Cloudflare R2 URLs (compressed to ~300KB)
+const documentSchema = new mongoose.Schema({
+  motorRegistration: { type: String, required: true }, 
+  barangayClearance: { type: String, required: true }, 
+  cedula: { type: String, required: true }, 
+  driversLicense: { type: String, required: true }, 
+  votersAffidavit: { type: String, required: true }, 
+  motorChassisStencil: { type: String, required: false }, // Temporarily optional
+  picture: { type: String, required: true } 
+});
+
 const franchiseApplicationSchema = new mongoose.Schema({
+  // Link to user who submitted this application
+  // Changed from ObjectId to String to match User Account's userId field (UUID)
+  userId: { 
+    type: String, // UUID string from User Account's userId field
+    required: false // Optional for backward compatibility with existing data
+  },
+  
   operatorName: { type: String, required: true },
   operatorContact: { type: String, required: true },
-  operatorEmail: { type: String, required: true , lowercase: true, trim: true, match: [/^\S+@\S+\.\S+$/, 'Invalid email address'] , unique: true , index: true },
+  operatorEmail: { type: String, lowercase: true, trim: true, match: [/^\S+@\S+\.\S+$/, 'Invalid email address'] },
   actionType: { type: String, enum: ['NEW', 'RENEWAL', 'AMMENDMENTS'], required: true, uppercase: true ,trim: true},
   operatorAddress: { type: String, required: true },
-  profilePhoto: { type: String },
-  // Document metadata for uploaded files (name, mime type, public path)
-  documentRegistration: { name: { type: String }, type: { type: String }, path: { type: String } },
-  documentBarangayClearance: { name: { type: String }, type: { type: String }, path: { type: String } },
-  documentCedula: { name: { type: String }, type: { type: String }, path: { type: String } },
-  documentDriversLicense: { name: { type: String }, type: { type: String }, path: { type: String } },
-  documentVotersAffidavit: { name: { type: String }, type: { type: String }, path: { type: String } },
-  documentPicture: { name: { type: String }, type: { type: String }, path: { type: String } },
-  qrCode: { type: String }, // Path to QR code image (generated when franchise is approved)
+  operatorBarangay: { type: String, required: false }, // Temporarily optional
 
   driversID: { type: String, required: true },
   birthPlace: { type: String, required: true },
@@ -34,10 +44,11 @@ const franchiseApplicationSchema = new mongoose.Schema({
 
   actionTaken: { type: String },
   remarks: { type: String },
-  franchiseNumber: { type: String },
+
   approvedAt: { type: Date },
-  expiryDate: { type: Date },
   submittedAt: { type: Date, default: Date.now },
+
+  documents: documentSchema,
 }, { collection: 'franchiseapplications' });
 
 

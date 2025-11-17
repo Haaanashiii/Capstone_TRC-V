@@ -138,3 +138,18 @@ exports.findAllAccounts = async () => {
 exports.getAllUsers = async () => {
   return await User.find({}).select('-password').lean();
 };
+
+// Get user with populated franchise information
+exports.findAccountByIdWithOperator = async (id) => {
+  // Try to find by userId first (UUID), then fall back to MongoDB _id
+  let user = await User.findOne({ userId: id }).populate('franchiseInfo');
+  if (!user) {
+    user = await User.findById(id).populate('franchiseInfo');
+  }
+  return user;
+};
+
+// Get all users with populated franchise information
+exports.getAllUsersWithOperator = async () => {
+  return await User.find({}).select('-password').populate('franchiseInfo').lean();
+};

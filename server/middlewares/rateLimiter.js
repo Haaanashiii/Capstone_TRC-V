@@ -1,5 +1,5 @@
 
-const rateLimit = require('express-rate-limit');
+const { rateLimit } = require('express-rate-limit');
 
 /**
  * Creates a rate limiter middleware with configurable options
@@ -36,10 +36,24 @@ const otpLimiter = createRateLimiter({
 // Create specific rate limiters for different routes
 const authLimiter = createRateLimiter({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 5, // 5 attempts per 15 minutes
+  max: 20, // number of allowed attempts
+  skipSuccessfulRequests: true,
+  message: {
+    error: 'Too many login attempts from this network, please try again after 15 minutes',
+    code: 'AUTH_RATE_LIMIT_EXCEEDED'
+  }
+});
+
+// Rate limit by IP - Stricter per-account limits
+// Note: Per-account limiting is better handled at application level
+// to avoid IPv6 bypass issues with custom keyGenerators
+const accountLimiter = createRateLimiter({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, // 5 attempts per IP
+  skipSuccessfulRequests: true,
   message: {
     error: 'Too many login attempts, please try again after 15 minutes',
-    code: 'AUTH_RATE_LIMIT_EXCEEDED'
+    code: 'ACCOUNT_RATE_LIMIT_EXCEEDED'
   }
 });
 
@@ -55,6 +69,7 @@ const qrVerificationLimiter = createRateLimiter({
 
 module.exports = {
   authLimiter,
+  accountLimiter,
   apiLimiter,
   qrVerificationLimiter,
   otpLimiter,

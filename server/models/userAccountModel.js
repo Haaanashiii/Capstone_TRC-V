@@ -4,10 +4,6 @@ const mongoose = require('mongoose');
 const userAccountSchema = new mongoose.Schema({
     userId: { type: String, default: uuidv4, unique: true },
     name: { type: String, required: true },
-    // username is required for local accounts. Make the requirement conditional so OAuth users can omit it.
-    // NOTE: we DO NOT set `unique: true` here because we declare a schema-level index below
-    // with a partialFilterExpression. That gives us full control (we index only documents
-    // where username is present and is a string) and avoids duplicate schema index declarations.
     username: { 
         type: String,
         required: function() { return !this.oauthProvider; }
@@ -23,21 +19,26 @@ const userAccountSchema = new mongoose.Schema({
     password: { type: String, required: function() { return !this.oauthProvider; }, minlength: 8, select: false },
     role: { 
         type: String, 
-        enum: ['sb-admin','bplo-admin', 'operator'],
         default: 'operator',
         required: true 
     },
     oauthProvider: { type: String },
     oauthId: { type: String },
-    googleId: { type: String }
-    ,
+    googleId: { type: String },
+   
+    // REFERENCE to FranchiseInformation (null for non-operators or pending applications)
+    franchiseInfo: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Franchise Information',
+        required: false,
+        default: null
+    },
    
     franchiseStatus: { type: String, enum: ['active', 'expired', 'inactive'], default: 'inactive' },
-    operatorId: { type: String },
+    operatorId: { type: String }, // Keep for backward compatibility
     address: { type: String },
     phoneNumber: { type: String },
-    profilePicture: { type: String }
-    ,
+    profilePicture: { type: String },
 
     approvedAt: { type: Date },
     expiryDate: { type: Date }

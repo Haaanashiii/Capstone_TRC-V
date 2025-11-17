@@ -3,7 +3,7 @@
  * Handles database operations for QR codes
  */
 
-const OperatorInformation = require('../models/operatorInformationModel');
+const FranchiseInformation = require('../models/franchiseInformationModel');
 const FranchiseApplication = require('../models/franchiseApplicationModel');
 
 /**
@@ -15,23 +15,23 @@ const FranchiseApplication = require('../models/franchiseApplicationModel');
  */
 exports.storeOperatorQRCode = async (operatorId, qrCodePath, qrCodeDataURL = null) => {
   // Try to find by userId first, then by _id
-  let operator = await OperatorInformation.findOne({ userId: operatorId });
-  if (!operator) {
-    operator = await OperatorInformation.findById(operatorId);
+  let franchise = await FranchiseInformation.findOne({ userId: operatorId });
+  if (!franchise) {
+    franchise = await FranchiseInformation.findById(operatorId);
   }
   
-  if (!operator) {
-    throw new Error('Operator not found');
+  if (!franchise) {
+    throw new Error('Franchise not found');
   }
   
   // Update QR code fields
-  operator.qrCode = qrCodePath;
+  franchise.qrCode = qrCodePath;
   if (qrCodeDataURL) {
-    operator.qrCodeDataURL = qrCodeDataURL;
+    franchise.qrCodeDataURL = qrCodeDataURL;
   }
-  operator.qrCodeGeneratedAt = new Date();
+  franchise.qrCodeGeneratedAt = new Date();
   
-  return await operator.save();
+  return await franchise.save();
 };
 
 /**
@@ -40,15 +40,15 @@ exports.storeOperatorQRCode = async (operatorId, qrCodePath, qrCodeDataURL = nul
  * @returns {Promise<Object>} - Operator with QR code info
  */
 exports.getOperatorQRCode = async (operatorId) => {
-  let operator = await OperatorInformation.findOne({ userId: operatorId })
-    .select('driversID firstName lastName franchiseStatus qrCode ');
+  let franchise = await FranchiseInformation.findOne({ userId: operatorId })
+    .select('driversID operatorName franchiseStatus qrCode ');
   
-  if (!operator) {
-    operator = await OperatorInformation.findById(operatorId)
-      .select('driversID firstName lastName franchiseStatus qrCode');
+  if (!franchise) {
+    franchise = await FranchiseInformation.findById(operatorId)
+      .select('driversID operatorName franchiseStatus qrCode');
   }
   
-  return operator;
+  return franchise;
 };
 
 /**
@@ -86,23 +86,23 @@ exports.getFranchiseQRCode = async (applicationId) => {
  * @returns {Promise<Object>} - Updated operator
  */
 exports.deleteOperatorQRCode = async (operatorId) => {
-  let operator = await OperatorInformation.findOne({ userId: operatorId });
-  if (!operator) {
-    operator = await OperatorInformation.findById(operatorId);
+  let franchise = await FranchiseInformation.findOne({ userId: operatorId });
+  if (!franchise) {
+    franchise = await FranchiseInformation.findById(operatorId);
   }
   
-  if (!operator) {
-    throw new Error('Operator not found');
+  if (!franchise) {
+    throw new Error('Franchise not found');
   }
   
-  const oldQRPath = operator.qrCode;
+  const oldQRPath = franchise.qrCode;
   
-  operator.qrCode = null;
-  operator.qrCodeDataURL = null;
-  operator.qrCodeGeneratedAt = null;
+  franchise.qrCode = null;
+  franchise.qrCodeDataURL = null;
+  franchise.qrCodeGeneratedAt = null;
   
-  await operator.save();
+  await franchise.save();
   
-  return { operator, oldQRPath };
+  return { franchise, oldQRPath };
 };
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import './Reports.css';
+import '../../Styles/Administrator_Css/Reports.css';
 import Sidebar from './Sidebar';
 import { 
   Typography, 

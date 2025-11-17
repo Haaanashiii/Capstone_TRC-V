@@ -5,7 +5,10 @@ const authenticate = require('../middlewares/authenticate');
 const authorize = require('../middlewares/authorize');
 const { apiLimiter } = require('../middlewares/rateLimiter');
 
-// Apply authentication to all routes
+// Public route (no authentication required)
+router.get('/published', apiLimiter, announcementController.getPublishedAnnouncements);
+
+// Apply authentication to all other routes
 router.use(authenticate);
 
 // Public routes (all authenticated users can access)

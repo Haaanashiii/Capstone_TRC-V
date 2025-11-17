@@ -10,7 +10,83 @@ if (!fs.existsSync(qrCodeDir)) {
 }
 
 /**
- * Generates a secure QR code for operator verification
+ * Generates a secure QR code for franchise verification using hashed MTOP
+ * @param {string} hashedMTOP - The hashed MTOP number for secure lookup
+ * @param {Object} options - Additional options
+ * @param {boolean} options.saveToFile - Whether to save QR to file system
+ * @param {string} options.folderPath - Optional custom folder path for saving
+ * @returns {Promise<Object>} - Object containing QR code data URL and file path
+ */
+async function generateFranchiseQRCode(hashedMTOP, options = {}) {
+  if (!hashedMTOP) {
+    throw new Error('Hashed MTOP is required to generate QR code');
+  }
+
+  // Create verification URL with hashed MTOP (not the actual MTOP number for security)
+  const baseUrl = (process.env.BASE_URL || 'http://localhost:5173').replace(/\/+$/, '');
+  const verificationUrl = `${baseUrl}/operator/${hashedMTOP}`;
+  
+  // Generate QR code options
+  const qrOptions = {
+    errorCorrectionLevel: 'H', // High error correction
+    type: 'image/png',
+    quality: 0.92,
+    margin: 1,
+    color: {
+      dark: '#1B4B75',  // TRC-V blue
+      light: '#FFFFFF'  // White background
+    },
+    width: 300
+  };
+
+  try {
+    // Generate QR code as data URL
+    const qrCodeDataURL = await QRCode.toDataURL(verificationUrl, qrOptions);
+    
+    // Convert data URL to buffer for R2 upload or local save
+    const base64Data = qrCodeDataURL.replace(/^data:image\/png;base64,/, '');
+    const buffer = Buffer.from(base64Data, 'base64');
+    
+    let qrCodeFilePath = null;
+    
+    // Return buffer for R2 upload (preferred) or save locally (legacy)
+    if (options.uploadToR2) {
+      // Caller will handle R2 upload using the buffer
+      qrCodeFilePath = 'pending-r2-upload';
+    } else if (options.saveToFile !== false) {
+      // Legacy: Save to local filesystem
+      const saveDir = options.folderPath || qrCodeDir;
+      const filename = `qr-${hashedMTOP}-${Date.now()}.png`;
+      const filePath = path.join(saveDir, filename);
+      
+      // Ensure directory exists
+      if (!fs.existsSync(saveDir)) {
+        fs.mkdirSync(saveDir, { recursive: true });
+      }
+      
+      await fs.promises.writeFile(filePath, buffer);
+      
+      // Return relative path for database storage
+      qrCodeFilePath = options.folderPath 
+        ? `/${path.relative(process.cwd(), filePath).replace(/\\/g, '/')}`
+        : `/uploads/operators/qrcodes/${filename}`;
+    }
+    
+    return {
+      dataURL: qrCodeDataURL,
+      buffer: buffer, // Return buffer for R2 upload
+      filePath: qrCodeFilePath,
+      verificationUrl: verificationUrl,
+      hashedMTOP: hashedMTOP
+    };
+  } catch (error) {
+    console.error('QR Code generation error:', error);
+    throw new Error('Failed to generate QR code');
+  }
+}
+
+/**
+ * Legacy: Generates a secure QR code for operator verification (backward compatibility)
  * @param {string} operatorId - The operator's MongoDB _id
  * @param {Object} options - Additional options (save to file, etc.)
  * @returns {Promise<Object>} - Object containing QR code data URL and file path
@@ -163,6 +239,7 @@ function verifyQRCodeSignature(payload) {
 module.exports = { 
   generateQRCode, 
   generateOperatorQRCode,
+  generateFranchiseQRCode,
   deleteQRCode,
   verifyQRCodeSignature 
 };

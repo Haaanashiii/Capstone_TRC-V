@@ -34,6 +34,7 @@ const SignUp = () => {
   const [passwordError, setPasswordError] = useState("");
   const [confirmPasswordError, setConfirmPasswordError] = useState("");
   const [showVerificationModal, setShowVerificationModal] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleClickShowPassword = () => setShowPassword((show) => !show);
   const handleClickShowConfirmPassword = () => setShowConfirmPassword((show) => !show);
@@ -111,6 +112,7 @@ const SignUp = () => {
     
     console.log("All validations passed, making API call"); // Debug log
     
+    setIsLoading(true); // Disable button while loading
     try {
       // Instead of creating the account immediately, request an OTP first
       // and open the verification modal. Account creation will happen after
@@ -126,14 +128,18 @@ const SignUp = () => {
     } catch (error) {
       console.error("OTP request error:", error);
       setError(error.response?.data?.error || 'Failed to request verification code');
+    } finally {
+      setIsLoading(false); // Re-enable button
     }
   };
 
   const handleVerificationSuccess = () => {
     // After OTP verification, create the actual user account
     (async () => {
+      setIsLoading(true); // Disable during account creation
       try {
-        const response = await api.post('/users', {
+        // Use /auth/signup endpoint instead of /users
+        const response = await api.post('/auth/signup', {
           name: form.fullName,
           username: form.username,
           email: form.email,
@@ -146,16 +152,18 @@ const SignUp = () => {
           setForm({ fullName: '', username: '', email: '', password: '', confirmPassword: '' });
           setPasswordError('');
           setConfirmPasswordError('');
-          // Sarap ni luke po, best green flag nang bayan
-          navigate('/login');
+          
+          // Redirect to login after 2 seconds
+          setTimeout(() => {
+            navigate('/login');
+          }, 2000);
         }
       } catch (error) {
         console.error('Create user error:', error);
         setError(error.response?.data?.error || 'Registration failed');
+        setIsLoading(false); // Re-enable button on error
       }
     })();
-    // Optionally redirect to login page
-    // window.location.href = '/login';
   };
   
   return (
@@ -267,8 +275,9 @@ const SignUp = () => {
               fullWidth
               className="signup-create-btn"
               style={{ fontFamily: 'Poppins, sans-serif' }}
+              disabled={isLoading}
             >
-              Create
+              {isLoading ? 'Creating Account...' : 'Create'}
             </Button>
             
             <Box className="signup-divider-box">
@@ -283,6 +292,7 @@ const SignUp = () => {
             className="signup-google-btn"
             style={{ fontFamily: 'Poppins, sans-serif' }}
             onClick={() => { window.location.href = `${API_BASE_URL}/auth/google`; }}
+            disabled={isLoading}
           >
             Continue with Google
           </Button>

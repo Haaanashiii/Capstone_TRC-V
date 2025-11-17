@@ -1,0 +1,26 @@
+* {
+    font-family: 'Poppins', sans-serif !important;
+}
+
+.dashboard-container {
+    display: flex;
+    background-color: #f5f7fa;
+    min-height: 100vh;
+    position: relative;
+}
+
+.content-container {
+    flex: 1;
+    padding: 32px;
+    margin-left: 240px;
+    width: calc(100% - 240px);
+}
+
+.title {
+    font-size: 36px;
+    font-weight: 700;
+    margin-bottom: 32px;
+    color: #0A356B;
+    margin-top: 0;
+    letter-spacing: -0.5px;
+}

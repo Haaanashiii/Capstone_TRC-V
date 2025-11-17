@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import '../../Styles/Administrator_Css/Sidebar.css'
 import logoImage from '../../assets/TRC-vLogo.png'
@@ -9,6 +9,7 @@ import AssessmentIcon from '@mui/icons-material/Assessment'
 import PeopleAltIcon from '@mui/icons-material/PeopleAlt'
 import AccountCircleIcon from '@mui/icons-material/AccountCircle'
 import LogoutIcon from '@mui/icons-material/Logout'
+import CampaignIcon from '@mui/icons-material/Campaign'
 
 function Sidebar() {
   const location = useLocation();
@@ -16,6 +17,7 @@ function Sidebar() {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [showLogout, setShowLogout] = useState(false);
   const [user, setUser] = useState(null);
+  const [tokenChecked, setTokenChecked] = useState(false);
 
   useEffect(() => {
     const timerId = setInterval(() => {
@@ -25,46 +27,82 @@ function Sidebar() {
     return () => clearInterval(timerId);
   }, []);
 
-  // Get user info from localStorage token
+  // Get user info from sessionStorage token (JWT is single source of truth)
+  // Only run once on mount
   useEffect(() => {
-    const token = localStorage.getItem('accessToken');
+    if (tokenChecked) return;
+    
+    const token = sessionStorage.getItem('accessToken');
+    
     if (token) {
       try {
         const decoded = JSON.parse(atob(token.split('.')[1]));
+        // JWT now contains: { id, role, name, accountType, hasOperator }
         setUser(decoded);
       } catch (error) {
-        console.error('Error decoding token:', error);
+        console.error('[AdminSidebar] Error decoding token:', error);
       }
     }
-  }, []);
+    
+    setTokenChecked(true);
+  }, [tokenChecked]);
 
-  const handleLogout = () => {
-    localStorage.removeItem('accessToken');
-    sessionStorage.removeItem('accessToken');
-    navigate('/login');
+  const handleLogout = async () => {
+    console.log('[AdminSidebar] Logout initiated');
+    
+    try {
+      // Call backend to invalidate refresh token
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170';
+      const token = sessionStorage.getItem('accessToken');
+      
+      if (token) {
+        await fetch(`${API_BASE_URL}/auth/logout`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          credentials: 'include'
+        });
+        console.log('[AdminSidebar] Backend logout successful');
+      }
+    } catch (error) {
+      console.error('[AdminSidebar] Backend logout failed:', error);
+    } finally {
+      // Always clear frontend storage
+      sessionStorage.removeItem('accessToken');
+      sessionStorage.removeItem('userFranchiseInfo');
+      sessionStorage.removeItem('franchiseLinked');
+      sessionStorage.removeItem('franchiseMenuReplaced');
+      sessionStorage.removeItem('franchiseOwnerUserId');
+      console.log('[AdminSidebar] Storage cleared, navigating to login');
+      navigate('/login');
+    }
   };
 
   const toggleLogout = () => {
     setShowLogout(!showLogout);
   };
 
-  // Get first name from user object
-  const getFirstName = () => {
+  // Memoize first name - only recalculate when user changes (JWT now contains: id, role, name, accountType, hasOperator)
+  const firstName = useMemo(() => {
+    if (!user) return 'User';
+    
     if (user?.firstName) return user.firstName;
     if (user?.name) {
       // If full name is stored, split and get first name
       return user.name.split(' ')[0];
     }
-    if (user?.username) return user.username;
-    return 'User';
-  };
+    
+    return 'Admin';
+  }, [user]);
 
-  // Get role display name
-  const getRoleDisplay = () => {
+  // Memoize role display - only recalculate when user changes
+  const roleDisplay = useMemo(() => {
     if (!user?.role) return 'Employee';
     
-    // Map role codes to display names
     const roleMap = {
+      'super-admin': 'Super Administrator',
       'sb-admin': 'SB Employee',
       'bplo-admin': 'BPLO Employee',
       'operator': 'Operator',
@@ -73,14 +111,16 @@ function Sidebar() {
     };
     
     return roleMap[user.role] || user.role;
-  };
+  }, [user]);
 
   const menuItems = [
     { name: 'Dashboard', icon: <DashboardIcon />, path: '/sb-admin/dashboard' },
     { name: 'Franchisee List', icon: <ListAltIcon />, path: '/sb-admin/franchisee-list' },
     { name: 'Franchise Management', icon: <BusinessIcon />, path: '/sb-admin/franchise-management' },
     { name: 'Reports', icon: <AssessmentIcon />, path: '/sb-admin/reports' },
+    { name: 'Announcements', icon: <CampaignIcon />, path: '/sb-admin/announcements' },
     { name: 'User Management', icon: <PeopleAltIcon />, path: '/sb-admin/user-management' }
+
   ]
 
   return (
@@ -126,8 +166,8 @@ function Sidebar() {
       <div className="user-profile" onClick={toggleLogout}>
         <AccountCircleIcon className="profile-image-fallback" />
         <div className="user-info">
-          <div className="user-name">{getFirstName()}</div>
-          <div className="user-role">{getRoleDisplay()}</div>
+          <div className="user-name">{firstName}</div>
+          <div className="user-role">{roleDisplay}</div>
         </div>
         {showLogout && (
           <div className="logout-dropdown" onClick={(e) => e.stopPropagation()}>

@@ -5,7 +5,7 @@ import { Visibility, VisibilityOff } from "@mui/icons-material";
 import GoogleIcon from "@mui/icons-material/Google"; 
 import AccountVerificationModal from '../Services/AccountVerificationModal';
 import { useNavigate } from 'react-router-dom';
-import api from '../Services/api';
+import api, { TokenManager } from '../Services/api';
 
 import '../../Styles/LoginCss/Login.css';
 
@@ -26,9 +26,11 @@ const Login = () => {
     email: "",
     password: ""
   });
+  const [rememberMe, setRememberMe] = React.useState(false);
   const [error, setError] = React.useState("");
   const [success, setSuccess] = React.useState("");
   const [showVerificationModal, setShowVerificationModal] = React.useState(false);
+  const [isLoading, setIsLoading] = React.useState(false);
 
   const navigate = useNavigate();
 
@@ -42,57 +44,112 @@ const Login = () => {
     e.preventDefault();
     setError("");
     setSuccess("");
+    setIsLoading(true);
     
     // login attempt started (no sensitive data logged)
     
     try {
       console.log("Making login API call");
+      // Backend accepts 'identifier' which can be username or email
+      // Send rememberMe flag to extend refresh token expiry
       const response = await api.post('/auth/login', {
-        email: form.email,
-        password: form.password
+        identifier: form.email, // Can be email or username
+        password: form.password,
+        rememberMe: rememberMe // If true, backend issues 30-day refresh token
       });
 
       const data = response.data;
 
-      // Save accessToken to both sessionStorage and localStorage for future API calls
+      // Save accessToken using TokenManager (stores in sessionStorage)
       if (data.accessToken) {
-        try { 
-          sessionStorage.setItem('accessToken', data.accessToken);
-          localStorage.setItem('accessToken', data.accessToken);
-          localStorage.setItem('token', data.accessToken); // For axios interceptor
-        } catch (err) { 
-          console.warn('Storage unavailable', err); 
-        }
+        TokenManager.setTokens(data.accessToken);
+        console.log('[Login] Access token stored in sessionStorage');
+        
+        // User data is now in JWT - no need to store separately
+        // All user info can be decoded from the token when needed
+        const tokenData = TokenManager.decodeToken(data.accessToken);
+        console.log('[Login] JWT contains:', tokenData);
       }
 
-      // Open verification modal. The backend has attempted to send the OTP
-      // to the user's email on record; the modal will POST to /auth/verify-otp.
-      setShowVerificationModal(true);
+      // Refresh token is automatically stored in HTTP-only cookie by backend
+      console.log('[Login] Refresh token stored in HTTP-only cookie by backend');
+
+      // Check if OTP should be skipped (trusted device)
+      if (data.skipOTP) {
+        console.log('[Login] Trusted device - skipping OTP verification');
+        handleVerificationSuccess();
+      } else {
+        // Open verification modal. The backend has attempted to send the OTP
+        // to the user's email on record; the modal will POST to /auth/verify-otp.
+        setShowVerificationModal(true);
+      }
     } catch (error) {
       console.error("Login error:", error);
       setError(error.response?.data?.error || error.response?.data?.message || "Login failed. Please try again.");
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const handleVerificationSuccess = () => {
     setSuccess("Login successful!");
-    // Check user role and redirect appropriately
-    const token = localStorage.getItem('accessToken');
-    if (token) {
-      try {
-        const decoded = JSON.parse(atob(token.split('.')[1]));
-        if (decoded.role === 'operator') {
-          navigate('/operator/franchise');
-        } else if (decoded.role === 'sb-admin') {
-          navigate('/sb-admin');
-        } else if (decoded.role === 'bplo-admin') {
-          navigate('/bplo-admin');
+    setIsLoading(true);
+    
+    console.log('[Login] OTP verification successful, checking stored token...');
+    
+    // Verify token is still in storage
+    const token = TokenManager.getAccessToken();
+    console.log('[Login] Access token present:', !!token);
+    
+    if (!token) {
+      console.error('[Login] ERROR: No token found after OTP verification!');
+      setError('Session expired. Please login again.');
+      setIsLoading(false);
+      return;
+    }
+    
+    // Decode JWT to get user data (only source of truth)
+    let userData = null;
+    try {
+      userData = TokenManager.decodeToken(token);
+      console.log('[Login] Decoded JWT data:', userData);
+    } catch (err) {
+      console.error('[Login] Failed to decode JWT:', err.message);
+      setError('Invalid session. Please login again.');
+      setIsLoading(false);
+      return;
+    }
+    
+    // Redirect based on role from JWT
+    if (userData && userData.role) {
+      console.log('[Login] Role:', userData.role, 'AccountType:', userData.accountType, 'HasFranchise:', userData.hasFranchise);
+      console.log('[Login] Attempting navigation to role-based route...');
+      
+      if (userData.role === 'operator') {
+        // Check if operator has franchise - redirect accordingly
+        if (userData.hasFranchise === true) {
+          console.log('[Login] Operator has franchise, navigating to /operator/id');
+          navigate('/operator/id', { replace: true });
         } else {
-          navigate('/');
+          console.log('[Login] Operator has no franchise, navigating to /operator/franchise');
+          navigate('/operator/franchise', { replace: true });
         }
-      } catch {
-        navigate('/admin'); // fallback
+      } else if (userData.role === 'sb-admin') {
+        navigate('/sb-admin', { replace: true });
+      } else if (userData.role === 'bplo-admin') {
+        navigate('/bplo-admin', { replace: true });
+      } else if (userData.role === 'super-admin') {
+        navigate('/sb-admin', { replace: true });
+      } else {
+        console.log('[Login] Unknown role, navigating to /dashboard');
+        navigate('/dashboard', { replace: true });
       }
+    } else {
+      // Fallback if role is not found
+      console.error('[Login] ERROR: No role found in JWT!');
+      console.error('[Login] JWT payload:', userData);
+      setError('Unable to determine user role. Please login again.');
+      setIsLoading(false);
     }
   };
 
@@ -145,7 +202,14 @@ const Login = () => {
               />
               <Box className="login-options">
                 <FormControlLabel
-                  control={<Checkbox size="small" className="login-checkbox" />}
+                  control={
+                    <Checkbox 
+                      size="small" 
+                      className="login-checkbox" 
+                      checked={rememberMe}
+                      onChange={(e) => setRememberMe(e.target.checked)}
+                    />
+                  }
                   label={<Typography variant="body2" style={{ fontSize: '0.9rem', fontFamily: 'Poppins, sans-serif' }}>Remember me</Typography>}
                   className="login-remember"
                 />
@@ -155,7 +219,9 @@ const Login = () => {
               </Box>
               {error && <Typography color="error">{error}</Typography>}
               {success && <Typography color="primary">{success}</Typography>}
-              <Button type="submit" variant="contained" fullWidth className="login-signin-btn">Sign in</Button>
+              <Button type="submit" variant="contained" fullWidth className="login-signin-btn" disabled={isLoading}>
+                {isLoading ? 'Signing In...' : 'Sign in'}
+              </Button>
             </form>
           </Box>
           <Box className="login-divider-box">
@@ -169,6 +235,7 @@ const Login = () => {
             fullWidth
             className="login-google-btn"
             onClick={() => { window.location.href = `${API_BASE_URL}/auth/google`; }}
+            disabled={isLoading}
           >
             Continue with Google
           </Button>
@@ -186,6 +253,7 @@ const Login = () => {
           open={showVerificationModal}
           onClose={() => setShowVerificationModal(false)}
           email={form.email}
+          rememberMe={rememberMe}
           onVerificationSuccess={handleVerificationSuccess}
         />
       </Box>

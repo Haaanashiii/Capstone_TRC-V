@@ -21,7 +21,7 @@ const poppinsTheme = createTheme({
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
-const AccountVerificationModal = ({ open, onClose, email, onVerificationSuccess, buttonText = 'Sign in to your account' }) => {
+const AccountVerificationModal = ({ open, onClose, email, rememberMe = false, onVerificationSuccess, buttonText = 'Sign in to your account' }) => {
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [timeLeft, setTimeLeft] = useState(300); // 5 minutes in seconds
   const [error, setError] = useState('');
@@ -129,6 +129,7 @@ const AccountVerificationModal = ({ open, onClose, email, onVerificationSuccess,
       const response = await api.post('/auth/verify-otp', {
         email: email,
         otp: otpCode,
+        rememberMe: rememberMe, // Pass rememberMe flag to create trusted device token
       });
 
       const data = response.data;

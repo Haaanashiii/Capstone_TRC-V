@@ -2,9 +2,12 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from 'react-router-dom';
 import '../../Styles/LandingCss/LandingPage.css';
 import { useAuth } from '../../contexts/AuthContext';
-import { Menu, MenuItem, ListItemIcon } from '@mui/material';
+import { Menu, MenuItem, ListItemIcon, Dialog, DialogTitle, DialogContent, DialogActions, Button, Typography, Box } from '@mui/material';
 import PermIdentityIcon from '@mui/icons-material/PermIdentity';
 import LogoutIcon from '@mui/icons-material/Logout';
+import WarningIcon from '@mui/icons-material/Warning';
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 const Card = ({ children, className }) => (
   <div className={className}>{children}</div>
@@ -14,14 +17,130 @@ const LandingPage = () => {
   const navigate = useNavigate();
   const { user, logout, login } = useAuth();
   const [anchorEl, setAnchorEl] = useState(null);
+  const [announcements, setAnnouncements] = useState([]);
+  const [loadingAnnouncements, setLoadingAnnouncements] = useState(true);
+  const [warningDialogOpen, setWarningDialogOpen] = useState(false);
   const menuOpen = Boolean(anchorEl);
-  const displayName = user ? (user.full_name || user.name || user.username) : null;
+  
+  // Get display name from AuthContext user or fallback to token decode (consistent with UnifiedSidebar)
+  const getDisplayName = () => {
+    if (user?.name) {
+      const parts = String(user.name).trim().split(/\s+/);
+      const first = parts[0];
+      const last = parts.slice(1).join(' ');
+      return last ? `${first} ${String(last).charAt(0).toUpperCase()}` : first;
+    }
+    
+    // Fallback: decode token directly from sessionStorage
+    try {
+      const token = sessionStorage.getItem('accessToken');
+      if (token) {
+        const decoded = JSON.parse(atob(token.split('.')[1]));
+        if (decoded?.name) {
+          const parts = String(decoded.name).trim().split(/\s+/);
+          const first = parts[0];
+          const last = parts.slice(1).join(' ');
+          return last ? `${first} ${String(last).charAt(0).toUpperCase()}` : first;
+        }
+      }
+    } catch (error) {
+      console.error('[LandingPage] Error decoding token:', error);
+    }
+    
+    return null;
+  };
+  
+  const displayName = getDisplayName();
+  
+  // Check if user has franchise (for enabling REQUEST FOR AMENDMENT)
+  const checkHasFranchise = () => {
+    try {
+      const token = sessionStorage.getItem('accessToken');
+      if (token) {
+        const decoded = JSON.parse(atob(token.split('.')[1]));
+        return decoded.hasFranchise === true;
+      }
+    } catch {
+      return false;
+    }
+    return false;
+  };
+  
+  const userHasFranchise = checkHasFranchise();
 
   const handleMenuOpen = (e) => setAnchorEl(e.currentTarget);
   const handleMenuClose = () => setAnchorEl(null);
-  const handleGoToId = () => { handleMenuClose(); navigate('/operator/id'); };
-  const handleLogout = () => { try { logout(); } catch { sessionStorage.removeItem('accessToken'); localStorage.removeItem('accessToken'); } handleMenuClose(); navigate('/'); };
   
+  const handleGoToId = () => { 
+    handleMenuClose(); 
+    
+    // Check if user has franchise
+    let hasFranchise = false;
+    try {
+      const token = sessionStorage.getItem('accessToken');
+      if (token) {
+        const decoded = JSON.parse(atob(token.split('.')[1]));
+        hasFranchise = decoded.hasFranchise === true;
+      }
+    } catch {
+      hasFranchise = false;
+    }
+    
+    if (!hasFranchise) {
+      // Show warning dialog instead of navigating
+      setWarningDialogOpen(true);
+    } else {
+      navigate('/operator/id');
+    }
+  };
+  
+  const handleWarningClose = () => {
+    setWarningDialogOpen(false);
+  };
+  
+  const handleGoToFranchise = () => {
+    setWarningDialogOpen(false);
+    navigate('/operator/franchise/application');
+  };
+  
+  const handleLogout = async () => {
+    console.log('[LandingPage] Logout initiated');
+    handleMenuClose();
+    try {
+      await logout(); // Now async - calls backend and clears tokens
+      console.log('[LandingPage] Logout successful');
+    } catch (error) {
+      console.error('[LandingPage] Logout error:', error);
+    } finally {
+      navigate('/');
+    }
+  };
+  
+  // Fetch published announcements
+  useEffect(() => {
+    const fetchPublishedAnnouncements = async () => {
+      try {
+        setLoadingAnnouncements(true);
+        const response = await fetch(`${API_BASE_URL}/announcements/published`);
+        
+        if (response.ok) {
+          const data = await response.json();
+          setAnnouncements(data.announcements || []);
+        } else {
+          console.error('Failed to fetch announcements');
+          setAnnouncements([]);
+        }
+      } catch (error) {
+        console.error('Error fetching announcements:', error);
+        setAnnouncements([]);
+      } finally {
+        setLoadingAnnouncements(false);
+      }
+    };
+
+    fetchPublishedAnnouncements();
+  }, []);
+
   useEffect(() => {
     try {
       const hash = window.location.hash || '';
@@ -29,16 +148,17 @@ const LandingPage = () => {
         const params = new URLSearchParams(hash.substring(1));
         const token = params.get('access_token');
         if (token) {
-          localStorage.setItem('accessToken', token);
+          // Store in sessionStorage (secure) instead of localStorage
+          sessionStorage.setItem('accessToken', token);
           // Also notify AuthContext about the new login so components update immediately
           try {
             const decoded = JSON.parse(atob(token.split('.')[1]));
             const userInfo = {
               id: decoded.id,
               role: decoded.role,
-              name: decoded.name || decoded.username || decoded.email,
-              full_name: decoded.full_name || decoded.name || decoded.username,
-              username: decoded.username,
+              name: decoded.name,
+              accountType: decoded.accountType,
+              hasOperator: decoded.hasOperator
             };
             // call AuthContext login if available
             if (typeof login === 'function') {
@@ -56,6 +176,11 @@ const LandingPage = () => {
       }
   } catch { /* ignore */ }
   }, [login]);
+
+  const formatDate = (dateString) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).toUpperCase();
+  };
 
   
   return (
@@ -75,11 +200,22 @@ const LandingPage = () => {
           <button className="nav-link" onClick={() => navigate('/')}>HOME</button>
           {/* Show different label & route when user is logged in */}
           {displayName ? (
-            <button className="nav-link" onClick={() => navigate('/request-amendment')}>REQUEST FOR AMENDMENT</button>
+            <button 
+              className="nav-link" 
+              onClick={() => userHasFranchise ? navigate('/request-amendment') : navigate('/operator/franchise')}
+              style={{ 
+                opacity: userHasFranchise ? 1 : 0.5, 
+                cursor: userHasFranchise ? 'pointer' : 'not-allowed',
+                pointerEvents: userHasFranchise ? 'auto' : 'none'
+              }}
+              title={!userHasFranchise ? 'Complete your franchise application first' : ''}
+            >
+              REQUEST FOR AMENDMENT
+            </button>
           ) : (
             <button className="nav-link" onClick={() => navigate('/login')}>VERIFY TRICYCLE</button>
           )}
-          <button className="nav-link" onClick={() => navigate('/login')}>NEW APPLICATION</button>
+          <button className="nav-link" onClick={() => navigate('/operator/franchise/application')}>NEW APPLICATION</button>
           {/* If user is logged in show name and menu, otherwise show Login button */}
           {displayName ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -102,6 +238,53 @@ const LandingPage = () => {
                   Logout
                 </MenuItem>
               </Menu>
+              
+              {/* Warning Dialog for No Operator Information */}
+              <Dialog
+                open={warningDialogOpen}
+                onClose={handleWarningClose}
+                PaperProps={{
+                  sx: {
+                    borderRadius: 3,
+                    padding: 2,
+                    maxWidth: 500
+                  }
+                }}
+              >
+                <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1, color: '#d32f2f' }}>
+                  <WarningIcon sx={{ fontSize: 32 }} />
+                  No Franchise Found
+                </DialogTitle>
+                <DialogContent>
+                  <Typography variant="body1" sx={{ mb: 2 }}>
+                    You need an approved franchise to access the Operator ID.
+                  </Typography>
+                  <Typography variant="body2" sx={{ color: '#666' }}>
+                    To view your Operator ID, you need to:
+                  </Typography>
+                  <Box component="ul" sx={{ mt: 1, pl: 2 }}>
+                    <li><Typography variant="body2">Submit a franchise application and get it approved</Typography></li>
+                  </Box>
+                </DialogContent>
+                <DialogActions sx={{ px: 3, pb: 2 }}>
+                  <Button 
+                    onClick={handleWarningClose} 
+                    sx={{ color: '#666' }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button 
+                    onClick={handleGoToFranchise}
+                    variant="contained"
+                    sx={{ 
+                      bgcolor: '#143c6e',
+                      '&:hover': { bgcolor: '#0a3970' }
+                    }}
+                  >
+                    Submit Application
+                  </Button>
+                </DialogActions>
+              </Dialog>
             </div>
           ) : (
             <button className="nav-login" onClick={() => navigate('/login')}>LOGIN</button>
@@ -126,32 +309,33 @@ const LandingPage = () => {
         </div>
       </main>
 
-            {/* Announcements Pagee ni papa\pi lucas ni jakey */}
+            {/* Announcements Section - Dynamic */}
       <section className="announcements-section">
         <div className="announcements-title">ANNOUNCEMENTS</div>
         <div className="announcements-list">
-          <div className="announcement-card">
-            <div className="announcement-card-header">NOTICE TO ALL TRICYCLE FRANCHISE HOLDERS</div>
-            <div className="announcement-card-date">SEP 3, 2025</div>
-            <div className="announcement-card-body">
-              This is to inform all registered tricycle operators that renewal of franchise permits for the year 2025–2026 shall commence on September 10, 2025. All submissions must be completed through the TRC-V portal before September 30, 2025.
+          {loadingAnnouncements ? (
+            <div className="announcement-card">
+              <div className="announcement-card-body" style={{ textAlign: 'center', padding: '40px' }}>
+                Loading announcements...
+              </div>
             </div>
-          </div>
-          <div className="announcement-card">
-             
-            <div className="announcement-card-header">SYSTEM MAINTENANCE ADVISORY</div>
-            <div className="announcement-card-date">SEP 5, 2025</div> 
-            <div className="announcement-card-body">
-              Please be advised that the TRC-V online portal will undergo scheduled maintenance on September 8, 2025, from 12:00 AM to 6:00 AM. During this period, online services including QR code validation and document submissions will be temporarily unavailable…
+          ) : announcements.length > 0 ? (
+            announcements.map((announcement) => (
+              <div className="announcement-card" key={announcement._id}>
+                <div className="announcement-card-header">{announcement.title}</div>
+                <div className="announcement-card-date">{formatDate(announcement.date)}</div>
+                <div className="announcement-card-body">
+                  {announcement.description}
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="announcement-card">
+              <div className="announcement-card-body" style={{ textAlign: 'center', padding: '40px' }}>
+                No announcements at this time.
+              </div>
             </div>
-          </div>
-          <div className="announcement-card">
-            <div className="announcement-card-header">OFFICE CLOSURE ANNOUNCEMENT</div>
-            <div className="announcement-card-date">SEP 12, 2025</div>
-            <div className="announcement-card-body">
-              The Municipal Tricycle Regulatory Office will be closed on September 15, 2025 (Monday) in observance of municipal administrative activities. Online services will remain accessible.
-            </div>
-          </div>
+          )}
         </div>
       </section>
 

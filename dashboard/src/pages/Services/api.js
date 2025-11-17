@@ -97,7 +97,7 @@ export const TokenManager = {
   },
 
   /**
-   * Check if token is expired (with 5 minute buffer)
+   * Check if token is expired
    * @param {string} token - JWT token to check
    * @returns {boolean} True if expired
    */
@@ -105,9 +105,9 @@ export const TokenManager = {
     const decoded = TokenManager.decodeToken(token);
     if (!decoded || !decoded.exp) return true;
     
-    // Add 5 minute buffer (300000 ms)
-    const bufferTime = 300000;
-    return (decoded.exp * 1000) <= (Date.now() + bufferTime);
+    // Check actual expiration time - no buffer needed
+    // The response interceptor will handle refresh when backend returns 401
+    return (decoded.exp * 1000) <= Date.now();
   },
 
   /**
@@ -169,14 +169,9 @@ api.interceptors.request.use(
     const token = TokenManager.getAccessToken();
     
     if (token) {
-      // Validate token before sending
-      if (TokenManager.isValid(token)) {
-        config.headers.Authorization = `Bearer ${token}`;
-      } else {
-        console.warn('[API] Token expired, clearing...');
-        TokenManager.clearTokens();
-        // Request will proceed without token (backend will return 401)
-      }
+      // Always send the token - let backend validate and return 401 if expired
+      // The response interceptor will automatically refresh the token on 401
+      config.headers.Authorization = `Bearer ${token}`;
     }
     
     return config;
@@ -197,8 +192,12 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
-    // Handle 401 Unauthorized - attempt token refresh
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    // Don't attempt token refresh for login/signup endpoints (they're supposed to return 401 on bad credentials)
+    const authEndpoints = ['/auth/login', '/auth/signup', '/auth/refresh-token', '/auth/request-otp'];
+    const isAuthEndpoint = authEndpoints.some(endpoint => originalRequest.url?.includes(endpoint));
+
+    // Handle 401 Unauthorized - attempt token refresh (except for auth endpoints)
+    if (error.response?.status === 401 && !originalRequest._retry && !isAuthEndpoint) {
       if (isRefreshing) {
         // Wait for refresh to complete
         return new Promise((resolve, reject) => {
@@ -372,29 +371,27 @@ export const franchiseAPI = {
   getById: (id) => api.get(`/api/franchise-applications/${id}`),
 
   /**
-   * Create new franchise application (PUBLIC - no authentication required)
-   * @param {object} applicationData - Application data (JSON object)
+   * Create new franchise application (supports both authenticated and public submissions)
+   * @param {object} applicationData - Application data (FormData or JSON object)
    * @returns {Promise} Response with created application
    */
   create: (applicationData) => {
-    // Use base axios instance without authentication
-    // If applicationData is FormData, do NOT set Content-Type so the
+    // Use the authenticated API instance which automatically includes JWT token
+    // If user is logged in, token will be sent; if not, request proceeds without auth
+    // If applicationData is FormData, EXPLICITLY DELETE Content-Type so the
     // browser/axios can set the multipart/form-data boundary correctly.
-    // For regular JSON payloads, preserve the original behavior and
-    // send Content-Type: application/json (this is important for other
-    // callers which may expect JSON behavior such as QR generation flows).
-    const publicApi = axios.create({
-      baseURL: API_BASE_URL,
-      timeout: 60000,
-      withCredentials: true,
-    });
-
     const config = {};
-    if (!(applicationData instanceof FormData)) {
+    
+    if (applicationData instanceof FormData) {
+      // CRITICAL: Delete Content-Type header for FormData
+      // Browser will automatically set it to multipart/form-data with boundary
+      config.headers = { 'Content-Type': undefined };
+      console.log('[franchiseAPI] Sending FormData - Content-Type will be set by browser');
+    } else {
       config.headers = { 'Content-Type': 'application/json' };
     }
 
-    return publicApi.post('/api/franchise-applications', applicationData, config);
+    return api.post('/api/franchise-applications', applicationData, config);
   },
 
   /**
@@ -506,6 +503,78 @@ export const userAPI = {
    * @returns {Promise} Response
    */
   delete: (id) => api.delete(`/users/${id}`)
+};
+
+// ====================================================================
+// ADMIN ACCOUNT API METHODS
+// ====================================================================
+
+export const adminAPI = {
+  /**
+   * Get all admin accounts
+   * @param {object} params - Query parameters { includeInactive }
+   * @returns {Promise} Response with admin accounts array
+   */
+  getAll: (params = {}) => api.get('/admins', { params }),
+
+  /**
+   * Get admin by ID
+   * @param {string} id - Admin ID (adminId or _id)
+   * @returns {Promise} Response with admin details
+   */
+  getById: (id) => api.get(`/admins/${id}`),
+
+  /**
+   * Get admins by role
+   * @param {string} role - Admin role (sb-admin, bplo-admin, super-admin)
+   * @returns {Promise} Response with admins array
+   */
+  getByRole: (role) => api.get(`/admins/role/${role}`),
+
+  /**
+   * Create new admin account
+   * @param {object} adminData - Admin account data
+   * @returns {Promise} Response with created admin
+   */
+  create: (adminData) => api.post('/admins', adminData),
+
+  /**
+   * Update admin account
+   * @param {string} id - Admin ID (adminId or _id)
+   * @param {object} data - Updated admin data
+   * @returns {Promise} Response with updated admin
+   */
+  update: (id, data) => api.put(`/admins/${id}`, data),
+
+  /**
+   * Deactivate admin account (soft delete)
+   * @param {string} id - Admin ID (adminId or _id)
+   * @returns {Promise} Response
+   */
+  deactivate: (id) => api.patch(`/admins/${id}/deactivate`),
+
+  /**
+   * Delete admin account (hard delete)
+   * @param {string} id - Admin ID (adminId or _id)
+   * @returns {Promise} Response
+   */
+  delete: (id) => api.delete(`/admins/${id}`),
+
+  /**
+   * Add permission to admin
+   * @param {string} id - Admin ID (adminId or _id)
+   * @param {string} permission - Permission to add
+   * @returns {Promise} Response with updated admin
+   */
+  addPermission: (id, permission) => api.post(`/admins/${id}/permissions`, { permission }),
+
+  /**
+   * Remove permission from admin
+   * @param {string} id - Admin ID (adminId or _id)
+   * @param {string} permission - Permission to remove
+   * @returns {Promise} Response with updated admin
+   */
+  removePermission: (id, permission) => api.delete(`/admins/${id}/permissions`, { data: { permission } })
 };
 
 // Export default api instance for custom requests

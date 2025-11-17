@@ -10,6 +10,8 @@ import './DriverID.css';
 import dayjs from 'dayjs';
 
 function DriverID() {
+  const navigate = useNavigate(); // Must be declared at the top before any useEffect that uses it
+  
   const [user, setUser] = useState(null);
   const [language, setLanguage] = useState('en'); // Language state
   const [franchiseStatus, setFranchiseStatus] = useState(null); // Franchise status state
@@ -35,10 +37,10 @@ function DriverID() {
   
   const t = translations[language];
   
-  // Check franchise status from localStorage or API
+  // Check franchise status from sessionStorage or API
   const checkFranchiseStatus = () => {
-    // Check if user has linked franchise (this could be stored in localStorage or fetched from API)
-    const franchiseData = localStorage.getItem('userFranchiseInfo');
+    // Check if user has linked franchise (stored in sessionStorage - cleared on tab close)
+    const franchiseData = sessionStorage.getItem('userFranchiseInfo');
     if (franchiseData) {
       try {
         const parsedData = JSON.parse(franchiseData);
@@ -54,7 +56,8 @@ function DriverID() {
   
   // Get user info from token
   const getUserInfo = () => {
-    const token = localStorage.getItem('accessToken');
+    // Token is stored in sessionStorage (secure, cleared on tab close)
+    const token = sessionStorage.getItem('accessToken');
     if (!token) return null;
     
     try {
@@ -68,11 +71,12 @@ function DriverID() {
   // Fetch full user details from the server
   const fetchUserDetails = React.useCallback(async () => {
     try {
-      const token = localStorage.getItem('accessToken');
+      // Token is stored in sessionStorage
+      const token = sessionStorage.getItem('accessToken');
       if (!token) return;
 
       const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170';
-      console.log('DriverID: Fetching user details from:', `${API_BASE_URL}/auth/me`);
+      console.log('[DriverID] Fetching user details from:', `${API_BASE_URL}/auth/me`);
       
       const response = await fetch(`${API_BASE_URL}/auth/me`, {
         headers: {
@@ -90,10 +94,10 @@ function DriverID() {
       } else {
         console.log('DriverID: /auth/me returned non-ok. Clearing any stored franchise info to avoid stale data.');
         // If server says the user is not available (e.g., deleted), clear any stored franchise
-        try { localStorage.removeItem('userFranchiseInfo') } catch { /* ignore */ }
-        try { localStorage.removeItem('franchiseLinked') } catch { /* ignore */ }
-        try { localStorage.removeItem('franchiseMenuReplaced') } catch { /* ignore */ }
-        try { localStorage.removeItem('franchiseOwnerEmail') } catch { /* ignore */ }
+        sessionStorage.removeItem('userFranchiseInfo');
+        sessionStorage.removeItem('franchiseLinked');
+        sessionStorage.removeItem('franchiseMenuReplaced');
+        sessionStorage.removeItem('franchiseOwnerUserId');
         setFranchiseStatus(null);
         // Do not blindly trust token fallback when server indicates user missing. Use token data only as display fallback.
         const tokenUser = getUserInfo();
@@ -102,9 +106,9 @@ function DriverID() {
     } catch (error) {
       console.error('DriverID: Error fetching user details:', error);
      
-      try { localStorage.removeItem('userFranchiseInfo') } catch { /* ignore */ }
-      try { localStorage.removeItem('franchiseLinked') } catch { /* ignore */ }
-      try { localStorage.removeItem('franchiseOwnerEmail') } catch { /* ignore */ }
+      sessionStorage.removeItem('userFranchiseInfo');
+      sessionStorage.removeItem('franchiseLinked');
+      sessionStorage.removeItem('franchiseOwnerUserId');
       setFranchiseStatus(null);
       const tokenUser = getUserInfo();
       setUser(tokenUser || null);
@@ -113,38 +117,52 @@ function DriverID() {
 
   // Fetch user details on component mount
   useEffect(() => {
-    const token = localStorage.getItem('accessToken');
+    // Token is only in sessionStorage (secure storage)
+    const token = sessionStorage.getItem('accessToken');
     if (token) {
-    
+      console.log('[DriverID] Token found, initializing user data...');
       const tokenUser = getUserInfo();
       if (tokenUser) {
+        console.log('[DriverID] User from token:', tokenUser);
+        
+        // GATE-KEEPING: Check if user has franchise
+        if (!tokenUser.hasFranchise) {
+          console.warn('[DriverID] User does not have franchise yet, redirecting to Franchise page');
+          navigate('/operator/franchise');
+          return;
+        }
+        
         setUser(tokenUser);
       }
     
       fetchUserDetails();
+    } else {
+      console.warn('[DriverID] No token found in sessionStorage');
+      navigate('/login');
     }
     // Check franchise status
     checkFranchiseStatus();
    
-  }, []);  
+  }, [fetchUserDetails, navigate]);
 
   
   useEffect(() => {
     try {
       if (!user) return;
-      const storedOwner = localStorage.getItem('franchiseOwnerEmail');
-      const email = user.email || user.username || user.name || '';
-      if (!storedOwner || storedOwner !== String(email)) {
+      const storedOwnerUserId = sessionStorage.getItem('franchiseOwnerUserId');
+      const userId = user.id;
+      if (!storedOwnerUserId || storedOwnerUserId !== userId) {
         // clear any stale franchise info for other users
-        try { localStorage.removeItem('userFranchiseInfo') } catch { /* ignore */ }
-        try { localStorage.removeItem('franchiseLinked') } catch { /* ignore */ }
+        sessionStorage.removeItem('userFranchiseInfo');
+        sessionStorage.removeItem('franchiseLinked');
       }
 
 
       (async () => {
         try {
           const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170'
-          const token = localStorage.getItem('accessToken');
+          // Token is only in sessionStorage (secure storage)
+          const token = sessionStorage.getItem('accessToken');
         
           if (token) {
             try {
@@ -153,7 +171,7 @@ function DriverID() {
               });
               if (mineRes.ok) {
                 const matched = await mineRes.json();
-                console.debug('DriverID: matched application from /mine', matched);
+                console.debug('[DriverID] matched application from /mine', matched);
            
                 if (matched) {
                   const franchiseInfo = {
@@ -162,9 +180,9 @@ function DriverID() {
                     linkedDate: matched.approvedAt || new Date().toLocaleDateString()
                   }
                   setFranchiseStatus('ACTIVE')
-                  try { localStorage.setItem('userFranchiseInfo', JSON.stringify(franchiseInfo)) } catch { /* ignore */ }
-                  try { localStorage.setItem('franchiseLinked', 'true') } catch { /* ignore */ }
-                  try { localStorage.setItem('franchiseOwnerEmail', email) } catch { /* ignore */ }
+                  sessionStorage.setItem('userFranchiseInfo', JSON.stringify(franchiseInfo));
+                  sessionStorage.setItem('franchiseLinked', 'true');
+                  sessionStorage.setItem('franchiseOwnerUserId', userId);
                   setMatchedFranchise(matched);
             
                   const approvedRaw = matched.approvedAt || '';
@@ -195,13 +213,11 @@ function DriverID() {
           const resp = await fetch(`${API_BASE_URL}/api/franchise-applications?status=approved`)
           if (!resp.ok) return
           const apps = await resp.json()
-          console.debug('DriverID: approved applications fetched', Array.isArray(apps) ? apps.length : 'not-array', apps)
+          console.debug('[DriverID] approved applications fetched', Array.isArray(apps) ? apps.length : 'not-array', apps)
           if (!Array.isArray(apps) || !apps.length) return
-
-          const tokenEmail = email && String(email).toLowerCase()
         
           const userIdentifiers = new Set();
-          if (email) userIdentifiers.add(String(email).toLowerCase());
+          if (user.email) userIdentifiers.add(String(user.email).toLowerCase());
           if (user.username) userIdentifiers.add(String(user.username).toLowerCase());
           if (user.name) userIdentifiers.add(String(user.name).toLowerCase());
           if (user.operatorId) userIdentifiers.add(String(user.operatorId).toLowerCase());
@@ -238,9 +254,10 @@ function DriverID() {
             }
             setFranchiseStatus('ACTIVE')
            
-            try { localStorage.setItem('userFranchiseInfo', JSON.stringify(franchiseInfo)) } catch { /* ignore */ }
-            try { localStorage.setItem('franchiseLinked', 'true') } catch { /* ignore */ }
-            try { localStorage.setItem('franchiseOwnerEmail', tokenEmail) } catch { /* ignore */ }
+            sessionStorage.setItem('userFranchiseInfo', JSON.stringify(franchiseInfo));
+            sessionStorage.setItem('franchiseLinked', 'true');
+            const tokenUserId = getUserInfo()?.id;
+            if (tokenUserId) sessionStorage.setItem('franchiseOwnerUserId', tokenUserId);
 
             setMatchedFranchise(matched);
     
@@ -323,6 +340,56 @@ function DriverID() {
     }
   }, [user])
 
+  // When matchedFranchise changes, fetch QR as blob and create an object URL
+  useEffect(() => {
+    let cancelled = false;
+    // revoke previous
+    try {
+      if (qrBlobRef.current) {
+        URL.revokeObjectURL(qrBlobRef.current);
+        qrBlobRef.current = null;
+      }
+    } catch (e) {
+      console.warn('Failed to revoke previous driver qr blob', e);
+    }
+
+    const fetchQr = async () => {
+      if (!matchedFranchise || !matchedFranchise.qrCode) {
+        setQrBlobUrl(null);
+        return;
+      }
+      try {
+        const raw = matchedFranchise.qrCode;
+        const url = /^https?:\/\//i.test(raw) ? raw : ((import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170').replace(/\/$/, '') + (raw.startsWith('/') ? raw : '/' + raw));
+        const resp = await fetch(url);
+        if (!resp.ok) throw new Error('Failed fetching driver QR image: ' + resp.status);
+        const blob = await resp.blob();
+        if (cancelled) return;
+        const obj = URL.createObjectURL(blob);
+        qrBlobRef.current = obj;
+        setQrBlobUrl(obj);
+      } catch (err) {
+        console.warn('DriverID: failed to fetch qr blob', err);
+        setQrBlobUrl(null);
+      }
+    };
+
+    fetchQr();
+
+    return () => {
+      cancelled = true;
+      try {
+        if (qrBlobRef.current) {
+          URL.revokeObjectURL(qrBlobRef.current);
+          qrBlobRef.current = null;
+        }
+      } catch (e) {
+        console.warn('Failed to revoke driver qr blob on cleanup', e);
+      }
+      setQrBlobUrl(null);
+    };
+  }, [matchedFranchise]);
+
   
   useEffect(() => {
     const onVisibility = () => {
@@ -333,7 +400,7 @@ function DriverID() {
     };
     document.addEventListener('visibilitychange', onVisibility);
     return () => document.removeEventListener('visibilitychange', onVisibility);
-  }, [fetchUserDetails])
+  }, [fetchUserDetails]);
   
 
 
@@ -348,9 +415,9 @@ function DriverID() {
     chassisNumber: '',
     motorNumber: ''
   });
-  
 
-  const navigate = useNavigate();
+  const [qrBlobUrl, setQrBlobUrl] = useState(null);
+  const qrBlobRef = React.useRef(null);
 
 
   const handleOpenFranchisePage = () => {
@@ -403,6 +470,7 @@ function DriverID() {
                 : t.singleNoCoOwner
               }
             </Typography>
+            {/* QR is displayed on the right panel (see the blue card area) */}
             <Button 
               variant="contained" 
               onClick={handleOpenFranchisePage}
@@ -490,8 +558,27 @@ function DriverID() {
           </div>
 
           <div className="id-right">
-            <div className="qr-container" aria-hidden="true">
-              {/* intentionally empty - image removed per request */}
+            <div className="qr-container" aria-hidden={matchedFranchise?.qrCode ? 'false' : 'true'}>
+              {matchedFranchise?.qrCode ? (
+                (() => {
+                  const raw = matchedFranchise.qrCode;
+                  const serverUrl = /^https?:\/\//i.test(raw) ? raw : ((import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170').replace(/\/$/, '') + (raw.startsWith('/') ? raw : '/' + raw));
+                  return (
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+                      <img
+                        src={qrBlobUrl || serverUrl}
+                        alt="QR Code"
+                        style={{ width: 260, height: 260, objectFit: 'contain', background: '#fff', padding: 12, borderRadius: 8 }}
+                      />
+                      {/* <div style={{ display: 'flex', gap: 8 }}>
+                        <Button variant="outlined" onClick={() => { const a = document.createElement('a'); a.href = serverUrl; a.download = 'qr.png'; document.body.appendChild(a); a.click(); a.remove(); }}>Download QR</Button>
+                      </div> */}
+                    </div>
+                  )
+                })()
+              ) : (
+                <div style={{ color: '#fff', fontWeight: 700 }}>QR not available</div>
+              )}
             </div>
           </div>
         </div>

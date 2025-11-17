@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
-import './FranchiseMgmt.css'
+import '../../Styles/Administrator_Css/FranchiseMgmt.css'
 import Sidebar from './Sidebar'
 import { franchiseAPI, API_BASE_URL } from '../Services/api'
 import {
@@ -48,7 +48,8 @@ function FranchiseMgmt() {
   const [openFilePreview, setOpenFilePreview] = useState(false)
   const [previewFile, setPreviewFile] = useState({ name: '', type: '', path: '' })
   const currentBlobUrlRef = useRef(null)
-  
+  const qrBlobUrlRef = useRef(null)
+  const [qrBlobUrl, setQrBlobUrl] = useState(null)
   
   const [pendingApplications, setPendingApplications] = useState([])
 
@@ -61,6 +62,7 @@ function FranchiseMgmt() {
     sidecarPlateNumber: '',
     name: '',
     contactNumber: '',
+    operatorEmail: '',
     birthPlace: '',
     birthDate: '',
     civilStatus: '',
@@ -87,7 +89,15 @@ function FranchiseMgmt() {
    * Fetch all pending franchise applications from backend
    * Uses secure franchiseAPI.getPending() with automatic token refresh
    */
+  const isFetchingRef = useRef(false)
   const fetchAllPending = useCallback(async () => {
+    // Prevent duplicate simultaneous requests
+    if (isFetchingRef.current) {
+      console.log('[FranchiseMgmt] Fetch already in progress, skipping')
+      return
+    }
+    
+    isFetchingRef.current = true
     setIsLoading(true)
     try {
       const response = await franchiseAPI.getPending()
@@ -95,7 +105,8 @@ function FranchiseMgmt() {
       
       console.log('[FranchiseMgmt] Fetched pending applications:', serverApps?.length || 0)
       
-      // Normalize application data structure
+      // Backend already normalizes documents to {name, type, path} objects
+      // Just pass through the data as-is
       const normalizedServerApps = Array.isArray(serverApps) ? serverApps.map((it) => ({
         id: it.id || it._id,
         franchiseNumber: it.franchiseNumber || it.franchise_number || '',
@@ -119,12 +130,14 @@ function FranchiseMgmt() {
         chassisNumber: it.chassisNumber || it.chassis || it.chassis_number || '',
         driverName: it.driverName || it.name || it.operatorName || '',
         driverAddress: it.driverAddress || it.address || '',
+        // Documents already normalized by backend
         documentRegistration: it.documentRegistration || null,
         documentBarangayClearance: it.documentBarangayClearance || null,
         documentCedula: it.documentCedula || null,
         documentDriversLicense: it.documentDriversLicense || null,
         documentVotersAffidavit: it.documentVotersAffidavit || null,
         documentPicture: it.documentPicture || null,
+        qrCode: it.qrCode || null,
       })) : []
 
       setPendingApplications(normalizedServerApps)
@@ -140,14 +153,18 @@ function FranchiseMgmt() {
       setPendingApplications([])
     } finally {
       setIsLoading(false)
+      isFetchingRef.current = false
     }
   }, [])
 
-  
+  // Pause polling when any modal is open
+  const isAnyModalOpen = openAddModal || openViewModal || openRejectModal || openFilePreview
+
   useEffect(() => {
     fetchAllPending()
     let pollId = null
-    if (POLL_INTERVAL_MS > 0) {
+    // Only poll when no modals are open
+    if (POLL_INTERVAL_MS > 0 && !isAnyModalOpen) {
       pollId = setInterval(() => {
         fetchAllPending()
       }, POLL_INTERVAL_MS)
@@ -155,7 +172,7 @@ function FranchiseMgmt() {
     return () => {
       if (pollId) clearInterval(pollId)
     }
-  }, [fetchAllPending])
+  }, [fetchAllPending, isAnyModalOpen])
 
 
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('')
@@ -201,6 +218,57 @@ function FranchiseMgmt() {
     setOpenViewModal(true)
   }, [])
   const handleCloseViewModal = useCallback(() => setOpenViewModal(false), [])
+
+  // When a selected application changes, attempt to fetch its QR image and create a blob URL
+  React.useEffect(() => {
+    let cancelled = false
+    
+    // Cleanup previous QR blob using centralized function
+    if (qrBlobUrlRef.current) {
+      try {
+        URL.revokeObjectURL(qrBlobUrlRef.current)
+        qrBlobUrlRef.current = null
+      } catch (e) {
+        console.warn('Failed to revoke previous QR blob:', e)
+      }
+    }
+
+    const fetchQr = async () => {
+      if (!selectedApplication || !selectedApplication.qrCode) {
+        setQrBlobUrl(null)
+        return
+      }
+      try {
+        const raw = selectedApplication.qrCode
+        const url = /^https?:\/\//i.test(raw) ? raw : (API_BASE_URL.replace(/\/$/, '') + (raw.startsWith('/') ? raw : '/' + raw))
+        const resp = await fetch(url)
+        if (!resp.ok) throw new Error('Failed to fetch QR')
+        const blob = await resp.blob()
+        if (cancelled) return
+        const objUrl = URL.createObjectURL(blob)
+        qrBlobUrlRef.current = objUrl
+        setQrBlobUrl(objUrl)
+      } catch (err) {
+        console.warn('[FranchiseMgmt] Failed to fetch QR blob for inline display:', err)
+        setQrBlobUrl(null)
+      }
+    }
+
+    fetchQr()
+
+    return () => {
+      cancelled = true
+      if (qrBlobUrlRef.current) {
+        try {
+          URL.revokeObjectURL(qrBlobUrlRef.current)
+          qrBlobUrlRef.current = null
+        } catch (e) {
+          console.warn('Failed to revoke QR blob on cleanup:', e)
+        }
+      }
+      setQrBlobUrl(null)
+    }
+  }, [selectedApplication])
   
   const handleOpenRejectModal = useCallback(() => {
     setOpenViewModal(false)
@@ -237,15 +305,26 @@ function FranchiseMgmt() {
       }
     }
 
-    // If the path is relative (starts with '/') or missing protocol, prefix API_BASE_URL
+    // Handle different URL formats
     try {
-      if (normalized.path && !/^https?:\/\//i.test(normalized.path)) {
-        // Ensure no double slash when concatenating
+      // New R2 format: r2://path/to/file -> route through backend proxy
+      if (normalized.path && normalized.path.startsWith('r2://')) {
+        const r2Key = normalized.path.substring(5) // Remove 'r2://' prefix
+        normalized.path = `${API_BASE_URL.replace(/\/$/, '')}/api/franchise-applications/proxy-file?url=${encodeURIComponent(normalized.path)}`
+        console.log('[Preview] R2 format detected, routing through proxy:', r2Key)
+      }
+      // Old Cloudflare public URL format -> route through backend proxy
+      else if (normalized.path && /^https?:\/\/pub-[a-f0-9]+\.r2\.dev/i.test(normalized.path)) {
+        normalized.path = `${API_BASE_URL.replace(/\/$/, '')}/api/franchise-applications/proxy-file?url=${encodeURIComponent(normalized.path)}`
+        console.log('[Preview] Cloudflare R2 public URL detected, routing through proxy')
+      }
+      // Relative path -> prefix with API_BASE_URL
+      else if (normalized.path && !/^https?:\/\//i.test(normalized.path)) {
         const pathPart = normalized.path.startsWith('/') ? normalized.path : '/' + normalized.path
         normalized.path = API_BASE_URL.replace(/\/$/, '') + pathPart
       }
-    } catch {
-      // If API_BASE_URL isn't available for some reason, leave path as-is
+    } catch (err) {
+      console.warn('[Preview] Error processing file path:', err)
     }
 
     // If it's an image or PDF, try fetching it and creating an object URL so
@@ -285,19 +364,22 @@ function FranchiseMgmt() {
     tryFetchAndPreview()
   }, [])
   
-  const handleCloseFilePreview = useCallback(() => {
-    // Revoke any temporary object URL created from fetch
+  // Centralized blob URL cleanup function
+  const revokeBlobUrl = useCallback((ref) => {
     try {
-      if (currentBlobUrlRef.current) {
-        URL.revokeObjectURL(currentBlobUrlRef.current)
-        currentBlobUrlRef.current = null
+      if (ref.current) {
+        URL.revokeObjectURL(ref.current)
+        ref.current = null
       }
     } catch (err) {
-      console.warn('Failed to revoke object URL', err)
+      console.warn('Failed to revoke blob URL:', err)
     }
-
-    setOpenFilePreview(false)
   }, [])
+
+  const handleCloseFilePreview = useCallback(() => {
+    revokeBlobUrl(currentBlobUrlRef)
+    setOpenFilePreview(false)
+  }, [revokeBlobUrl])
   
   /**
    * Get appropriate icon for file type (memoized)
@@ -331,7 +413,6 @@ function FranchiseMgmt() {
     if (files && files[0]) {
       const file = files[0]
       
-
       if (file.size > 5 * 1024 * 1024) { // 5MB limit
         setNotification({
           open: true,
@@ -341,33 +422,50 @@ function FranchiseMgmt() {
         return
       }
       
-      // Create object URL for preview
-      const objectURL = URL.createObjectURL(file)
-      setFormData(prev => ({
-        ...prev,
-        [name]: {
-          name: file.name,
-          type: file.type,
-          path: objectURL,
-          file: file 
+      setFormData(prev => {
+        // Revoke previous blob URL if exists
+        if (prev[name]?.path && prev[name].path.startsWith('blob:')) {
+          try {
+            URL.revokeObjectURL(prev[name].path)
+          } catch (e) {
+            console.warn('Failed to revoke previous file blob:', e)
+          }
         }
-      }))
+        
+        // Create object URL for preview
+        const objectURL = URL.createObjectURL(file)
+        return {
+          ...prev,
+          [name]: {
+            name: file.name,
+            type: file.type,
+            path: objectURL,
+            file: file 
+          }
+        }
+      })
     }
   }, [])
   
   /**
-   * Cleanup object URLs when component unmounts or form data changes
+   * Cleanup object URLs only when component unmounts
    */
   useEffect(() => {
+    const currentFormData = { ...formData }
     return () => {
       // Cleanup all object URLs to prevent memory leaks
-      Object.keys(formData).forEach(key => {
-        if (key.startsWith('document') && formData[key]?.path) {
-          URL.revokeObjectURL(formData[key].path)
+      Object.keys(currentFormData).forEach(key => {
+        if (key.startsWith('document') && currentFormData[key]?.path && currentFormData[key]?.path.startsWith('blob:')) {
+          try {
+            URL.revokeObjectURL(currentFormData[key].path)
+          } catch (e) {
+            console.warn('Failed to revoke blob URL:', e)
+          }
         }
       })
     }
-  }, [formData])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   
   /**
    * Submit new application (auto-approved by admin)
@@ -414,12 +512,24 @@ function FranchiseMgmt() {
       // Close modal
       handleCloseAddModal()
       
+      // Revoke all blob URLs before resetting form
+      Object.keys(formData).forEach(key => {
+        if (key.startsWith('document') && formData[key]?.path && formData[key].path.startsWith('blob:')) {
+          try {
+            URL.revokeObjectURL(formData[key].path)
+          } catch (e) {
+            console.warn('Failed to revoke blob URL on form reset:', e)
+          }
+        }
+      })
+      
       // Reset form
       setFormData({
         date: new Date().toISOString().slice(0, 10),
         sidecarPlateNumber: '',
         name: '',
         contactNumber: '',
+        operatorEmail: '',
         birthPlace: '',
         birthDate: '',
         civilStatus: '',
@@ -465,6 +575,12 @@ function FranchiseMgmt() {
   const handleApproveApplication = async () => {
     if (!selectedApplication) return
     
+    // Prevent double-submission
+    if (isLoading) {
+      console.log('[FranchiseMgmt] Already processing, ignoring duplicate click')
+      return
+    }
+    
     setIsLoading(true)
     
     try {
@@ -487,11 +603,24 @@ function FranchiseMgmt() {
       handleCloseViewModal()
     } catch (error) {
       console.error('[FranchiseMgmt] Error approving application:', error)
+      
+      // Handle specific error cases
+      const errorMessage = error.response?.data?.error || error.response?.data?.message || 'Failed to approve application'
+      const isConflict = error.response?.status === 409
+      
       setNotification({
         open: true,
-        message: error.response?.data?.error || 'Failed to approve application',
+        message: isConflict 
+          ? `Already approved: ${errorMessage}` 
+          : errorMessage,
         type: 'error'
       })
+      
+      // If it's a conflict (already approved), refresh the list and close modal
+      if (isConflict) {
+        await fetchAllPending()
+        handleCloseViewModal()
+      }
     } finally {
       setIsLoading(false)
     }
@@ -542,7 +671,7 @@ function FranchiseMgmt() {
    * Handle notification close
    */
   const handleNotificationClose = useCallback(() => {
-    setNotification(prev => ({ ...prev, open: false }))
+    setNotification({ open: false, message: '', type: 'info' })
   }, [])
 
   return (
@@ -572,7 +701,7 @@ function FranchiseMgmt() {
             className="add-button"
             onClick={handleOpenAddModal}
           >
-            ADD NEW FRANCHISE
+            Add New Franchise
           </Button>
         </div>
         
@@ -586,7 +715,7 @@ function FranchiseMgmt() {
             <CircularProgress />
           </Box>
         ) : (
-          <TableContainer component={Paper} elevation={2}>
+          <TableContainer component={Paper} className="table-container" elevation={2}>
             <Table className="pending-table" aria-label="pending franchises table">
               <TableHead>
                 <TableRow>
@@ -597,7 +726,6 @@ function FranchiseMgmt() {
                   <TableCell className="table-cell-head">Plate Number</TableCell>
                   <TableCell className="table-cell-head">Application Type</TableCell>
                   <TableCell className="table-cell-head">Address</TableCell>
-                  <TableCell className="table-cell-head">Action</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -624,23 +752,11 @@ function FranchiseMgmt() {
                         />
                       </TableCell>
                       <TableCell className="table-cell-body">{application.address}</TableCell>
-                      <TableCell className="table-cell-body">
-                        <IconButton 
-                          size="small"
-                          className="view-icon-button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleOpenViewModal(application);
-                          }}
-                        >
-                          <VisibilityIcon />
-                        </IconButton>
-                      </TableCell>
                     </TableRow>
                   ))
                 ) : (
                   <TableRow className="table-row">
-                    <TableCell className="table-cell-body table-cell-center" colSpan={8}>
+                    <TableCell className="table-cell-body table-cell-center" colSpan={7}>
                       {isLoading ? 'Loading...' : 'No pending applications found'}
                     </TableCell>
                   </TableRow>
@@ -711,6 +827,18 @@ function FranchiseMgmt() {
                 required
               />
             </div>
+            
+            <TextField
+              label="Email Address (for account linking)"
+              name="operatorEmail"
+              type="email"
+              value={formData.operatorEmail}
+              onChange={handleFormChange}
+              fullWidth
+              required
+              placeholder="operator@example.com"
+              helperText="This email will be used to link the franchise to the operator's account"
+            />
             
             <div className="form-row">
               <TextField
@@ -1124,17 +1252,24 @@ function FranchiseMgmt() {
           </div>
           
           <div className="file-preview-content">
-            {previewFile.type?.includes('image') ? (
+            {previewFile.type?.includes('image') || /\.(jpg|jpeg|png|gif|webp)$/i.test(previewFile.name) ? (
               <img 
                 src={previewFile.path} 
                 alt={previewFile.name}
                 className="preview-image"
+                onError={(e) => {
+                  console.error('Image preview failed:', e);
+                  e.target.style.display = 'none';
+                }}
               />
-            ) : previewFile.type?.includes('pdf') ? (
+            ) : previewFile.type?.includes('pdf') || previewFile.name?.toLowerCase().endsWith('.pdf') ? (
               <iframe
                 src={previewFile.path}
                 title={previewFile.name}
                 className="preview-iframe"
+                onError={(e) => {
+                  console.error('PDF preview failed:', e);
+                }}
               />
             ) : (
               <div className="file-preview-fallback">
@@ -1196,7 +1331,6 @@ function FranchiseMgmt() {
         </Box>
       </Modal>
       
-      {/* Notifications */}
       <Snackbar 
         open={notification.open} 
         autoHideDuration={6000} 

@@ -32,10 +32,11 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // Function to fetch user details from the server
+  // Function to fetch user details from the server (for detailed info not in JWT)
   const fetchUserDetails = async () => {
     try {
-      const token = localStorage.getItem('accessToken');
+      // Token is only in sessionStorage (secure storage)
+      const token = sessionStorage.getItem('accessToken');
       if (!token) return null;
 
       const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170';
@@ -58,65 +59,44 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // Initialize user from token
+  // Initialize user from token (JWT is the single source of truth)
   useEffect(() => {
-    // helpful debug: indicate provider mounted
     console.info('AuthProvider initializing');
     const initializeAuth = async () => {
       try {
-        // Check sessionStorage first, then localStorage for compatibility
-        const token = sessionStorage.getItem('accessToken') || localStorage.getItem('accessToken');
+        // Token is only in sessionStorage (secure, cleared on tab close)
+        const token = sessionStorage.getItem('accessToken');
         if (token) {
           const decoded = decodeToken(token);
           if (decoded && decoded.exp * 1000 > Date.now()) {
-            // Token is valid, fetch full user details
-            const userDetails = await fetchUserDetails(decoded.id);
-            if (userDetails) {
-              setUser({
-                id: decoded.id,
-                role: decoded.role,
-                ...userDetails
-              });
-              // If there's saved franchise info for a different user, clear it to avoid leaking data
-              try {
-                const savedOwner = localStorage.getItem('franchiseOwnerEmail');
-                const tokenEmail = decoded?.email ? String(decoded.email).toLowerCase() : null;
-                if (savedOwner && tokenEmail && savedOwner !== tokenEmail) {
-                  try { localStorage.removeItem('userFranchiseInfo') } catch { /* ignore */ }
-                  try { localStorage.removeItem('franchiseLinked') } catch { /* ignore */ }
-                  try { localStorage.removeItem('franchiseMenuReplaced') } catch { /* ignore */ }
-                  try { localStorage.removeItem('franchiseOwnerEmail') } catch { /* ignore */ }
-                }
-              } catch { /* ignore */ }
-            } else {
-              // Fallback to basic info from token
-              setUser({
-                id: decoded.id,
-                role: decoded.role,
-                name: 'User' // Default name
-              });
-              // Also clear saved franchise info on fallback to token-only user if owner mismatch
-              try {
-                const savedOwner = localStorage.getItem('franchiseOwnerEmail');
-                const tokenEmail = decoded?.email ? String(decoded.email).toLowerCase() : null;
-                if (savedOwner && tokenEmail && savedOwner !== tokenEmail) {
-                  try { localStorage.removeItem('userFranchiseInfo') } catch { /* ignore */ }
-                  try { localStorage.removeItem('franchiseLinked') } catch { /* ignore */ }
-                  try { localStorage.removeItem('franchiseMenuReplaced') } catch { /* ignore */ }
-                  try { localStorage.removeItem('franchiseOwnerEmail') } catch { /* ignore */ }
-                }
-              } catch { /* ignore */ }
-            }
+            // Token is valid - JWT contains minimal user data
+            // Set user from JWT (contains: id, role, name, accountType, hasOperator)
+            setUser({
+              id: decoded.id,
+              role: decoded.role,
+              name: decoded.name,
+              accountType: decoded.accountType,
+              hasOperator: decoded.hasOperator
+            });
+            
+            // If there's saved franchise info for a different user, clear it to avoid leaking data
+            try {
+              const savedOwnerUserId = sessionStorage.getItem('franchiseOwnerUserId');
+              if (savedOwnerUserId && savedOwnerUserId !== decoded.id) {
+                sessionStorage.removeItem('userFranchiseInfo');
+                sessionStorage.removeItem('franchiseLinked');
+                sessionStorage.removeItem('franchiseMenuReplaced');
+                sessionStorage.removeItem('franchiseOwnerUserId');
+              }
+            } catch { /* ignore */ }
           } else {
-            // Token expired, remove it from both storages
+            // Token expired, remove it
             sessionStorage.removeItem('accessToken');
-            localStorage.removeItem('accessToken');
           }
         }
       } catch (error) {
         console.error('Error initializing auth:', error);
         sessionStorage.removeItem('accessToken');
-        localStorage.removeItem('accessToken');
       } finally {
         setLoading(false);
       }
@@ -126,20 +106,51 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const login = (token, userInfo) => {
+    // Store ONLY in sessionStorage (secure, cleared on tab close)
     sessionStorage.setItem('accessToken', token);
-    localStorage.setItem('accessToken', token); // Keep for compatibility
     setUser(userInfo);
   };
 
-  const logout = () => {
-    sessionStorage.removeItem('accessToken');
-    localStorage.removeItem('accessToken');
-    // Also clear any franchise-related persisted state to avoid leaking to another user
-    try { localStorage.removeItem('userFranchiseInfo') } catch { /* ignore */ }
-    try { localStorage.removeItem('franchiseLinked') } catch { /* ignore */ }
-    try { localStorage.removeItem('franchiseMenuReplaced') } catch { /* ignore */ }
-    try { localStorage.removeItem('franchiseOwnerEmail') } catch { /* ignore */ }
-    setUser(null);
+  const logout = async () => {
+    try {
+      console.log('[AuthContext] Logging out...');
+      
+      // Call backend to invalidate refresh token (HTTP-only cookie)
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170';
+      const token = sessionStorage.getItem('accessToken');
+      
+      if (token) {
+        try {
+          await fetch(`${API_BASE_URL}/auth/logout`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            },
+            credentials: 'include' // Important: Send HTTP-only cookie
+          });
+          console.log('[AuthContext] Backend logout successful');
+        } catch (error) {
+          console.error('[AuthContext] Backend logout failed:', error);
+          // Continue with frontend cleanup even if backend fails
+        }
+      }
+    } catch (error) {
+      console.error('[AuthContext] Logout error:', error);
+    } finally {
+      // Always clear frontend storage regardless of backend response
+      console.log('[AuthContext] Clearing frontend storage');
+      sessionStorage.removeItem('accessToken');
+      
+      // Clear any franchise-related persisted state to avoid leaking to another user
+      sessionStorage.removeItem('userFranchiseInfo');
+      sessionStorage.removeItem('franchiseLinked');
+      sessionStorage.removeItem('franchiseMenuReplaced');
+      sessionStorage.removeItem('franchiseOwnerUserId');
+      
+      setUser(null);
+      console.log('[AuthContext] Logout complete');
+    }
   };
   
 

@@ -30,7 +30,7 @@ import SaveIcon from '@mui/icons-material/Save';
 import EditIcon from '@mui/icons-material/Edit';
 import CloseIcon from '@mui/icons-material/Close';
 import VisibilityIcon from '@mui/icons-material/Visibility';
-import './FranchiseeList.css';
+import '../../Styles/Administrator_Css/FranchiseeList.css';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
@@ -565,9 +565,7 @@ function FranchiseeList() {
 
   return (
     <div className="franchisee-list-container">
-      <div className="sidebar">
-        <Sidebar />
-      </div>
+      <Sidebar />
       <div className="content-container">
         <div className="header-container">
           <div className="page-title">

@@ -9,10 +9,15 @@ import {
   Menu,
   MenuItem,
   ListItemIcon,
-  styled
+  styled,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions
 } from "@mui/material";
 import PermIdentityIcon from '@mui/icons-material/PermIdentity';
 import LogoutIcon from '@mui/icons-material/Logout';
+import WarningIcon from '@mui/icons-material/Warning';
 import { useAuth } from "../contexts/AuthContext";
 
 // Styled components for horizontal navbar
@@ -75,8 +80,8 @@ const NavigationSection = styled(Box)(() => ({
   boxShadow: 'none'
 }));
 
-const NavButton = styled(Button)(({ isActive }) => ({
-  color: isActive ? 'white' : '#111',
+const NavButton = styled(Button)(({ isActive, disabled }) => ({
+  color: disabled ? '#999' : (isActive ? 'white' : '#111'),
   backgroundColor: isActive ? '#143c6e' : 'transparent', // active uses the requested blue
   fontWeight: 600,
   padding: '8px 12px',
@@ -85,11 +90,14 @@ const NavButton = styled(Button)(({ isActive }) => ({
   textTransform: 'none',
   minWidth: 'auto',
   whiteSpace: 'nowrap',
+  cursor: disabled ? 'not-allowed' : 'pointer',
+  opacity: disabled ? 0.5 : 1,
   '&:hover': {
-    backgroundColor: isActive ? '#143c6e' : '#f0f0f0',
-    transform: 'translateY(-2px)',
+    backgroundColor: disabled ? 'transparent' : (isActive ? '#143c6e' : '#f0f0f0'),
+    transform: disabled ? 'none' : 'translateY(-2px)',
   },
   flexShrink: 0,
+  pointerEvents: disabled ? 'none' : 'auto',
 }));
 
 const UserSection = styled(Box)(() => ({
@@ -153,82 +161,123 @@ const LangGroup = styled(Box)(() => ({
 const UnifiedSidebar = ({ userType = "operator", language, onLanguageToggle, translations }) => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user: authUser, logout } = useAuth();
+  const { user: authUser, logout, loading } = useAuth();
   const [anchorEl, setAnchorEl] = useState(null);
+  const [warningDialogOpen, setWarningDialogOpen] = useState(false);
   const menuOpen = Boolean(anchorEl);
 
   const handleMenuOpen = (e) => setAnchorEl(e.currentTarget);
   const handleMenuClose = () => setAnchorEl(null);
 
-  // Build a friendly display name from AuthContext user or fall back to token username
-  const getDisplayName = (u) => {
-    if (!u) return 'USER';
-    const full = u.full_name || u.name || u.username || u.email;
-    if (!full) return 'USER';
-    // Prefer showing first name (and last initial if present)
-    const parts = String(full).trim().split(/\s+/);
-    const first = parts[0];
-    const last = parts.slice(1).join(' ');
-    return last ? `${first} ${String(last).charAt(0).toUpperCase()}` : first;
+  // Build a friendly display name from AuthContext user or fall back to direct token decode
+  const getDisplayName = () => {
+    // First, try to use AuthContext user (preferred)
+    if (authUser?.name) {
+      const parts = String(authUser.name).trim().split(/\s+/);
+      const first = parts[0];
+      const last = parts.slice(1).join(' ');
+      return last ? `${first} ${String(last).charAt(0).toUpperCase()}` : first;
+    }
+    
+    // Fallback: directly decode token from sessionStorage (same as Admin Sidebar)
+    try {
+      const token = sessionStorage.getItem('accessToken');
+      if (token) {
+        const decoded = JSON.parse(atob(token.split('.')[1]));
+        if (decoded?.name) {
+          const parts = String(decoded.name).trim().split(/\s+/);
+          const first = parts[0];
+          const last = parts.slice(1).join(' ');
+          return last ? `${first} ${String(last).charAt(0).toUpperCase()}` : first;
+        }
+      }
+    } catch (error) {
+      console.error('[UnifiedSidebar] Error decoding token:', error);
+    }
+    
+    return 'USER';
   };
 
-  const displayName = getDisplayName(authUser);
+  // Wait for loading to complete before displaying name
+  const displayName = loading ? 'Loading...' : getDisplayName();
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    console.log('[UnifiedSidebar] Logout initiated');
+    handleMenuClose();
+    
     // use AuthContext logout then navigate to landing page
     try {
-      logout();
+      await logout(); // Now async - calls backend and clears all tokens
+      console.log('[UnifiedSidebar] Logout successful, navigating to home');
     } catch (error) {
-      // best-effort: log and remove tokens
-      console.error('Error during logout:', error);
-      sessionStorage.removeItem('accessToken');
-      localStorage.removeItem('accessToken');
+      console.error('[UnifiedSidebar] Error during logout:', error);
+      // AuthContext logout handles token cleanup even on error
+    } finally {
+      // Always navigate to home page after logout
+      navigate('/');
     }
-    handleMenuClose();
-    navigate('/');
   };
 
   const handleGoToId = () => {
     handleMenuClose();
-    navigate('/operator/id');
+    
+    // Check if user has franchise
+    let hasFranchise = false;
+    try {
+      const token = sessionStorage.getItem('accessToken');
+      if (token) {
+        const decoded = JSON.parse(atob(token.split('.')[1]));
+        hasFranchise = decoded.hasFranchise === true;
+      }
+    } catch {
+      hasFranchise = false;
+    }
+    
+    if (!hasFranchise) {
+      // Show warning dialog instead of navigating
+      setWarningDialogOpen(true);
+    } else {
+      navigate('/operator/id');
+    }
+  };
+  
+  const handleWarningClose = () => {
+    setWarningDialogOpen(false);
+  };
+  
+  const handleGoToFranchise = () => {
+    setWarningDialogOpen(false);
+    navigate('/operator/franchise/application');
   };
 
   const getNavigationItems = () => {
     switch (userType) {
       case "operator": {
-       
-        let franchiseLabel = 'MY FRANCHISE'
+        // Check if user has franchise from JWT token
+        let hasFranchise = false;
         try {
-          if (typeof window !== 'undefined' && window.localStorage) {
-            const replaced = localStorage.getItem('franchiseMenuReplaced')
-            const linked = localStorage.getItem('franchiseLinked')
-            const storedOwner = localStorage.getItem('franchiseOwnerEmail')
-            let tokenEmail = null
-            try {
-              const token = sessionStorage.getItem('accessToken') || localStorage.getItem('accessToken')
-              if (token) tokenEmail = JSON.parse(atob(token.split('.')[1])).email?.toLowerCase()
-            } catch {
-              tokenEmail = null
-            }
-
-            const ownerMatches = storedOwner && tokenEmail && String(storedOwner).toLowerCase() === String(tokenEmail).toLowerCase()
-
-           
-            const effectiveReplaced = replaced === 'true' && ownerMatches
-            const effectiveLinked = linked === 'true' && ownerMatches
-
-            if (effectiveReplaced || effectiveLinked) franchiseLabel = 'REQUEST FOR AMENDMENT'
+          const token = sessionStorage.getItem('accessToken');
+          if (token) {
+            const decoded = JSON.parse(atob(token.split('.')[1]));
+            hasFranchise = decoded.hasFranchise === true;
           }
         } catch {
-          // ignore localStorage/token errors
+          hasFranchise = false;
         }
-
-        // If label replaced, route to the Request Amendment page instead of the franchise page
-        const franchisePath = franchiseLabel === 'REQUEST FOR AMENDMENT' ? '/request-amendment' : '/operator/franchise'
+       
+        // If user has no franchise, show limited navigation
+        if (!hasFranchise) {
+          return [
+            { label: "HOME", path: "/", isActive: location.pathname === "/", disabled: false },
+            { label: "MY FRANCHISE", path: "/operator/franchise", isActive: location.pathname === "/operator/franchise", disabled: false },
+          ];
+        }
+        
+        // If user has franchise, show full navigation with REQUEST FOR AMENDMENT
         return [
-          { label: "HOME", path: "/", isActive: location.pathname === "/" },
-          { label: franchiseLabel, path: franchisePath, isActive: location.pathname === franchisePath },
-          { label: "OPERATOR ID", path: "/operator/id", isActive: location.pathname === "/operator/id" },
+          { label: "HOME", path: "/", isActive: location.pathname === "/", disabled: false },
+          { label: "REQUEST FOR AMENDMENT", path: "/request-amendment", isActive: location.pathname === "/request-amendment", disabled: false },
+          { label: "OPERATOR ID", path: "/operator/id", isActive: location.pathname === "/operator/id", disabled: false },
         ];
       }
       case "admin": //for bplo-admin?
@@ -277,9 +326,12 @@ const UnifiedSidebar = ({ userType = "operator", language, onLanguageToggle, tra
         {navigationItems.map((item, index) => (
           <NavButton
             key={index}
-            component={Link}
-            to={item.path}
+            component={item.disabled ? 'button' : Link}
+            to={item.disabled ? undefined : item.path}
             isActive={item.isActive}
+            disabled={item.disabled}
+            onClick={item.disabled ? (e) => e.preventDefault() : undefined}
+            title={item.disabled ? 'Complete your franchise application first' : undefined}
           >
             {item.label}
           </NavButton>
@@ -317,6 +369,53 @@ const UnifiedSidebar = ({ userType = "operator", language, onLanguageToggle, tra
                   Logout
                 </MenuItem>
               </Menu>
+              
+              {/* Warning Dialog for No Operator Information */}
+              <Dialog
+                open={warningDialogOpen}
+                onClose={handleWarningClose}
+                PaperProps={{
+                  sx: {
+                    borderRadius: 3,
+                    padding: 2,
+                    maxWidth: 500
+                  }
+                }}
+              >
+                <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1, color: '#d32f2f' }}>
+                  <WarningIcon sx={{ fontSize: 32 }} />
+                  No Franchise Found
+                </DialogTitle>
+                <DialogContent>
+                  <Typography variant="body1" sx={{ mb: 2 }}>
+                    You need an approved franchise to access the Operator ID.
+                  </Typography>
+                  <Typography variant="body2" sx={{ color: '#666' }}>
+                    To view your Operator ID, you need to:
+                  </Typography>
+                  <Box component="ul" sx={{ mt: 1, pl: 2 }}>
+                    <li><Typography variant="body2">Submit a franchise application and get it approved</Typography></li>
+                  </Box>
+                </DialogContent>
+                <DialogActions sx={{ px: 3, pb: 2 }}>
+                  <Button 
+                    onClick={handleWarningClose} 
+                    sx={{ color: '#666' }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button 
+                    onClick={handleGoToFranchise}
+                    variant="contained"
+                    sx={{ 
+                      bgcolor: '#143c6e',
+                      '&:hover': { bgcolor: '#0a3970' }
+                    }}
+                  >
+                    Submit Application
+                  </Button>
+                </DialogActions>
+              </Dialog>
             </>
           ) : (
             <UserSection>

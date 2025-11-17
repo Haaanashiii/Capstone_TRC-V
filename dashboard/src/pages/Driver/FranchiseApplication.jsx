@@ -1,12 +1,14 @@
 import React, { useState, useRef } from "react";
 import { useNavigate } from 'react-router-dom';
 import UnifiedSidebar from "../../components/UnifiedSidebar";
-import { TextField, Button, Snackbar, Alert, CircularProgress } from "@mui/material";
+import { TextField, Button, Snackbar, Alert, CircularProgress, Select, MenuItem, FormControl, InputLabel, FormHelperText } from "@mui/material";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import dayjs from "dayjs";
 import { franchiseAPI } from '../Services/api';
+import { validateFile, formatFileSize } from '../../utils/fileValidation';
+import { compressFile } from '../../utils/imageCompression';
 import "../../Styles/Operator's_CSS/FranchiseApplication.css";
 
 export default function FranchiseApplication() {
@@ -37,9 +39,9 @@ export default function FranchiseApplication() {
       reqDocuments: "DOCUMENTARY REQUIREMENTS",
       docInstructions: "Please upload clear scanned copies or photos of the following documents.",
       docFormat1: "Accepted formats: JPG, PNG, or PDF",
-      docFormat2: "Maximum file size: 5MB per file",
+      docFormat2: "Maximum file size: 10MB per file (will be compressed to ~300KB)",
       docFormat3: "All documents must be valid, complete, and readable",
-      docFormat4: "Incomplete submissions will not be processed.",
+      docFormat4: "Files will be automatically optimized for quality and size",
       selectFile: "Select a File",
       upload: "Upload",
       photoRegistration: "Photocopy of Registration",
@@ -90,9 +92,9 @@ export default function FranchiseApplication() {
       reqDocuments: "MGA KINAKAILANGANG DOKUMENTO",
       docInstructions: "Mangyaring mag-upload ng malinaw na scanned copies o mga larawan ng mga sumusunod na dokumento.",
       docFormat1: "Mga tanggap na format: JPG, PNG, o PDF",
-      docFormat2: "Pinakamataas na laki ng file: 5MB bawat file",
+      docFormat2: "Pinakamataas na laki ng file: 10MB bawat file (awtomatikong ie-compress sa ~300KB)",
       docFormat3: "Ang lahat ng mga dokumento ay dapat na valid, kumpleto, at mababasa",
-      docFormat4: "Ang mga hindi kumpletong submission ay hindi mapoproseso.",
+      docFormat4: "Awtomatikong i-o-optimize ang mga file para sa kalidad at laki",
       selectFile: "Pumili ng File",
       upload: "I-upload",
       photoRegistration: "Photocopy ng Rehistrasyon",
@@ -129,9 +131,51 @@ export default function FranchiseApplication() {
   const [modalFile, setModalFile] = useState(null);
   const modalFileRef = useRef();
 
-  // Handler for modal file upload (modal)
-  const handleModalFileChange = (e) => {
-    setModalFile(e.target.files[0]);
+  const handleModalFileChange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    // Validate file
+    const validation = validateFile(file);
+    if (!validation.success) {
+      setToast({
+        open: true,
+        message: validation.message,
+        severity: 'error'
+      });
+      return;
+    }
+    
+    // Check if file needs compression
+    const willCompress = file.size > 300 * 1024;
+    
+    try {
+      // Compress the file (images and PDFs)
+      const processedFile = await compressFile(file);
+      
+      // Show compression success message only if file was compressed
+      if (willCompress && processedFile.size !== file.size) {
+        const originalSize = formatFileSize(file.size);
+        const newSize = formatFileSize(processedFile.size);
+        const savings = Math.round((1 - processedFile.size / file.size) * 100);
+        
+        setToast({
+          open: true,
+          message: ` ${originalSize} → ${newSize} (${savings}% smaller!)`,
+          severity: 'success'
+        });
+      }
+      
+      setModalFile(processedFile);
+    } catch (error) {
+      console.error('[FileCompression] Error:', error);
+      setToast({
+        open: true,
+        message: '⚠️ Compression failed. Using original file.',
+        severity: 'warning'
+      });
+      setModalFile(file);
+    }
   };
   const [fields, setFields] = useState({
     date: dayjs(),
@@ -143,7 +187,6 @@ export default function FranchiseApplication() {
     civilStatus: "",
     citizenship: "",
     todaMembership: "",
-    // Motorcycle / driver fields (previously inputs were uncontrolled)
     unitModel: "",
     colorMotor: "",
     colorSidecar: "",
@@ -152,16 +195,44 @@ export default function FranchiseApplication() {
     chassisNumber: "",
     driverName: "",
     driverAddress: "",
+    barangay: "",
+    email: "",
   });
 
-  // State for contact number validation
+  const [addressError, setAddressError] = useState("");
+  const [barangayError, setBarangayError] = useState("");
+
+  const BARANGAYS = [
+    'Aggub',
+    'Bagahabag',
+    'Bangaan',
+    'Bangar',
+    'Bascaran',
+    'Communal',
+    'Concepcion',
+    'Curifang',
+    'Dadap',
+    'Lactawan',
+    'Osmeña',
+    'Pilar D. Galima',
+    'Poblacion North',
+    'Poblacion South',
+    'Quezon',
+    'Quirino',
+    'Roxas',
+    'San Juan',
+    'San Luis',
+    'Tucal',
+    'Uddiawan',
+    'Wacal',
+  ];
+
   const [contactError, setContactError] = useState("");
 
   const handleChange = (field) => (e) => {
     setFields({ ...fields, [field]: e.target.value });
   };
 
-  // Special handler for contact number that only allows numbers
   const handleContactChange = (e) => {
     const value = e.target.value;
     const numbersOnly = /^[0-9]*$/;
@@ -174,7 +245,6 @@ export default function FranchiseApplication() {
     }
   };
 
-  // State for each document upload
   const [uploads, setUploads] = useState({
     registration: null,
     barangay: null,
@@ -184,8 +254,18 @@ export default function FranchiseApplication() {
     picture: null,
   });
 
-  // Toast / Snackbar state
   const [toast, setToast] = useState({ open: false, message: '', severity: 'success' });
+
+  // Prevent multiple submissions / spamming
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  // Field-level errors map
+  const [errors, setErrors] = useState({});
+
+  React.useEffect(() => {
+    if (errors && Object.keys(errors).length) {
+      console.debug('[FranchiseApplication] Validation errors:', errors);
+    }
+  }, [errors]);
 
   const navigate = useNavigate();
 
@@ -194,13 +274,72 @@ export default function FranchiseApplication() {
     setToast(t => ({ ...t, open: false }));
   };
 
-  // Handlers for file input (main form)
-  const handleFileChange = (key) => (e) => {
+  // Auto-close toast after 3 seconds
+  React.useEffect(() => {
+    if (toast.open) {
+      const timer = setTimeout(() => {
+        setToast(t => ({ ...t, open: false }));
+      }, 6000);
+      return () => clearTimeout(timer);
+    }
+  }, [toast.open]);
+
+  const _handleFileChange = (key) => (e) => {
     setUploads({ ...uploads, [key]: e.target.files[0] });
   };
 
+  // Validate that required fields and files are present
+  const validateRequiredFields = () => {
+    // Reset previous errors
+    const newErrors = {};
 
-  const fileRefs = {
+    // Ensure every field in `fields` (except `date`) is present and non-empty
+    Object.keys(fields).forEach(k => {
+      if (k === 'date') return;
+      const v = fields[k];
+      if (k === 'birthDate') {
+        if (!v) newErrors[k] = 'Date of birth is required';
+      } else if (typeof v === 'string') {
+        if (!v.trim()) newErrors[k] = 'This field is required';
+      } else if (v === null || v === undefined) {
+        newErrors[k] = 'This field is required';
+      }
+    });
+
+    // Required documents
+    const requiredDocs = ['registration', 'barangay', 'cedula', 'license', 'affidavit', 'picture'];
+    requiredDocs.forEach(dk => {
+      if (!uploads[dk]) newErrors[`doc_${dk}`] = 'Document is required';
+    });
+
+    // Contact numeric check
+    if (fields.contact && !/^[0-9]+$/.test(fields.contact)) {
+      newErrors.contact = 'Only numbers are allowed in the contact field';
+    }
+
+    // Special mapping to keep older per-field error states for UI
+    if (newErrors.driverAddress || newErrors.driverAddress === '') setAddressError(newErrors.driverAddress || '');
+    if (newErrors.barangay) setBarangayError(newErrors.barangay);
+    if (newErrors.contact) setContactError(newErrors.contact);
+
+    setErrors(newErrors);
+
+    const missingCount = Object.keys(newErrors).length;
+    if (missingCount > 0) {
+      const preview = Object.keys(newErrors).slice(0, 6).map(k => {
+        if (k.startsWith('doc_')) return k.replace('doc_', '').replace(/^[a-z]/, c => c.toUpperCase());
+        return k.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase());
+      }).join(', ');
+      const message = missingCount > 6 ? `Please fill required fields: ${preview} and ${missingCount - 6} more.` : `Please fill required fields: ${preview}.`;
+      setToast({ open: true, message, severity: 'error' });
+      return false;
+    }
+
+    return true;
+  };
+
+
+  const _fileRefs = {
     registration: useRef(),
     barangay: useRef(),
     cedula: useRef(),
@@ -350,9 +489,61 @@ export default function FranchiseApplication() {
             </LocalizationProvider>
           </div>
           <div className="franchise-app-grid-4">
-            <TextField label={t.civilStatus} size="small" className="franchise-app-input" value={fields.civilStatus} onChange={handleChange('civilStatus')} />
+            <FormControl size="small" className="franchise-app-input">
+              <InputLabel id="civil-status-label">{t.civilStatus}</InputLabel>
+              <Select
+                labelId="civil-status-label"
+                label={t.civilStatus}
+                value={fields.civilStatus || ''}
+                onChange={(e) => setFields({ ...fields, civilStatus: e.target.value })}
+              >
+                <MenuItem value={"Single"}>Single</MenuItem>
+                <MenuItem value={"Married"}>Married</MenuItem>
+                <MenuItem value={"Widowed"}>Widowed</MenuItem>
+                <MenuItem value={"Separated"}>Separated</MenuItem>
+              </Select>
+            </FormControl>
             <TextField label={t.citizenship} size="small" className="franchise-app-input" value={fields.citizenship} onChange={handleChange('citizenship')} />
           </div>
+          <div className="franchise-app-grid">
+            <TextField
+              label="EMAIL"
+              size="small"
+              className="franchise-app-input"
+              value={fields.email}
+              onChange={handleChange('email')}
+              helperText={'(Use account email)'}
+              inputProps={{ autoComplete: 'off' }}
+            />
+          </div>
+          
+          
+          <div className="franchise-app-grid-2">
+            <TextField
+              label="ADDRESS OF THE DRIVER"
+              size="small"
+              className="franchise-app-input"
+              value={fields.driverAddress}
+              onChange={handleChange('driverAddress')}
+              error={!!addressError}
+              helperText={addressError}
+            />
+            <FormControl size="small" className="franchise-app-input" error={!!barangayError}>
+              <InputLabel id="barangay-label">Barangay</InputLabel>
+              <Select
+                labelId="barangay-label"
+                label="Barangay"
+                value={fields.barangay || ''}
+                onChange={(e) => setFields({ ...fields, barangay: e.target.value })}
+              >
+                {BARANGAYS.map((b) => (
+                  <MenuItem key={b} value={b}>{b}</MenuItem>
+                ))}
+              </Select>
+              <FormHelperText>{barangayError}</FormHelperText>
+            </FormControl>
+          </div>
+
           <div className="franchise-app-field">
             <TextField label={t.todaMembership} size="small" className="franchise-app-input" value={fields.todaMembership} onChange={handleChange('todaMembership')} />
           </div>
@@ -362,6 +553,9 @@ export default function FranchiseApplication() {
           <div className="franchise-app-section" style={{ marginTop: 32 }}>
             {t.motorcycleInfo}
             <div className="franchise-app-section-line" />
+          </div>
+          <div className="franchise-app-field">
+            <TextField label="NAME OF THE DRIVER" size="small" className="franchise-app-input" value={fields.driverName} onChange={handleChange('driverName')} />
           </div>
           <div className="franchise-app-grid-4">
             <TextField label={t.unitModel} size="small" className="franchise-app-input" value={fields.unitModel} onChange={handleChange('unitModel')} />
@@ -375,10 +569,8 @@ export default function FranchiseApplication() {
             <TextField label={t.motorEngineNumber} size="small" className="franchise-app-input" value={fields.motorEngineNumber} onChange={handleChange('motorEngineNumber')} />
             <TextField label={t.chassisNumber} size="small" className="franchise-app-input" value={fields.chassisNumber} onChange={handleChange('chassisNumber')} />
           </div>
-          <div className="franchise-app-grid-2">
-            <TextField label="NAME OF THE DRIVER" size="small" className="franchise-app-input" value={fields.driverName} onChange={handleChange('driverName')} />
-            <TextField label="ADDRESS OF THE DRIVER" size="small" className="franchise-app-input" value={fields.driverAddress} onChange={handleChange('driverAddress')} />
-          </div>
+          
+
 
 
     
@@ -445,39 +637,107 @@ export default function FranchiseApplication() {
               <div style={{ display: 'flex', justifyContent: 'flex-end', margin: '32px 0 0 0' }}>
                 <Button
                   variant="contained"
+                  disabled={isSubmitting}
                   sx={{ bgcolor: '#174D7A', color: '#fff', fontWeight: 700, borderRadius: 2, fontSize: 18, px: 4, py: 1 }}
                   onClick={async () => {
-                
+                    if (isSubmitting) return; // ignore repeated clicks
+                    // Validate address and barangay before building form data
+                    const addr = (fields.driverAddress || '').trim();
+                    const bgy = fields.barangay;
+                    let hasError = false;
+                    if (!addr) {
+                      setAddressError('Address is required');
+                      hasError = true;
+                    } else {
+                      setAddressError('');
+                    }
+                    if (!bgy) {
+                      setBarangayError('Please select a barangay');
+                      hasError = true;
+                    } else {
+                      setBarangayError('');
+                    }
+                    if (hasError) {
+                      setToast({ open: true, message: 'Please fix form errors before submitting.', severity: 'error' });
+                      return;
+                    }
+
+                    // Validate all fields before marking as submitting
+                    const valid = validateRequiredFields();
+                    if (!valid) return;
+
+                    // Mark as submitting to prevent spam
+                    setIsSubmitting(true);
+
                       const formDataToSend = new FormData();
 
-                      formDataToSend.append('name', fields.operatorName || '');
-                      formDataToSend.append('applicationType', 'New');
-                      formDataToSend.append('address', fields.driverAddress || '');
-                      formDataToSend.append('contactNumber', fields.contact || '');
-                      formDataToSend.append('sidecarPlateNumber', fields.sidecarPlate || '');
+                      // Personal Information - Backend expects these exact field names
+                      formDataToSend.append('operatorName', fields.operatorName || '');
+                      formDataToSend.append('operatorContact', fields.contact || '');
+                      // Only include operatorEmail if user provided one (prevents server from falling back to authenticated account email)
+                      if (fields.email && String(fields.email).trim()) {
+                        formDataToSend.append('operatorEmail', String(fields.email).trim());
+                      }
+                      formDataToSend.append('operatorAddress', fields.driverAddress || '');
+                      formDataToSend.append('actionType', 'NEW'); // Backend expects uppercase
+                      
+                      // Driver/Operator Details
+                      formDataToSend.append('driversID', fields.driverName || '');
+                      formDataToSend.append('driversAddress', fields.driverAddress || '');
                       formDataToSend.append('birthPlace', fields.birthPlace || '');
                       formDataToSend.append('birthDate', fields.birthDate ? (fields.birthDate.format ? fields.birthDate.format('YYYY-MM-DD') : fields.birthDate) : '');
                       formDataToSend.append('civilStatus', fields.civilStatus || '');
                       formDataToSend.append('citizenship', fields.citizenship || '');
                       formDataToSend.append('todaMembership', fields.todaMembership || '');
+                      // Append barangay (new field)
+                      formDataToSend.append('barangay', fields.barangay || '');
+                      
+                      // Vehicle Information
                       formDataToSend.append('unitModel', fields.unitModel || '');
                       formDataToSend.append('colorMotor', fields.colorMotor || '');
-                      formDataToSend.append('colorSidecar', fields.colorSidecar || '');
-                      formDataToSend.append('mvPlate', fields.mvPlate || '');
-                      formDataToSend.append('motorEngineNumber', fields.motorEngineNumber || '');
-                      formDataToSend.append('chassisNumber', fields.chassisNumber || '');
-                      formDataToSend.append('driverName', fields.driverName || '');
-                      formDataToSend.append('driverAddress', fields.driverAddress || '');
-
+                      formDataToSend.append('sideCar', fields.colorSidecar || ''); // Backend expects 'sideCar' not 'colorSidecar'
+                      formDataToSend.append('mvPlateNo', fields.mvPlate || ''); // Backend expects 'mvPlateNo'
+                      formDataToSend.append('motorEngineNo', fields.motorEngineNumber || ''); // Backend expects 'motorEngineNo'
+                      formDataToSend.append('chasisNo', fields.chassisNumber || ''); // Backend expects 'chasisNo'
                       
-                      if (uploads.registration) formDataToSend.append('documentRegistration', uploads.registration);
-                      if (uploads.barangay) formDataToSend.append('documentBarangayClearance', uploads.barangay);
-                      if (uploads.cedula) formDataToSend.append('documentCedula', uploads.cedula);
-                      if (uploads.license) formDataToSend.append('documentDriversLicense', uploads.license);
-                      if (uploads.affidavit) formDataToSend.append('documentVotersAffidavit', uploads.affidavit);
-                      if (uploads.picture) formDataToSend.append('documentPicture', uploads.picture);
+                      if (uploads.registration) {
+                        formDataToSend.append('documentRegistration', uploads.registration);
+                      }
+                      if (uploads.barangay) {
+                        formDataToSend.append('documentBarangayClearance', uploads.barangay);
+                      }
+                      if (uploads.cedula) {
+                        formDataToSend.append('documentCedula', uploads.cedula);
+                      }
+                      if (uploads.license) {
+                        formDataToSend.append('documentDriversLicense', uploads.license);
+                      }
+                      if (uploads.affidavit) {
+                        formDataToSend.append('documentVotersAffidavit', uploads.affidavit);
+                      }
+                      if (uploads.picture) {
+                        formDataToSend.append('documentPicture', uploads.picture);
+                      }
+                      
 
                     try {
+                      // Debug: Check token before submission (axios interceptor handles refresh automatically)
+                      const token = sessionStorage.getItem('accessToken');
+                      
+                      if (!token) {
+                        setToast({ open: true, message: 'Session expired. Please log in again.', severity: 'error' });
+                        setTimeout(() => navigate('/login'), 2000);
+                        return;
+                      }
+                      
+                      // Decode and log token payload for debugging
+                      try {
+                        const decoded = JSON.parse(atob(token.split('.')[1]));
+                        console.log('[FranchiseApplication] Token payload:', decoded);
+                      } catch (e) {
+                        console.error('[FranchiseApplication] Failed to decode token:', e);
+                      }
+                      
                       console.log('[FranchiseApplication] Submitting application...')
                       const response = await franchiseAPI.create(formDataToSend)
                       
@@ -503,20 +763,24 @@ export default function FranchiseApplication() {
                         chassisNumber: "",
                         driverName: "",
                         driverAddress: "",
+                        barangay: "",
+                        email: "",
                       })
+                      setAddressError('');
+                      setBarangayError('');
                       setUploads({ registration: null, barangay: null, cedula: null, license: null, affidavit: null, picture: null })
 
                       
                       console.log('[FranchiseApplication] Application submitted successfully')
                      
-                      try { localStorage.setItem('franchiseMenuReplaced', 'true') } catch { /* ignore */ }
-                      // persist owner email so the operator mapping is consistent
+                      try { sessionStorage.setItem('franchiseMenuReplaced', 'true') } catch { /* ignore */ }
+                      // persist owner userId so the operator mapping is consistent
                       try {
-                        const token = localStorage.getItem('accessToken') || sessionStorage.getItem('accessToken')
+                        const token = sessionStorage.getItem('accessToken')
                         if (token) {
                           try {
                             const payload = JSON.parse(atob(token.split('.')[1]));
-                            if (payload?.email) localStorage.setItem('franchiseOwnerEmail', String(payload.email).toLowerCase())
+                            if (payload?.id) sessionStorage.setItem('franchiseOwnerUserId', payload.id)
                           } catch { /* ignore */ }
                         }
                       } catch { /* ignore */ }
@@ -526,23 +790,38 @@ export default function FranchiseApplication() {
                       
                       try {
                         setTimeout(() => {
-                          navigate('/operator/id')
-                        }, 5000) 
+                          navigate('/')
+                        }, 2000) 
                       } catch {
-                        navigate('/operator/id')
+                        navigate('/')
                       }
                     } catch (err) {
                       console.error('[FranchiseApplication] Failed to submit application:', err)
-                      const errorMessage = err.response?.data?.message || err.message || 'Failed to submit application. Please try again later.'
-                      setToast({ open: true, message: errorMessage, severity: 'error' })
+                      const status = err.response?.status;
+                      const serverMessage = err.response?.data?.error || err.response?.data?.message || err.message;
+                      if (status === 409) {
+                        setToast({ open: true, message: serverMessage || 'An application with this email already exists.', severity: 'error' });
+                      } else if (status === 400) {
+                        setToast({ open: true, message: serverMessage || 'Bad request. Please check your input.', severity: 'error' });
+                      } else {
+                        setToast({ open: true, message: serverMessage || 'Failed to submit application. Please try again later.', severity: 'error' });
+                      }
+                      // Allow user to try again
+                      setIsSubmitting(false);
                     }
                   }}
                 >
-                  {t.submitApplication}
+                  {isSubmitting ? (
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                      <CircularProgress size={18} sx={{ color: '#fff' }} />
+                      Submitting...
+                    </span>
+                  ) : (
+                    t.submitApplication
+                  )}
                 </Button>
               </div>
 
-          {/* Sworn Statement Section */}
           <div className="franchise-app-section" style={{ marginTop: 32 }}>
             {t.swornStatement}
             <div className="franchise-app-section-line" />
