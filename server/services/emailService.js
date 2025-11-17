@@ -164,4 +164,203 @@ async function sendOTPEmail(to, otp) {
   }
 }
 
-module.exports = { sendOTPEmail };
+/**
+ * Send franchise expiry reminder email
+ * @param {string} to - Recipient email
+ * @param {string} operatorName - Operator's name
+ * @param {string} mtopNumber - MTOP number
+ * @param {Date} expiryDate - Franchise expiry date
+ * @param {number} daysUntilExpiry - Days until expiry (0 = expired, 7 = 7 days, 30 = 30 days)
+ */
+async function sendFranchiseExpiryEmail(to, operatorName, mtopNumber, expiryDate, daysUntilExpiry) {
+  const email = String(to || '').trim();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    throw new Error('Invalid recipient email address');
+  }
+  
+  const fromName = process.env.EMAIL_FROM_NAME || 'TRC-V';
+  const fromAddress = process.env.EMAIL_FROM || process.env.EMAIL_SMTP_USER || process.env.EMAIL_USER;
+  if (!fromAddress) {
+    throw new Error('EMAIL_FROM or EMAIL_USER must be configured');
+  }
+  
+  // Format expiry date
+  const formattedDate = new Date(expiryDate).toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  });
+  
+  // Determine message based on days until expiry
+  let subject, urgencyLevel, mainMessage, actionMessage, urgencyColor, urgencyIcon;
+  
+  if (daysUntilExpiry === 0) {
+    subject = '🚨 URGENT: Your Franchise Has Expired';
+    urgencyLevel = 'EXPIRED';
+    mainMessage = 'Your tricycle franchise has expired today.';
+    actionMessage = 'Your franchise is no longer valid. Please renew immediately to continue operations.';
+    urgencyColor = '#dc2626'; // Red
+    urgencyIcon = '🚨';
+  } else if (daysUntilExpiry <= 7) {
+    subject = '⚠️ FINAL NOTICE: Franchise Expiring in 7 Days';
+    urgencyLevel = 'URGENT - 7 DAYS';
+    mainMessage = `Your tricycle franchise will expire in <strong>${daysUntilExpiry} ${daysUntilExpiry === 1 ? 'day' : 'days'}</strong>.`;
+    actionMessage = 'This is your final reminder. Please process your renewal as soon as possible to avoid service interruption.';
+    urgencyColor = '#ea580c'; // Orange
+    urgencyIcon = '⚠️';
+  } else if (daysUntilExpiry <= 30) {
+    subject = '📢 Reminder: Franchise Expiring in 30 Days';
+    urgencyLevel = 'REMINDER - 30 DAYS';
+    mainMessage = `Your tricycle franchise will expire in <strong>${daysUntilExpiry} days</strong>.`;
+    actionMessage = 'We recommend starting your renewal process now to ensure uninterrupted service.';
+    urgencyColor = '#f59e0b'; // Amber
+    urgencyIcon = '📢';
+  }
+  
+  const mailOptions = {
+    from: `${fromName} <${fromAddress}>`,
+    to: email,
+    subject: subject,
+    text: `Dear ${operatorName},\n\n${mainMessage}\n\nMTOP Number: ${mtopNumber}\nExpiry Date: ${formattedDate}\n\n${actionMessage}\n\nPlease visit your nearest TODA office or contact us to renew your franchise.\n\nBest regards,\nTRC-V System`,
+    html: `
+      <!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Franchise Expiry Notice</title>
+        <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+      </head>
+      <body style="margin: 0; padding: 0; font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f5f5f5;">
+        <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f5f5f5;">
+          <tr>
+            <td style="padding: 40px 20px;">
+              <table role="presentation" style="max-width: 600px; width: 100%; margin: 0 auto; background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.07); overflow: hidden;">
+                
+                <!-- Header with Logo -->
+                <tr>
+                  <td style="background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%); padding: 35px 40px;">
+                    <table role="presentation" style="width: 100%;">
+                      <tr>
+                        <td style="width: 80px; vertical-align: middle;">
+                          <img src="cid:logo" alt="TRC-V Logo" style="width: 70px; height: 70px; display: block;" />
+                        </td>
+                        <td style="vertical-align: middle; padding-left: 20px;">
+                          <h1 style="color: #ffffff; margin: 0; font-size: 32px; font-weight: 700; letter-spacing: 1px; font-family: 'Poppins', sans-serif;">TRC-V</h1>
+                          <p style="color: #e0e7ff; margin: 5px 0 0 0; font-size: 14px; font-family: 'Poppins', sans-serif; font-weight: 400;">Tricycle Verification System</p>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+                
+                <!-- Urgency Banner -->
+                <tr>
+                  <td style="background-color: ${urgencyColor}; padding: 15px 40px; text-align: center;">
+                    <p style="color: #ffffff; margin: 0; font-size: 16px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; font-family: 'Poppins', sans-serif;">
+                      ${urgencyIcon} ${urgencyLevel}
+                    </p>
+                  </td>
+                </tr>
+                
+                <!-- Main Content -->
+                <tr>
+                  <td style="padding: 45px 40px;">
+                    <h2 style="color: #1e293b; margin: 0 0 15px 0; font-size: 24px; font-weight: 600; text-align: center; font-family: 'Poppins', sans-serif;">Franchise Expiry Notice</h2>
+                    
+                    <p style="color: #64748b; font-size: 16px; line-height: 1.6; margin: 0 0 20px 0; font-family: 'Poppins', sans-serif;">
+                      Dear <strong>${operatorName}</strong>,
+                    </p>
+                    
+                    <p style="color: #1e293b; font-size: 16px; line-height: 1.6; margin: 0 0 30px 0; font-family: 'Poppins', sans-serif;">
+                      ${mainMessage}
+                    </p>
+                    
+                    <!-- Franchise Details Box -->
+                    <div style="background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%); border: 2px solid #3b82f6; border-radius: 10px; padding: 25px; margin: 25px 0;">
+                      <table role="presentation" style="width: 100%;">
+                        <tr>
+                          <td style="padding: 8px 0; color: #64748b; font-size: 14px; font-family: 'Poppins', sans-serif;">MTOP Number:</td>
+                          <td style="padding: 8px 0; color: #1e293b; font-size: 16px; font-weight: 600; text-align: right; font-family: 'Poppins', sans-serif;">${mtopNumber}</td>
+                        </tr>
+                        <tr>
+                          <td style="padding: 8px 0; color: #64748b; font-size: 14px; font-family: 'Poppins', sans-serif;">Expiry Date:</td>
+                          <td style="padding: 8px 0; color: ${urgencyColor}; font-size: 16px; font-weight: 700; text-align: right; font-family: 'Poppins', sans-serif;">${formattedDate}</td>
+                        </tr>
+                      </table>
+                    </div>
+                    
+                    <div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 16px 20px; margin: 25px 0; border-radius: 6px;">
+                      <p style="color: #92400e; font-size: 14px; margin: 0; line-height: 1.6; font-family: 'Poppins', sans-serif;">
+                        <strong style="display: block; margin-bottom: 8px;">⚠️ Action Required</strong>
+                        ${actionMessage}
+                      </p>
+                    </div>
+                    
+                    <!-- Renewal Instructions -->
+                    <div style="margin: 30px 0;">
+                      <h3 style="color: #1e293b; margin: 0 0 15px 0; font-size: 18px; font-weight: 600; font-family: 'Poppins', sans-serif;">How to Renew Your Franchise:</h3>
+                      <ol style="color: #64748b; font-size: 14px; line-height: 1.8; margin: 0; padding-left: 20px; font-family: 'Poppins', sans-serif;">
+                        <li>Visit your nearest TODA office or Municipal Hall</li>
+                        <li>Bring your current franchise documents</li>
+                        <li>Submit the required renewal forms</li>
+                        <li>Pay the renewal fees</li>
+                        <li>Receive your updated franchise certificate</li>
+                      </ol>
+                    </div>
+                    
+                    <div style="text-align: center; margin: 30px 0;">
+                      <a href="${process.env.BASE_URL || 'http://localhost:5173'}/operator/franchise" style="display: inline-block; background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%); color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 16px; font-family: 'Poppins', sans-serif;">
+                        Renew Franchise Now
+                      </a>
+                    </div>
+                    
+                    <p style="color: #94a3b8; font-size: 13px; text-align: center; margin: 25px 0 0 0; line-height: 1.5; font-family: 'Poppins', sans-serif;">
+                      If you have already renewed your franchise, please disregard this message.
+                    </p>
+                  </td>
+                </tr>
+                
+                <!-- Footer -->
+                <tr>
+                  <td style="background-color: #f8fafc; padding: 30px 40px; text-align: center; border-top: 1px solid #e2e8f0;">
+                    <p style="color: #94a3b8; font-size: 13px; margin: 0 0 8px 0; line-height: 1.5; font-family: 'Poppins', sans-serif;">
+                      <strong style="color: #64748b;">TRC-V System</strong><br>
+                      Tricycle Regulatory Compliance & Verification
+                    </p>
+                    <p style="color: #cbd5e1; font-size: 12px; margin: 5px 0; font-family: 'Poppins', sans-serif;">
+                      © ${new Date().getFullYear()} TRC-V. All rights reserved.
+                    </p>
+                    <p style="color: #cbd5e1; font-size: 11px; margin: 5px 0 0 0; font-family: 'Poppins', sans-serif;">
+                      This is an automated notification. Please do not reply to this email.
+                    </p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </body>
+      </html>
+    `,
+    attachments: [{
+      filename: 'TRC-vLogo.png',
+      path: path.join(__dirname, '..', '..', 'dashboard', 'src', 'assets', 'TRC-vLogo.png'),
+      cid: 'logo'
+    }]
+  };
+  
+  const transporter = makeTransporter();
+  try {
+    const info = await transporter.sendMail(mailOptions);
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('Franchise expiry email sent:', info && info.messageId ? info.messageId : info);
+    }
+    return info;
+  } catch (err) {
+    const errMsg = err && err.message ? err.message : String(err);
+    throw new Error(`Failed to send franchise expiry email: ${errMsg}`);
+  }
+}
+
+module.exports = { sendOTPEmail, sendFranchiseExpiryEmail };

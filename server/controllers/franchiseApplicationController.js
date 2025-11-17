@@ -681,7 +681,7 @@ exports.approveFranchiseApplication = async (req, res, next) => {
                 approvedAt: new Date(),
                 expiryDate: (() => {
                     const expiry = new Date();
-                    expiry.setFullYear(expiry.getFullYear() + 3);
+                    expiry.setFullYear(expiry.getFullYear() + 3); // 3 years validity
                     return expiry;
                 })(),
                 documents: {
@@ -819,7 +819,7 @@ exports.approveFranchiseApplication = async (req, res, next) => {
         console.log(`[APPROVAL] Hashed MTOP: ${hashedMTOP}`);
         console.log(`[APPROVAL] FranchiseInfo ID: ${franchiseInfo ? franchiseInfo._id : 'None'}`);
         console.log(`[APPROVAL] QR Code: ${qrCodeFilePath || 'None'}`);
-        console.log(`[APPROVAL] QR URL: ${process.env.BASE_URL || 'http://localhost:5173'}/operator/${hashedMTOP}`);
+        console.log(`[APPROVAL] QR URL: ${process.env.BASE_URL || 'http://localhost:5173'}/operator/id/${hashedMTOP}`);
         console.log(`========================================\n`);
 
         res.status(200).json({
@@ -830,7 +830,7 @@ exports.approveFranchiseApplication = async (req, res, next) => {
                 mtopNumber: mtopNumber,
                 hashedMTOP: hashedMTOP,
                 franchiseInfoId: franchiseInfo ? franchiseInfo._id : null,
-                qrCodeUrl: `${process.env.BASE_URL || 'http://localhost:5173'}/operator/${hashedMTOP}`,
+                qrCodeUrl: `${process.env.BASE_URL || 'http://localhost:5173'}/operator/id/${hashedMTOP}`,
                 actionTaken: 'APPROVED'
             }
         });

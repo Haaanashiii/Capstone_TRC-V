@@ -32,10 +32,10 @@ app.use(helmet({
     directives: {
       defaultSrc: ["'self'"],
       scriptSrc: ["'self'"],
-      imgSrc: ["'self'", "data:"],
+      imgSrc: ["'self'", "data:", "https://pub-422a490d7e024793bffa369b66dfae83.r2.dev"],
       styleSrc: ["'self'", "'unsafe-inline'"],
       fontSrc: ["'self'"],
-      connectSrc: ["'self'"]
+      connectSrc: ["'self'", "https://trc-v.vercel.app", "https://*.vercel.app", "https://*.workers.dev"]
     }
   },
   referrerPolicy: { policy: 'same-origin' },
@@ -76,6 +76,8 @@ if (corsOriginEnv) {
     allowedHeaders: corsAllowedHeaders
   };
 } else {
+  // Production fallback - should never hit this if CORS_ORIGIN is set properly
+  console.warn('⚠️  CORS_ORIGIN not set in production! CORS will block all origins.');
   corsOptions = {
     origin: false,
     credentials: true,
@@ -125,6 +127,7 @@ app.use('/announcements', announcementRoutes);
 app.use('/franchise-information', franchiseInformationRoutes);
 app.use('/qr', qrCodeRoutes);
 app.use('/api/sessions', sessionRoutes);
+app.use('/api/scheduler', require('./routes/schedulerRoutes'));
 
 
 // Health check endpoint
@@ -143,6 +146,11 @@ mongoose.connect(process.env.MONGO_URI, {
 })
   .then(() => {
     console.log('MongoDB connected successfully');
+    
+    // Initialize franchise expiry scheduler
+    const { initializeFranchiseExpiryScheduler } = require('./services/franchiseExpiryScheduler');
+    initializeFranchiseExpiryScheduler();
+    
     app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
   })
   .catch((err) => {

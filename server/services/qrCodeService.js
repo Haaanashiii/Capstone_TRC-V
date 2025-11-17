@@ -23,8 +23,9 @@ async function generateFranchiseQRCode(hashedMTOP, options = {}) {
   }
 
   // Create verification URL with hashed MTOP (not the actual MTOP number for security)
+  // Uses BASE_URL from .env (should be your frontend URL, e.g., https://trc-v.gov.ph or http://localhost:5173)
   const baseUrl = (process.env.BASE_URL || 'http://localhost:5173').replace(/\/+$/, '');
-  const verificationUrl = `${baseUrl}/operator/${hashedMTOP}`;
+  const verificationUrl = `${baseUrl}/operator/id/${hashedMTOP}`;
   
   // Generate QR code options
   const qrOptions = {
