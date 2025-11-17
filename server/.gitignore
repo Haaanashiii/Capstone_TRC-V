@@ -1,0 +1,4 @@
+# Add to .gitignore
+.env
+uploads/operators/*
+!uploads/operators/.gitkeep

@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { authenticate } = require('../middlewares/authenticate');
-const { authorize } = require('../middlewares/authorize');
+const authorize = require('../middlewares/authorize');
 const { triggerManualExpiryCheck } = require('../services/franchiseExpiryScheduler');
 
 /**
