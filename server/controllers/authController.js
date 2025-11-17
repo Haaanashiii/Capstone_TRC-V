@@ -633,7 +633,21 @@ exports.googleCallback = async (req, res, next) => {
     const profile = await profileRes.json();
     if (!profile || !profile.email) return res.status(400).send('Failed to fetch Google profile');
 
-    // Upsert user by email
+    // Check if email belongs to an admin account first
+    const adminAccountRepository = require('../repositories/adminAccountRepository');
+    let admin = null;
+    try {
+      admin = await adminAccountRepository.findAdminByEmail(profile.email);
+    } catch (e) {}
+    
+    if (admin) {
+      // This email belongs to an admin - don't allow OAuth login for admins
+      // Redirect back with error message
+      const clientRedirect = process.env.CLIENT_REDIRECT || 'http://localhost:5173';
+      return res.redirect(`${clientRedirect}/login?error=admin_oauth_not_allowed&message=${encodeURIComponent('Admin accounts cannot use Google Sign-In. Please use your admin credentials.')}`);
+    }
+    
+    // Upsert user by email (only for non-admin accounts)
     let user = await userAccountRepository.findAccountByEmail(profile.email);
     if (!user) {
       // Create a new user record. Mark that it's an OAuth account (no password)

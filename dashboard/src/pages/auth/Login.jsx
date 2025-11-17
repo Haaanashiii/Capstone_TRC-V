@@ -33,6 +33,19 @@ const Login = () => {
   const [isLoading, setIsLoading] = React.useState(false);
 
   const navigate = useNavigate();
+  
+  // Check for OAuth error in URL params on mount
+  React.useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const errorParam = urlParams.get('error');
+    const messageParam = urlParams.get('message');
+    
+    if (errorParam === 'admin_oauth_not_allowed' && messageParam) {
+      setError(decodeURIComponent(messageParam));
+      // Clean up URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, []);
 
   const handleClickShowPassword = () => setShowPassword((show) => !show);
 

@@ -26,6 +26,9 @@ const sessionRoutes = require('./routes/sessionRoutes');
 dotenv.config();
 const app = express();
 
+// Trust proxy - required when behind Cloudflare Worker/Render
+app.set('trust proxy', 1);
+
 // Performance-optimized middleware order Essential security middleware first
 app.use(helmet({
   contentSecurityPolicy: {
