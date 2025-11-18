@@ -20,12 +20,22 @@ async function handleOtpRequest(email, res, next, message) {
     try {
       user = await userAccountRepository.findAccountByEmail(email);
     } catch (e) {}
+
+    // OTP resend cooldown logic
+    const otpStore = require('../middlewares/otpMiddleware').otpStore;
+    const entry = otpStore?.get?.(email);
+    const now = Date.now();
+    if (entry && entry.lastRequestedAt && now - entry.lastRequestedAt < 60 * 1000) {
+      // Less than 1 minute since last request
+      return res.status(429).json({ error: 'Please wait before requesting another OTP.' });
+    }
+
     // For pre-signup flows we want to be able to send an OTP even when the
     // account doesn't exist yet. Generate and store an OTP regardless. The
     // response stays generic to avoid leaking whether the account exists.
     try {
       const otp = generateOTP();
-      setOTP(email, otp);
+      setOTP(email, otp, now); // Pass now for lastRequestedAt
       await sendOTPEmail(email, otp);
     } catch (e) {
       // Log the error for server operators (do not expose to client)
@@ -308,6 +318,22 @@ exports.login = async (req, res, next) => {
     const accountType = isAdmin ? 'admin' : 'user';
     const refreshToken = await generateRefreshToken(user, accountType, req, refreshTokenDays);
 
+      // Enforce max 2 active sessions per user
+      try {
+        const sessions = await sessionRepository.getUserSessions(user._id);
+        if (sessions.length > 2) {
+          // Sort by lastUsed (oldest first)
+          const sorted = sessions.sort((a, b) => new Date(a.lastUsed) - new Date(b.lastUsed));
+          // Keep the newest two, delete the rest
+          const toDelete = sorted.slice(0, -2);
+          for (const s of toDelete) {
+            await sessionRepository.deleteSession(s._id);
+          }
+        }
+      } catch (e) {
+        console.error('[Login] Failed to enforce session limit:', e);
+      }
+
     // Check if this is a trusted device (Remember Me feature)
     const trustedDeviceToken = req.cookies.trustedDevice;
     let skipOTP = false;
@@ -367,9 +393,7 @@ exports.login = async (req, res, next) => {
       maxAge: refreshTokenDays * 24 * 60 * 60 * 1000 // 7 days (default) or 30 days (remember me)
     });
 
-    // Return access token and basic user info. Frontend should open the
-    // verification modal and proceed to call verify-otp. The server has
-    // already attempted to send the OTP to the email on file.
+
     const responseData = { 
       accessToken,
       skipOTP, // Tell frontend whether to skip OTP verification (trusted device)
@@ -491,13 +515,12 @@ exports.refreshToken = async (req, res, next) => {
 exports.logout = async (req, res) => {
   try {
     const refreshToken = req.cookies.refreshToken;
-    
     if (refreshToken) {
-      // Revoke session in database
+      // Revoke only the current session in database
       await sessionRepository.revokeSession(refreshToken);
       console.log('[Logout] Session revoked in database');
     }
-    
+
     // Clear refresh token cookie with all possible configurations
     res.clearCookie('refreshToken', {
       httpOnly: true,
@@ -505,14 +528,14 @@ exports.logout = async (req, res) => {
       sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
       path: '/' // Ensure path matches cookie creation
     });
-    
+
     // Also clear any OAuth state cookies
     res.clearCookie('oauth_state', {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax'
     });
-    
+
     console.log('[Logout] All cookies cleared');
     res.status(200).json({ message: 'Logged out successfully' });
   } catch (error) {

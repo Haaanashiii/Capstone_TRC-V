@@ -69,31 +69,31 @@ exports.createFranchiseApplication = async (req, res, next) => {
 
         // Provide sensible defaults for required fields so tests and partial submissions
         const normalized = {
-            // Only link userId if submitter is an operator (not admin creating on behalf)
             userId: (req.user?.role === 'operator') ? req.user.id : null,
             operatorName: operatorName || 'UNKNOWN',
             operatorContact: operatorContact || '0000',
             operatorEmail,
             actionType,
+
             operatorAddress: body.operatorAddress || body.address || body.driverAddress || 'UNKNOWN',
-            profilePhoto: body.profilePhoto || body.documentPicture || null,
-            qrCode: body.qrCode || null,
+            operatorBarangay: body.operatorBarangay || body.barangay || body.driverBarangay || 'UNKNOWN',
 
             driversID: body.driversID || body.driversId || body.driverId || body.driverName || 'UNKNOWN',
             birthPlace: body.birthPlace || body.placeOfBirth || 'UNKNOWN',
             birthDate: body.birthDate ? new Date(body.birthDate) : (body.dateOfBirth ? new Date(body.dateOfBirth) : new Date()),
             civilStatus: body.civilStatus || 'UNKNOWN',
             citizenship: body.citizenship || 'UNKNOWN',
-            todaMembership: body.todaMembership || 'UNKNOWN',
 
+            todaMembership: body.todaMembership || 'UNKNOWN',
+            
+            driverName: body.driverName || 'UNKNOWN',
             unitModel: body.unitModel || body.make || 'UNKNOWN',
             colorMotor: body.colorMotor || body.color || 'UNKNOWN',
-            sideCar: body.sideCar || body.sidecarPlateNumber || body.sidecar_plate || 'UNKNOWN',
-            mvPlateNo: body.mvPlate || body.plateNumber || body.mv_plate || 'UNKNOWN',
-
+            sidecarColor: body.sidecarColor ||  'UNKNOWN',
+            sidecarPlateNumber: body.sidecarPlateNumber  || 'UNKNOWN',
+            mvPlateNo: body.mvPlate || body.plateNumber || body.mvPlateNo || 'UNKNOWN',
             motorEngineNo: body.motorEngineNo || body.motorEngineNumber || body.engineNumber || 'UNKNOWN',
             chasisNo: body.chasisNo || body.chassisNumber || body.chassis || 'UNKNOWN',
-            driversAddress: body.driversAddress || body.driverAddress || body.address || 'UNKNOWN',
 
             actionTaken: body.actionTaken || undefined,
             remarks: body.remarks || undefined
@@ -208,10 +208,6 @@ exports.createFranchiseApplication = async (req, res, next) => {
                 }
             }
             
-            // NOTE: QR code generation happens during APPROVAL, not during application creation
-            // The admin will generate QR codes when they approve the application
-            
-            // Return the complete application with all file URLs
             const fresh = await franchiseApplicationRepository.getFranchiseApplicationById(applicationId);
             
             // Check if documents were uploaded (documents subdocument)
@@ -335,40 +331,41 @@ exports.getAllFranchiseApplications = async (req, res, next) => {
             const docs = it.documents || {};
             
             return {
-                id: it._id ? String(it._id) : (it.id || ''),
-                franchiseNumber: it.franchiseNumber || it.franchise_number || '',
-                operatorEmail: it.operatorEmail || it.email || '',
-                // Normalize dates to ISO strings so frontend parsers (dayjs) receive consistent values
-                approvedAt: it.approvedAt ? new Date(it.approvedAt).toISOString() : (it.approved_at ? new Date(it.approved_at).toISOString() : ''),
-                expiryDate: it.expiryDate ? new Date(it.expiryDate).toISOString() : (it.expiry_date ? new Date(it.expiry_date).toISOString() : ''),
-                name: it.operatorName || it.name || it.driverName || '',
-                make: it.unitModel || it.make || '',
-                plateNumber: it.mvPlateNo || it.mvPlate || it.plateNumber || '',
-                applicationType: it.actionType || it.applicationType || 'New',
-                address: it.driversAddress || it.address || '',
-                contactNumber: it.operatorContact || it.contactNumber || it.phone || '',
-                sidecarPlateNumber: it.sideCar || it.sidecarPlateNumber || '',
-                birthPlace: it.birthPlace || '',
-                birthDate: it.birthDate ? new Date(it.birthDate).toISOString() : '',
-                civilStatus: it.civilStatus || '',
-                citizenship: it.citizenship || '',
-                todaMembership: it.todaMembership || '',
-                unitModel: it.unitModel || '',
-                colorMotor: it.colorMotor || '',
-                colorSidecar: it.sideCar || '',
-                mvPlate: it.mvPlateNo || '',
-                motorEngineNumber: it.motorEngineNo || it.motorEngineNumber || '',
-                chassisNumber: it.chasisNo || it.chassisNumber || '',
-                driverName: it.driversID || it.driverName || '',
-                driverAddress: it.driversAddress || it.driverAddress || '',
-                // Read from documents subdocument (new format) or fallback to old fields
-                documentRegistration: normalizeDocument(docs.motorRegistration || it.documentRegistration),
-                documentBarangayClearance: normalizeDocument(docs.barangayClearance || it.documentBarangayClearance),
-                documentCedula: normalizeDocument(docs.cedula || it.documentCedula),
-                documentDriversLicense: normalizeDocument(docs.driversLicense || it.documentDriversLicense),
-                documentVotersAffidavit: normalizeDocument(docs.votersAffidavit || it.documentVotersAffidavit),
-                documentPicture: normalizeDocument(docs.picture || it.profilePhoto || it.documentPicture),
-                qrCode: it.qrCode || null,
+                 id: it._id ? String(it._id) : (it.id || ''),
+                 // Prefer operatorAddress, fallback to driversAddress, then address
+                 address: it.operatorAddress || it.address || it.driversAddress || '',
+                 operatorEmail: it.operatorEmail || it.email || '',
+                 approvedAt: it.approvedAt ? new Date(it.approvedAt).toISOString() : (it.approved_at ? new Date(it.approved_at).toISOString() : ''),
+                 expiryDate: it.expiryDate ? new Date(it.expiryDate).toISOString() : (it.expiry_date ? new Date(it.expiry_date).toISOString() : ''),
+                 // Prefer operatorContact, fallback to contactNumber, contact, phone
+                 contactNumber: it.operatorContact || it.contactNumber || it.contact || it.phone || '',
+                 name: it.operatorName || it.name || it.driverName || '',
+                 make: it.unitModel || it.make || '',
+                 plateNumber: it.mvPlateNo || it.mvPlate || it.plateNumber || '',
+                 applicationType: it.actionType || it.applicationType || 'New',
+                 // Prefer sidecarColor, fallback to sideCar
+                 sidecarColor: it.sidecarColor || it.sideCar || '',
+                 sidecarPlateNumber: it.sidecarPlateNumber || it.sideCar || '',
+                 birthPlace: it.birthPlace || '',
+                 birthDate: it.birthDate ? new Date(it.birthDate).toISOString() : '',
+                 civilStatus: it.civilStatus || '',
+                 citizenship: it.citizenship || '',
+                 todaMembership: it.todaMembership || '',
+                 unitModel: it.unitModel || '',
+                 colorMotor: it.colorMotor || '',
+                 mvPlate: it.mvPlateNo || '',
+                 motorEngineNumber: it.motorEngineNo || it.motorEngineNumber || '',
+                 chassisNumber: it.chasisNo || it.chassisNumber || '',
+                 // driverName: it.driversID || it.driverName || '', // Commented out as requested
+                 // driverAddress: it.driversAddress || it.driverAddress || '', // Commented out as requested
+                 // Read from documents subdocument (new format) or fallback to old fields
+                 documentRegistration: normalizeDocument(docs.motorRegistration || it.documentRegistration),
+                 documentBarangayClearance: normalizeDocument(docs.barangayClearance || it.documentBarangayClearance),
+                 documentCedula: normalizeDocument(docs.cedula || it.documentCedula),
+                 documentDriversLicense: normalizeDocument(docs.driversLicense || it.documentDriversLicense),
+                 documentVotersAffidavit: normalizeDocument(docs.votersAffidavit || it.documentVotersAffidavit),
+                 documentPicture: normalizeDocument(docs.picture || it.profilePhoto || it.documentPicture),
+                 qrCode: it.qrCode || null,
             };
         });
 
@@ -537,17 +534,6 @@ exports.deleteFranchiseApplication = async (req, res, next) => {
     }   
 };
 
-/**
- * Approve franchise application and generate QR code with MTOP-based organization
- * Flow:
- * 1. Generate unique MTOP number
- * 2. Hash MTOP for secure URL and folder naming
- * 3. Move Cloudflare files to franchise-information/{hashedMTOP}
- * 4. Generate QR code with URL: /operator/{hashedMTOP}
- * 5. Create FranchiseInformation record with all data
- * 6. Link FranchiseInformation to user account
- * 7. Update application with approval data
- */
 exports.approveFranchiseApplication = async (req, res, next) => {
     try {
         const { id } = req.params;
@@ -648,7 +634,6 @@ exports.approveFranchiseApplication = async (req, res, next) => {
             // Get barangay if available (temporarily optional)
             const barangay = application.operatorBarangay || application.barangay || '';
 
-            // Check if franchise info already exists by operatorId (unique index) OR driversID
             const existingInfo = await FranchiseInformation.findOne({ 
                 $or: [
                     { operatorId: hashedMTOP },
@@ -674,13 +659,25 @@ exports.approveFranchiseApplication = async (req, res, next) => {
             const franchiseData = {
                 operatorId: hashedMTOP,
                 mtopNumber: mtopNumber,
-                operatorName: application.operatorName || application.driverName,
-                contactNumber: application.operatorContact,
-                address: application.driversAddress || application.operatorAddress,
-                barangay: barangay,
-                civilStatus: application.civilStatus || 'Single',
-                email: application.operatorEmail,
-                driversID: application.driversID,
+                operatorName: application.operatorName || application.driverName || application.name || '',
+                contactNumber: application.operatorContact || application.contactNumber || application.contact || application.phone || '',
+                address: application.operatorAddress || application.driversAddress || application.address || application.driverAddress || '',
+                barangay: application.operatorBarangay || application.barangay || barangay || '',
+                civilStatus: application.civilStatus || application.civil_status || 'Single',
+                email: application.operatorEmail || application.email || '',
+                driversID: application.driversID || application.driversId || application.driverId || '',
+                birthPlace: application.birthPlace || application.placeOfBirth || '',
+                birthDate: application.birthDate || application.dateOfBirth || new Date(),
+                citizenship: application.citizenship || '',
+                todaMembership: application.todaMembership || '',
+                unitModel: application.unitModel || application.make || '',
+                colorMotor: application.colorMotor || application.color || '',
+                sideCarColor: application.sideCarColor || application.sidecarColor || '',
+                sideCarPlateNumber: application.sideCarPlateNumber || application.sidecarPlateNumber || '',
+                mvPlateNo: application.mvPlateNo || application.mvPlate || application.plateNumber || '',
+                motorEngineNo: application.motorEngineNo || application.motorEngineNumber || application.engineNumber || '',
+                chasisNo: application.chasisNo || application.chassisNumber || application.chassis || '',
+                driversAddress: application.driversAddress || application.operatorAddress || application.address || '',
                 profilePhoto: updatedProfilePhoto,
                 qrCode: qrCodeFilePath,
                 approvedAt: new Date(),

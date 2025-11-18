@@ -201,20 +201,20 @@ function FranchiseMgmt() {
   
   const handleOpenViewModal = useCallback((application) => {
    
-    const normalized = {
+    // Use normalized fields directly, no further fallback needed
+    setSelectedApplication({
       ...application,
-      unitModel: application.unitModel || application.make || application.vehicleModel || '',
-      colorMotor: application.colorMotor || application.color || application.motorColor || '',
-      colorSidecar: application.colorSidecar || application.sidecarColor || application.sidecar_color || '',
-      mvPlate: application.mvPlate || application.plateNumber || application.mv_plate || '',
-      motorEngineNumber: application.motorEngineNumber || application.engineNumber || application.motor_engine_number || '',
-      chassisNumber: application.chassisNumber || application.chassis || application.chassis_number || '',
-      driverName: application.driverName || application.name || '',
-      driverAddress: application.driverAddress || application.address || application.driver_address || '',
-      contactNumber: application.contactNumber || application.phone || application.contact || '',
-    }
-
-    setSelectedApplication(normalized)
+      unitModel: application.unitModel,
+      colorMotor: application.colorMotor,
+      colorSidecar: application.colorSidecar,
+      mvPlate: application.mvPlate,
+      motorEngineNumber: application.motorEngineNumber,
+      chassisNumber: application.chassisNumber,
+      driverName: application.driverName,
+      driverAddress: application.driverAddress,
+      contactNumber: application.contactNumber,
+      address: application.address,
+    })
     setOpenViewModal(true)
   }, [])
   const handleCloseViewModal = useCallback(() => setOpenViewModal(false), [])
@@ -721,7 +721,7 @@ function FranchiseMgmt() {
                 <TableRow>
                   <TableCell className="table-cell-head">Record No.</TableCell>
                   <TableCell className="table-cell-head">Franchisee Name</TableCell>
-                  <TableCell className="table-cell-head">Franchise Number</TableCell>
+                  {/* <TableCell className="table-cell-head">Franchise Number</TableCell> */}
                   <TableCell className="table-cell-head">Make</TableCell>
                   <TableCell className="table-cell-head">Plate Number</TableCell>
                   <TableCell className="table-cell-head">Application Type</TableCell>
@@ -738,7 +738,7 @@ function FranchiseMgmt() {
                     >
                       <TableCell className="table-cell-body">{index + 1}</TableCell>
                       <TableCell className="table-cell-body">{application.name}</TableCell>
-                      <TableCell className="table-cell-body">{application.franchiseNumber}</TableCell>
+                      {/* <TableCell className="table-cell-body">{application.franchiseNumber}</TableCell> */}
                       <TableCell className="table-cell-body">{application.make}</TableCell>
                       <TableCell className="table-cell-body">{application.plateNumber}</TableCell>
                       <TableCell className="table-cell-body">
@@ -1169,8 +1169,8 @@ function FranchiseMgmt() {
               <Typography variant="subtitle2" className="label">Driver Name:</Typography>
               <Typography>{selectedApplication.driverName}</Typography>
               
-              <Typography variant="subtitle2" className="label">Driver Address:</Typography>
-              <Typography>{selectedApplication.driverAddress}</Typography>
+              {/* <Typography variant="subtitle2" className="label">Driver Address:</Typography>
+              <Typography>{selectedApplication.driverAddress}</Typography> */}
             </div>
             
             <Typography variant="h6" className="section-header">

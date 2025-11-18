@@ -7,16 +7,14 @@ const documentSchema = new mongoose.Schema({
   cedula: { type: String, required: true }, 
   driversLicense: { type: String, required: true }, 
   votersAffidavit: { type: String, required: true }, 
-  motorChassisStencil: { type: String, required: false }, // Temporarily optional
+  motorChassisStencil: { type: String, required: false },
   picture: { type: String, required: true } 
 });
 
 const franchiseApplicationSchema = new mongoose.Schema({
-  // Link to user who submitted this application
-  // Changed from ObjectId to String to match User Account's userId field (UUID)
   userId: { 
-    type: String, // UUID string from User Account's userId field
-    required: false // Optional for backward compatibility with existing data
+    type: String, 
+    required: false 
   },
   
   operatorName: { type: String, required: true },
@@ -35,12 +33,12 @@ const franchiseApplicationSchema = new mongoose.Schema({
 
   unitModel: { type: String, required: true },
   colorMotor: { type: String, required: true },
-  sideCar: { type: String, required: true },
+  sidecarPlateNumber: { type: String, required: true },
+  sidecarColor: { type: String, required: true },
   mvPlateNo: { type: String, required: true },
 
   motorEngineNo: { type: String, required: true },
   chasisNo: { type: String, required: true },
-  driversAddress: { type: String, required: true },
 
   actionTaken: { type: String },
   remarks: { type: String },

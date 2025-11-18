@@ -21,7 +21,20 @@ const franchiseInformationSchema = new mongoose.Schema({
   email: { type: String, required: false, lowercase: true, trim: true, match: [/^\S+@\S+\.\S+$/, 'Invalid email address'] }, // Optional - user can have multiple franchises
   
   driversID: { type: String, required: true, unique: true },
+  birthPlace: { type: String, required: true },
+  birthDate: { type: Date, required: true },
+  citizenship: { type: String, required: true },
+  todaMembership: { type: String, required: true },
 
+  unitModel: { type: String, required: true },
+  colorMotor: { type: String, required: true },
+  sideCarColor: { type: String, required: true },
+  sideCarPlateNumber: { type: String, required: true },
+  mvPlateNo: { type: String, required: true, unique: true },
+  motorEngineNo: { type: String, required: true, unique: true },
+  chasisNo: { type: String, required: true, unique: true },
+  driversAddress: { type: String, required: true },
+  
   profilePhoto: { type: String },
   qrCode: { type: String }, 
 

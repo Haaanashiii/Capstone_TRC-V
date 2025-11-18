@@ -23,21 +23,41 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 const AccountVerificationModal = ({ open, onClose, email, rememberMe = false, onVerificationSuccess, buttonText = 'Sign in to your account' }) => {
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
-  const [timeLeft, setTimeLeft] = useState(300); // 5 minutes in seconds
+  const [timeLeft, setTimeLeft] = useState(300);
   const [error, setError] = useState('');
+
   const [isResending, setIsResending] = useState(false);
+  const [canVerify, setCanVerify] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false); 
+  const [resendCooldown, setResendCooldown] = useState(0); 
 
  
  
 
   // Reset OTP and timer when modal opens
+
   useEffect(() => {
     if (open) {
       setOtp(['', '', '', '', '', '']);
       setTimeLeft(300);
       setError('');
+      setCanVerify(false);
+      setIsVerifying(false);
+      setResendCooldown(60); 
+      const timer = setTimeout(() => setCanVerify(true), 3000);
+      return () => clearTimeout(timer);
     }
   }, [open]);
+
+  // Countdown for resend OTP cooldown
+  useEffect(() => {
+    if (resendCooldown > 0) {
+      const interval = setInterval(() => {
+        setResendCooldown((prev) => prev - 1);
+      }, 1000);
+      return () => clearInterval(interval);
+    }
+  }, [resendCooldown]);
 
   useEffect(() => {
     if (open && timeLeft > 0) {
@@ -124,37 +144,38 @@ const AccountVerificationModal = ({ open, onClose, email, rememberMe = false, on
       setError('Please enter the complete 6-digit code');
       return;
     }
-
+    setIsVerifying(true);
+    setError('');
     try {
       const response = await api.post('/auth/verify-otp', {
         email: email,
         otp: otpCode,
         rememberMe: rememberMe, // Pass rememberMe flag to create trusted device token
       });
-
       const data = response.data;
-
       if (data) {
         onVerificationSuccess();
         onClose();
       }
     } catch (error) {
       setError(error.response?.data?.error || 'Invalid verification code');
+    } finally {
+      setIsVerifying(false);
     }
   };
 
   const handleResendCode = async () => {
+    if (resendCooldown > 0) return;
     setIsResending(true);
     setError('');
-
     try {
       const response = await api.post('/auth/request-otp', {
         email: email,
       });
-
       if (response.data) {
         setTimeLeft(300); // Reset timer to 5 minutes
-        setOtp(['', '', '', '', '', '']); 
+        setOtp(['', '', '', '', '', '']);
+        setResendCooldown(60); // Reset cooldown to 1 minute
       }
     } catch (error) {
       setError(error.response?.data?.error || 'Failed to resend code');
@@ -244,10 +265,14 @@ const AccountVerificationModal = ({ open, onClose, email, rememberMe = false, on
                   Did not receive the code?{' '}
                   <button
                     onClick={handleResendCode}
-                    disabled={isResending || timeLeft > 0}
+                    disabled={isResending || resendCooldown > 0}
                     className="link-button try-again-btn"
                   >
-                    {isResending ? 'RESENDING...' : 'RESEND CODE'}
+                    {isResending
+                      ? 'RESENDING...'
+                      : resendCooldown > 0
+                        ? `RESEND CODE (${resendCooldown}s)`
+                        : 'RESEND CODE'}
                   </button>
                 </Typography>
                 
@@ -267,9 +292,13 @@ const AccountVerificationModal = ({ open, onClose, email, rememberMe = false, on
                 fullWidth
                 className="verification-submit-btn"
                 onClick={handleVerify}
-                disabled={otp.join('').length !== 6}
+                disabled={otp.join('').length !== 6 || !canVerify || isVerifying}
               >
-                {buttonText}
+                {isVerifying
+                  ? 'Verifying...'
+                  : canVerify
+                    ? buttonText
+                    : 'Please wait...'}
               </Button>
             </Box>
           </Paper>

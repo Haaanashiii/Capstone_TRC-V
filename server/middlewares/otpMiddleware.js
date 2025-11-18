@@ -44,12 +44,24 @@ function generateOTP(length = DEFAULT_OTP_LENGTH) {
   return crypto.randomInt(0, maxExclusive).toString().padStart(length, '0');
 }
 
-function setOTP(email, otp, expiresIn = DEFAULT_EXPIRES_MS) {
-  const value = { otp: String(otp), expiresAt: Date.now() + expiresIn, attempts: 0 };
+function setOTP(email, otp, nowOrExpiresIn = DEFAULT_EXPIRES_MS) {
+  let expiresIn = DEFAULT_EXPIRES_MS;
+  let lastRequestedAt = undefined;
+  if (typeof nowOrExpiresIn === 'number' && nowOrExpiresIn > 1000000000000) {
+    // If a timestamp (ms since epoch) is passed, treat as lastRequestedAt
+    lastRequestedAt = nowOrExpiresIn;
+  } else if (typeof nowOrExpiresIn === 'number') {
+    expiresIn = nowOrExpiresIn;
+  }
+  const value = {
+    otp: String(otp),
+    expiresAt: Date.now() + expiresIn,
+    attempts: 0,
+    ...(lastRequestedAt ? { lastRequestedAt } : {})
+  };
   otpStore.set(email, value);
   // Optional: proactively remove after TTL so entries don't linger in memory
   const t = setTimeout(() => otpStore.delete(email), expiresIn);
-  // unref so it won't keep Node process alive in some environments
   if (t && typeof t.unref === 'function') t.unref();
 }
 

@@ -8,7 +8,7 @@ import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import dayjs from "dayjs";
 import { franchiseAPI } from '../Services/api';
 import { validateFile, formatFileSize } from '../../utils/fileValidation';
-import { compressFile } from '../../utils/imageCompression';
+import { compressFile } from '../../utils/compressFile';
 import "../../Styles/Operator's_CSS/FranchiseApplication.css";
 
 export default function FranchiseApplication() {
@@ -33,7 +33,7 @@ export default function FranchiseApplication() {
       unitModel: "UNIT MODEL",
       colorMotor: "COLOR (MOTOR)",
       colorSidecar: "COLOR (SIDECAR)",
-      mvPlate: "MV PLATE",
+      mvPlateNo: "MV PLATE",
       motorEngineNumber: "MOTOR/ENGINE NUMBER",
       chassisNumber: "CHASSIS NUMBER",
       reqDocuments: "DOCUMENTARY REQUIREMENTS",
@@ -48,6 +48,7 @@ export default function FranchiseApplication() {
       photoBarangay: "Photocopy of Barangay Clearance",
       photoCedula: "Photocopy of Cedula",
       photoLicense: "Photocopy of Driver's License",
+      photoStencil: "Photocopy of Motor Chassis Stencil",
       photoAffidavit: "Photocopy of Voter's Affidavit",
       picture: "1x1 Picture",
       browseFiles: "Browse Files to upload",
@@ -86,7 +87,7 @@ export default function FranchiseApplication() {
       unitModel: "MODEL NG UNIT",
       colorMotor: "KULAY (MOTOR)",
       colorSidecar: "KULAY (SIDECAR)",
-      mvPlate: "MV PLAKA",
+      mvPlateNo: "MV PLAKA",
       motorEngineNumber: "NUMERO NG MOTOR/ENGINE",
       chassisNumber: "NUMERO NG CHASSIS",
       reqDocuments: "MGA KINAKAILANGANG DOKUMENTO",
@@ -101,6 +102,7 @@ export default function FranchiseApplication() {
       photoBarangay: "Photocopy ng Barangay Clearance",
       photoCedula: "Photocopy ng Cedula",
       photoLicense: "Photocopy ng Driver's License",
+      photoStencil: "Photocopy ng Motor Chassis Stencil",
       photoAffidavit: "Photocopy ng Voter's Affidavit",
       picture: "1x1 na Larawan",
       browseFiles: "Mag-browse ng mga file para i-upload",
@@ -190,13 +192,17 @@ export default function FranchiseApplication() {
     unitModel: "",
     colorMotor: "",
     colorSidecar: "",
-    mvPlate: "",
+    mvPlateNo: "",
     motorEngineNumber: "",
     chassisNumber: "",
     driverName: "",
     driverAddress: "",
     barangay: "",
   });
+
+  // Error states for sidecar fields
+  const [sidecarPlateError, setSidecarPlateError] = useState("");
+  const [sidecarColorError, setSidecarColorError] = useState("");
 
   const [addressError, setAddressError] = useState("");
   const [barangayError, setBarangayError] = useState("");
@@ -249,6 +255,7 @@ export default function FranchiseApplication() {
     barangay: null,
     cedula: null,
     license: null,
+    stencil: null,
     affidavit: null,
     picture: null,
   });
@@ -291,6 +298,8 @@ export default function FranchiseApplication() {
   const validateRequiredFields = () => {
     // Reset previous errors
     const newErrors = {};
+    setSidecarPlateError("");
+    setSidecarColorError("");
 
     // Ensure every field in `fields` (except `date`) is present and non-empty
     Object.keys(fields).forEach(k => {
@@ -304,6 +313,16 @@ export default function FranchiseApplication() {
         newErrors[k] = 'This field is required';
       }
     });
+
+    // Strict validation for sidecar fields
+    if (!fields.sidecarPlate.trim()) {
+      newErrors.sidecarPlate = 'Sidecar plate number is required';
+      setSidecarPlateError('Sidecar plate number is required');
+    }
+    if (!fields.colorSidecar.trim()) {
+      newErrors.colorSidecar = 'Sidecar color is required';
+      setSidecarColorError('Sidecar color is required');
+    }
 
     // Required documents
     const requiredDocs = ['registration', 'barangay', 'cedula', 'license', 'affidavit', 'picture'];
@@ -450,7 +469,15 @@ export default function FranchiseApplication() {
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', flex: 2 }}>
               <label style={{ fontWeight: 700, marginBottom: 4 }}>{t.sidecarPlate}</label>
-              <TextField size="small" className="franchise-app-input" value={fields.sidecarPlate} onChange={handleChange('sidecarPlate')} />
+              <TextField
+                size="small"
+                className="franchise-app-input"
+                value={fields.sidecarPlate}
+                onChange={handleChange('sidecarPlate')}
+                required
+                error={!!sidecarPlateError}
+                helperText={sidecarPlateError}
+              />
             </div>
           </div>
           <div className="franchise-app-section">
@@ -551,8 +578,17 @@ export default function FranchiseApplication() {
             <TextField label={t.colorMotor} size="small" className="franchise-app-input" value={fields.colorMotor} onChange={handleChange('colorMotor')} />
           </div>
           <div className="franchise-app-grid-4">
-            <TextField label={t.colorSidecar} size="small" className="franchise-app-input" value={fields.colorSidecar} onChange={handleChange('colorSidecar')} />
-            <TextField label={t.mvPlate} size="small" className="franchise-app-input" value={fields.mvPlate} onChange={handleChange('mvPlate')} />
+            <TextField
+              label={t.colorSidecar}
+              size="small"
+              className="franchise-app-input"
+              value={fields.colorSidecar}
+              onChange={handleChange('colorSidecar')}
+              required
+              error={!!sidecarColorError}
+              helperText={sidecarColorError}
+            />
+            <TextField label={t.mvPlateNo} size="small" className="franchise-app-input" value={fields.mvPlateNo} onChange={handleChange('mvPlateNo')} />
           </div>
           <div className="franchise-app-grid-2">
             <TextField label={t.motorEngineNumber} size="small" className="franchise-app-input" value={fields.motorEngineNumber} onChange={handleChange('motorEngineNumber')} />
@@ -589,6 +625,7 @@ export default function FranchiseApplication() {
               { key: 'registration', label: t.photoRegistration.toUpperCase() },
               { key: 'barangay', label: t.photoBarangay.toUpperCase() },
               { key: 'cedula', label: t.photoCedula.toUpperCase() },
+              { key: 'stencil', label: t.photoStencil.toUpperCase() },
               { key: 'license', label: t.photoLicense.toUpperCase() },
               { key: 'affidavit', label: t.photoAffidavit.toUpperCase() },
               { key: 'picture', label: t.picture.toUpperCase() },
@@ -681,10 +718,11 @@ export default function FranchiseApplication() {
                       // Vehicle Information
                       formDataToSend.append('unitModel', fields.unitModel || '');
                       formDataToSend.append('colorMotor', fields.colorMotor || '');
-                      formDataToSend.append('sideCar', fields.colorSidecar || ''); // Backend expects 'sideCar' not 'colorSidecar'
-                      formDataToSend.append('mvPlateNo', fields.mvPlate || ''); // Backend expects 'mvPlateNo'
-                      formDataToSend.append('motorEngineNo', fields.motorEngineNumber || ''); // Backend expects 'motorEngineNo'
-                      formDataToSend.append('chasisNo', fields.chassisNumber || ''); // Backend expects 'chasisNo'
+                      formDataToSend.append('sidecarColor', fields.colorSidecar || ''); 
+                      formDataToSend.append('sidecarPlateNumber', fields.sidecarPlate || ''); 
+                      formDataToSend.append('mvPlateNo', fields.mvPlateNo || ''); 
+                      formDataToSend.append('motorEngineNo', fields.motorEngineNumber || ''); 
+                      formDataToSend.append('chasisNo', fields.chassisNumber || ''); 
                       
                       if (uploads.registration) {
                         formDataToSend.append('documentRegistration', uploads.registration);
@@ -698,13 +736,24 @@ export default function FranchiseApplication() {
                       if (uploads.license) {
                         formDataToSend.append('documentDriversLicense', uploads.license);
                       }
+                      if (uploads.stencil) {
+                        formDataToSend.append('documentChassisStencil', uploads.stencil);
+                      }
                       if (uploads.affidavit) {
                         formDataToSend.append('documentVotersAffidavit', uploads.affidavit);
                       }
                       if (uploads.picture) {
                         formDataToSend.append('documentPicture', uploads.picture);
                       }
-                      
+                      // Debug: Log all FormData keys and values before submission
+                      console.log('[FranchiseApplication] FormData to send:');
+                      for (let pair of formDataToSend.entries()) {
+                        if (pair[1] instanceof File) {
+                          console.log(`  ${pair[0]}: [File] name=${pair[1].name}, type=${pair[1].type}, size=${pair[1].size}`);
+                        } else {
+                          console.log(`  ${pair[0]}: ${pair[1]}`);
+                        }
+                      }
 
                     try {
                       // Debug: Check token before submission (axios interceptor handles refresh automatically)
@@ -744,7 +793,7 @@ export default function FranchiseApplication() {
                         unitModel: "",
                         colorMotor: "",
                         colorSidecar: "",
-                        mvPlate: "",
+                        mvPlateNo: "",
                         motorEngineNumber: "",
                         chassisNumber: "",
                         driverName: "",
