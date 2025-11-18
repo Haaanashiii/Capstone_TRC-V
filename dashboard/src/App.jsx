@@ -36,6 +36,9 @@ function App() {
         <Route path="/oauth-callback" element={<OAuthCallback />} />
         <Route path="/maintenance" element={<MaintenancePage />} />
         
+        {/* Test Route for QR Operator ID - Remove after testing */}
+        <Route path="/test-operator-id" element={<QROperatorID />} />
+        
         <Route 
           path="/operator/id/:operatorId" 
           element={

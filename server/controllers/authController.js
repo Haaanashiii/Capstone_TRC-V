@@ -528,9 +528,29 @@ exports.getCurrentUser = async (req, res, next) => {
     
     // Fetch full user details from database and populate operator info
     const User = require('../models/userAccountModel');
-    const user = await User.findById(req.user.id).populate('franchiseInfo');
+    const mongoose = require('mongoose');
+    
+    // Handle both ObjectId and UUID-based user lookup
+    let user;
+    if (mongoose.Types.ObjectId.isValid(req.user.id)) {
+      user = await User.findById(req.user.id).populate('franchiseInfo');
+    }
+    if (!user) {
+      // Fallback: try finding by userId field (for UUID tokens)
+      user = await User.findOne({ userId: req.user.id }).populate('franchiseInfo');
+    }
     
     if (!user) return res.status(404).json({ error: 'User not found' });
+    
+    // Debug log for franchise info
+    if (user.franchiseInfo) {
+      console.log('[getCurrentUser] Franchise info found:', {
+        hasQrCode: !!user.franchiseInfo.qrCode,
+        qrCode: user.franchiseInfo.qrCode,
+        hasProfilePhoto: !!user.franchiseInfo.profilePhoto,
+        profilePhoto: user.franchiseInfo.profilePhoto
+      });
+    }
     
     // Return comprehensive user info (excluding sensitive data)
     const userInfo = {

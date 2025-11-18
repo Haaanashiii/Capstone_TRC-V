@@ -184,9 +184,9 @@ const LandingPage = () => {
 
   
   return (
-    /* Adjust nyo nalang kung ayaw ko design hehe */ 
+    
 
-
+     /* Navbar for landing  */  
     <div className="landing-root">
       <header className="landing-header">
         <div className="logo-title">

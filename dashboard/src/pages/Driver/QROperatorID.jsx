@@ -1,255 +1,550 @@
-import React, { useEffect, useState } from 'react';
-import { useParams } from "react-router-dom";
-import api from '../Services/api';
+import React, { useState, useEffect } from "react";
+import { useParams } from 'react-router-dom';
+import { 
+  Box, 
+  Typography, 
+  Button, 
+  Avatar, 
+  Chip,
+  Dialog,
+  DialogContent,
+  IconButton,
+  TextField
+} from '@mui/material';
+import CloseIcon from '@mui/icons-material/Close';
+import dayjs from 'dayjs';
 
 function QROperatorID() {
-  const { operatorId } = useParams(); // This is now the hashedMTOP
-  const [operatorData, setOperatorData] = useState(null);
-  const [showReportModal, setShowReportModal] = useState(false);
-  const [showFareMatrixModal, setShowFareMatrixModal] = useState(false);
+  const { operatorId } = useParams();
+  const [user, setUser] = useState(null);
+  const [matchedFranchise, setMatchedFranchise] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [fareMatrixOpen, setFareMatrixOpen] = useState(false);
+  const [reportModalOpen, setReportModalOpen] = useState(false);
+  const [reportData, setReportData] = useState({
+    fullName: '',
+    contactNumber: '',
+    amountCharged: '',
+    expectedFare: '',
+    description: ''
+  });
 
+  // TODO: Replace with backend QR endpoint once ready
+  // Expected endpoint: GET /operators/qr/:operatorId
+  // This will fetch operator data from the franchise application record, NOT from auth/me
   useEffect(() => {
-    const fetchOperatorData = async () => {
-      try {
-        setLoading(true);
-        // Use the new hashed MTOP endpoint for QR lookups
-        const response = await api.get(`/franchise-information/qr/hash/${operatorId}`);
-        setOperatorData(response.data);
-        setError(null);
-      } catch (error) {
-        console.error("Error fetching franchise data:", error);
-        
-        // Handle rate limit errors specifically
-        if (error.response?.status === 429) {
-          const errorData = error.response.data;
-          if (errorData.code === 'QR_ID_RATE_LIMIT_EXCEEDED') {
-            setError(`This QR code has been scanned too frequently. Please wait ${errorData.retryAfter} seconds before scanning again.`);
-          } else if (errorData.code === 'QR_IP_RATE_LIMIT_EXCEEDED') {
-            setError('Too many QR code scans from your device. Please wait a moment before trying again.');
-          } else {
-            setError('Rate limit exceeded. Please try again later.');
-          }
-        } else {
-          setError(error.response?.data?.error || error.message);
-        }
-      } finally {
-        setLoading(false);
-      }
-    };
+    // Mock data for UI testing - will be replaced with actual QR data fetch
+    setUser({
+      firstName: 'MARLA RIHANA',
+      middleName: 'V',
+      lastName: 'JOSE',
+      operatorId: '02612',
+      address: '#72 Baccara St. Brgy. Quezon, Solano Nueva Vizcaya',
+      profilePhoto: null // Will come from franchise application record
+    });
+    setMatchedFranchise({
+      address: '#72 Baccara St. Brgy. Quezon, Solano Nueva Vizcaya',
+      expiryDate: '2026-12-31', // Active franchise for testing
+      status: 'ACTIVE'
+    });
+    setLoading(false);
+  }, [operatorId]); // operatorId from URL params will be used in future API call
 
-    if (operatorId) {
-      // Hide the hashed MTOP from the URL IMMEDIATELY before fetching data
-      window.history.replaceState(null, 'TRC-V Operator Verification', '/');
-      
-      fetchOperatorData();
+  // Check if franchise is expired
+  const isFranchiseExpired = () => {
+    if (!matchedFranchise?.expiryDate) return false;
+    return dayjs(matchedFranchise.expiryDate).isBefore(dayjs());
+  };
+
+  // Get profile photo URL
+  // TODO: Will be constructed from franchise application data once backend is ready
+  const getProfilePhotoUrl = () => {
+    if (user?.profilePhoto) {
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170';
+      return `${API_BASE_URL}${user.profilePhoto}`;
     }
-  }, [operatorId]);
+    return null;
+  };
 
-  // Show loading state
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-[#1B4B75] to-[#083d77] flex items-center justify-center">
-        <div className="text-xl font-semibold text-white">Loading...</div>
-      </div>
+      <Box sx={{ 
+        minHeight: '100vh', 
+        bgcolor: '#083d77', 
+        display: 'flex', 
+        alignments: 'center', 
+        justifyContent: 'center',
+        p: 2
+      }}>
+        <Typography sx={{ color: 'white' }}>Loading...</Typography>
+      </Box>
     );
   }
-
-  // Show error state
-  if (error) {
-    return (
-      <div className="min-h-screen bg-gradient-to-b from-[#1B4B75] to-[#083d77] flex items-center justify-center p-4">
-        <div className="max-w-md p-8 text-center bg-white shadow-2xl rounded-2xl">
-          <div className="mb-4 text-5xl text-red-500">⚠️</div>
-          <h2 className="mb-2 text-2xl font-bold text-gray-900">Error Loading Data</h2>
-          <p className="mb-4 text-gray-600">{error}</p>
-          <button 
-            onClick={() => window.location.reload()} 
-            className="bg-[#1B4B75] hover:bg-[#143c6e] text-white font-semibold px-6 py-2 rounded-lg transition-all"
-          >
-            Try Again
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  // Show "not found" state
-  if (!operatorData) {
-    return (
-      <div className="min-h-screen bg-gradient-to-b from-[#1B4B75] to-[#083d77] flex items-center justify-center p-4">
-        <div className="max-w-md p-8 text-center bg-white shadow-2xl rounded-2xl">
-          <div className="mb-4 text-5xl text-gray-400">🔍</div>
-          <h2 className="mb-2 text-2xl font-bold text-gray-900">Operator Not Found</h2>
-          <p className="text-gray-600">This QR code may be invalid or the operator record does not exist.</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Use actual operator data
-  const displayData = operatorData;
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#1B4B75] to-[#083d77] flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        {/* Header */}
-        <div className="bg-[#1B4B75] rounded-t-3xl p-6 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <img src="/Logos/SBLogo.png" alt="SB Logo" className="object-contain w-12 h-12" />
-            <img src="/Logos/TRC-vLogo.png" alt="TRC-V Logo" className="object-contain w-12 h-12" />
-          </div>
-          <div className="text-right">
-            <h1 className="text-sm font-bold leading-tight text-white">OPERATOR'S</h1>
-            <h2 className="text-sm font-bold leading-tight text-white">IDENTIFICATION</h2>
-          </div>
-        </div>
+    <Box sx={{ 
+      minHeight: '100vh', 
+      bgcolor: '#2c5f8d',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      p: 2,
+      boxSizing: 'border-box'
+    }}>
+      {/* Main Card - Mobile Optimized */}
+      <Box
+        sx={{
+          width: '100%',
+          maxWidth: '425px',
+          bgcolor: 'white',
+          borderRadius: '12px',
+          overflow: 'hidden',
+          boxShadow: '0 4px 20px rgba(0,0,0,0.15)'
+        }}
+      >
+        {/* Header with title */}
+        <Box 
+          sx={{ 
+            bgcolor: '#083d77',
+            p: 2,
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            borderRadius: '12px 12px 0 0'
+          }}
+        >
+          {/* Logos on the left inside header - Horizontal */}
+          <Box 
+            sx={{ 
+              display: 'flex', 
+              gap: 1.5, 
+              alignItems: 'center'
+            }}
+          >
+            <Box 
+              component="img" 
+              src="/Logos/SBLogo.png" 
+              alt="Solano Logo"
+              sx={{ 
+                width: { xs: 35, sm: 40 }, 
+                height: { xs: 35, sm: 40 }, 
+                objectFit: 'contain'
+              }}
+            />
+            <Box 
+              component="img" 
+              src="/Logos/TRC-vLogo.png" 
+              alt="TRC-V Logo"
+              sx={{ 
+                width: { xs: 35, sm: 40 }, 
+                height: { xs: 35, sm: 40 }, 
+                objectFit: 'contain'
+              }}
+            />
+          </Box>
+          
+          {/* Title on the right */}
+          <Typography 
+            sx={{ 
+              color: 'white', 
+              fontWeight: 'bold',
+              fontSize: { xs: '0.7rem', sm: '0.8rem' },
+              textAlign: 'right',
+              lineHeight: 1.3,
+              letterSpacing: '0.5px'
+            }}
+          >
+            OPERATOR'S<br/>IDENTIFICATION
+          </Typography>
+        </Box>
 
-        {/* Main Content */}
-        <div className="p-8 bg-white shadow-2xl rounded-b-3xl">
+        {/* Card Content */}
+        <Box sx={{ p: 3, textAlign: 'center', bgcolor: '#f5f5f5' }}>
           {/* Profile Photo */}
-          <div className="flex justify-center mb-6">
-            <div className="relative">
-              <div className="w-32 h-32 overflow-hidden border-4 border-gray-200 rounded-full shadow-lg">
-                <img 
-                  src={displayData.profilePhoto || "/default-avatar.png"} 
-                  alt="Operator" 
-                  className="object-cover w-full h-full"
-                />
-              </div>
-            </div>
-          </div>
+          <Avatar
+            src={getProfilePhotoUrl()}
+            sx={{ 
+              width: { xs: 140, sm: 160 },
+              height: { xs: 140, sm: 160 },
+              margin: '0 auto 16px',
+              border: '5px solid #d0d0d0',
+              bgcolor: '#d0d0d0'
+            }}
+          >
+            {!getProfilePhotoUrl() && (
+              <Typography variant="h2" sx={{ color: '#999' }}>
+                {user?.firstName?.charAt(0) || 'M'}
+              </Typography>
+            )}
+          </Avatar>
 
-          {/* ID Number */}
-          <div className="flex justify-center mb-6">
-            <div className="bg-[#1B4B75] text-white font-bold px-6 py-2 rounded-lg text-lg">
-              ID NO: {displayData.driversID}
-            </div>
-          </div>
+          {/* ID Badge */}
+          <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2, px: 2 }}>
+            <Box
+              sx={{ 
+                bgcolor: '#003d77',
+                color: 'white',
+                fontWeight: 'bold',
+                fontSize: { xs: '0.9rem', sm: '1rem' },
+                px: 3,
+                py: 1,
+                borderRadius: '6px'
+              }}
+            >
+              ID NO: {user?.operatorId || '02612'}
+            </Box>
+          </Box>
 
-          {/* Operator Name */}
-          <h3 className="mb-2 text-2xl font-bold text-center text-gray-900">
-            {`${displayData.firstName} ${displayData.middleName} ${displayData.lastName}${displayData.suffix ? ' ' + displayData.suffix : ''}`.trim()}
-          </h3>
+          {/* Name */}
+          <Typography 
+            sx={{ 
+              fontWeight: 'bold',
+              fontSize: { xs: '1.1rem', sm: '1.3rem' },
+              mb: 1,
+              textTransform: 'uppercase',
+              color: '#000'
+            }}
+          >
+            {user?.firstName || 'MARLA RIHANA'} {user?.middleName?.charAt(0) || 'V'}. {user?.lastName || 'JOSE'}
+          </Typography>
 
           {/* Address */}
-          <p className="mb-6 text-sm text-center text-gray-600">
-            {displayData.address}, Brgy. {displayData.barangay}
-          </p>
+          <Typography 
+            sx={{ 
+              color: '#000',
+              mb: 2,
+              fontSize: { xs: '0.85rem', sm: '0.95rem' },
+              px: 2
+            }}
+          >
+            {matchedFranchise?.address || user?.address || '#72 Baccara St. Brgy. Quezon, Solano Nueva Vizcaya'}
+          </Typography>
 
-          {/* Franchise Status Badge - Conditional Display */}
-          <div className="flex justify-center gap-3 mb-6">
-            {displayData.franchiseStatus === 'expired' ? (
-              <span className="px-4 py-2 text-xs font-bold text-red-700 bg-red-100 border-2 border-red-300 rounded-md">
+          {/* Franchise Status Badge */}
+          <Box sx={{ display: 'flex', justifyContent: 'center', mb: 3 }}>
+            {isFranchiseExpired() ? (
+              <Box
+                sx={{ 
+                  bgcolor: '#ffcdd2',
+                  color: '#c62828',
+                  fontWeight: 'bold',
+                  fontSize: { xs: '0.75rem', sm: '0.85rem' },
+                  px: 3,
+                  py: 1,
+                  borderRadius: '4px',
+                  border: '2px solid #c62828'
+                }}
+              >
                 EXPIRED FRANCHISE
-              </span>
+              </Box>
             ) : (
-              <span className="px-4 py-2 text-xs font-bold text-green-700 bg-green-100 border-2 border-green-300 rounded-md">
+              <Box
+                sx={{ 
+                  bgcolor: '#4caf50',
+                  color: 'white',
+                  fontWeight: 'bold',
+                  fontSize: { xs: '0.75rem', sm: '0.85rem' },
+                  px: 3,
+                  py: 1,
+                  borderRadius: '4px',
+                  border: '2px solid #2e7d32'
+                }}
+              >
                 ACTIVE FRANCHISE
-              </span>
+              </Box>
             )}
-          </div>
+          </Box>
 
           {/* Action Buttons */}
-          <div className="flex justify-center gap-3">
-            <button 
-              onClick={() => setShowReportModal(true)}
-              className="bg-[#F4D35E] hover:bg-[#e6c44d] text-gray-900 font-bold px-6 py-3 rounded-lg text-sm transition-all shadow-md hover:shadow-lg"
+          <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center', px: 2 }}>
+            <Button
+              fullWidth
+              variant="contained"
+              sx={{
+                bgcolor: '#FFC107',
+                color: 'black',
+                fontWeight: 'bold',
+                textTransform: 'none',
+                py: 1.5,
+                fontSize: { xs: '0.75rem', sm: '0.85rem' },
+                boxShadow: 2,
+                '&:hover': {
+                  bgcolor: '#FFB300'
+                }
+              }}
+              onClick={() => setReportModalOpen(true)}
             >
               REPORT OVERPRICING
-            </button>
-            <button 
-              onClick={() => setShowFareMatrixModal(true)}
-              className="bg-[#F4D35E] hover:bg-[#e6c44d] text-gray-900 font-bold px-6 py-3 rounded-lg text-sm transition-all shadow-md hover:shadow-lg"
+            </Button>
+            <Button
+              fullWidth
+              variant="contained"
+              sx={{
+                bgcolor: '#003d77',
+                color: 'white',
+                fontWeight: 'bold',
+                textTransform: 'none',
+                py: 1.5,
+                fontSize: { xs: '0.75rem', sm: '0.85rem' },
+                boxShadow: 2,
+                '&:hover': {
+                  bgcolor: '#002850'
+                }
+              }}
+              onClick={() => setFareMatrixOpen(true)}
             >
               VIEW FARE MATRIX
-            </button>
-          </div>
-        </div>
-      </div>
+            </Button>
+          </Box>
+        </Box>
+      </Box>
 
       {/* Report Overpricing Modal */}
-      {showReportModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50">
-          <div className="w-full max-w-md p-6 bg-white shadow-2xl rounded-2xl">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-bold text-gray-900">Report Overpricing</h3>
-              <button 
-                onClick={() => setShowReportModal(false)}
-                className="text-2xl leading-none text-gray-500 hover:text-gray-700"
+      <Dialog
+        open={reportModalOpen}
+        onClose={() => setReportModalOpen(false)}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 2,
+            maxHeight: '90vh'
+          }
+        }}
+      >
+        <Box sx={{ position: 'relative' }}>
+          <IconButton
+            onClick={() => setReportModalOpen(false)}
+            sx={{
+              position: 'absolute',
+              right: 8,
+              top: 8,
+              zIndex: 1,
+              color: '#666'
+            }}
+          >
+            <CloseIcon />
+          </IconButton>
+          <DialogContent sx={{ p: 4, pt: 3 }}>
+            <Typography variant="h5" sx={{ fontWeight: 'bold', mb: 1 }}>
+              Report Overpricing
+            </Typography>
+            <Typography variant="body2" sx={{ mb: 3, color: 'text.secondary' }}>
+              Help maintain fair fare practices in Solano. Please provide accurate details of your overpricing experience.
+            </Typography>
+
+            {/* Your Contact Information */}
+            <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 2 }}>
+              Your Contact Information
+            </Typography>
+
+            <TextField
+              fullWidth
+              label="Full Name"
+              value={reportData.fullName}
+              onChange={(e) => setReportData({ ...reportData, fullName: e.target.value })}
+              sx={{ mb: 2 }}
+            />
+
+            <TextField
+              fullWidth
+              label="Contact Number"
+              value={reportData.contactNumber}
+              onChange={(e) => setReportData({ ...reportData, contactNumber: e.target.value })}
+              sx={{ mb: 3 }}
+            />
+
+            {/* Report Details */}
+            <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 2 }}>
+              Report Details
+            </Typography>
+
+            <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
+              <Box sx={{ flex: 1 }}>
+                <Typography variant="caption" sx={{ color: 'text.secondary', mb: 0.5, display: 'block' }}>
+                  Amount Charged
+                </Typography>
+                <TextField
+                  fullWidth
+                  value={reportData.amountCharged}
+                  onChange={(e) => setReportData({ ...reportData, amountCharged: e.target.value })}
+                  InputProps={{
+                    startAdornment: (
+                      <Typography sx={{ color: 'text.primary', mr: 1, fontWeight: 500 }}>
+                        ₱
+                      </Typography>
+                    ),
+                  }}
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      '& input': {
+                        pl: 0
+                      }
+                    }
+                  }}
+                />
+              </Box>
+              <Box sx={{ flex: 1 }}>
+                <Typography variant="caption" sx={{ color: 'text.secondary', mb: 0.5, display: 'block' }}>
+                  Expected Fare
+                </Typography>
+                <TextField
+                  fullWidth
+                  value={reportData.expectedFare}
+                  onChange={(e) => setReportData({ ...reportData, expectedFare: e.target.value })}
+                  InputProps={{
+                    startAdornment: (
+                      <Typography sx={{ color: 'text.primary', mr: 1, fontWeight: 500 }}>
+                        ₱
+                      </Typography>
+                    ),
+                  }}
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      '& input': {
+                        pl: 0
+                      }
+                    }
+                  }}
+                />
+              </Box>
+            </Box>
+
+            <TextField
+              fullWidth
+              label="Description"
+              value={reportData.description}
+              onChange={(e) => setReportData({ ...reportData, description: e.target.value })}
+              multiline
+              rows={4}
+              sx={{ mb: 3 }}
+            />
+
+            {/* Action Buttons */}
+            <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
+              <Button
+                variant="contained"
+                onClick={() => setReportModalOpen(false)}
+                sx={{
+                  bgcolor: '#9E9E9E',
+                  color: 'white',
+                  textTransform: 'none',
+                  px: 4,
+                  py: 1.5,
+                  fontWeight: 'bold',
+                  '&:hover': {
+                    bgcolor: '#757575'
+                  }
+                }}
               >
-                ×
-              </button>
-            </div>
-            <p className="mb-4 text-gray-600">
-              Please provide details about the overpricing incident.
-            </p>
-            <textarea 
-              className="w-full border-2 border-gray-300 rounded-lg p-3 mb-4 focus:outline-none focus:border-[#1B4B75]" 
-              rows="4"
-              placeholder="Describe the incident..."
-            ></textarea>
-            <div className="flex gap-3">
-              <button 
-                onClick={() => setShowReportModal(false)}
-                className="flex-1 py-2 font-semibold text-gray-800 transition-all bg-gray-300 rounded-lg hover:bg-gray-400"
+                CANCEL
+              </Button>
+              <Button
+                variant="contained"
+                onClick={() => {
+                  console.log('Report submitted:', reportData);
+                  // Handle report submission here
+                  setReportModalOpen(false);
+                  // Reset form
+                  setReportData({
+                    fullName: '',
+                    contactNumber: '',
+                    amountCharged: '',
+                    expectedFare: '',
+                    description: ''
+                  });
+                }}
+                sx={{
+                  bgcolor: '#FFA726',
+                  color: 'white',
+                  textTransform: 'none',
+                  px: 4,
+                  py: 1.5,
+                  fontWeight: 'bold',
+                  '&:hover': {
+                    bgcolor: '#FF9800'
+                  }
+                }}
               >
-                Cancel
-              </button>
-              <button 
-                className="flex-1 bg-[#1B4B75] hover:bg-[#143c6e] text-white font-semibold py-2 rounded-lg transition-all"
-              >
-                Submit Report
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+                SUBMIT
+              </Button>
+            </Box>
+          </DialogContent>
+        </Box>
+      </Dialog>
 
       {/* Fare Matrix Modal */}
-      {showFareMatrixModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl max-h-[80vh] overflow-y-auto">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-bold text-gray-900">Fare Matrix</h3>
-              <button 
-                onClick={() => setShowFareMatrixModal(false)}
-                className="text-2xl leading-none text-gray-500 hover:text-gray-700"
-              >
-                ×
-              </button>
-            </div>
-            <div className="space-y-3">
-              <div className="p-4 border border-gray-200 rounded-lg bg-gray-50">
-                <div className="flex items-center justify-between">
-                  <span className="font-semibold text-gray-700">Base Fare (First 4km)</span>
-                  <span className="font-bold text-[#1B4B75]">₱15.00</span>
-                </div>
-              </div>
-              <div className="p-4 border border-gray-200 rounded-lg bg-gray-50">
-                <div className="flex items-center justify-between">
-                  <span className="font-semibold text-gray-700">Additional per km</span>
-                  <span className="font-bold text-[#1B4B75]">₱2.50</span>
-                </div>
-              </div>
-              <div className="p-4 border border-gray-200 rounded-lg bg-gray-50">
-                <div className="flex items-center justify-between">
-                  <span className="font-semibold text-gray-700">Night Surcharge (10PM-5AM)</span>
-                  <span className="font-bold text-[#1B4B75]">+₱5.00</span>
-                </div>
-              </div>
-            </div>
-            <button 
-              onClick={() => setShowFareMatrixModal(false)}
-              className="w-full mt-6 bg-[#1B4B75] hover:bg-[#143c6e] text-white font-semibold py-3 rounded-lg transition-all"
+      <Dialog
+        open={fareMatrixOpen}
+        onClose={() => setFareMatrixOpen(false)}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 2,
+            maxHeight: '90vh'
+          }
+        }}
+      >
+        <Box sx={{ position: 'relative' }}>
+          <IconButton
+            onClick={() => setFareMatrixOpen(false)}
+            sx={{
+              position: 'absolute',
+              right: 8,
+              top: 8,
+              zIndex: 1,
+              bgcolor: 'rgba(255, 255, 255, 0.9)',
+              '&:hover': {
+                bgcolor: 'rgba(255, 255, 255, 1)',
+              }
+            }}
+          >
+            <CloseIcon />
+          </IconButton>
+          <DialogContent sx={{ p: 3 }}>
+            <Typography variant="h5" sx={{ fontWeight: 'bold', mb: 2, textAlign: 'center' }}>
+              Fare Matrix
+            </Typography>
+            <Typography variant="body2" sx={{ mb: 3, textAlign: 'center', color: 'text.secondary' }}>
+              View the approved tricycle fare rates set by the Municipality of Solano. Please refer to these rates before reporting any overpricing.
+            </Typography>
+            
+            {/* Fare Matrix Image */}
+            <Box
+              sx={{
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                bgcolor: '#f5f5f5',
+                borderRadius: 2,
+                p: 2
+              }}
             >
-              Close
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
+              <Box
+                component="img"
+                src="/fare-matrix.jpg"
+                alt="Tricycle Fare Matrix"
+                sx={{
+                  maxWidth: '100%',
+                  height: 'auto',
+                  borderRadius: 1,
+                  boxShadow: 2
+                }}
+                onError={(e) => {
+                  e.target.style.display = 'none';
+                  e.target.parentElement.innerHTML = '<div style="padding: 40px; text-align: center; color: #666;">Fare matrix image not available</div>';
+                }}
+              />
+            </Box>
+            
+            <Typography variant="caption" sx={{ display: 'block', mt: 2, textAlign: 'center', color: 'text.secondary' }}>
+              Last updated: November 4, 2025
+            </Typography>
+          </DialogContent>
+        </Box>
+      </Dialog>
+    </Box>
   );
 }
 

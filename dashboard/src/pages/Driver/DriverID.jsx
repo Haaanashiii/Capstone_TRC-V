@@ -90,6 +90,8 @@ function DriverID() {
       if (response.ok) {
         const data = await response.json();
         console.log('DriverID: User details received:', data);
+        console.log('DriverID: QR Code from user.franchise:', data.user?.franchise?.qrCode);
+        console.log('DriverID: Profile photo from user.franchise:', data.user?.franchise?.profilePhoto);
         setUser(data.user);
       } else {
         console.log('DriverID: /auth/me returned non-ok. Clearing any stored franchise info to avoid stale data.');
