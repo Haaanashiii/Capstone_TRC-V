@@ -157,7 +157,6 @@ function Sidebar() {
         <span className="time-display">
           {currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
         </span>
-        <br />
         <span className="date-display"> 
           {currentTime.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }).toUpperCase()}
         </span>

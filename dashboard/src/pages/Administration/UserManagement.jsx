@@ -72,7 +72,8 @@ const INITIAL_USER_STATE = {
 
 const ROLES = [
   { value: 'sb-admin', label: 'Sangguniang Bayan' },
-  { value: 'bplo-admin', label: 'BPLO' }
+  { value: 'bplo-admin', label: 'BPLO' },
+  { value: 'super-admin', label: 'Super Admin' }
 ];
 
 function UserManagement() {
@@ -104,7 +105,7 @@ function UserManagement() {
       
       // Filter to show only Sangguniang Bayan and BPLO admins (exclude super-admin)
       const adminUsers = Array.isArray(response.data) 
-        ? response.data.filter(user => user.role === 'sb-admin' || user.role === 'bplo-admin')
+        ? response.data.filter(user => user.role === 'sb-admin' || user.role === 'bplo-admin' || user.role === 'super-admin')
         : [];
       setUsers(adminUsers);
       setError('');
@@ -422,9 +423,10 @@ function UserManagement() {
             </Box>
           )}
 
-          <TableContainer component={Paper} className="table-container" elevation={2}>
-            <Table stickyHeader>
-              <TableHead>
+          <Paper className="table-container" elevation={2}>
+            <TableContainer sx={{ maxHeight: 500 }}>
+              <Table stickyHeader>
+                <TableHead>
                 <TableRow>
                   <StyledTableCell>Name</StyledTableCell>
                   <StyledTableCell>Username</StyledTableCell>
@@ -469,17 +471,18 @@ function UserManagement() {
                   </StyledTableRow>
                 )}
               </TableBody>
-            </Table>
-          </TableContainer>
-          
-          <TablePagination
-            component="div"
-            count={filteredUsers.length}
-            page={page}
-            onPageChange={handleChangePage}
-            rowsPerPage={rowsPerPage}
-            rowsPerPageOptions={[]}
-          />
+              </Table>
+            </TableContainer>
+            
+            <TablePagination
+              component="div"
+              count={filteredUsers.length}
+              page={page}
+              onPageChange={handleChangePage}
+              rowsPerPage={rowsPerPage}
+              rowsPerPageOptions={[]}
+            />
+          </Paper>
 
         {/* Add/Edit User Modal */}
         <Modal open={openModal} onClose={handleCloseModal}>

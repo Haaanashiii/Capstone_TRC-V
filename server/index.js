@@ -10,7 +10,7 @@ const { apiLimiter, authLimiter, qrVerificationLimiter } = require('./middleware
 const { sanitizeRequest } = require('./middlewares/validateRequest');
 const { enforceHttps } = require('./middlewares/securityHeaders');
 const { auditLogService } = require('./services/auditLogService');
-
+  
 //routes
 const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userAccountRoutes');
@@ -22,6 +22,7 @@ const franchiseInformationRoutes = require('./routes/franchiseInformationRoutes'
 const franchiseApplicationRoutes = require('./routes/franchiseApplicationRoutes');
 const qrCodeRoutes = require('./routes/qrCodeRoutes');
 const sessionRoutes = require('./routes/sessionRoutes');
+const dashboardRoutes = require('./routes/dashboardRoutes');
 
 dotenv.config();
 const app = express();
@@ -128,9 +129,10 @@ app.use('/users', userRoutes);
 app.use('/admins', adminRoutes);
 app.use('/api/pending-apps', pendingAppsRoutes);
 app.use('/api/franchise-applications', franchiseApplicationRoutes);
+app.use('/api/dashboard', dashboardRoutes);
 app.use('/reports', reportsRoutes);
 app.use('/announcements', announcementRoutes);
-app.use('/franchise-information', franchiseInformationRoutes);
+app.use('/api/franchise-information', franchiseInformationRoutes);
 app.use('/qr', qrCodeRoutes);
 app.use('/api/sessions', sessionRoutes);
 app.use('/api/scheduler', require('./routes/schedulerRoutes'));
