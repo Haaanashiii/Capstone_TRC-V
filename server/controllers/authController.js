@@ -201,7 +201,7 @@ const generateAccessToken = (user, franchiseInfo = null, isAdmin = false) => {
     franchiseStatus: user.franchiseStatus || 'inactive'
   };
   
-  return jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '7d' }); // Temporary: Extended to 7 days for production testing
+  return jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '1h' }); // Temporary:limit to 1hr
 };
 
 // Generate refresh token and store in database

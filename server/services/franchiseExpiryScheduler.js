@@ -232,8 +232,8 @@ async function runExpiryChecks() {
  */
 function initializeFranchiseExpiryScheduler() {
 
-  // '0 8 * * 1' = At 8:00 AM every Monday
-  const cronExpression = '0 8 * * 1';
+  // '0 6 * * *' = At 6:00 AM every day
+  const cronExpression = '0 6 * * *';
   
   cron.schedule(cronExpression, async () => {
     await runExpiryChecks();
@@ -242,25 +242,16 @@ function initializeFranchiseExpiryScheduler() {
     timezone: 'Asia/Manila' 
   });
   
-  // Calculate next Monday at 8:00 AM
+  // Calculate next run at 6:00 AM tomorrow
   const now = new Date();
   const nextRun = new Date(now);
-  nextRun.setHours(8, 0, 0, 0);
-  
-  // Get days until next Monday (1 = Monday, 0 = Sunday)
-  const currentDay = now.getDay();
-  const daysUntilMonday = currentDay === 0 ? 1 : (8 - currentDay) % 7 || 7;
-  
-  // If it's Monday but after 8 AM, schedule for next Monday
-  if (currentDay === 1 && now.getHours() >= 8) {
-    nextRun.setDate(nextRun.getDate() + 7);
-  } else if (currentDay !== 1) {
-    nextRun.setDate(nextRun.getDate() + daysUntilMonday);
+  nextRun.setHours(6, 0, 0, 0);
+  if (now.getHours() >= 6) {
+    nextRun.setDate(nextRun.getDate() + 1);
   }
-  
   console.log('========================================');
   console.log('[EXPIRY_SCHEDULER] 📅 Franchise Expiry Scheduler initialized');
-  console.log('[EXPIRY_SCHEDULER] Schedule: Every Monday at 8:00 AM (Philippine Time)');
+  console.log('[EXPIRY_SCHEDULER] Schedule: Every day at 6:00 AM (Philippine Time)');
   console.log('[EXPIRY_SCHEDULER] Next run:', nextRun.toLocaleString('en-PH', { timeZone: 'Asia/Manila' }));
   console.log('========================================\n');
   
