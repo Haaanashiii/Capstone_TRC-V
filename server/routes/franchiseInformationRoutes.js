@@ -7,6 +7,15 @@ const { uploadOperatorComplete, handleMulterError } = require('../middlewares/up
 const authenticate = require('../middlewares/authenticate');
 const authorize = require('../middlewares/authorize');
 
+// Proxy route to fetch Cloudflare files (must come before /:id to avoid conflict)
+router.get('/proxy-file', franchiseInformationController.proxyCloudflareFile);
+
+/**
+ * GET /franchise-information
+ * Get all franchise information records
+ */
+router.get('/', franchiseInformationController.getAllFranchiseInformation);
+
 /**
  * POST /franchise-information
  * Create new franchise with profile photo, documents, and auto-generate QR code

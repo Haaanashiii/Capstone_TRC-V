@@ -361,67 +361,69 @@ function Reports() {
         </div>
         
         {/* Reports Table */}
-        <TableContainer component={Paper} className="table-container" elevation={2}>
+        <Paper className="table-container" elevation={2}>
           {loading && (
             <Box display="flex" justifyContent="center" p={2}>
               <CircularProgress />
             </Box>
           )}
           
-          <Table stickyHeader aria-label="reports table">
-            <TableHead>
-              <TableRow>
-                <StyledTableCell>Report ID</StyledTableCell>
-                <StyledTableCell>Franchisee Name</StyledTableCell>
-                <StyledTableCell>Date and Time Reported</StyledTableCell>
-                <StyledTableCell>Status</StyledTableCell>
-                <StyledTableCell>Action</StyledTableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {!loading && reports.length > 0 ? (
-                reports.map((report) => (
-                  <StyledTableRow 
-                    key={report.reportID}
-                    onClick={() => handleOpen(report)}
-                  >
-                    <StyledTableCell>{report.reportID}</StyledTableCell>
-                    <StyledTableCell>{report.franchiseeName}</StyledTableCell>
-                    <StyledTableCell>{formatDate(report.dateReported)}</StyledTableCell>
-                    <StyledTableCell>
-                      <Chip 
-                        label={report.status} 
-                        size="small"
-                        sx={{ 
-                          bgcolor: getStatusColor(report.status),
-                          color: 'white',
-                          fontWeight: 'bold'
-                        }}
-                      />
-                    </StyledTableCell>
-                    <StyledTableCell>
-                      <IconButton 
-                        size="small"
-                        sx={{ color: '#0a3161' }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleOpen(report);
-                        }}
-                      >
-                        <VisibilityIcon />
-                      </IconButton>
+          <TableContainer sx={{ maxHeight: 500 }}>
+            <Table stickyHeader aria-label="reports table">
+              <TableHead>
+                <TableRow>
+                  <StyledTableCell>Report ID</StyledTableCell>
+                  <StyledTableCell>Franchisee Name</StyledTableCell>
+                  <StyledTableCell>Date and Time Reported</StyledTableCell>
+                  <StyledTableCell>Status</StyledTableCell>
+                  <StyledTableCell>Action</StyledTableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {!loading && reports.length > 0 ? (
+                  reports.map((report) => (
+                    <StyledTableRow 
+                      key={report.reportID}
+                      onClick={() => handleOpen(report)}
+                    >
+                      <StyledTableCell>{report.reportID}</StyledTableCell>
+                      <StyledTableCell>{report.franchiseeName}</StyledTableCell>
+                      <StyledTableCell>{formatDate(report.dateReported)}</StyledTableCell>
+                      <StyledTableCell>
+                        <Chip 
+                          label={report.status} 
+                          size="small"
+                          sx={{ 
+                            bgcolor: getStatusColor(report.status),
+                            color: 'white',
+                            fontWeight: 'bold'
+                          }}
+                        />
+                      </StyledTableCell>
+                      <StyledTableCell>
+                        <IconButton 
+                          size="small"
+                          sx={{ color: '#0a3161' }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOpen(report);
+                          }}
+                        >
+                          <VisibilityIcon />
+                        </IconButton>
+                      </StyledTableCell>
+                    </StyledTableRow>
+                  ))
+                ) : (
+                  <StyledTableRow>
+                    <StyledTableCell colSpan={5} align="center">
+                      {loading ? 'Loading...' : 'No reports found'}
                     </StyledTableCell>
                   </StyledTableRow>
-                ))
-              ) : (
-                <StyledTableRow>
-                  <StyledTableCell colSpan={5} align="center">
-                    {loading ? 'Loading...' : 'No reports found'}
-                  </StyledTableCell>
-                </StyledTableRow>
-              )}
-            </TableBody>
-          </Table>
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
           
           <TablePagination
             rowsPerPageOptions={[5, 10, 25]}
@@ -432,7 +434,7 @@ function Reports() {
             onPageChange={handleChangePage}
             onRowsPerPageChange={handleChangeRowsPerPage}
           />
-        </TableContainer>
+        </Paper>
         
         {/* Filter Dialog */}
         <Dialog 

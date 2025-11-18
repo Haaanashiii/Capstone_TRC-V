@@ -398,7 +398,8 @@ function Announcement() {
           </Box>
         )}
 
-        <TableContainer component={Paper} className="table-container" elevation={2}>
+        <Paper className="table-container" elevation={2}>
+          <TableContainer sx={{ maxHeight: 500 }}>
             <Table stickyHeader>
               <TableHead>
                 <TableRow>
@@ -457,16 +458,17 @@ function Announcement() {
                 )}
               </TableBody>
             </Table>
-        </TableContainer>
-
-        <TablePagination
-          component="div"
-          count={filteredAnnouncements.length}
-          page={page}
-          onPageChange={handleChangePage}
-          rowsPerPage={rowsPerPage}
-          rowsPerPageOptions={[]}
-        />
+          </TableContainer>
+          
+          <TablePagination
+            component="div"
+            count={filteredAnnouncements.length}
+            page={page}
+            onPageChange={handleChangePage}
+            rowsPerPage={rowsPerPage}
+            rowsPerPageOptions={[]}
+          />
+        </Paper>
 
         {/* Add/Edit Announcement Modal */}
         <Modal open={openModal} onClose={handleCloseModal}>

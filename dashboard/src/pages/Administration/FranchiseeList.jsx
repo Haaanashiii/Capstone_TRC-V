@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import Sidebar from './Sidebar';
 import {
   Box,
@@ -23,6 +23,8 @@ import {
   tableCellClasses,
   CircularProgress,
   Alert,
+  Link,
+  Snackbar,
 } from '@mui/material';
 import { styled } from "@mui/material/styles";
 import SearchIcon from '@mui/icons-material/Search';
@@ -30,9 +32,11 @@ import SaveIcon from '@mui/icons-material/Save';
 import EditIcon from '@mui/icons-material/Edit';
 import CloseIcon from '@mui/icons-material/Close';
 import VisibilityIcon from '@mui/icons-material/Visibility';
+import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFile';
+import ImageIcon from '@mui/icons-material/Image';
+import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import '../../Styles/Administrator_Css/FranchiseeList.css';
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+import { API_BASE_URL } from '../Services/api';
 
 // Styled components for table
 const StyledTableCell = styled(TableCell)(({ theme }) => ({
@@ -79,7 +83,7 @@ const modalStyle = {
 };
 
 // FranchiseeDetailsModal Component
-const FranchiseeDetailsModal = ({ open, onClose, franchisee, isEditing, onEdit, onSave }) => {
+const FranchiseeDetailsModal = ({ open, onClose, franchisee, isEditing, onEdit, onSave, onFilePreview, getFileIcon }) => {
   const [editedData, setEditedData] = useState(franchisee || {});
 
   // Update editedData when franchisee changes
@@ -287,7 +291,7 @@ const FranchiseeDetailsModal = ({ open, onClose, franchisee, isEditing, onEdit, 
           </Card>
 
           {/* Motorcycle Information Card */}
-          <Card elevation={2}>
+          <Card elevation={2} sx={{ mb: 3 }}>
             <CardHeader
               title="MOTORCYCLE INFORMATION"
               sx={{
@@ -363,6 +367,172 @@ const FranchiseeDetailsModal = ({ open, onClose, franchisee, isEditing, onEdit, 
               </Grid>
             </CardContent>
           </Card>
+
+          {/* Documents Card */}
+          <Card elevation={2}>
+            <CardHeader
+              title="DOCUMENTARY REQUIREMENTS"
+              sx={{
+                bgcolor: '#0a3161',
+                color: 'white',
+                '& .MuiCardHeader-title': { fontWeight: 'bold', fontSize: '1rem' },
+              }}
+            />
+            <CardContent>
+              <Grid container spacing={3}>
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="subtitle2" fontWeight="bold" color="text.secondary" gutterBottom>
+                    Registration
+                  </Typography>
+                  {franchisee.documentRegistration ? (
+                    <Link
+                      component="button"
+                      variant="body2"
+                      onClick={() => onFilePreview(franchisee.documentRegistration)}
+                      sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 1,
+                        textDecoration: 'none',
+                        color: '#0a3161',
+                        '&:hover': { textDecoration: 'underline' }
+                      }}
+                    >
+                      {getFileIcon(franchisee.documentRegistration?.type)}
+                      <span>{franchisee.documentRegistration?.name || 'View Document'}</span>
+                    </Link>
+                  ) : (
+                    <Typography variant="body2" color="text.secondary">No file</Typography>
+                  )}
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="subtitle2" fontWeight="bold" color="text.secondary" gutterBottom>
+                    Barangay Clearance
+                  </Typography>
+                  {franchisee.documentBarangayClearance ? (
+                    <Link
+                      component="button"
+                      variant="body2"
+                      onClick={() => onFilePreview(franchisee.documentBarangayClearance)}
+                      sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 1,
+                        textDecoration: 'none',
+                        color: '#0a3161',
+                        '&:hover': { textDecoration: 'underline' }
+                      }}
+                    >
+                      {getFileIcon(franchisee.documentBarangayClearance?.type)}
+                      <span>{franchisee.documentBarangayClearance?.name || 'View Document'}</span>
+                    </Link>
+                  ) : (
+                    <Typography variant="body2" color="text.secondary">No file</Typography>
+                  )}
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="subtitle2" fontWeight="bold" color="text.secondary" gutterBottom>
+                    Cedula
+                  </Typography>
+                  {franchisee.documentCedula ? (
+                    <Link
+                      component="button"
+                      variant="body2"
+                      onClick={() => onFilePreview(franchisee.documentCedula)}
+                      sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 1,
+                        textDecoration: 'none',
+                        color: '#0a3161',
+                        '&:hover': { textDecoration: 'underline' }
+                      }}
+                    >
+                      {getFileIcon(franchisee.documentCedula?.type)}
+                      <span>{franchisee.documentCedula?.name || 'View Document'}</span>
+                    </Link>
+                  ) : (
+                    <Typography variant="body2" color="text.secondary">No file</Typography>
+                  )}
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="subtitle2" fontWeight="bold" color="text.secondary" gutterBottom>
+                    Driver's License
+                  </Typography>
+                  {franchisee.documentDriversLicense ? (
+                    <Link
+                      component="button"
+                      variant="body2"
+                      onClick={() => onFilePreview(franchisee.documentDriversLicense)}
+                      sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 1,
+                        textDecoration: 'none',
+                        color: '#0a3161',
+                        '&:hover': { textDecoration: 'underline' }
+                      }}
+                    >
+                      {getFileIcon(franchisee.documentDriversLicense?.type)}
+                      <span>{franchisee.documentDriversLicense?.name || 'View Document'}</span>
+                    </Link>
+                  ) : (
+                    <Typography variant="body2" color="text.secondary">No file</Typography>
+                  )}
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="subtitle2" fontWeight="bold" color="text.secondary" gutterBottom>
+                    Voter's Affidavit
+                  </Typography>
+                  {franchisee.documentVotersAffidavit ? (
+                    <Link
+                      component="button"
+                      variant="body2"
+                      onClick={() => onFilePreview(franchisee.documentVotersAffidavit)}
+                      sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 1,
+                        textDecoration: 'none',
+                        color: '#0a3161',
+                        '&:hover': { textDecoration: 'underline' }
+                      }}
+                    >
+                      {getFileIcon(franchisee.documentVotersAffidavit?.type)}
+                      <span>{franchisee.documentVotersAffidavit?.name || 'View Document'}</span>
+                    </Link>
+                  ) : (
+                    <Typography variant="body2" color="text.secondary">No file</Typography>
+                  )}
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="subtitle2" fontWeight="bold" color="text.secondary" gutterBottom>
+                    Picture
+                  </Typography>
+                  {franchisee.documentPicture ? (
+                    <Link
+                      component="button"
+                      variant="body2"
+                      onClick={() => onFilePreview(franchisee.documentPicture)}
+                      sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 1,
+                        textDecoration: 'none',
+                        color: '#0a3161',
+                        '&:hover': { textDecoration: 'underline' }
+                      }}
+                    >
+                      {getFileIcon(franchisee.documentPicture?.type)}
+                      <span>{franchisee.documentPicture?.name || 'View Document'}</span>
+                    </Link>
+                  ) : (
+                    <Typography variant="body2" color="text.secondary">No file</Typography>
+                  )}
+                </Grid>
+              </Grid>
+            </CardContent>
+          </Card>
         </Box>
       </Box>
     </Modal>
@@ -379,13 +549,17 @@ function FranchiseeList() {
   const [franchisees, setFranchisees] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [notification, setNotification] = useState({ open: false, message: '', type: 'info' });
+  const [openFilePreview, setOpenFilePreview] = useState(false);
+  const [previewFile, setPreviewFile] = useState({ name: '', type: '', path: '' });
+  const currentBlobUrlRef = useRef(null);
 
   // Get auth token
   const getAuthToken = () => {
     return sessionStorage.getItem('accessToken') || localStorage.getItem('accessToken');
   };
 
-  // Fetch franchisees from API (approved applications only)
+  // Fetch franchisees from API (from franchise information, not applications)
   const fetchFranchisees = useCallback(async () => {
     setLoading(true);
     setError('');
@@ -393,8 +567,8 @@ function FranchiseeList() {
     try {
       const apiBase = API_BASE_URL || 'http://localhost:5170';
       
-      // Fetch approved franchise applications
-      const response = await fetch(`${apiBase}/api/franchise-applications?status=approved`);
+      // Fetch from franchise-information endpoint (approved franchises with correct file paths)
+      const response = await fetch(`${apiBase}/api/franchise-information`);
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -403,32 +577,45 @@ function FranchiseeList() {
       const data = await response.json();
       
       // Transform the data to match the expected format
+      // Data comes from FranchiseInformation model (approved franchises)
       const serverApps = Array.isArray(data) ? data : [];
-      const transformedData = serverApps.map((app, index) => ({
-        id: app._id || app.id,
-        recordNumber: String(index + 1).padStart(3, '0'),
-        franchiseeName: app.operatorName || app.name || app.driverName || '',
-        franchiseNumber: app.franchiseNumber || app.franchise_number || '',
-        make: app.unitModel || app.make || app.vehicleMake || '',
-        plateNumber: app.mvPlateNo || app.mvPlate || app.plateNumber || app.plate_number || '',
-        applicationType: app.actionType || app.applicationType || app.type || 'New',
-        address: app.operatorAddress || app.address || app.driverAddress || app.address_of_driver || '',
-        // Additional fields for details modal
-        civilStatus: app.civilStatus || '',
-        birthPlace: app.birthPlace || app.placeOfBirth || '',
-        birthDate: app.birthDate || app.dateOfBirth || '',
-        citizenship: app.citizenship || '',
-        todaMembership: app.todaMembership || '',
-        colorMotor: app.colorMotor || app.color || '',
-        colorSidecar: app.sideCar || app.colorSidecar || app.sidecarColor || app.sidecar_color || '',
-        motorEngineNumber: app.motorEngineNo || app.motorEngineNumber || app.engineNumber || '',
-        chassisNumber: app.chasisNo || app.chassisNumber || app.chassis || app.chassis_number || '',
-        driversID: app.driversID || app.driversId || app.driverId || '',
-        driversAddress: app.driversAddress || app.driverAddress || app.address_of_driver || '',
-        contactNumber: app.operatorContact || app.contactNumber || app.phone || app.contact || '',
-        qrCode: app.qrCode || null,
-        profilePhoto: app.profilePhoto || app.documentPicture || null
-      }));
+      const transformedData = serverApps.map((app, index) => {
+        // Get documents from subdocument
+        const docs = app.documents || {};
+        
+        return {
+          id: app._id || app.id,
+          recordNumber: String(index + 1).padStart(3, '0'),
+          franchiseeName: app.operatorName || '',
+          franchiseNumber: app.mtopNumber || app.operatorId || '',
+          make: 'N/A', // Not stored in FranchiseInformation model
+          plateNumber: 'N/A', // Not stored in FranchiseInformation model
+          applicationType: 'Approved', // All are approved franchises
+          address: app.address || '',
+          // Additional fields for details modal
+          civilStatus: app.civilStatus || '',
+          birthPlace: '',
+          birthDate: '',
+          citizenship: '',
+          todaMembership: '',
+          colorMotor: '',
+          colorSidecar: '',
+          motorEngineNumber: '',
+          chassisNumber: '',
+          driversID: app.driversID || '',
+          driversAddress: app.address || '',
+          contactNumber: app.contactNumber || '',
+          qrCode: app.qrCode || null,
+          profilePhoto: app.profilePhoto || null,
+          // Document files from documents subdocument
+          documentRegistration: docs.motorRegistration || null,
+          documentBarangayClearance: docs.barangayClearance || null,
+          documentCedula: docs.cedula || null,
+          documentDriversLicense: docs.driversLicense || null,
+          documentVotersAffidavit: docs.votersAffidavit || null,
+          documentPicture: docs.picture || app.profilePhoto || null
+        };
+      });
 
       setFranchisees(transformedData);
     } catch (err) {
@@ -499,29 +686,18 @@ function FranchiseeList() {
     try {
       const apiBase = API_BASE_URL || 'http://localhost:5170';
 
-      const response = await fetch(`${apiBase}/api/franchise-applications/${editedData.id}`, {
+      const response = await fetch(`${apiBase}/api/franchise-information/${editedData.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           operatorName: editedData.franchiseeName,
-          operatorAddress: editedData.address,
-          franchiseNumber: editedData.franchiseNumber,
-          unitModel: editedData.make,
-          mvPlateNo: editedData.plateNumber,
+          address: editedData.address,
+          mtopNumber: editedData.franchiseNumber,
           civilStatus: editedData.civilStatus,
-          birthPlace: editedData.birthPlace,
-          birthDate: editedData.birthDate,
-          citizenship: editedData.citizenship,
-          todaMembership: editedData.todaMembership,
-          colorMotor: editedData.colorMotor,
-          sideCar: editedData.colorSidecar,
-          motorEngineNo: editedData.motorEngineNumber,
-          chasisNo: editedData.chassisNumber,
           driversID: editedData.driversID,
-          driversAddress: editedData.driversAddress,
-          operatorContact: editedData.contactNumber
+          contactNumber: editedData.contactNumber
         })
       });
 
@@ -548,6 +724,123 @@ function FranchiseeList() {
 
   const handleSearch = useCallback(() => {
     setPage(0); // Reset to first page when searching
+  }, []);
+
+  /**
+   * File preview handlers (similar to FranchiseMgmt)
+   */
+  const handleOpenFilePreview = useCallback((file) => {
+    if (!file) {
+      setNotification({ open: true, message: 'File not available for preview', type: 'info' });
+      return;
+    }
+
+    console.log('[FranchiseeList] Opening file preview for:', file);
+
+    // Normalize file object
+    let normalized = { name: '', type: '', path: '' };
+
+    if (typeof file === 'object' && (file.path || file.name)) {
+      normalized = {
+        name: file.name || file.originalname || '',
+        type: file.type || file.mimetype || '',
+        path: file.path || file.pathname || ''
+      };
+    } else if (typeof file === 'string') {
+      normalized = {
+        name: file.split('/').pop() || file,
+        type: '',
+        path: file
+      };
+    }
+
+    console.log('[FranchiseeList] Normalized file:', normalized);
+
+    // Handle different URL formats
+    try {
+      // R2 format: r2://path/to/file -> route through backend proxy
+      if (normalized.path && normalized.path.startsWith('r2://')) {
+        const r2Key = normalized.path.substring(5); // Remove 'r2://' prefix
+        normalized.path = `${API_BASE_URL.replace(/\/$/, '')}/api/franchise-information/proxy-file?url=${encodeURIComponent(normalized.path)}`;
+        console.log('[FranchiseeList] R2 format detected, routing through proxy:', r2Key);
+      }
+      // Old Cloudflare public URL format -> route through backend proxy
+      else if (normalized.path && /^https?:\/\/pub-[a-f0-9]+\.r2\.dev/i.test(normalized.path)) {
+        normalized.path = `${API_BASE_URL.replace(/\/$/, '')}/api/franchise-information/proxy-file?url=${encodeURIComponent(normalized.path)}`;
+        console.log('[FranchiseeList] Cloudflare R2 public URL detected, routing through proxy');
+      }
+      // Relative path -> prefix with API_BASE_URL
+      else if (normalized.path && !/^https?:\/\//i.test(normalized.path)) {
+        const pathPart = normalized.path.startsWith('/') ? normalized.path : '/' + normalized.path;
+        normalized.path = API_BASE_URL.replace(/\/$/, '') + pathPart;
+      }
+    } catch (err) {
+      console.warn('[Preview] Error processing file path:', err);
+    }
+
+    // If it's an image or PDF, try fetching it and creating an object URL so
+    // the browser does not need to embed the backend URL in an iframe (which
+    // can be blocked by X-Frame-Options: SAMEORIGIN). This also avoids CORS
+    // framing issues by loading the bytes via fetch and serving them from a
+    // same-origin blob URL.
+    const tryFetchAndPreview = async () => {
+      const path = normalized.path;
+      const isImage = (normalized.type || '').includes('image') || /\.(png|jpe?g|webp|gif)$/i.test(path);
+      const isPdf = (normalized.type || '').includes('pdf') || /\.pdf$/i.test(path);
+
+      if (isImage || isPdf) {
+        try {
+          const resp = await fetch(path, { mode: 'cors' });
+          if (!resp.ok) throw new Error(`Failed to fetch file: ${resp.status}`);
+          const blob = await resp.blob();
+          const objectUrl = URL.createObjectURL(blob);
+          // Revoke previous if any
+          if (currentBlobUrlRef.current) URL.revokeObjectURL(currentBlobUrlRef.current);
+          currentBlobUrlRef.current = objectUrl;
+          setPreviewFile({ ...normalized, path: objectUrl });
+          setOpenFilePreview(true);
+          return;
+        } catch (err) {
+          console.warn('[FilePreview] fetch failed, falling back to direct URL', err);
+          setNotification({ open: true, message: 'Preview unavailable, file will open/download instead', type: 'info' });
+          // fallthrough to open direct link in iframe/fallback
+        }
+      }
+
+      // Not an image/pdf or fetch failed — use the path as-is (download link will still work)
+      setPreviewFile(normalized);
+      setOpenFilePreview(true);
+    };
+
+    tryFetchAndPreview();
+  }, []);
+
+  const handleCloseFilePreview = useCallback(() => {
+    if (currentBlobUrlRef.current) {
+      try {
+        URL.revokeObjectURL(currentBlobUrlRef.current);
+        currentBlobUrlRef.current = null;
+      } catch (err) {
+        console.warn('Failed to revoke blob URL:', err);
+      }
+    }
+    setOpenFilePreview(false);
+  }, []);
+
+  const getFileIcon = useCallback((fileType) => {
+    if (!fileType) return <InsertDriveFileIcon />;
+    
+    if (fileType.includes('image')) {
+      return <ImageIcon />;
+    } else if (fileType.includes('pdf')) {
+      return <PictureAsPdfIcon />;
+    } else {
+      return <InsertDriveFileIcon />;
+    }
+  }, []);
+
+  const handleNotificationClose = useCallback(() => {
+    setNotification({ open: false, message: '', type: 'info' });
   }, []);
 
   const getApplicationTypeColor = (type) => {
@@ -611,14 +904,15 @@ function FranchiseeList() {
         )}
 
         {/* Franchisee Records Table */}
-        <TableContainer component={Paper} className="table-container" elevation={2}>
+        <Paper className="table-container" elevation={2}>
           {loading && (
             <Box display="flex" justifyContent="center" p={4}>
               <CircularProgress />
             </Box>
           )}
           
-          <Table stickyHeader aria-label="franchisee table">
+          <TableContainer sx={{ maxHeight: 500 }}>
+            <Table stickyHeader aria-label="franchisee table">
             <TableHead>
               <TableRow>
                 <StyledTableCell>Record Number</StyledTableCell>
@@ -677,7 +971,9 @@ function FranchiseeList() {
                 </StyledTableRow>
               )}
             </TableBody>
-          </Table>
+            </Table>
+          </TableContainer>
+          
           <TablePagination
             rowsPerPageOptions={[5, 10, 25]}
             component="div"
@@ -687,7 +983,7 @@ function FranchiseeList() {
             onPageChange={handleChangePage}
             onRowsPerPageChange={handleChangeRowsPerPage}
           />
-        </TableContainer>
+        </Paper>
 
         {/* Franchisee Details Modal */}
         <FranchiseeDetailsModal
@@ -697,7 +993,76 @@ function FranchiseeList() {
           isEditing={isEditing}
           onEdit={handleEdit}
           onSave={handleSave}
+          onFilePreview={handleOpenFilePreview}
+          getFileIcon={getFileIcon}
         />
+
+        {/* File Preview Modal */}
+        <Modal
+          open={openFilePreview}
+          onClose={handleCloseFilePreview}
+          aria-labelledby="file-preview-modal"
+        >
+          <Box className="file-preview-modal">
+            <div className="modal-header">
+              <Typography variant="h6">
+                {previewFile.name}
+              </Typography>
+              <IconButton onClick={handleCloseFilePreview}>
+                <CloseIcon />
+              </IconButton>
+            </div>
+            
+            <div className="file-preview-content">
+              {previewFile.type?.includes('image') || /\.(jpg|jpeg|png|gif|webp)$/i.test(previewFile.name) ? (
+                <img 
+                  src={previewFile.path} 
+                  alt={previewFile.name}
+                  className="preview-image"
+                  onError={(e) => {
+                    console.error('Image preview failed:', e);
+                    e.target.style.display = 'none';
+                  }}
+                />
+              ) : previewFile.type?.includes('pdf') || previewFile.name?.toLowerCase().endsWith('.pdf') ? (
+                <iframe
+                  src={previewFile.path}
+                  title={previewFile.name}
+                  className="preview-iframe"
+                  onError={(e) => {
+                    console.error('PDF preview failed:', e);
+                  }}
+                />
+              ) : (
+                <div className="file-preview-fallback">
+                  <InsertDriveFileIcon className="file-icon-large" />
+                  <Typography variant="body1" className="mt-2">
+                    This file type cannot be previewed. Download to view.
+                  </Typography>
+                  <Button
+                    className="mt-2 button-primary"
+                    href={previewFile.path}
+                    download={previewFile.name}
+                  >
+                    Download File
+                  </Button>
+                </div>
+              )}
+            </div>
+          </Box>
+        </Modal>
+
+        {/* Notification Snackbar */}
+        <Snackbar 
+          open={notification.open} 
+          autoHideDuration={6000} 
+          onClose={handleNotificationClose}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        >
+          <Alert onClose={handleNotificationClose} severity={notification.type} sx={{ width: '100%' }}>
+            {notification.message}
+          </Alert>
+        </Snackbar>
       </div>
     </div>
   );

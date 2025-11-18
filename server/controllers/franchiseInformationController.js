@@ -1,5 +1,6 @@
 const franchiseInformationRepository = require('../repositories/franchiseInformationRepository');
 const { generateOperatorQRCode, deleteQRCode } = require('../services/qrCodeService');
+const { getFileFromR2 } = require('../services/cloudflareService');
 
 exports.createFranchiseInformation = async (req, res, next) => {
   try {
@@ -62,6 +63,15 @@ exports.createFranchiseInformation = async (req, res, next) => {
     if (error?.name === 'SequelizeUniqueConstraintError' || error?.code === 11000) {
       return res.status(409).json({ error: 'Duplicate franchise information' });
     }
+    return next(error);
+  }
+};
+
+exports.getAllFranchiseInformation = async (req, res, next) => {
+  try {
+    const franchises = await franchiseInformationRepository.getAllFranchiseInformation();
+    return res.status(200).json(franchises || []);
+  } catch (error) {
     return next(error);
   }
 };
@@ -241,4 +251,80 @@ exports.regenerateQRCode = async (req, res, next) => {
     console.error('QR code regeneration error:', error);
     return next(error);
   }
+};
+
+/**
+ * Proxy endpoint to fetch files from Cloudflare R2 and serve them through backend
+ * This bypasses CORS restrictions and allows frontend to preview/download files
+ * Uses presigned URLs for secure access without enabling public bucket access
+ */
+exports.proxyCloudflareFile = async (req, res, next) => {
+    try {
+        const { url } = req.query;
+
+        console.log('[PROXY-FI] Received request for URL:', url);
+
+        if (!url) {
+            console.error('[PROXY-FI] No URL parameter provided');
+            return res.status(400).json({ error: 'URL parameter is required' });
+        }
+
+        let key;
+        
+        // Handle new format: r2://path/to/file
+        if (url.startsWith('r2://')) {
+            key = url.substring(5); // Remove 'r2://' prefix
+            console.log('[PROXY-FI] New R2 format detected, key:', key);
+        }
+        // Handle old format: https://pub-xxx.r2.dev/path/to/file (for backward compatibility)
+        else if (url.includes('.r2.dev')) {
+            const r2Domain = process.env.CLOUDFLARE_R2_PUBLIC_URL;
+            console.log('[PROXY-FI] Old R2 public URL format detected');
+            
+            if (!url.startsWith(r2Domain)) {
+                console.error('[PROXY-FI] Invalid file URL - does not match R2 domain');
+                return res.status(403).json({ error: 'Invalid file URL' });
+            }
+            
+            const urlObj = new URL(url);
+            key = urlObj.pathname.substring(1); // Remove leading slash
+        }
+        // Handle direct key path
+        else {
+            key = url;
+            console.log('[PROXY-FI] Direct key path provided:', key);
+        }
+
+        console.log('[PROXY-FI] Extracted key:', key);
+        console.log('[PROXY-FI] Fetching file directly from R2 using API credentials...');
+
+        // Fetch the file directly from R2 using API credentials
+        const { buffer, contentType } = await getFileFromR2(key);
+
+        console.log('[PROXY-FI] File retrieved successfully:', contentType, buffer.length, 'bytes');
+        
+        // Set appropriate headers for CORS and caching
+        res.setHeader('Content-Type', contentType);
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+        res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+        res.setHeader('Cache-Control', 'public, max-age=3600');
+        res.setHeader('X-Content-Type-Options', 'nosniff');
+
+        // Extract filename from URL
+        const filename = key.split('/').pop();
+        res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
+
+        // Send the file buffer
+        res.send(buffer);
+
+        console.log('[PROXY-FI] ✅ File served successfully:', filename, contentType, buffer.length, 'bytes');
+    } catch (error) {
+        console.error('[PROXY-FI] ❌ Error proxying file:', error.message);
+        console.error('[PROXY-FI] Error stack:', error.stack);
+        res.status(500).json({ 
+            error: 'Failed to proxy file',
+            message: error.message
+        });
+    }
 };

@@ -7,6 +7,10 @@ exports.createFranchiseInformation = async (data) => {
   return await franchiseInformation.save();
 }
 
+exports.getAllFranchiseInformation = async () => {
+  return await FranchiseInformation.find();
+}
+
 exports.getFranchiseInformationById = async (id) => {
   return await FranchiseInformation.findById(id);        
 }

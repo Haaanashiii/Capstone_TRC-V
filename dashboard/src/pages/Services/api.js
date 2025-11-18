@@ -577,5 +577,31 @@ export const adminAPI = {
   removePermission: (id, permission) => api.delete(`/admins/${id}/permissions`, { data: { permission } })
 };
 
+// ====================================================================
+// DASHBOARD API METHODS
+// ====================================================================
+
+export const dashboardAPI = {
+  /**
+   * Get comprehensive dashboard statistics (KPIs + monthly trends)
+   * Optimized single endpoint to reduce API calls
+   * @returns {Promise} Response with dashboard statistics
+   */
+  getStatistics: () => api.get('/api/dashboard/statistics'),
+
+  /**
+   * Get recent franchise applications for activity feed
+   * @param {number} limit - Number of recent applications to fetch (default: 5)
+   * @returns {Promise} Response with recent applications
+   */
+  getRecentApplications: (limit = 5) => api.get('/api/dashboard/recent-applications', { params: { limit } }),
+
+  /**
+   * Get lightweight quick stats for frequent polling
+   * @returns {Promise} Response with basic KPI numbers
+   */
+  getQuickStats: () => api.get('/api/dashboard/quick-stats')
+};
+
 // Export default api instance for custom requests
 export default api;
