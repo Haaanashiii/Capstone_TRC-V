@@ -4,8 +4,8 @@
   gap: 16px;
 }
 .franchise-logo-large {
-  width: 60px;
-  height: 60px;
+  width: 48px;
+  height: 48px;
   object-fit: contain;
 }
 .franchise-header-title-group {
@@ -294,11 +294,12 @@
 }
 
 .franchise-header-bar {
-  background: #174D7A;
+  background: #083d77;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 12px 24px 0 24px; /* reduced vertical and horizontal padding */
+  /* move header content slightly lower for visual balance */
+  padding: 18px 24px 8px 24px;
 }
 .franchise-header-left {
   display: flex;
@@ -306,8 +307,8 @@
   gap: 16px;
 }
 .franchise-logo {
-  width: 56px;
-  height: 56px;
+  width: 48px;
+  height: 48px;
   object-fit: contain;
 }
 .franchise-header-title {

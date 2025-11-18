@@ -600,6 +600,9 @@ exports.approveFranchiseApplication = async (req, res, next) => {
         
         // STEP 4: Generate QR code with hashed MTOP URL and upload to R2
         let qrCodeFilePath = null;
+
+        // Prepare updateData early so we can assign qrCode immediately after generation
+        let updateData = {};
         try {
             const { uploadQRToR2 } = require('../services/cloudflareService');
             const qrCodeData = await generateFranchiseQRCode(hashedMTOP, { uploadToR2: true });
@@ -607,6 +610,8 @@ exports.approveFranchiseApplication = async (req, res, next) => {
             // Upload QR code buffer to R2
             qrCodeFilePath = await uploadQRToR2(qrCodeData.buffer, hashedMTOP);
             console.log(`[APPROVAL] Generated and uploaded QR code to R2: ${qrCodeFilePath}`);
+            // Save QR path to updateData so it will be written to the application record
+            updateData.qrCode = qrCodeFilePath;
         } catch (qrError) {
             console.error('[APPROVAL] QR Code generation/upload failed:', qrError);
             // Continue with approval even if QR generation fails
@@ -804,13 +809,15 @@ exports.approveFranchiseApplication = async (req, res, next) => {
             console.error('[APPROVAL] Stack:', error.stack);
         }
         
-        // STEP 7: Mark application as approved (don't store MTOP/QR here)
-        const updateData = {
-            actionTaken: actionTaken || 'APPROVED',
-            remarks: remarks || `Application approved. MTOP Number: ${mtopNumber}`,
-        };
-        
+        // STEP 7: Mark application as approved and ensure generated QR code is stored on application
+        // Reuse the earlier updateData (may already contain qrCode)
+        updateData.actionTaken = actionTaken || 'APPROVED';
+        updateData.remarks = remarks || `Application approved. MTOP Number: ${mtopNumber}`;
+        // Ensure property exists (set to null if not generated)
+        if (typeof updateData.qrCode === 'undefined') updateData.qrCode = qrCodeFilePath || null;
+
         const updatedApplication = await franchiseApplicationRepository.updateFranchiseApplication(id, updateData);
+        console.log(`[APPROVAL] Updated franchise application ${id} - saved qrCode: ${updatedApplication && updatedApplication.qrCode}`);
         console.log(`[APPROVAL] Marked application ${id} as APPROVED`);
 
         console.log(`========================================`);

@@ -23,7 +23,7 @@ import { useAuth } from "../contexts/AuthContext";
 // Styled components for horizontal navbar
 const StyledAppBar = styled(AppBar)(() => ({
 
-  backgroundColor: '#0a3970',
+  backgroundColor: '#083d77',
   position: 'sticky',
   top: 0,
   zIndex: 1000,
@@ -34,18 +34,26 @@ const StyledAppBar = styled(AppBar)(() => ({
 const LogoSection = styled(Box)({
   display: 'flex',
   alignItems: 'center',
-  gap: '15px',
+  gap: '12px',
+  '@media (max-width: 600px)': {
+    gap: '8px',
+    '& img': {
+      height: '44px'
+    }
+  }
 });
 
 const TitleSection = styled(Box)({
   display: 'flex',
   flexDirection: 'column',
   alignItems: 'flex-start',
+  marginTop: '6px',
 });
 
+// Increased TRC title size as requested (only for UnifiedSidebar)
 const TrcTitle = styled(Typography)({
-  fontSize: '32px',
-  fontWeight: 900,
+  fontSize: '2.2rem',
+  fontWeight: 700,
   letterSpacing: '2px',
   lineHeight: 1,
   marginBottom: '4px',
@@ -55,82 +63,134 @@ const TrcTitle = styled(Typography)({
   '& .white': {
     color: 'white',
   },
+  '@media (max-width: 900px)': {
+    fontSize: '1.4rem',
+    letterSpacing: '1px'
+  }
 });
 
 const TrcSubtitle = styled(Typography)({
-  fontSize: '13px',
-  color: 'rgba(255,255,255,0.8)',
+  fontSize: '12px',
+  color: 'rgba(255,255,255,0.85)',
   letterSpacing: '1px',
   fontWeight: 500,
+  '@media (max-width: 600px)': {
+    fontSize: '10px'
+  }
 });
 
 const NavigationSection = styled(Box)(() => ({
   backgroundColor: 'white',
-  borderRadius: '25px',
+  borderRadius: '40px',
   display: 'flex',
   alignItems: 'center',
-  padding: '6px 14px',
-  minWidth: '200px',
-  // allow a sensible max so it won't cause horizontal scroll
-  maxWidth: '720px',
-  marginLeft: '12px',
-  marginRight: '12px',
-  gap: '12px',
+  /* larger white holder to match reference */
+  padding: '10px 28px',
+  minWidth: '240px',
+  maxWidth: '900px',
+  marginLeft: '10px',
+  marginRight: 0,
+  gap: '22px',
   overflow: 'hidden',
-  boxShadow: 'none'
+  boxShadow: '0 6px 18px rgba(20,60,110,0.12)'
+  ,
+  '@media (max-width: 900px)': {
+    padding: '8px 12px',
+    gap: '10px',
+    minWidth: 'auto',
+    maxWidth: '100%',
+    flexWrap: 'wrap',
+    overflowX: 'auto'
+  }
+  ,
+  '@media (max-width: 600px)': {
+    padding: '6px 8px',
+    gap: '8px',
+    borderRadius: '20px',
+    paddingLeft: '10px',
+    paddingRight: '10px',
+    minWidth: 'auto',
+    maxWidth: '100%',
+    flexWrap: 'nowrap',
+    overflowX: 'auto',
+    '-webkit-overflow-scrolling': 'touch'
+  }
 }));
 
 const NavButton = styled(Button)(({ isActive, disabled }) => ({
   color: disabled ? '#999' : (isActive ? 'white' : '#111'),
-  backgroundColor: isActive ? '#143c6e' : 'transparent', // active uses the requested blue
+  backgroundColor: isActive ? '#083d77' : 'transparent',
   fontWeight: 600,
-  padding: '8px 12px',
-  borderRadius: '18px',
-  fontSize: '14px',
+  padding: '4px 8px',
+  borderRadius: '14px',
+  fontSize: '0.95rem',
   textTransform: 'none',
   minWidth: 'auto',
   whiteSpace: 'nowrap',
   cursor: disabled ? 'not-allowed' : 'pointer',
   opacity: disabled ? 0.5 : 1,
   '&:hover': {
-    backgroundColor: disabled ? 'transparent' : (isActive ? '#143c6e' : '#f0f0f0'),
-    transform: disabled ? 'none' : 'translateY(-2px)',
+    backgroundColor: disabled ? 'transparent' : (isActive ? '#083d77' : '#ffe066'),
+    color: disabled ? '#999' : (isActive ? 'white' : '#083d77'),
+    transform: 'none'
   },
   flexShrink: 0,
   pointerEvents: disabled ? 'none' : 'auto',
+  '@media (max-width: 900px)': {
+    fontSize: '0.9rem',
+    padding: '6px 10px',
+    borderRadius: '12px'
+  }
+  ,
+  '@media (max-width: 600px)': {
+    fontSize: '0.85rem',
+    padding: '4px 8px',
+    borderRadius: '10px'
+  }
 }));
 
 const UserSection = styled(Box)(() => ({
   backgroundColor: 'transparent',
   color: 'white',
-  borderRadius: '24px',
-  padding: '6px 10px',
+  borderRadius: '18px',
+  padding: '2px 4px',
   display: 'flex',
   alignItems: 'center',
   fontWeight: 600,
   minWidth: 'fit-content',
   flexShrink: 0,
-  marginLeft: '12px',
+  marginLeft: '6px',
   boxShadow: 'none'
+  ,
+  '@media (max-width: 900px)': {
+    padding: '2px',
+    marginLeft: '4px'
+  }
 }));
 
 const UserInnerPill = styled(Box)(() => ({
-  backgroundColor: '#143c6e',
+  backgroundColor: '#083d77',
   color: '#fff',
-  padding: '6px 18px',
-  borderRadius: '18px',
+  padding: '4px 10px',
+  borderRadius: '14px',
   fontWeight: 700,
-  fontSize: '14px',
+  fontSize: '12px',
   cursor: 'pointer',
-  boxShadow: '0 6px 18px rgba(0,0,0,0.12)',
+  boxShadow: '0 2px 6px rgba(20,60,110,0.10)',
   display: 'inline-flex',
   alignItems: 'center',
   justifyContent: 'center',
-  minHeight: 40,
-  minWidth: 140,
+  minHeight: 28,
+  minWidth: 80,
   userSelect: 'none',
   '&:focus': { outline: 'none' },
   '&:active': { transform: 'none' }
+  ,
+  '@media (max-width: 600px)': {
+    minWidth: 56,
+    padding: '4px 8px',
+    fontSize: '11px'
+  }
 }));
 
 // Small language buttons (EN / TAG)
@@ -144,7 +204,7 @@ const LangButton = styled(Button)(({ active }) => ({
   boxShadow: 'none',
   border: active ? 'none' : '1px solid rgba(255,255,255,0.12)',
   background: active ? '#ffe066' : 'transparent',
-  color: active ? '#143c6e' : '#fff',
+  color: active ? '#083d77' : '#fff',
   marginLeft: 8,
   '&:hover': {
     background: active ? '#ffe066' : 'rgba(255,255,255,0.06)'
@@ -299,14 +359,14 @@ const UnifiedSidebar = ({ userType = "operator", language, onLanguageToggle, tra
 
   return (
     <StyledAppBar position="sticky">
-      <Toolbar sx={{ paddingTop: '12px', paddingBottom: '12px', paddingLeft: '32px', paddingRight: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', position: 'relative', overflowX: 'hidden' }}>
+      <Toolbar sx={{ paddingTop: '12px', paddingBottom: '10px', paddingLeft: '28px', paddingRight: '18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', position: 'relative', overflowX: 'hidden' }}>
         
     
         <LogoSection>
           <img 
             src="/Logos/TRC-vLogo.png" 
             alt="TRC-V Logo" 
-            style={{ height: '58px', width: 'auto' }}
+            style={{ height: '60px', width: 'auto' }}
           />
           <TitleSection>
             <TrcTitle>
@@ -320,9 +380,9 @@ const UnifiedSidebar = ({ userType = "operator", language, onLanguageToggle, tra
   {/* Navigation Section */}
 
   <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flex: 1 }}>
-    <NavigationSection sx={{ marginLeft: 0 }}>
-      {/* Navigation Items */}
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: '20px', whiteSpace: 'nowrap', justifyContent: 'center' }}>
+    <NavigationSection sx={{ marginLeft: 0, mt: '12px' }}>
+    {/* Navigation Items */}
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: '28px', whiteSpace: 'nowrap', justifyContent: 'center' }}>
         {navigationItems.map((item, index) => (
           <NavButton
             key={index}
@@ -408,7 +468,7 @@ const UnifiedSidebar = ({ userType = "operator", language, onLanguageToggle, tra
                     onClick={handleGoToFranchise}
                     variant="contained"
                     sx={{ 
-                      bgcolor: '#143c6e',
+                      bgcolor: '#083d77',
                       '&:hover': { bgcolor: '#0a3970' }
                     }}
                   >

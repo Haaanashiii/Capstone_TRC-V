@@ -196,7 +196,6 @@ export default function FranchiseApplication() {
     driverName: "",
     driverAddress: "",
     barangay: "",
-    email: "",
   });
 
   const [addressError, setAddressError] = useState("");
@@ -505,17 +504,7 @@ export default function FranchiseApplication() {
             </FormControl>
             <TextField label={t.citizenship} size="small" className="franchise-app-input" value={fields.citizenship} onChange={handleChange('citizenship')} />
           </div>
-          <div className="franchise-app-grid">
-            <TextField
-              label="EMAIL"
-              size="small"
-              className="franchise-app-input"
-              value={fields.email}
-              onChange={handleChange('email')}
-              helperText={'(Use account email)'}
-              inputProps={{ autoComplete: 'off' }}
-            />
-          </div>
+          {/* Email field removed - not required anymore */}
           
           
           <div className="franchise-app-grid-2">
@@ -674,10 +663,7 @@ export default function FranchiseApplication() {
                       // Personal Information - Backend expects these exact field names
                       formDataToSend.append('operatorName', fields.operatorName || '');
                       formDataToSend.append('operatorContact', fields.contact || '');
-                      // Only include operatorEmail if user provided one (prevents server from falling back to authenticated account email)
-                      if (fields.email && String(fields.email).trim()) {
-                        formDataToSend.append('operatorEmail', String(fields.email).trim());
-                      }
+                      // operatorEmail is no longer collected from the form
                       formDataToSend.append('operatorAddress', fields.driverAddress || '');
                       formDataToSend.append('actionType', 'NEW'); // Backend expects uppercase
                       
@@ -764,7 +750,6 @@ export default function FranchiseApplication() {
                         driverName: "",
                         driverAddress: "",
                         barangay: "",
-                        email: "",
                       })
                       setAddressError('');
                       setBarangayError('');
@@ -800,7 +785,7 @@ export default function FranchiseApplication() {
                       const status = err.response?.status;
                       const serverMessage = err.response?.data?.error || err.response?.data?.message || err.message;
                       if (status === 409) {
-                        setToast({ open: true, message: serverMessage || 'An application with this email already exists.', severity: 'error' });
+                        setToast({ open: true, message: serverMessage || 'An application already exists.', severity: 'error' });
                       } else if (status === 400) {
                         setToast({ open: true, message: serverMessage || 'Bad request. Please check your input.', severity: 'error' });
                       } else {

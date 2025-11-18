@@ -1,10 +1,11 @@
 .franchise-app-bg {
   min-height: 100vh;
-  background: #0a3576;
+  background: #083d77;
   display: flex;
   justify-content: center;
-  align-items: center;
-  padding: 0;
+  /* push content lower so the white application card doesn't hug the top */
+  align-items: flex-start;
+  padding: 80px 0 40px 0; /* top, right, bottom, left */
 }
 
 .franchise-app-paper {
@@ -92,4 +93,103 @@
 
 .franchise-app-input {
   width: 100%;
+}
+
+/* Responsive adjustments */
+@media (max-width: 1279px) {
+  .franchise-app-paper {
+    width: 92%;
+    padding: 32px 28px;
+  }
+  .franchise-app-title {
+    font-size: 2.1rem;
+  }
+  .franchise-app-logo {
+    top: 20px;
+    right: 20px;
+  }
+  .franchise-app-logo img {
+    height: 56px;
+  }
+}
+
+@media (max-width: 1024px) {
+  .franchise-app-paper {
+    width: 96%;
+    padding: 28px 20px;
+    margin: 40px auto 10px auto;
+  }
+  .franchise-app-date-row {
+    flex-direction: column;
+    gap: 12px;
+    align-items: stretch;
+  }
+  .franchise-app-grid,
+  .franchise-app-grid-2,
+  .franchise-app-grid-4 {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .franchise-app-section {
+    font-size: 1.05rem;
+  }
+  .franchise-app-logo img {
+    height: 48px;
+  }
+}
+
+/* Mobile: make everything stack and avoid horizontal overflow */
+@media (max-width: 767px) {
+  .franchise-app-bg {
+    padding: 24px 8px 40px 8px;
+    align-items: flex-start;
+  }
+  .franchise-app-paper {
+    width: 100%;
+    padding: 20px 16px;
+    border-radius: 12px;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.08);
+    margin: 20px auto;
+  }
+  .franchise-app-title {
+    font-size: 1.6rem;
+    margin-bottom: 18px;
+  }
+  .franchise-app-date-row {
+    flex-direction: column;
+    gap: 10px;
+  }
+  .franchise-app-logo {
+    position: relative;
+    top: 0;
+    right: 0;
+    justify-content: flex-start;
+    margin-bottom: 8px;
+  }
+  .franchise-app-logo img {
+    height: 40px;
+  }
+  .franchise-app-section {
+    font-size: 1rem;
+    gap: 8px;
+    align-items: flex-start;
+  }
+  .franchise-app-section-line {
+    display: none;
+  }
+  .franchise-app-upload-filename,
+  .franchise-app-input,
+  .franchise-app-field {
+    width: 100%;
+  }
+  .franchise-app-input .MuiInputBase-root,
+  .franchise-app-input .MuiOutlinedInput-root {
+    width: 100%;
+  }
+  /* Ensure no horizontal scrolling from oversized elements */
+  .franchise-app-paper, .franchise-app-bg, .franchise-app-logo img {
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow: visible;
+  }
 }

@@ -528,7 +528,18 @@ exports.getCurrentUser = async (req, res, next) => {
     
     // Fetch full user details from database and populate operator info
     const User = require('../models/userAccountModel');
-    const user = await User.findById(req.user.id).populate('franchiseInfo');
+    // Token payload may include either `id` (UUID) or `_id` (Mongo ObjectId string).
+    // Be flexible: prefer `_id` when present; if `id` is not a valid ObjectId try lookup by `userId`.
+    const mongoose = require('mongoose');
+    let user = null;
+    const tryId = (val) => (val && mongoose.Types.ObjectId.isValid(String(val))) ? String(val) : null;
+    const useId = tryId(req.user._id) || tryId(req.user.id);
+    if (useId) {
+      user = await User.findById(useId).populate('franchiseInfo');
+    } else if (req.user.id) {
+      // Fallback: token `id` might be a UUID stored in `userId` field
+      user = await User.findOne({ userId: String(req.user.id) }).populate('franchiseInfo');
+    }
     
     if (!user) return res.status(404).json({ error: 'User not found' });
     
