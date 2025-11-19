@@ -67,11 +67,22 @@ const qrVerificationLimiter = createRateLimiter({
   max: 30, // 30 verifications per minute
 });
 
+// Public report submission limiter - Strict to prevent spam/DDoS
+const publicReportLimiter = createRateLimiter({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 5, // Only 5 reports per hour per IP
+  message: {
+    error: 'Too many reports submitted. Please try again after 1 hour.',
+    code: 'REPORT_RATE_LIMIT_EXCEEDED'
+  }
+});
+
 module.exports = {
   authLimiter,
   accountLimiter,
   apiLimiter,
   qrVerificationLimiter,
   otpLimiter,
+  publicReportLimiter,
   createRateLimiter
 };
