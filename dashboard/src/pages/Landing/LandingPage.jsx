@@ -202,7 +202,7 @@ const LandingPage = () => {
           {displayName ? (
             <button 
               className="nav-link" 
-              onClick={() => userHasFranchise ? navigate('/request-amendment') : navigate('/operator/franchise')}
+              onClick={() => userHasFranchise ? navigate('/operator/request-amendment') : navigate('/operator/franchise')}
               style={{ 
                 opacity: userHasFranchise ? 1 : 0.5, 
                 cursor: userHasFranchise ? 'pointer' : 'not-allowed',
