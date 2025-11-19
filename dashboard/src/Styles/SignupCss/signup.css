@@ -40,21 +40,28 @@
   height: 100vh;
   width: 100vw;
   background: #fff;
+  overflow: hidden;
 }
 .signup-left {
   flex: 1;
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  justify-content: flex-start;
   align-items: center;
   background: #fff;
-  padding: 0 48px;
+  padding: 40px 48px;
+  width: 100%;
+  box-sizing: border-box;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 .signup-header {
   display: flex;
   align-items: center;
   gap: 16px;
   margin-bottom: 16px;
+  width: 100%;
+  max-width: 400px;
 }
 .signup-logo {
   width: 64px;
@@ -68,29 +75,38 @@
   font-weight: 700;
   margin-bottom: 24px;
   text-align: left;
+  width: 100%;
+  max-width: 400px;
 }
 .signup-input {
   width: 100%;
   max-width: 400px;
-  margin: 0 auto 12px auto;
+  margin: 0 auto 8px auto;
   display: block;
+  box-sizing: border-box;
 }
 .MuiOutlinedInput-root {
   border-radius: 12px !important;
   background: #f6f9fc;
+  width: 100% !important;
+  box-sizing: border-box !important;
 }
 .MuiInputLabel-root {
   font-weight: 500;
   color: #0a3570;
 }
+.MuiFormHelperText-root {
+  font-size: 11px !important;
+  margin-top: 4px !important;
+}
 .signup-create-btn {
   background: #0a3570 !important;
   color: #fff !important;
   font-weight: 600;
-  margin: 16px auto 24px auto;
+  margin: 20px auto 20px auto;
   border-radius: 16px;
   height: 48px;
-  width: 90%;
+  width: 100%;
   max-width: 400px;
   display: block;
   box-shadow: none;
@@ -106,7 +122,9 @@
   align-items: center;
   justify-content: center;
   gap: 12px;
-  margin: 24px 0 16px 0;
+  margin: 16px auto;
+  width: 100%;
+  max-width: 400px;
 }
 .signup-divider-line {
   flex: 1;
@@ -127,9 +145,9 @@
   background: #fff;
   color: #0a3570;
   border: 1.5px solid #e0e0e0;
-  width: 90%;
+  width: 100%;
   max-width: 400px;
-  margin: 0 auto;
+  margin: 0 auto 20px auto;
   display: flex;
   align-items: center;
   justify-content: flex-start;
@@ -143,7 +161,7 @@
 }
 .signup-right {
   flex: 1;
-  background: transparent;
+  background: #0a3570;
   display: flex;
   justify-content: center;
   align-items: center;
@@ -151,12 +169,13 @@
   width: 100%;
   height: 100vh;
   min-height: 100vh;
+  overflow: hidden;
 }
 .signup-right-gif {
   width: 100%;
   height: 100%;
   min-height: 100vh;
-  object-fit: cover;
+  object-fit: contain;
   display: block;
 }
 /* Right panel content styling */
@@ -203,17 +222,168 @@
   line-height: 1.5;
   max-width: 400px;
 }
+
+/* Responsive Design */
+@media (max-width: 1200px) {
+  .signup-left {
+    padding: 40px 32px;
+  }
+}
+
 @media (max-width: 900px) {
   .signup-root {
     flex-direction: column;
+    height: auto;
+    min-height: 100vh;
+    overflow-y: auto;
   }
-  .signup-left, .signup-right {
+  .signup-left {
     flex: none;
-    width: 100vw;
-    height: 50vh;
-  }
-  .signup-right-content {
     width: 100%;
-    max-width: none;
+    height: auto;
+    min-height: auto;
+    padding: 40px 24px;
+    order: 1;
+    box-sizing: border-box;
+    justify-content: flex-start;
+  }
+  .signup-right {
+    flex: none;
+    width: 100%;
+    height: 400px;
+    min-height: 400px;
+    order: 2;
+    background: #0a3570;
+  }
+  .signup-right-gif {
+    width: 100%;
+    height: 100%;
+    min-height: 400px;
+    object-fit: contain;
+  }
+  .signup-input,
+  .signup-create-btn,
+  .signup-google-btn,
+  .signup-header,
+  .signup-title,
+  .signup-divider-box {
+    max-width: 500px;
+    width: 100%;
+  }
+}
+
+@media (max-width: 600px) {
+  .signup-left {
+    padding: 24px 20px;
+  }
+  .signup-right {
+    height: 500px;
+    min-height: 500px;
+  }
+  .signup-right-gif {
+    min-height: 500px;
+    object-fit: contain;
+    max-width: 100%;
+  }
+  .signup-header {
+    gap: 12px;
+    margin-bottom: 10px;
+  }
+  .signup-logo {
+    width: 52px;
+    height: 52px;
+  }
+  .signup-qr {
+    width: 40px;
+    height: 40px;
+  }
+  .signup-title {
+    font-size: 1.75rem;
+    margin-bottom: 12px;
+  }
+  .signup-input {
+    max-width: 100%;
+    margin-bottom: 6px;
+  }
+  .MuiOutlinedInput-root {
+    border-radius: 8px !important;
+  }
+  .MuiFormHelperText-root {
+    font-size: 10px !important;
+    margin-top: 2px !important;
+    margin-bottom: 4px !important;
+  }
+  .signup-create-btn {
+    height: 46px;
+    font-size: 1rem;
+    margin: 12px auto 12px auto;
+    border-radius: 12px;
+    width: 100%;
+    max-width: 100%;
+  }
+  .signup-google-btn {
+    height: 46px;
+    font-size: 1rem;
+    border-radius: 12px;
+    width: 100%;
+    max-width: 100%;
+    margin-bottom: 12px;
+  }
+  .signup-divider-box {
+    margin: 10px auto;
+  }
+  .signup-divider-text {
+    font-size: 0.9rem;
+  }
+}
+
+@media (max-width: 400px) {
+  .signup-left {
+    padding: 20px 16px;
+  }
+  .signup-right {
+    height: 400px;
+    min-height: 400px;
+  }
+  .signup-right-gif {
+    min-height: 400px;
+    object-fit: contain;
+    max-width: 100%;
+  }
+  .signup-title {
+    font-size: 1.5rem;
+    margin-bottom: 10px;
+  }
+  .signup-header {
+    gap: 10px;
+    margin-bottom: 8px;
+  }
+  .signup-logo {
+    width: 48px;
+    height: 48px;
+  }
+  .signup-qr {
+    width: 36px;
+    height: 36px;
+  }
+  .signup-input {
+    margin-bottom: 4px;
+  }
+  .signup-create-btn,
+  .signup-google-btn {
+    height: 44px;
+    font-size: 0.95rem;
+  }
+  .signup-create-btn {
+    margin: 10px auto 10px auto;
+  }
+  .signup-divider-box {
+    margin: 8px auto;
+  }
+  .MuiInputLabel-root {
+    font-size: 0.9rem;
+  }
+  .MuiFormHelperText-root {
+    font-size: 9px !important;
   }
 }
