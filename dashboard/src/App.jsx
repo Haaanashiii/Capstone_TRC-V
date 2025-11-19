@@ -71,13 +71,20 @@ function App() {
           } 
         />
         <Route 
-          path="/request-amendment"
+          path="/operator/request-amendment"
+          element={<RequestAmendment />}
+        />
+        {/* Temporarily removed ProtectedRoute for UI testing */}
+        {/* 
+        <Route 
+          path="/operator/request-amendment"
           element={
             <ProtectedRoute requiredRole="operator">
               <RequestAmendment />
             </ProtectedRoute>
           }
         />
+        */}
         
         {/* Protected Admin Routes */}
         <Route 

@@ -336,7 +336,7 @@ const LandingPage = () => {
 
             {displayName ? (
               <Button
-                onClick={() => userHasFranchise ? navigate('/request-amendment') : navigate('/operator/franchise')}
+                onClick={() => userHasFranchise ? navigate('/operator/request-amendment') : navigate('/operator/franchise')}
                 disabled={!userHasFranchise}
                 title={!userHasFranchise ? 'Complete your franchise application first' : ''}
                 sx={{

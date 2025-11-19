@@ -336,7 +336,7 @@ const UnifiedSidebar = ({ userType = "operator", language, onLanguageToggle, tra
         // If user has franchise, show full navigation with REQUEST FOR AMENDMENT
         return [
           { label: "HOME", path: "/", isActive: location.pathname === "/", disabled: false },
-          { label: "REQUEST FOR AMENDMENT", path: "/request-amendment", isActive: location.pathname === "/request-amendment", disabled: false },
+          { label: "REQUEST FOR AMENDMENT", path: "/operator/request-amendment", isActive: location.pathname === "/operator/request-amendment", disabled: false },
           { label: "OPERATOR ID", path: "/operator/id", isActive: location.pathname === "/operator/id", disabled: false },
         ];
       }
