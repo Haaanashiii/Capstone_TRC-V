@@ -14,6 +14,25 @@
   padding: 58px 0 50px 0;
   margin-top: 0;
 }
+
+/* --- Added for mobile responsiveness */
+@media (max-width: 960px) {
+  .announcements-section {
+    padding: 40px 0;
+  }
+  
+  .announcements-title {
+    font-size: 1.5rem;
+    padding: 10px 32px;
+    margin-bottom: 24px;
+  }
+  
+  .announcement-card {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-height: auto !important;
+  }
+}
 .announcements-title {
   background: #ffe066;
   color: #143c6e;
@@ -34,7 +53,7 @@
 }
 .announcement-card {
   background: #f7f3e6;
-  border-radius: 0;
+  border-radius: 10px;
   box-shadow: none;
   width: 340px;
   max-width: 100%;
@@ -124,6 +143,28 @@
   /* For landing main content */
   padding: 20px 60px 20px 40px;
 }
+
+/* --- Added for mobile responsiveness */
+@media (max-width: 960px) {
+  .landing-header {
+    flex-direction: column;
+    padding: 16px 20px;
+    gap: 16px;
+    align-items: flex-start;
+  }
+  
+  .landing-nav {
+    width: 100%;
+    flex-wrap: wrap;
+    margin-left: 0 !important;
+    justify-content: center;
+  }
+  
+  .nav-link, .nav-login {
+    font-size: 0.9rem;
+    padding: 6px 12px;
+  }
+}
 .logo-title {
   display: flex;
   align-items: center;
@@ -208,6 +249,57 @@
   box-sizing: border-box;
   gap: 40px;
 }
+
+/* --- Added for tablet/mobile responsiveness */
+@media (max-width: 960px) {
+  .landing-main {
+    flex-direction: column;
+    padding: 20px 30px;
+    align-items: center;
+    text-align: center;
+  }
+  
+  .main-content {
+    max-width: 100%;
+  }
+  
+  .main-content h1 {
+    font-size: 2.5rem;
+    margin-left: 0 !important;
+  }
+  
+  .main-buttons {
+    margin-left: 0 !important;
+    justify-content: center;
+    width: 100%;
+  }
+  
+  .main-image {
+    margin-top: 20px;
+    justify-content: center;
+  }
+  
+  .main-image img {
+    margin-right: 0 !important;
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 600px) {
+  .landing-main {
+    padding: 20px 15px;
+  }
+  
+  .main-content h1 {
+    font-size: 1.8rem;
+    margin-bottom: 24px;
+  }
+  
+  .main-btn {
+    font-size: 0.95rem;
+    padding: 12px 20px;
+  }
+}
 .main-content {
   max-width: 520px;
 }
@@ -276,19 +368,23 @@
   background: #F4D35E;
   border-color: #F4D35E;
 }
-/* Responsive adjustments */
+/* --- Enhanced responsive adjustments */
 @media (max-width: 1100px) {
   .landing-main {
     flex-direction: column;
-    align-items: flex-start;
+    align-items: center;
     justify-content: flex-start;
     padding: 40px 20px 0 20px;
   }
   .main-image {
     margin-top: 32px;
-    justify-content: flex-start;
+    justify-content: center;
+  }
+  .main-content {
+    text-align: center;
   }
 }
+
 @media (max-width: 700px) {
   .landing-header {
     flex-direction: column;
@@ -305,8 +401,21 @@
   .main-btn {
     padding: 10px 16px;
     font-size: 1rem;
+    width: auto;
+    margin: 0 4px;
   }
   .tricycle-img {
     width: 220px;
   }
+  .logo-img {
+    width: 50px;
+  }
+  .trc-title {
+    font-size: 1.8rem;
+  }
+  .trc-subtitle {
+    font-size: 0.75rem;
+  }
 }
+
+/* Footer is now fully handled by MUI Box components with responsive sx props */
