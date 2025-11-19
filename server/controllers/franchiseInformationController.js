@@ -303,11 +303,11 @@ exports.proxyCloudflareFile = async (req, res, next) => {
 
         console.log('[PROXY-FI] File retrieved successfully:', contentType, buffer.length, 'bytes');
         
-        // Set appropriate headers for CORS and caching
-        res.setHeader('Content-Type', contentType);
+        // Set permissive CORS headers for public access
         res.setHeader('Access-Control-Allow-Origin', '*');
         res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-        res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+        res.setHeader('Access-Control-Allow-Headers', 'Origin, Content-Type, Accept');
+        res.setHeader('Content-Type', contentType);
         res.setHeader('Cache-Control', 'public, max-age=3600');
         res.setHeader('X-Content-Type-Options', 'nosniff');
 
@@ -327,4 +327,102 @@ exports.proxyCloudflareFile = async (req, res, next) => {
             message: error.message
         });
     }
+};
+
+/**
+ * GET /franchise-information/mtop/:mtopNumber
+ * Returns franchise info by unhashed MTOP number
+ * Includes: name, address, 1x1 R2 picture, unhashed mtopNumber, franchise status
+ * If not linked to operator, returns Franchise not linked
+ */
+exports.getFranchiseByMtopNumber = async (req, res, next) => {
+  try {
+    const { mtopNumber } = req.params;
+    if (!mtopNumber) {
+      return res.status(400).json({ error: 'MTOP number is required' });
+    }
+    const FranchiseInformation = require('../models/franchiseInformationModel');
+    const franchise = await FranchiseInformation.findOne({ mtopNumber });
+    if (!franchise) {
+      return res.status(404).json({ error: 'Franchise not found', status: 'Franchise not linked', linked: false, message: 'Franchise not linked' });
+    }
+    // Compose name
+    const name = franchise.operatorName || '';
+    // Compose 1x1 R2 picture URL
+    let pictureUrl = franchise.profilePhoto || null;
+    if (pictureUrl && pictureUrl.startsWith('r2://')) {
+      const API_BASE_URL = process.env.VITE_API_BASE_URL || process.env.API_BASE_URL || '';
+      pictureUrl = API_BASE_URL.replace(/\/$/, '') + '/api/franchise-applications/proxy-file?url=' + encodeURIComponent(pictureUrl);
+    }
+    // Franchise status color
+    let statusColor = 'blue';
+    if (franchise.franchiseStatus === 'active') statusColor = 'blue';
+    if (franchise.franchiseStatus === 'expired') statusColor = 'red';
+    // Determine linked status
+    const isLinked = franchise.linkedUser !== null && typeof franchise.linkedUser !== 'undefined';
+    // Compose response
+    return res.status(200).json({
+      name,
+      address: franchise.address,
+      mtopNumber: franchise.mtopNumber,
+      profilePhoto: pictureUrl,
+      franchiseStatus: franchise.franchiseStatus,
+      statusColor,
+      linked: isLinked,
+      message: isLinked ? undefined : 'Franchise not linked'
+    });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+/**
+ * GET /franchise-information/mtop-hash/:hashedMTOP
+ * Returns franchise info by hashed MTOP (operatorId)
+ * Same response as unhashed endpoint, but uses operatorId for lookup
+ */
+exports.getFranchiseByHashedMtop = async (req, res, next) => {
+  try {
+    const { hashedMTOP } = req.params;
+    if (!hashedMTOP) {
+      return res.status(400).json({ error: 'Hashed MTOP is required' });
+    }
+    const FranchiseInformation = require('../models/franchiseInformationModel');
+    const franchise = await FranchiseInformation.findOne({ operatorId: hashedMTOP });
+    if (!franchise) {
+      return res.status(404).json({ error: 'Franchise not found', status: 'Franchise not linked', linked: false, message: 'Franchise not linked' });
+    }
+    // Compose name
+    const name = franchise.operatorName || '';
+    // Compose 1x1 R2 picture URL (prefer documents.picture if available)
+    let pictureUrl = null;
+    if (franchise.documents && franchise.documents.picture) {
+      pictureUrl = franchise.documents.picture;
+    } else if (franchise.profilePhoto) {
+      pictureUrl = franchise.profilePhoto;
+    }
+    if (pictureUrl && pictureUrl.startsWith('r2://')) {
+      const API_BASE_URL = process.env.VITE_API_BASE_URL || process.env.API_BASE_URL || '';
+      pictureUrl = API_BASE_URL.replace(/\/$/, '') + '/api/franchise-applications/proxy-file?url=' + encodeURIComponent(pictureUrl);
+    }
+    // Franchise status color
+    let statusColor = 'blue';
+    if (franchise.franchiseStatus === 'active') statusColor = 'blue';
+    if (franchise.franchiseStatus === 'expired') statusColor = 'red';
+    // Determine linked status
+    const isLinked = franchise.linkedUser !== null && typeof franchise.linkedUser !== 'undefined';
+    // Compose response
+    return res.status(200).json({
+      name,
+      address: franchise.address,
+      mtopNumber: franchise.mtopNumber,
+      profilePhoto: pictureUrl,
+      franchiseStatus: franchise.franchiseStatus,
+      statusColor,
+      linked: isLinked,
+      message: isLinked ? undefined : 'Franchise not linked'
+    });
+  } catch (error) {
+    return next(error);
+  }
 };

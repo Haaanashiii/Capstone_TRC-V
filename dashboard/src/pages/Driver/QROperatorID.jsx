@@ -29,26 +29,66 @@ function QROperatorID() {
     description: ''
   });
 
-  // TODO: Replace with backend QR endpoint once ready
-  // Expected endpoint: GET /operators/qr/:operatorId
-  // This will fetch operator data from the franchise application record, NOT from auth/me
+  // Fetch franchise info by hashed MTOP (operatorId)
   useEffect(() => {
-    // Mock data for UI testing - will be replaced with actual QR data fetch
-    setUser({
-      firstName: 'MARLA RIHANA',
-      middleName: 'V',
-      lastName: 'JOSE',
-      operatorId: '02612',
-      address: '#72 Baccara St. Brgy. Quezon, Solano Nueva Vizcaya',
-      profilePhoto: null // Will come from franchise application record
-    });
-    setMatchedFranchise({
-      address: '#72 Baccara St. Brgy. Quezon, Solano Nueva Vizcaya',
-      expiryDate: '2026-12-31', // Active franchise for testing
-      status: 'ACTIVE'
-    });
-    setLoading(false);
-  }, [operatorId]); // operatorId from URL params will be used in future API call
+    if (!operatorId) return;
+    setLoading(true);
+    const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170';
+    fetch(`${API_BASE_URL}/api/franchise-information/mtop-hash/${operatorId}`)
+      .then(res => res.json())
+      .then(data => {
+        console.log('[QROperatorID] API response:', data);
+        if (data.error) {
+          setUser(null);
+          setMatchedFranchise({
+            address: '',
+            expiryDate: '',
+            status: '',
+            notLinked: true,
+            message: data.message || 'Franchise not linked'
+          });
+        } else {
+          // Parse name into first/middle/last if possible
+          let firstName = '', middleName = '', lastName = '';
+          if (data.name) {
+            const parts = data.name.split(' ');
+            firstName = parts.shift() || '';
+            lastName = parts.pop() || '';
+            middleName = parts.join(' ');
+          }
+          setUser({
+            firstName,
+            middleName,
+            lastName,
+            operatorId: data.mtopNumber,
+            address: data.address,
+            profilePhoto: data.profilePhoto
+          });
+          setMatchedFranchise({
+            address: data.address,
+            expiryDate: '', // Not provided in API, can be added if needed
+            status: data.franchiseStatus,
+            statusColor: data.statusColor,
+            notLinked: !data.linked,
+            message: data.message,
+            profilePhoto: data.profilePhoto
+          });
+          console.log('[QROperatorID] Profile photo URL:', data.profilePhoto);
+        }
+        setLoading(false);
+      })
+      .catch((err) => {
+        setUser(null);
+        setMatchedFranchise({
+          address: '',
+          expiryDate: '',
+          status: '',
+          notLinked: true,
+          message: 'Franchise not linked'
+        });
+        setLoading(false);
+      });
+  }, [operatorId]);
 
   // Check if franchise is expired
   const isFranchiseExpired = () => {
@@ -56,15 +96,131 @@ function QROperatorID() {
     return dayjs(matchedFranchise.expiryDate).isBefore(dayjs());
   };
 
-  // Get profile photo URL
-  // TODO: Will be constructed from franchise application data once backend is ready
-  const getProfilePhotoUrl = () => {
-    if (user?.profilePhoto) {
-      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170';
-      return `${API_BASE_URL}${user.profilePhoto}`;
+
+  // Profile photo blob state and PDF detection
+  const [profilePhotoBlobUrl, setProfilePhotoBlobUrl] = useState(null);
+  const profilePhotoBlobRef = React.useRef(null);
+  const [profilePhotoIsPdf, setProfilePhotoIsPdf] = useState(false);
+
+  // Candidate list for possible photo fields (like DriverID.jsx)
+  const pickProfilePhotoCandidate = () => {
+    const mf = matchedFranchise || {};
+    const u = user || {};
+    const candidates = [
+      mf?.profilePhoto,
+      mf?.profile_photo,
+      mf?.picture,
+      mf?.photoUrl,
+      mf?.photo_url,
+      mf?.image,
+      mf?.avatar,
+      mf?.documents?.picture,
+      mf?.documents?.picture?.path,
+      mf?.documents?.picture?.url,
+      mf?.documents?.photo,
+      mf?.documents?.photo?.path,
+      mf?.documentPicture,
+      mf?.documentPicture?.path,
+      u?.profilePicture,
+      u?.profile_picture,
+      u?.photoUrl,
+      u?.photo_url,
+      u?.avatar,
+      u?.image,
+      u?.picture,
+    ];
+    for (const c of candidates) {
+      if (!c) continue;
+      if (typeof c === 'string') {
+        return c;
+      }
+      if (typeof c === 'object') {
+        const path = c.path || c.url;
+        if (path) {
+          return path;
+        }
+      }
     }
     return null;
   };
+
+  // Normalize and resolve the photo URL
+  const resolveProfilePhotoUrl = (raw) => {
+    if (!raw) return null;
+    try {
+      if (/^https?:\/\//i.test(raw)) return raw;
+      if (raw.startsWith('/public/')) return raw;
+      const base = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170').replace(/\/$/, '');
+      if (raw.startsWith('/')) return base + raw;
+      return base + '/' + raw;
+    } catch {
+      return raw;
+    }
+  };
+
+  // Get profile photo URL (prefer blob if available)
+  const getProfilePhotoUrl = () => {
+    if (profilePhotoBlobUrl) return profilePhotoBlobUrl;
+    const raw = pickProfilePhotoCandidate();
+    return resolveProfilePhotoUrl(raw);
+  };
+
+  // Fetch profile photo as blob and create object URL
+  useEffect(() => {
+    // Clean up previous blob
+    if (profilePhotoBlobRef.current) {
+      URL.revokeObjectURL(profilePhotoBlobRef.current);
+      profilePhotoBlobRef.current = null;
+    }
+    setProfilePhotoBlobUrl(null);
+    setProfilePhotoIsPdf(false);
+
+    const rawPath = pickProfilePhotoCandidate();
+    if (!rawPath) return;
+    const path = resolveProfilePhotoUrl(rawPath);
+    if (!path) return;
+
+    const isImage = /\.(png|jpe?g|webp|gif|bmp|svg)$/i.test(path) || String(matchedFranchise?.type || user?.type || '').includes('image');
+    const isPdf = /\.pdf$/i.test(path) || String(matchedFranchise?.type || user?.type || '').includes('pdf');
+
+    if (!isImage && !isPdf) {
+      setProfilePhotoBlobUrl(null);
+      setProfilePhotoIsPdf(false);
+      return;
+    }
+
+    (async () => {
+      try {
+        const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170');
+        let fetchUrl = path;
+        // Route R2 or Cloudflare public URLs through the backend proxy
+        if (rawPath && (rawPath.startsWith('r2://') || /^https?:\/\/pub-[a-f0-9]+\.r2\.dev/i.test(rawPath))) {
+          fetchUrl = API_BASE_URL.replace(/\/$/, '') + '/api/franchise-applications/proxy-file?url=' + encodeURIComponent(rawPath);
+        }
+        const resp = await fetch(fetchUrl, { mode: 'cors' });
+        if (!resp.ok) throw new Error('Failed fetching profile photo: ' + resp.status);
+        const blob = await resp.blob();
+        const obj = URL.createObjectURL(blob);
+        profilePhotoBlobRef.current = obj;
+        setProfilePhotoBlobUrl(obj);
+        // detect if PDF
+        const mime = blob.type || '';
+        setProfilePhotoIsPdf(mime.includes('pdf') || /\.pdf$/i.test(rawPath || ''));
+      } catch (err) {
+        setProfilePhotoBlobUrl(null);
+        setProfilePhotoIsPdf(false);
+      }
+    })();
+
+    return () => {
+      if (profilePhotoBlobRef.current) {
+        URL.revokeObjectURL(profilePhotoBlobRef.current);
+        profilePhotoBlobRef.current = null;
+      }
+      setProfilePhotoBlobUrl(null);
+      setProfilePhotoIsPdf(false);
+    };
+  }, [user, matchedFranchise]);
 
   if (loading) {
     return (
@@ -160,38 +316,59 @@ function QROperatorID() {
 
         {/* Card Content */}
         <Box sx={{ p: 3, textAlign: 'center', bgcolor: '#f5f5f5' }}>
-          {/* Profile Photo */}
-          <Avatar
-            src={getProfilePhotoUrl()}
-            sx={{ 
-              width: { xs: 140, sm: 160 },
-              height: { xs: 140, sm: 160 },
-              margin: '0 auto 16px',
-              border: '5px solid #d0d0d0',
-              bgcolor: '#d0d0d0'
-            }}
-          >
-            {!getProfilePhotoUrl() && (
-              <Typography variant="h2" sx={{ color: '#999' }}>
-                {user?.firstName?.charAt(0) || 'M'}
-              </Typography>
-            )}
-          </Avatar>
+          {/* Profile Photo (image or PDF) */}
+          {profilePhotoBlobUrl && profilePhotoIsPdf ? (
+            <Avatar
+              onClick={() => window.open(profilePhotoBlobUrl, '_blank')}
+              sx={{ width: { xs: 140, sm: 160 }, height: { xs: 140, sm: 160 }, margin: '0 auto 16px', border: '5px solid #d0d0d0', bgcolor: '#fff', color: '#d32f2f', cursor: 'pointer' }}
+            >
+              PDF
+            </Avatar>
+          ) : (
+            <Avatar
+              src={getProfilePhotoUrl()}
+              sx={{ 
+                width: { xs: 140, sm: 160 },
+                height: { xs: 140, sm: 160 },
+                margin: '0 auto 16px',
+                border: '5px solid #d0d0d0',
+                bgcolor: '#d0d0d0'
+              }}
+              imgProps={{
+                onError: (e) => {
+                  console.error('[QROperatorID] Avatar image failed to load:', getProfilePhotoUrl());
+                  // Do not set display:none; just log the error
+                },
+                onLoad: () => {
+                }
+              }}
+            >
+              {!getProfilePhotoUrl() && (
+                <Typography variant="h2" sx={{ color: '#999' }}>
+                  {user?.firstName?.charAt(0) || 'M'}
+                </Typography>
+              )}
+            </Avatar>
+          )}
 
-          {/* ID Badge */}
-          <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2, px: 2 }}>
+          {/* ID Badge - Centered and visually improved */}
+          <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2, px: 2 }}>
             <Box
               sx={{ 
                 bgcolor: '#003d77',
                 color: 'white',
                 fontWeight: 'bold',
-                fontSize: { xs: '0.9rem', sm: '1rem' },
-                px: 3,
-                py: 1,
-                borderRadius: '6px'
+                fontSize: { xs: '1rem', sm: '1.1rem' },
+                px: 4,
+                py: 1.5,
+                borderRadius: '8px',
+                boxShadow: 1,
+                letterSpacing: '1px',
+                textAlign: 'center',
+                minWidth: '220px'
               }}
             >
-              ID NO: {user?.operatorId || '02612'}
+              ID NO: {user?.operatorId || operatorId}
             </Box>
           </Box>
 
@@ -205,7 +382,7 @@ function QROperatorID() {
               color: '#000'
             }}
           >
-            {user?.firstName || 'MARLA RIHANA'} {user?.middleName?.charAt(0) || 'V'}. {user?.lastName || 'JOSE'}
+            {user?.firstName} {user?.middleName ? user.middleName.charAt(0) + '.' : ''} {user?.lastName}
           </Typography>
 
           {/* Address */}
@@ -217,40 +394,63 @@ function QROperatorID() {
               px: 2
             }}
           >
-            {matchedFranchise?.address || user?.address || '#72 Baccara St. Brgy. Quezon, Solano Nueva Vizcaya'}
+            {matchedFranchise?.address || user?.address || ''}
           </Typography>
 
-          {/* Franchise Status Badge */}
+          {/* Franchise Status Badge - Green for active, blue for inactive, red for not linked */}
           <Box sx={{ display: 'flex', justifyContent: 'center', mb: 3 }}>
-            {isFranchiseExpired() ? (
+            {matchedFranchise?.notLinked ? (
               <Box
                 sx={{ 
-                  bgcolor: '#ffcdd2',
-                  color: '#c62828',
-                  fontWeight: 'bold',
-                  fontSize: { xs: '0.75rem', sm: '0.85rem' },
-                  px: 3,
-                  py: 1,
-                  borderRadius: '4px',
-                  border: '2px solid #c62828'
-                }}
-              >
-                EXPIRED FRANCHISE
-              </Box>
-            ) : (
-              <Box
-                sx={{ 
-                  bgcolor: '#4caf50',
+                  bgcolor: '#e74c3c',
                   color: 'white',
                   fontWeight: 'bold',
                   fontSize: { xs: '0.75rem', sm: '0.85rem' },
                   px: 3,
                   py: 1,
                   borderRadius: '4px',
-                  border: '2px solid #2e7d32'
+                  border: '2px solid #c0392b'
+                }}
+              >
+                {matchedFranchise.message || 'Franchise not linked'}
+              </Box>
+            ) : matchedFranchise?.status === 'active' ? (
+              <Box
+                sx={{ 
+                  bgcolor: '#43a047', // Green
+                  color: 'white',
+                  fontWeight: 'bold',
+                  fontSize: { xs: '0.85rem', sm: '0.95rem' },
+                  px: 4,
+                  py: 1.5,
+                  borderRadius: '6px',
+                  border: '2px solid #388e3c',
+                  boxShadow: 1,
+                  letterSpacing: '1px',
+                  textAlign: 'center',
+                  minWidth: '180px'
                 }}
               >
                 ACTIVE FRANCHISE
+              </Box>
+            ) : (
+              <Box
+                sx={{ 
+                  bgcolor: '#083d77', // Blue for inactive
+                  color: 'white',
+                  fontWeight: 'bold',
+                  fontSize: { xs: '0.85rem', sm: '0.95rem' },
+                  px: 4,
+                  py: 1.5,
+                  borderRadius: '6px',
+                  border: '2px solid #083d77',
+                  boxShadow: 1,
+                  letterSpacing: '1px',
+                  textAlign: 'center',
+                  minWidth: '180px'
+                }}
+              >
+                INACTIVE FRANCHISE
               </Box>
             )}
           </Box>

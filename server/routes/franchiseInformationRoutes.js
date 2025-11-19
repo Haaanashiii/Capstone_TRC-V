@@ -112,5 +112,23 @@ router.get(
   sanitizeRequest,
   franchiseInformationController.franchiseQRIDLookup
 );
+/**
+ * GET /franchise-information/mtop/:mtopNumber
+ * Get franchise info by unhashed MTOP number
+ */
+router.get(
+  '/mtop/:mtopNumber',
+  franchiseInformationController.getFranchiseByMtopNumber
+);
+
+/**
+ * GET /franchise-information/mtop-hash/:hashedMTOP
+ * Get franchise info by hashed MTOP (operatorId)
+ */
+router.get(
+  '/mtop-hash/:hashedMTOP',
+  franchiseInformationController.getFranchiseByHashedMtop
+);
+
 
 module.exports = router;
