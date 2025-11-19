@@ -175,9 +175,18 @@ function DriverID() {
                 const matched = await mineRes.json();
                 console.debug('[DriverID] matched application from /mine', matched);
            
-                if (matched) {
+                if (matched && matched.id) {
+                  console.log('[DriverID] Matched franchise data:', {
+                    hasApprovedAt: !!matched.approvedAt,
+                    approvedAt: matched.approvedAt,
+                    hasExpiryDate: !!matched.expiryDate,
+                    expiryDate: matched.expiryDate,
+                    hasProfilePhoto: !!matched.profilePhoto,
+                    profilePhoto: matched.profilePhoto
+                  });
+                  
                   const franchiseInfo = {
-                    orNumber: matched.franchiseNumber,
+                    orNumber: matched.franchiseNumber || matched.orNumber,
                     status: 'ACTIVE',
                     linkedDate: matched.approvedAt || new Date().toLocaleDateString()
                   }
@@ -189,20 +198,32 @@ function DriverID() {
             
                   const approvedRaw = matched.approvedAt || '';
                   const expiryRaw = matched.expiryDate || '';
+                  
+                  console.log('[DriverID] Date parsing:', { approvedRaw, expiryRaw });
+                  
                   const parsedApproved = approvedRaw ? dayjs(approvedRaw) : null;
                   const parsedExpiry = expiryRaw ? dayjs(expiryRaw) : null;
+                  
+                  console.log('[DriverID] Parsed dates:', {
+                    approvedValid: parsedApproved && parsedApproved.isValid(),
+                    expiryValid: parsedExpiry && parsedExpiry.isValid()
+                  });
+                  
+                  // Updated field mapping based on backend normalization
                   setFields(prev => ({
                     ...prev,
                     orNumber: matched.orNumber || matched.franchiseNumber || '',
                     franchiseNumber: matched.franchiseNumber || matched.orNumber || '',
                     dateApproved: parsedApproved,
                     expiryDate: parsedExpiry,
-                    make: matched.make || '',
+                    make: matched.unitModel || matched.make || '',
                     sidecarNumber: matched.sidecarPlateNumber || '',
-                    plateNumber: matched.plateNumber || matched.plateNumber || matched.mvPlate || '',
-                    chassisNumber: matched.chassisNumber || '',
-                    motorNumber: matched.motorEngineNumber || ''
+                    plateNumber: matched.plateNumber || matched.mvPlateNo || '',
+                    chassisNumber: matched.chassisNumber || matched.chasisNo || '',
+                    motorNumber: matched.motorEngineNumber || matched.motorEngineNo || ''
                   }))
+                  
+                  console.log('[DriverID] Successfully linked franchise via /mine endpoint with userId:', userId);
                   return; 
                 }
               }
@@ -464,10 +485,19 @@ function DriverID() {
   const resolveServerUrl = (raw) => {
     if (!raw) return null;
     try {
-      if (/^https?:\/\//i.test(raw)) return raw;
       // Do not route public client assets through API server. Keep them as-is so Vite serves them.
       if (raw.startsWith('/public/')) return raw;
+      
       const base = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170').replace(/\/$/, '');
+      
+      // Route R2 URLs through backend proxy
+      if (raw.startsWith('r2://') || /^https?:\/\/pub-[a-f0-9]+\.r2\.dev/i.test(raw)) {
+        return base + '/api/franchise-applications/proxy-file?url=' + encodeURIComponent(raw);
+      }
+      
+      // Handle full HTTP URLs
+      if (/^https?:\/\//i.test(raw)) return raw;
+      
       // If path already absolute on the backend (starts with '/'), prefix with API base
       if (raw.startsWith('/')) return base + raw;
       return base + '/' + raw;
@@ -502,31 +532,23 @@ function DriverID() {
         console.debug('[DriverID] user sample ->', u);
       }
 
-      // Expanded candidate list: include common shapes returned by backend
+      // PRIORITY 1: Use profilePhoto from FranchiseInformation (via /mine or /auth/me)
+      // PRIORITY 2: Use documents.picture from FranchiseApplication
+      // PRIORITY 3: Fallback to user-level photos
       const candidates = [
-        // direct picture/profile keys on franchise
+        // Highest priority: FranchiseInformation profilePhoto
+        u?.franchise?.profilePhoto,
         mf?.profilePhoto,
-        mf?.profile_photo,
-        mf?.picture,
-        mf?.photoUrl,
-        mf?.photo_url,
-        mf?.image,
-        mf?.avatar,
-        // nested documents object commonly used in server
+        // FranchiseApplication documents.picture
         mf?.documents?.picture,
+        // Other nested document variations
         mf?.documents?.picture?.path,
         mf?.documents?.picture?.url,
         mf?.documents?.photo,
         mf?.documents?.photo?.path,
         mf?.documentPicture,
         mf?.documentPicture?.path,
-        mf?.documentDriversLicense,
-        mf?.documentDriversLicense?.path,
-        mf?.documentCedula,
-        mf?.documentCedula?.path,
-        mf?.documentRegistration,
-        mf?.documentRegistration?.path,
-        // fallback to user-level photos
+        // User-level fallbacks
         u?.profilePicture,
         u?.profile_picture,
         u?.photoUrl,
@@ -534,12 +556,6 @@ function DriverID() {
         u?.avatar,
         u?.image,
         u?.picture,
-        // franchise nested under user (as returned by /auth/me)
-        u?.franchise?.profilePhoto,
-        u?.franchise?.documents?.picture,
-        u?.franchise?.documents?.picture?.path,
-        u?.franchise?.profile_photo,
-        u?.franchise?.profilePhoto?.path,
       ];
 
       for (const c of candidates) {
@@ -661,9 +677,12 @@ function DriverID() {
                 src={
                   idBlobUrl ||
                   resolveServerUrl(
-                    // prefer matchedFranchise picture/document, then user photo
-                    (matchedFranchise && (matchedFranchise.documentPicture?.path || matchedFranchise.documentPicture || matchedFranchise.photoUrl || matchedFranchise.picture || matchedFranchise.avatar)) ||
-                    (user && (user.photoUrl || user.avatar || user.image)) ||
+                    // PRIORITY: FranchiseInformation profilePhoto > FranchiseApplication documents.picture > user photo
+                    (user && user.franchise && user.franchise.profilePhoto) ||
+                    (matchedFranchise && matchedFranchise.profilePhoto) ||
+                    (matchedFranchise && matchedFranchise.documents && matchedFranchise.documents.picture) ||
+                    (matchedFranchise && (matchedFranchise.documentPicture?.path || matchedFranchise.documentPicture)) ||
+                    (user && (user.profilePicture || user.photoUrl || user.avatar || user.image)) ||
                     '/public/Logos/clipboard.gif'
                   )
                 }

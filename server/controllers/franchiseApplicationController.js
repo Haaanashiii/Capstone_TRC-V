@@ -395,9 +395,97 @@ exports.getFranchiseApplication = async (req, res, next) => {
  * This uses the authenticated token (req.user) to find a matching application
  * by email, driversID, or operator id/identifiers.
  */
+// Helper function to normalize franchise application response
+const normalizeApplicationResponse = (it) => {
+    return {
+        id: it._id ? String(it._id) : (it.id || ''),
+        userId: it.userId || '',
+        franchiseNumber: it.franchiseNumber || it.franchise_number || '',
+        orNumber: it.orNumber || it.franchiseNumber || '',
+        operatorName: it.operatorName || it.name || it.driverName || '',
+        operatorEmail: it.operatorEmail || it.email || '',
+        operatorContact: it.operatorContact || it.contactNumber || it.phone || '',
+        operatorAddress: it.operatorAddress || it.driversAddress || it.address || '',
+        operatorBarangay: it.operatorBarangay || it.barangay || '',
+        driversID: it.driversID || it.driverId || '',
+        civilStatus: it.civilStatus || it.civil_status || '',
+        birthDate: it.birthDate ? new Date(it.birthDate).toISOString() : '',
+        birthPlace: it.birthPlace || '',
+        citizenship: it.citizenship || '',
+        todaMembership: it.todaMembership || '',
+        unitModel: it.unitModel || it.make || '',
+        colorMotor: it.colorMotor || it.color || '',
+        sidecarColor: it.sidecarColor || '',
+        sidecarPlateNumber: it.sidecarPlateNumber || it.sideCar || '',
+        mvPlateNo: it.mvPlateNo || it.mvPlate || it.plateNumber || '',
+        plateNumber: it.mvPlateNo || it.mvPlate || it.plateNumber || '',
+        motorEngineNo: it.motorEngineNo || it.motorEngineNumber || it.motor_engine_no || it.engineNumber || '',
+        chasisNo: it.chasisNo || it.chassisNumber || it.chasis || it.chasis_no || '',
+        chassisNumber: it.chasisNo || it.chassisNumber || it.chasis || it.chasis_no || '',
+        motorEngineNumber: it.motorEngineNo || it.motorEngineNumber || it.motor_engine_no || it.engineNumber || '',
+        approvedAt: it.approvedAt ? new Date(it.approvedAt).toISOString() : (it.approved_at ? new Date(it.approved_at).toISOString() : ''),
+        expiryDate: it.expiryDate ? new Date(it.expiryDate).toISOString() : (it.expiry_date ? new Date(it.expiry_date).toISOString() : ''),
+        actionTaken: it.actionTaken || '',
+        actionType: it.actionType || '',
+        qrCode: it.qrCode || null,
+        profilePhoto: it.profilePhoto || (it.documents && it.documents.picture) || null,
+        documents: it.documents ? {
+            motorRegistration: it.documents.motorRegistration || '',
+            barangayClearance: it.documents.barangayClearance || '',
+            cedula: it.documents.cedula || '',
+            driversLicense: it.documents.driversLicense || '',
+            votersAffidavit: it.documents.votersAffidavit || '',
+            motorChassisStencil: it.documents.motorChassisStencil || '',
+            picture: it.documents.picture || ''
+        } : null
+    };
+};
+
 exports.getMyFranchiseApplication = async (req, res, next) => {
     try {
         const user = req.user || {};
+        const User = require('../models/userAccountModel');
+        const FranchiseInformation = require('../models/franchiseInformationModel');
+        
+        // PRIORITY 1: Try to find by userId from JWT token (most reliable)
+        if (user.id) {
+            const appByUserId = await franchiseApplicationRepository.findByUserId(user.id);
+            if (appByUserId && appByUserId.actionTaken) {
+                // Fetch FranchiseInformation to get profilePhoto
+                let franchiseInfo = null;
+                try {
+                    const userDoc = await User.findOne({ userId: user.id }).populate('franchiseInfo');
+                    if (userDoc && userDoc.franchiseInfo) {
+                        franchiseInfo = userDoc.franchiseInfo;
+                    }
+                } catch (err) {
+                    console.warn('[getMyFranchiseApplication] Could not fetch FranchiseInformation:', err.message);
+                }
+                
+                const normalized = normalizeApplicationResponse(appByUserId);
+                // Override with data from FranchiseInformation if available (authoritative source)
+                if (franchiseInfo) {
+                    if (franchiseInfo.profilePhoto) {
+                        normalized.profilePhoto = franchiseInfo.profilePhoto;
+                    }
+                    // Merge dates from FranchiseInformation (more reliable than application data)
+                    if (franchiseInfo.approvedAt) {
+                        normalized.approvedAt = new Date(franchiseInfo.approvedAt).toISOString();
+                    }
+                    if (franchiseInfo.expiryDate) {
+                        normalized.expiryDate = new Date(franchiseInfo.expiryDate).toISOString();
+                    }
+                }
+                console.log('[getMyFranchiseApplication] Returning data:', {
+                    hasProfilePhoto: !!normalized.profilePhoto,
+                    hasApprovedAt: !!normalized.approvedAt,
+                    hasExpiryDate: !!normalized.expiryDate
+                });
+                return res.status(200).json(normalized);
+            }
+        }
+        
+        // PRIORITY 2: Fallback to email/driversID matching for legacy data
         const email = (user.email || user.username || '').toString().toLowerCase();
         const driversId = (user.driversID || user.driverId || user.driversId || '').toString();
 
@@ -416,28 +504,28 @@ exports.getMyFranchiseApplication = async (req, res, next) => {
             return res.status(404).json({ error: 'No approved application found for this user' });
         }
 
-        const it = apps[0];
-        const normalized = {
-            id: it._id ? String(it._id) : (it.id || ''),
-            franchiseNumber: it.franchiseNumber || it.franchise_number || '',
-            operatorEmail: it.operatorEmail || it.email || '',
-            approvedAt: it.approvedAt ? new Date(it.approvedAt).toISOString() : (it.approved_at ? new Date(it.approved_at).toISOString() : ''),
-            expiryDate: it.expiryDate ? new Date(it.expiryDate).toISOString() : (it.expiry_date ? new Date(it.expiry_date).toISOString() : ''),
-            name: it.operatorName || it.name || it.driverName || '',
-            make: it.unitModel || it.make || '',
-            plateNumber: it.mvPlateNo || it.mvPlate || it.plateNumber || '',
-            address: it.driversAddress || it.address || '',
-            contactNumber: it.operatorContact || it.contactNumber || it.phone || '',
-            sidecarPlateNumber: it.sideCar || it.sidecarPlateNumber || '',
-            civilStatus: it.civilStatus || it.civil_status || '',
-            birthDate: it.birthDate ? new Date(it.birthDate).toISOString() : '',
-            // include chassis and motor engine numbers so frontend can populate correctly
-            chassisNumber: it.chasisNo || it.chasisNumber || it.chasis || it.chasis_no || '',
-            motorEngineNumber: it.motorEngineNo || it.motorEngineNumber || it.motor_engine_no || it.engineNumber || ''
-            ,
-            qrCode: it.qrCode || null
-        };
-
+        const normalized = normalizeApplicationResponse(apps[0]);
+        
+        // Try to fetch FranchiseInformation for profilePhoto and dates
+        try {
+            const User = require('../models/userAccountModel');
+            const userDoc = await User.findOne({ userId: user.id }).populate('franchiseInfo');
+            if (userDoc && userDoc.franchiseInfo) {
+                if (userDoc.franchiseInfo.profilePhoto) {
+                    normalized.profilePhoto = userDoc.franchiseInfo.profilePhoto;
+                }
+                // Merge dates from FranchiseInformation
+                if (userDoc.franchiseInfo.approvedAt) {
+                    normalized.approvedAt = new Date(userDoc.franchiseInfo.approvedAt).toISOString();
+                }
+                if (userDoc.franchiseInfo.expiryDate) {
+                    normalized.expiryDate = new Date(userDoc.franchiseInfo.expiryDate).toISOString();
+                }
+            }
+        } catch (err) {
+            console.warn('[getMyFranchiseApplication] Could not fetch FranchiseInformation in fallback:', err.message);
+        }
+        
         res.status(200).json(normalized);
     } catch (error) {
         next(error);

@@ -14,7 +14,8 @@ const documentSchema = new mongoose.Schema({
 const franchiseApplicationSchema = new mongoose.Schema({
   userId: { 
     type: String, 
-    required: false 
+    required: false,
+    index: true  // Add index for faster lookups by userId
   },
   
   operatorName: { type: String, required: true },
@@ -42,6 +43,12 @@ const franchiseApplicationSchema = new mongoose.Schema({
 
   actionTaken: { type: String },
   remarks: { type: String },
+  
+  // Additional fields for franchise management
+  franchiseNumber: { type: String },
+  orNumber: { type: String },
+  expiryDate: { type: Date },
+  qrCode: { type: String },
 
   approvedAt: { type: Date },
   submittedAt: { type: Date, default: Date.now },

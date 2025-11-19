@@ -34,4 +34,9 @@ exports.deleteFranchiseApplication = async (id) => {
     return franchiseApplication.findByIdAndDelete(id);
 };
 
+exports.findByUserId = async (userId) => {
+    if (!userId) return null;
+    return await franchiseApplication.findOne({ userId: userId }).lean();
+};
+
 

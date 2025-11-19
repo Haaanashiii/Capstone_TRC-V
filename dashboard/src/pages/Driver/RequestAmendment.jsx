@@ -1,32 +1,70 @@
-import React, { useState, useEffect } from 'react';
-import { Box, Container, Typography, TextField, Button, Grid, Paper, Select, MenuItem, FormControl, Alert, Snackbar, CircularProgress } from '@mui/material';
+import React, { useState, useEffect, useCallback } from 'react';
+import { 
+  Box, 
+  Container, 
+  Typography, 
+  TextField, 
+  Button, 
+  Grid, 
+  Paper, 
+  Select, 
+  MenuItem, 
+  FormControl, 
+  FormHelperText,
+  Alert, 
+  Snackbar, 
+  CircularProgress,
+  Divider
+} from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import UnifiedSidebar from '../../components/UnifiedSidebar';
 import { franchiseAPI, API_BASE_URL } from '../Services/api';
 
+// Constants
+const CIVIL_STATUS_OPTIONS = ['Single', 'Married', 'Widowed', 'Divorced', 'Separated'];
+
+const INITIAL_FORM_STATE = {
+  fullName: '',
+  address: '',
+  civilStatus: '',
+  coOwner: '',
+  orNumber: '',
+  franchiseNumber: '',
+  dateApproved: '',
+  expiryDate: '',
+  franchiseStatus: '',
+  make: '',
+  sidecarNumber: '',
+  plateNumber: '',
+  chassisNumber: '',
+  motorNumber: ''
+};
+
+const FIELD_LABELS = {
+  fullName: 'Full Name',
+  address: 'Address',
+  civilStatus: 'Civil Status',
+  coOwner: 'Co-owner',
+  orNumber: 'OR Number',
+  franchiseNumber: 'Franchise Number',
+  dateApproved: 'Date Approved',
+  expiryDate: 'Expiry Date',
+  franchiseStatus: 'Franchise Status',
+  make: 'Make',
+  sidecarNumber: 'Sidecar Number',
+  plateNumber: 'Plate Number',
+  chassisNumber: 'Chassis Number',
+  motorNumber: 'Motor Number'
+};
+
 export default function RequestAmendment() {
+  const navigate = useNavigate();
   const [language, setLanguage] = useState('en');
   const [errors, setErrors] = useState({});
   const [toast, setToast] = useState({ open: false, message: '', severity: 'error' });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const navigate = useNavigate();
-  const [formData, setFormData] = useState({
-    fullName: '',
-    address: '',
-    civilStatus: '',
-    coOwner: '',
-    orNumber: '',
-    franchiseNumber: '',
-    dateApproved: '',
-    expiryDate: '',
-    franchiseStatus: '',
-    make: '',
-    sidecarNumber: '',
-    plateNumber: '',
-    chassisNumber: '',
-    motorNumber: ''
-  });
+  const [formData, setFormData] = useState(INITIAL_FORM_STATE);
 
   const translations = {
     en: { title: 'AMENDMENT REQUEST', toggleLanguage: 'Tagalog' },
@@ -34,6 +72,23 @@ export default function RequestAmendment() {
   };
 
   const t = translations[language];
+
+  // Memoized handlers for performance
+  const handleChange = useCallback((e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+    setErrors(prev => ({
+      ...prev,
+      [name]: ''
+    }));
+  }, []);
+
+  const handleCloseToast = useCallback(() => {
+    setToast(prev => ({ ...prev, open: false }));
+  }, []);
 
   // Fetch existing franchise data on component mount
   useEffect(() => {
@@ -139,74 +194,31 @@ export default function RequestAmendment() {
     fetchFranchiseData();
   }, [navigate]);
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData({
-      ...formData,
-      [name]: value
-    });
-    // Clear error for this field when user starts typing
-    if (errors[name]) {
-      setErrors({
-        ...errors,
-        [name]: ''
-      });
-    }
-  };
-
-  const validateForm = () => {
+  const validateForm = useCallback(() => {
     const newErrors = {};
-    const fieldLabels = {
-      fullName: 'Full Name',
-      address: 'Address',
-      civilStatus: 'Civil Status',
-      coOwner: 'Co-owner',
-      orNumber: 'OR Number',
-      franchiseNumber: 'Franchise Number',
-      dateApproved: 'Date Approved',
-      expiryDate: 'Expiry Date',
-      franchiseStatus: 'Franchise Status',
-      make: 'Make',
-      sidecarNumber: 'Sidecar Number',
-      plateNumber: 'Plate Number',
-      chassisNumber: 'Chassis Number',
-      motorNumber: 'Motor Number'
-    };
     
-    // Check all fields
-    if (!formData.fullName.trim()) newErrors.fullName = 'Full name is required';
-    if (!formData.address.trim()) newErrors.address = 'Address is required';
-    if (!formData.civilStatus) newErrors.civilStatus = 'Civil status is required';
-    if (!formData.coOwner.trim()) newErrors.coOwner = 'Co-owner is required';
-    if (!formData.orNumber.trim()) newErrors.orNumber = 'OR number is required';
-    if (!formData.franchiseNumber.trim()) newErrors.franchiseNumber = 'Franchise number is required';
-    if (!formData.dateApproved.trim()) newErrors.dateApproved = 'Date approved is required';
-    if (!formData.expiryDate.trim()) newErrors.expiryDate = 'Expiry date is required';
-    if (!formData.franchiseStatus.trim()) newErrors.franchiseStatus = 'Franchise status is required';
-    if (!formData.make.trim()) newErrors.make = 'Make is required';
-    if (!formData.sidecarNumber.trim()) newErrors.sidecarNumber = 'Sidecar number is required';
-    if (!formData.plateNumber.trim()) newErrors.plateNumber = 'Plate number is required';
-    if (!formData.chassisNumber.trim()) newErrors.chassisNumber = 'Chassis number is required';
-    if (!formData.motorNumber.trim()) newErrors.motorNumber = 'Motor number is required';
+    // Validate all required fields
+    Object.keys(FIELD_LABELS).forEach(field => {
+      if (!formData[field] || !formData[field].toString().trim()) {
+        newErrors[field] = `${FIELD_LABELS[field]} is required`;
+      }
+    });
 
     setErrors(newErrors);
     
     // Show toast with first missing field
     if (Object.keys(newErrors).length > 0) {
       const firstErrorField = Object.keys(newErrors)[0];
-      const fieldName = fieldLabels[firstErrorField];
+      const fieldName = FIELD_LABELS[firstErrorField];
       setToast({ 
         open: true, 
-        message: `${fieldName} is required` 
+        message: `${fieldName} is required`,
+        severity: 'error'
       });
     }
     
     return Object.keys(newErrors).length === 0;
-  };
-
-  const handleCloseToast = () => {
-    setToast({ ...toast, open: false });
-  };
+  }, [formData]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -289,22 +301,7 @@ export default function RequestAmendment() {
         });
         
         // Reset form
-        setFormData({
-          fullName: '',
-          address: '',
-          civilStatus: '',
-          coOwner: '',
-          orNumber: '',
-          franchiseNumber: '',
-          dateApproved: '',
-          expiryDate: '',
-          franchiseStatus: '',
-          make: '',
-          sidecarNumber: '',
-          plateNumber: '',
-          chassisNumber: '',
-          motorNumber: ''
-        });
+        setFormData(INITIAL_FORM_STATE);
         
         // Redirect to franchise page after 2 seconds
         setTimeout(() => {
@@ -341,7 +338,7 @@ export default function RequestAmendment() {
   };
 
   return (
-    <Box sx={{ minHeight: '100vh', backgroundColor: '#f5f5f5' }}>
+    <Box sx={{ minHeight: '100vh', backgroundColor: '#f8fafc' }}>
       <UnifiedSidebar 
         userType="operator" 
         language={language} 
@@ -352,169 +349,354 @@ export default function RequestAmendment() {
       {/* Header Banner */}
       <Box 
         sx={{ 
-          backgroundColor: '#083d77', 
+          background: 'linear-gradient(135deg, #083d77 0%, #0a4d8f 100%)', 
           color: 'white', 
-          py: 3, 
+          py: 4, 
           textAlign: 'center',
-          mb: 0
+          boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
         }}
       >
-        <Typography variant="h4" sx={{ fontWeight: 700, letterSpacing: 1.5 }}>
+        <Typography 
+          variant="h4" 
+          sx={{ 
+            fontWeight: 700, 
+            letterSpacing: 2,
+            fontSize: { xs: '1.5rem', md: '2rem' }
+          }}
+        >
           AMENDMENT REQUEST
+        </Typography>
+        <Typography 
+          variant="body2" 
+          sx={{ 
+            mt: 1, 
+            opacity: 0.9,
+            fontSize: '0.9rem'
+          }}
+        >
+          Update your franchise information
         </Typography>
       </Box>
 
-      <Box sx={{ backgroundColor: 'white', width: '100%' }}>
+      <Container maxWidth="xl" sx={{ py: 4 }}>
         {/* Loading Overlay */}
         {isLoading && (
-          <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 8, backgroundColor: 'white' }}>
-            <CircularProgress />
-            <Typography sx={{ ml: 2 }}>Loading franchise information...</Typography>
-          </Box>
+          <Paper 
+            elevation={0}
+            sx={{ 
+              display: 'flex', 
+              justifyContent: 'center', 
+              alignItems: 'center', 
+              py: 8,
+              borderRadius: 3,
+              backgroundColor: 'white'
+            }}
+          >
+            <CircularProgress size={40} />
+            <Typography sx={{ ml: 2, color: '#64748b' }}>Loading franchise information...</Typography>
+          </Paper>
         )}
 
         {/* Form Container */}
         {!isLoading && (
-          <Box sx={{ maxWidth: '1400px', mx: 'auto', p: 3 }}>
+          <Paper 
+            elevation={0}
+            sx={{ 
+              p: { xs: 3, md: 4 },
+              borderRadius: 3,
+              boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+              backgroundColor: 'white'
+            }}
+          >
             <form onSubmit={handleSubmit}>
-            <Grid container spacing={2.5}>
+            <Grid container spacing={4}>
             
-            {/* Left Column - Franchisee Information */}
-            <Grid item xs={12} md={5}>
-              <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 2, fontSize: '0.95rem' }}>
-                FRANCHISEE INFORMATION
-              </Typography>
-
+            {/* Franchisee Information Section */}
+            <Grid item xs={12}>
               <Box sx={{ mb: 2 }}>
-                <Typography variant="caption" sx={{ fontWeight: 600, display: 'block', mb: 0.5, minHeight: '20px' }}>
-                  FULL NAME
-                </Typography>
-                <TextField
-                  fullWidth
-                  size="small"
-                  name="fullName"
-                  value={formData.fullName}
-                  onChange={handleChange}
-                  variant="outlined"
-                  error={!!errors.fullName}
-                  helperText={errors.fullName}
+                <Typography 
+                  variant="h6" 
                   sx={{ 
-                    '& .MuiOutlinedInput-root': {
-                      borderRadius: '20px',
-                      backgroundColor: 'white'
-                    }
+                    fontWeight: 700, 
+                    mb: 0.5,
+                    fontSize: '1.1rem',
+                    color: '#1e293b'
                   }}
-                />
-              </Box>
-
-              <Box sx={{ mb: 2 }}>
-                <Typography variant="caption" sx={{ fontWeight: 600, display: 'block', mb: 0.5, minHeight: '20px' }}>
-                  ADDRESS
+                >
+                  FRANCHISEE INFORMATION
                 </Typography>
-                <TextField
-                  fullWidth
-                  size="small"
-                  name="address"
-                  value={formData.address}
-                  onChange={handleChange}
-                  variant="outlined"
-                  error={!!errors.address}
-                  helperText={errors.address}
-                  sx={{ 
-                    '& .MuiOutlinedInput-root': {
-                      borderRadius: '20px',
-                      backgroundColor: 'white'
-                    }
-                  }}
-                />
+                <Divider sx={{ borderColor: '#083d77', borderWidth: 2, width: '60px', mb: 3 }} />
               </Box>
-
-              <Box sx={{ mb: 2 }}>
-                <Typography variant="caption" sx={{ fontWeight: 600, display: 'block', mb: 0.5, minHeight: '20px' }}>
-                  CIVIL STATUS
-                </Typography>
-                <FormControl fullWidth size="small" error={!!errors.civilStatus}>
-                  <Select
-                    name="civilStatus"
-                    value={formData.civilStatus}
-                    onChange={handleChange}
-                    displayEmpty
+              
+              <Grid container spacing={3}>
+                <Grid item xs={12} sm={6} md={3}>
+                  <Typography 
+                    variant="caption" 
                     sx={{ 
-                      borderRadius: '20px',
-                      backgroundColor: 'white'
+                      fontWeight: 600, 
+                      display: 'block', 
+                      mb: 1,
+                      color: '#475569',
+                      fontSize: '0.85rem',
+                      textTransform: 'uppercase',
+                      letterSpacing: 0.5
                     }}
                   >
-                    <MenuItem value="" disabled>
-                      <em>Select Civil Status</em>
-                    </MenuItem>
-                    <MenuItem value="Single">Single</MenuItem>
-                    <MenuItem value="Married">Married</MenuItem>
-                    <MenuItem value="Widowed">Widowed</MenuItem>
-                    <MenuItem value="Divorced">Divorced</MenuItem>
-                    <MenuItem value="Separated">Separated</MenuItem>
-                  </Select>
-                </FormControl>
-              </Box>
-
-              <Box sx={{ mb: 2 }}>
-                <Typography variant="caption" sx={{ fontWeight: 600, display: 'block', mb: 0.5, minHeight: '20px' }}>
-                  CO-OWNER
-                </Typography>
-                <TextField
-                  fullWidth
-                  size="small"
-                  name="coOwner"
-                  value={formData.coOwner}
-                  onChange={handleChange}
-                  variant="outlined"
-                  error={!!errors.coOwner}
-                  helperText={errors.coOwner}
-                  sx={{ 
-                    '& .MuiOutlinedInput-root': {
-                      borderRadius: '20px',
-                      backgroundColor: 'white'
-                    }
-                  }}
-                />
-              </Box>
-            </Grid>
-
-            {/* Right Column - Franchise & Motorcycle Info */}
-            <Grid item xs={12} md={7}>
-              <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 2, fontSize: '0.95rem' }}>
-                MOTORIZED TRICYCLE OPERATORS FRANCHISE
-              </Typography>
-
-              <Grid container spacing={2}>
-                <Grid item xs={12} sm={6} md={4}>
-                  <Typography variant="caption" sx={{ fontWeight: 600, display: 'block', mb: 0.5, minHeight: '20px' }}>
-                    OR NUMBER
+                    Full Name
                   </Typography>
                   <TextField
                     fullWidth
-                    size="small"
+                    name="fullName"
+                    value={formData.fullName}
+                    onChange={handleChange}
+                    variant="outlined"
+                    error={!!errors.fullName}
+                    helperText={errors.fullName}
+                    placeholder="Enter full name"
+                    size="medium"
+                    sx={{ 
+                      '& .MuiOutlinedInput-root': {
+                        borderRadius: '8px',
+                        backgroundColor: '#f8fafc',
+                        transition: 'all 0.2s',
+                        '&:hover': {
+                          backgroundColor: '#f1f5f9'
+                        },
+                        '&.Mui-focused': {
+                          backgroundColor: 'white'
+                        }
+                      },
+                      '& .MuiInputBase-input': {
+                        padding: '14px 16px',
+                        fontSize: '1rem'
+                      }
+                    }}
+                  />
+                </Grid>
+
+                <Grid item xs={12} sm={6} md={3}>
+                  <Typography 
+                    variant="caption" 
+                    sx={{ 
+                      fontWeight: 600, 
+                      display: 'block', 
+                      mb: 1,
+                      color: '#475569',
+                      fontSize: '0.85rem',
+                      textTransform: 'uppercase',
+                      letterSpacing: 0.5
+                    }}
+                  >
+                    Civil Status
+                  </Typography>
+                  <FormControl fullWidth error={!!errors.civilStatus}>
+                    <Select
+                      name="civilStatus"
+                      value={formData.civilStatus}
+                      onChange={handleChange}
+                      displayEmpty
+                      size="medium"
+                      sx={{ 
+                        borderRadius: '8px',
+                        backgroundColor: '#f8fafc',
+                        '&:hover': {
+                          backgroundColor: '#f1f5f9'
+                        },
+                        '&.Mui-focused': {
+                          backgroundColor: 'white'
+                        },
+                        '& .MuiSelect-select': {
+                          padding: '14px 16px',
+                          fontSize: '1rem'
+                        }
+                      }}
+                    >
+                      <MenuItem value="" disabled>
+                        <em>Select Civil Status</em>
+                      </MenuItem>
+                      {CIVIL_STATUS_OPTIONS.map(status => (
+                        <MenuItem key={status} value={status}>{status}</MenuItem>
+                      ))}
+                    </Select>
+                    {errors.civilStatus && (
+                      <FormHelperText>{errors.civilStatus}</FormHelperText>
+                    )}
+                  </FormControl>
+                </Grid>
+
+                <Grid item xs={12} sm={6} md={3}>
+                  <Typography 
+                    variant="caption" 
+                    sx={{ 
+                      fontWeight: 600, 
+                      display: 'block', 
+                      mb: 1,
+                      color: '#475569',
+                      fontSize: '0.85rem',
+                      textTransform: 'uppercase',
+                      letterSpacing: 0.5
+                    }}
+                  >
+                    Co-Owner
+                  </Typography>
+                  <TextField
+                    fullWidth
+                    name="coOwner"
+                    value={formData.coOwner}
+                    onChange={handleChange}
+                    variant="outlined"
+                    error={!!errors.coOwner}
+                    helperText={errors.coOwner}
+                    placeholder="Enter co-owner name (if applicable)"
+                    size="medium"
+                    sx={{ 
+                      '& .MuiOutlinedInput-root': {
+                        borderRadius: '8px',
+                        backgroundColor: '#f8fafc',
+                        transition: 'all 0.2s',
+                        '&:hover': {
+                          backgroundColor: '#f1f5f9'
+                        },
+                        '&.Mui-focused': {
+                          backgroundColor: 'white'
+                        }
+                      },
+                      '& .MuiInputBase-input': {
+                        padding: '14px 16px',
+                        fontSize: '1rem'
+                      }
+                    }}
+                  />
+                </Grid>
+
+                <Grid item xs={12} sm={6} md={3}>
+                  <Typography 
+                    variant="caption" 
+                    sx={{ 
+                      fontWeight: 600, 
+                      display: 'block', 
+                      mb: 1,
+                      color: '#475569',
+                      fontSize: '0.85rem',
+                      textTransform: 'uppercase',
+                      letterSpacing: 0.5
+                    }}
+                  >
+                    Address
+                  </Typography>
+                  <TextField
+                    fullWidth
+                    name="address"
+                    value={formData.address}
+                    onChange={handleChange}
+                    variant="outlined"
+                    error={!!errors.address}
+                    helperText={errors.address}
+                    placeholder="Enter complete address"
+                    size="medium"
+                    sx={{ 
+                      '& .MuiOutlinedInput-root': {
+                        borderRadius: '8px',
+                        backgroundColor: '#f8fafc',
+                        transition: 'all 0.2s',
+                        '&:hover': {
+                          backgroundColor: '#f1f5f9'
+                        },
+                        '&.Mui-focused': {
+                          backgroundColor: 'white'
+                        }
+                      },
+                      '& .MuiInputBase-input': {
+                        padding: '14px 16px',
+                        fontSize: '1rem'
+                      }
+                    }}
+                  />
+                </Grid>
+              </Grid>
+            </Grid>
+
+            {/* Franchise Information Section */}
+            <Grid item xs={12}>
+
+              <Box sx={{ mb: 2 }}>
+                <Typography 
+                  variant="h6" 
+                  sx={{ 
+                    fontWeight: 700, 
+                    mb: 0.5,
+                    fontSize: '1.1rem',
+                    color: '#1e293b'
+                  }}
+                >
+                  MOTORIZED TRICYCLE OPERATORS FRANCHISE
+                </Typography>
+                <Divider sx={{ borderColor: '#083d77', borderWidth: 2, width: '60px', mb: 3 }} />
+              </Box>
+
+              <Grid container spacing={3}>
+                <Grid item xs={12} sm={6} md={6} lg={2.4}>
+                  <Typography 
+                    variant="caption" 
+                    sx={{ 
+                      fontWeight: 600, 
+                      display: 'block', 
+                      mb: 1,
+                      color: '#475569',
+                      fontSize: '0.85rem',
+                      textTransform: 'uppercase',
+                      letterSpacing: 0.5
+                    }}
+                  >
+                    OR Number
+                  </Typography>
+                  <TextField
+                    fullWidth
                     name="orNumber"
                     value={formData.orNumber}
                     onChange={handleChange}
                     variant="outlined"
                     error={!!errors.orNumber}
                     helperText={errors.orNumber}
+                    placeholder="Enter OR number"
+                    size="medium"
                     sx={{ 
                       '& .MuiOutlinedInput-root': {
-                        borderRadius: '20px',
-                        backgroundColor: 'white'
+                        borderRadius: '8px',
+                        backgroundColor: '#f8fafc',
+                        transition: 'all 0.2s',
+                        '&:hover': {
+                          backgroundColor: '#f1f5f9'
+                        },
+                        '&.Mui-focused': {
+                          backgroundColor: 'white'
+                        }
+                      },
+                      '& .MuiInputBase-input': {
+                        padding: '14px 16px',
+                        fontSize: '1rem'
                       }
                     }}
                   />
                 </Grid>
 
-                <Grid item xs={12} sm={6} md={4}>
-                  <Typography variant="caption" sx={{ fontWeight: 600, display: 'block', mb: 0.5, minHeight: '20px' }}>
-                    FRANCHISE NUMBER
+                <Grid item xs={12} sm={6} md={6} lg={2.4}>
+                  <Typography 
+                    variant="caption" 
+                    sx={{ 
+                      fontWeight: 600, 
+                      display: 'block', 
+                      mb: 1,
+                      color: '#475569',
+                      fontSize: '0.85rem',
+                      textTransform: 'uppercase',
+                      letterSpacing: 0.5
+                    }}
+                  >
+                    Franchise Number
                   </Typography>
                   <TextField
                     fullWidth
-                    size="small"
                     name="franchiseNumber"
                     value={formData.franchiseNumber}
                     onChange={handleChange}
@@ -522,23 +704,39 @@ export default function RequestAmendment() {
                     InputProps={{
                       readOnly: true,
                     }}
+                    size="medium"
                     helperText="Auto-loaded from franchise record"
                     sx={{ 
                       '& .MuiOutlinedInput-root': {
-                        borderRadius: '20px',
-                        backgroundColor: '#f5f5f5'
+                        borderRadius: '8px',
+                        backgroundColor: '#e2e8f0',
+                        '& input': {
+                          fontWeight: 600,
+                          padding: '14px 16px',
+                          fontSize: '1rem'
+                        }
                       }
                     }}
                   />
                 </Grid>
 
-                <Grid item xs={12} sm={6} md={4}>
-                  <Typography variant="caption" sx={{ fontWeight: 600, display: 'block', mb: 0.5, minHeight: '20px' }}>
-                    DATE APPROVED
+                <Grid item xs={12} sm={6} md={6} lg={2.4}>
+                  <Typography 
+                    variant="caption" 
+                    sx={{ 
+                      fontWeight: 600, 
+                      display: 'block', 
+                      mb: 1,
+                      color: '#475569',
+                      fontSize: '0.85rem',
+                      textTransform: 'uppercase',
+                      letterSpacing: 0.5
+                    }}
+                  >
+                    Date Approved
                   </Typography>
                   <TextField
                     fullWidth
-                    size="small"
                     name="dateApproved"
                     value={formData.dateApproved}
                     onChange={handleChange}
@@ -546,23 +744,39 @@ export default function RequestAmendment() {
                     InputProps={{
                       readOnly: true,
                     }}
+                    size="medium"
                     helperText="Auto-loaded from franchise record"
                     sx={{ 
                       '& .MuiOutlinedInput-root': {
-                        borderRadius: '20px',
-                        backgroundColor: '#f5f5f5'
+                        borderRadius: '8px',
+                        backgroundColor: '#e2e8f0',
+                        '& input': {
+                          fontWeight: 600,
+                          padding: '14px 16px',
+                          fontSize: '1rem'
+                        }
                       }
                     }}
                   />
                 </Grid>
 
-                <Grid item xs={12} sm={6} md={4}>
-                  <Typography variant="caption" sx={{ fontWeight: 600, display: 'block', mb: 0.5, minHeight: '20px' }}>
-                    EXPIRY DATE
+                <Grid item xs={12} sm={6} md={6} lg={2.4}>
+                  <Typography 
+                    variant="caption" 
+                    sx={{ 
+                      fontWeight: 600, 
+                      display: 'block', 
+                      mb: 1,
+                      color: '#475569',
+                      fontSize: '0.85rem',
+                      textTransform: 'uppercase',
+                      letterSpacing: 0.5
+                    }}
+                  >
+                    Expiry Date
                   </Typography>
                   <TextField
                     fullWidth
-                    size="small"
                     name="expiryDate"
                     value={formData.expiryDate}
                     onChange={handleChange}
@@ -570,206 +784,251 @@ export default function RequestAmendment() {
                     InputProps={{
                       readOnly: true,
                     }}
+                    size="medium"
                     helperText="Auto-loaded from franchise record"
                     sx={{ 
                       '& .MuiOutlinedInput-root': {
-                        borderRadius: '20px',
-                        backgroundColor: '#f5f5f5'
+                        borderRadius: '8px',
+                        backgroundColor: '#e2e8f0',
+                        '& input': {
+                          fontWeight: 600,
+                          padding: '14px 16px',
+                          fontSize: '1rem'
+                        }
                       }
                     }}
                   />
                 </Grid>
 
-                <Grid item xs={12} sm={6} md={4}>
-                  <Typography variant="caption" sx={{ fontWeight: 600, display: 'block', mb: 0.5, minHeight: '20px' }}>
-                    FRANCHISE STATUS
+                <Grid item xs={12} sm={6} md={6} lg={2.4}>
+                  <Typography 
+                    variant="caption" 
+                    sx={{ 
+                      fontWeight: 600, 
+                      display: 'block', 
+                      mb: 1,
+                      color: '#475569',
+                      fontSize: '0.85rem',
+                      textTransform: 'uppercase',
+                      letterSpacing: 0.5
+                    }}
+                  >
+                    Franchise Status
                   </Typography>
                   <TextField
                     fullWidth
-                    size="small"
                     name="franchiseStatus"
-                    value={formData.franchiseStatus}
+                    value={formData.franchiseStatus?.toUpperCase() || ''}
                     onChange={handleChange}
                     variant="outlined"
                     InputProps={{
                       readOnly: true,
                     }}
+                    size="medium"
                     helperText="Auto-loaded from franchise record"
                     sx={{ 
                       '& .MuiOutlinedInput-root': {
-                        borderRadius: '20px',
-                        backgroundColor: '#f5f5f5'
+                        borderRadius: '8px',
+                        backgroundColor: formData.franchiseStatus === 'active' ? '#dcfce7' : '#fee2e2'
                       },
                       '& .MuiInputBase-input': {
-                        color: formData.franchiseStatus === 'active' ? '#2ecc71 !important' : '#e74c3c !important',
+                        color: formData.franchiseStatus === 'active' ? '#166534 !important' : '#991b1b !important',
                         fontWeight: '700 !important',
-                        fontSize: '0.95rem',
-                        WebkitTextFillColor: formData.franchiseStatus === 'active' ? '#2ecc71 !important' : '#e74c3c !important'
+                        fontSize: '1rem',
+                        WebkitTextFillColor: formData.franchiseStatus === 'active' ? '#166534 !important' : '#991b1b !important',
+                        textAlign: 'center',
+                        padding: '14px 16px'
                       }
                     }}
                   />
                 </Grid>
               </Grid>
 
-              {/* Motorcycle Information */}
-              <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 2, mt: 3, fontSize: '0.95rem' }}>
-                MOTORCYCLE INFORMATION
-              </Typography>
+            </Grid>
 
-              <Grid container spacing={2}>
-                <Grid item xs={12} sm={6} md={4}>
-                  <Typography variant="caption" sx={{ fontWeight: 600, display: 'block', mb: 0.5, minHeight: '20px' }}>
-                    MAKE
+            {/* Motorcycle Information Section */}
+            <Grid item xs={12}>
+              <Box sx={{ mb: 2 }}>
+                <Typography 
+                  variant="h6" 
+                  sx={{ 
+                    fontWeight: 700, 
+                    mb: 0.5,
+                    fontSize: '1.1rem',
+                    color: '#1e293b'
+                  }}
+                >
+                  MOTORCYCLE INFORMATION
+                </Typography>
+                <Divider sx={{ borderColor: '#083d77', borderWidth: 2, width: '60px', mb: 3 }} />
+              </Box>
+
+              <Grid container spacing={3}>
+                <Grid item xs={12} sm={6} md={6} lg={2.4}>
+                  <Typography 
+                    variant="caption" 
+                    sx={{ 
+                      fontWeight: 600, 
+                      display: 'block', 
+                      mb: 1,
+                      color: '#475569',
+                      fontSize: '0.85rem',
+                      textTransform: 'uppercase',
+                      letterSpacing: 0.5
+                    }}
+                  >
+                    Make/Model
                   </Typography>
                   <TextField
                     fullWidth
-                    size="small"
                     name="make"
                     value={formData.make}
                     onChange={handleChange}
                     variant="outlined"
                     error={!!errors.make}
                     helperText={errors.make}
+                    placeholder="e.g., Honda TMX 155"
+                    size="medium"
                     sx={{ 
                       '& .MuiOutlinedInput-root': {
-                        borderRadius: '20px',
-                        backgroundColor: 'white'
+                        borderRadius: '8px',
+                        backgroundColor: '#f8fafc',
+                        transition: 'all 0.2s',
+                        '&:hover': {
+                          backgroundColor: '#f1f5f9'
+                        },
+                        '&.Mui-focused': {
+                          backgroundColor: 'white'
+                        }
+                      },
+                      '& .MuiInputBase-input': {
+                        padding: '14px 16px',
+                        fontSize: '1rem'
                       }
                     }}
                   />
                 </Grid>
 
-                <Grid item xs={12} sm={6} md={4}>
-                  <Typography variant="caption" sx={{ fontWeight: 600, display: 'block', mb: 0.5, minHeight: '20px' }}>
-                    SIDECAR NUMBER
-                  </Typography>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    name="sidecarNumber"
-                    value={formData.sidecarNumber}
-                    onChange={handleChange}
-                    variant="outlined"
-                    error={!!errors.sidecarNumber}
-                    helperText={errors.sidecarNumber}
-                    sx={{ 
-                      '& .MuiOutlinedInput-root': {
-                        borderRadius: '20px',
-                        backgroundColor: 'white'
-                      }
-                    }}
-                  />
-                </Grid>
-
-                <Grid item xs={12} sm={6} md={4}>
-                  <Typography variant="caption" sx={{ fontWeight: 600, display: 'block', mb: 0.5, minHeight: '20px' }}>
-                    PLATE NUMBER
-                  </Typography>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    name="plateNumber"
-                    value={formData.plateNumber}
-                    onChange={handleChange}
-                    variant="outlined"
-                    error={!!errors.plateNumber}
-                    helperText={errors.plateNumber}
-                    sx={{ 
-                      '& .MuiOutlinedInput-root': {
-                        borderRadius: '20px',
-                        backgroundColor: 'white'
-                      }
-                    }}
-                  />
-                </Grid>
-
-                <Grid item xs={12} sm={6} md={4}>
-                  <Typography variant="caption" sx={{ fontWeight: 600, display: 'block', mb: 0.5, minHeight: '20px' }}>
-                    CHASSIS NUMBER
-                  </Typography>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    name="chassisNumber"
-                    value={formData.chassisNumber}
-                    onChange={handleChange}
-                    variant="outlined"
-                    error={!!errors.chassisNumber}
-                    helperText={errors.chassisNumber}
-                    sx={{ 
-                      '& .MuiOutlinedInput-root': {
-                        borderRadius: '20px',
-                        backgroundColor: 'white'
-                      }
-                    }}
-                  />
-                </Grid>
-
-                <Grid item xs={12} sm={6} md={4}>
-                  <Typography variant="caption" sx={{ fontWeight: 600, display: 'block', mb: 0.5, minHeight: '20px' }}>
-                    MOTOR NUMBER
-                  </Typography>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    name="motorNumber"
-                    value={formData.motorNumber}
-                    onChange={handleChange}
-                    variant="outlined"
-                    error={!!errors.motorNumber}
-                    helperText={errors.motorNumber}
-                    sx={{ 
-                      '& .MuiOutlinedInput-root': {
-                        borderRadius: '20px',
-                        backgroundColor: 'white'
-                      }
-                    }}
-                  />
-                </Grid>
+                {[
+                  { name: 'sidecarNumber', label: 'Sidecar Number', placeholder: 'Enter sidecar number' },
+                  { name: 'plateNumber', label: 'Plate Number', placeholder: 'e.g., ABC-1234' },
+                  { name: 'chassisNumber', label: 'Chassis Number', placeholder: 'Enter chassis number' },
+                  { name: 'motorNumber', label: 'Motor Number', placeholder: 'Enter motor/engine number' }
+                ].map(field => (
+                  <Grid item xs={12} sm={6} md={6} lg={2.4} key={field.name}>
+                    <Typography 
+                      variant="caption" 
+                      sx={{ 
+                        fontWeight: 600, 
+                        display: 'block', 
+                        mb: 1,
+                        color: '#475569',
+                        fontSize: '0.85rem',
+                        textTransform: 'uppercase',
+                        letterSpacing: 0.5
+                      }}
+                    >
+                      {field.label}
+                    </Typography>
+                    <TextField
+                      fullWidth
+                      name={field.name}
+                      value={formData[field.name]}
+                      onChange={handleChange}
+                      variant="outlined"
+                      error={!!errors[field.name]}
+                      helperText={errors[field.name]}
+                      placeholder={field.placeholder}
+                      size="medium"
+                      sx={{ 
+                        '& .MuiOutlinedInput-root': {
+                          borderRadius: '8px',
+                          backgroundColor: '#f8fafc',
+                          transition: 'all 0.2s',
+                          '&:hover': {
+                            backgroundColor: '#f1f5f9'
+                          },
+                          '&.Mui-focused': {
+                            backgroundColor: 'white'
+                          }
+                        },
+                        '& .MuiInputBase-input': {
+                          padding: '14px 16px',
+                          fontSize: '1rem'
+                        }
+                      }}
+                    />
+                  </Grid>
+                ))}
               </Grid>
             </Grid>
 
             {/* Submit Button */}
             <Grid item xs={12}>
-              <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
-              <Button
-                type="submit"
-                variant="contained"
-                disabled={isSubmitting}
-                sx={{
-                  backgroundColor: '#083d77',
-                  color: 'white',
-                  px: 8,
-                  py: 1.2,
-                  fontSize: '1rem',
-                  fontWeight: 700,
-                  borderRadius: '8px',
-                  textTransform: 'none',
-                  '&:hover': {
-                    backgroundColor: '#062d5a'
-                  },
-                  '&:disabled': {
-                    backgroundColor: '#cccccc',
-                    color: '#666666'
-                  }
-                }}
-              >
-                {isSubmitting ? (
-                  <>
-                    <CircularProgress size={20} sx={{ mr: 1, color: 'white' }} />
-                    Submitting...
-                  </>
-                ) : (
-                  'Submit'
-                )}
-              </Button>
-            </Box>
+              <Divider sx={{ my: 3 }} />
+              <Box sx={{ display: 'flex', justifyContent: 'center', gap: 2 }}>
+                <Button
+                  variant="outlined"
+                  onClick={() => navigate('/operator/franchise')}
+                  disabled={isSubmitting}
+                  sx={{
+                    px: 6,
+                    py: 1.5,
+                    fontSize: '1rem',
+                    fontWeight: 600,
+                    borderRadius: '8px',
+                    textTransform: 'none',
+                    borderColor: '#083d77',
+                    color: '#083d77',
+                    '&:hover': {
+                      borderColor: '#062d5a',
+                      backgroundColor: '#f1f5f9'
+                    }
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  variant="contained"
+                  disabled={isSubmitting}
+                  sx={{
+                    background: 'linear-gradient(135deg, #083d77 0%, #0a4d8f 100%)',
+                    color: 'white',
+                    px: 8,
+                    py: 1.5,
+                    fontSize: '1rem',
+                    fontWeight: 700,
+                    borderRadius: '8px',
+                    textTransform: 'none',
+                    boxShadow: '0 4px 6px rgba(8, 61, 119, 0.2)',
+                    '&:hover': {
+                      background: 'linear-gradient(135deg, #062d5a 0%, #083d77 100%)',
+                      boxShadow: '0 6px 8px rgba(8, 61, 119, 0.3)'
+                    },
+                    '&:disabled': {
+                      backgroundColor: '#cbd5e1',
+                      color: '#94a3b8',
+                      boxShadow: 'none'
+                    }
+                  }}
+                >
+                  {isSubmitting ? (
+                    <>
+                      <CircularProgress size={20} sx={{ mr: 1, color: 'white' }} />
+                      Submitting...
+                    </>
+                  ) : (
+                    'Submit Amendment Request'
+                  )}
+                </Button>
+              </Box>
             </Grid>
             </Grid>
           </form>
-        </Box>
+          </Paper>
         )}
-      </Box>
+      </Container>
 
       {/* Toast Notification */}
       <Snackbar
@@ -781,7 +1040,11 @@ export default function RequestAmendment() {
         <Alert 
           onClose={handleCloseToast} 
           severity={toast.severity || 'error'}
-          sx={{ width: '100%' }}
+          variant="filled"
+          sx={{ 
+            width: '100%',
+            boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
+          }}
         >
           {toast.message}
         </Alert>

@@ -20,6 +20,7 @@ const LandingPage = () => {
   const [announcements, setAnnouncements] = useState([]);
   const [loadingAnnouncements, setLoadingAnnouncements] = useState(true);
   const [warningDialogOpen, setWarningDialogOpen] = useState(false);
+  const [activeFranchiseDialogOpen, setActiveFranchiseDialogOpen] = useState(false);
   const menuOpen = Boolean(anchorEl);
   
   // Get display name from AuthContext user or fallback to token decode (consistent with UnifiedSidebar)
@@ -101,6 +102,20 @@ const LandingPage = () => {
   const handleGoToFranchise = () => {
     setWarningDialogOpen(false);
     navigate('/operator/franchise/application');
+  };
+  
+  const handleRenewFranchise = () => {
+    if (displayName && userHasFranchise) {
+      // User is logged in and has an active franchise
+      setActiveFranchiseDialogOpen(true);
+    } else {
+      // User is not logged in or doesn't have a franchise
+      navigate('/login');
+    }
+  };
+  
+  const handleActiveFranchiseDialogClose = () => {
+    setActiveFranchiseDialogOpen(false);
   };
   
   const handleLogout = async () => {
@@ -285,6 +300,48 @@ const LandingPage = () => {
                   </Button>
                 </DialogActions>
               </Dialog>
+             
+              <Dialog
+                open={activeFranchiseDialogOpen}
+                onClose={handleActiveFranchiseDialogClose}
+                PaperProps={{
+                  sx: {
+                    borderRadius: 3,
+                    padding: 2,
+                    maxWidth: 500
+                  }
+                }}
+              >
+                <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1, color: '#143c6e' }}>
+                  <WarningIcon sx={{ fontSize: 32, color: '#f4d77e' }} />
+                  Active Franchise Found
+                </DialogTitle>
+                <DialogContent>
+                  <Typography variant="body1" sx={{ mb: 1 }}>
+                    Dear User,
+                  </Typography>
+                  <Typography variant="body1">
+                    You already have an active linked franchise. Please contact the administrator if you need to renew or make changes to your franchise.
+                  </Typography>
+                  <Typography variant="body1" sx={{ mb: 1 }}>
+                  </Typography>
+                  <Typography variant="body1" sx={{ mb: 1 }}>
+                    Thank you.
+                  </Typography>
+                </DialogContent>
+                <DialogActions sx={{ px: 3, pb: 2 }}>
+                  <Button 
+                    onClick={handleActiveFranchiseDialogClose}
+                    variant="contained"
+                    sx={{ 
+                      bgcolor: '#143c6e',
+                      '&:hover': { bgcolor: '#0a3970' }
+                    }}
+                  >
+                    Understood
+                  </Button>
+                </DialogActions>
+              </Dialog>
             </div>
           ) : (
             <button className="nav-login" onClick={() => navigate('/login')}>LOGIN</button>
@@ -297,7 +354,7 @@ const LandingPage = () => {
           <h1>Tricycle Verification and<br />Hassle-Free Online<br />Franchise in Solano</h1>
            {/* For button  */}
           <div className="main-buttons">
-            <button className="main-btn yellow" onClick={() => navigate('/login')}>RENEW A FRANCHISE</button>
+            <button className="main-btn yellow" onClick={handleRenewFranchise}>RENEW A FRANCHISE</button>
           </div>
         </div>
         <div className="main-image" style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', height: '100%' }}>

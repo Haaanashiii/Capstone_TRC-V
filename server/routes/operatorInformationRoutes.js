@@ -44,6 +44,6 @@ router.get('/qr/:operatorId', async (req, res, next) => {
   } catch (error) {
     next(error);
   }
-});
+}); 
 
 module.exports = router;
