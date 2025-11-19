@@ -306,6 +306,28 @@
   color: #0A356B !important;
   margin-bottom: 16px;
 }
+  
+.qr-code-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 24px;
+  margin-bottom: 20px;
+  background-color: #fafbfc;
+  border-radius: 8px;
+  border: 1px solid rgba(10, 53, 107, 0.08);
+  min-height: 200px;
+}
+
+.qr-code-image {
+  max-width: 250px;
+  max-height: 250px;
+  object-fit: contain;
+  border: 2px solid #0A356B;
+  border-radius: 8px;
+  padding: 8px;
+  background-color: white;
+}
 
 /* Responsive adjustments */
 @media (max-width: 768px) {
