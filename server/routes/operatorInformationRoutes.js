@@ -1,14 +1,13 @@
 const express = require('express');
 const router = express.Router();
 
-const User = require('../models/userAccountModel');
-const FranchiseApplication = require('../models/franchiseApplicationModel');
+const OperatorInformation = require('../models/operatorInformationModel');
 
 /**
  * GET /operators/qr/:operatorId
- * - Find user by `operatorId` (field on User document)
- * - Load the franchise application using FranchiseApplication.findById(user.franchiseInfo)
- * - Return { success: true, qrCode: <resolved> }
+ * - Find OperatorInformation by operatorId
+ * - Access franchiseInformations array (populated field)
+ * - Return the franchise with QR code
  * - If qrCode points to R2 (r2:// or public R2 URL), return proxied URL
  */
 router.get('/qr/:operatorId', async (req, res, next) => {
@@ -16,16 +15,24 @@ router.get('/qr/:operatorId', async (req, res, next) => {
     const { operatorId } = req.params;
     if (!operatorId) return res.status(400).json({ success: false, message: 'operatorId is required' });
 
-    const user = await User.findOne({ operatorId }).select('franchiseInfo').lean();
-    if (!user) return res.status(404).json({ success: false, message: 'Operator not found' });
+    // Find OperatorInformation by operatorId and populate franchises
+    const OperatorInformation = require('../models/operatorInformationModel');
+    const operatorInfo = await OperatorInformation.findOne({ operatorId })
+      .populate('franchiseInformations')
+      .select('franchiseInformations')
+      .lean();
+    
+    if (!operatorInfo) return res.status(404).json({ success: false, message: 'Operator not found' });
 
-    const franchiseAppId = user.franchiseInfo;
-    if (!franchiseAppId) return res.status(404).json({ success: false, message: 'Franchise application not linked' });
+    // Get the first franchise (assuming one active franchise per operator)
+    if (!operatorInfo.franchiseInformations || operatorInfo.franchiseInformations.length === 0) {
+      return res.status(404).json({ success: false, message: 'Franchise information not linked' });
+    }
 
-    const application = await FranchiseApplication.findById(franchiseAppId).select('qrCode').lean();
-    if (!application || !application.qrCode) return res.status(404).json({ success: false, message: 'QR code not found' });
+    const franchiseInfo = operatorInfo.franchiseInformations[0];
+    if (!franchiseInfo.qrCode) return res.status(404).json({ success: false, message: 'QR code not found' });
 
-    const qr = application.qrCode;
+    const qr = franchiseInfo.qrCode;
 
     // Determine if we should return a proxied URL
     const isR2Scheme = typeof qr === 'string' && qr.startsWith('r2://');

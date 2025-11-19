@@ -4,12 +4,17 @@ exports.getAllUsers = async (req, res, next) => {
   try {
     const User = require('../models/userAccountModel');
     
-    // Option to populate operator info if includeOperator query param is true
+    // Option to populate operator info and franchises if includeOperator query param is true
     const includeOperator = req.query.includeOperator === 'true';
     
     let users;
     if (includeOperator) {
-      users = await User.find({}).select('-password').populate('operatorInfo').lean();
+      users = await User.find({}).select('-password').populate({
+        path: 'operatorInfo',
+        populate: {
+          path: 'franchiseInformations'
+        }
+      }).lean();
     } else {
       users = await userAccountRepository.getAllUsers();
     }
@@ -125,13 +130,22 @@ exports.getUserAccountById = async (req, res, next) => {
   try {
     const User = require('../models/userAccountModel');
     
-    // Option to populate operator info if includeOperator query param is true
+    // Option to populate operator info and franchises if includeOperator query param is true
     const includeOperator = req.query.includeOperator === 'true';
     
     let user;
     if (includeOperator) {
-      user = await User.findOne({ userId: req.params.id }).populate('operatorInfo') ||
-             await User.findById(req.params.id).populate('operatorInfo');
+      user = await User.findOne({ userId: req.params.id }).populate({
+        path: 'operatorInfo',
+        populate: {
+          path: 'franchiseInformations'
+        }
+      }) || await User.findById(req.params.id).populate({
+        path: 'operatorInfo',
+        populate: {
+          path: 'franchiseInformations'
+        }
+      });
     } else {
       user = await userAccountRepository.findAccountById(req.params.id);
     }
