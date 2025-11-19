@@ -1,6 +1,99 @@
 const reportsRepository = require('../repositories/reportsRepository');
 
 /**
+ * Create a public report (no authentication required)
+ * For use by citizens scanning QR codes
+ */
+exports.createPublicReport = async (req, res, next) => {
+    try {
+        const { 
+            operatorId,
+            fullName, 
+            contactNumber,
+            amountCharged, 
+            expectedFare, 
+            description 
+        } = req.body;
+        
+        // Validate required fields
+        if (!operatorId || !fullName || !contactNumber || !amountCharged || !expectedFare || !description) {
+            return res.status(400).json({ 
+                error: 'All fields are required: operatorId, fullName, contactNumber, amountCharged, expectedFare, description' 
+            });
+        }
+
+        // Additional validation for spam prevention
+        // Validate string lengths to prevent abuse
+        if (fullName.length > 100 || contactNumber.length > 20 || description.length > 1000) {
+            return res.status(400).json({ error: 'Input exceeds maximum length' });
+        }
+
+        // Validate name contains only letters, spaces, and common name characters
+        if (!/^[a-zA-Z\s\-.']+$/.test(fullName)) {
+            return res.status(400).json({ error: 'Invalid name format' });
+        }
+
+        // Validate phone number format (Philippine format)
+        if (!/^(\+63|0)?9\d{9}$/.test(contactNumber.replace(/[\s\-]/g, ''))) {
+            return res.status(400).json({ error: 'Invalid phone number format' });
+        }
+
+        // Validate amounts are positive numbers
+        const chargedAmount = parseFloat(amountCharged);
+        const expectedAmount = parseFloat(expectedFare);
+        
+        if (isNaN(chargedAmount) || chargedAmount <= 0 || chargedAmount > 10000) {
+            return res.status(400).json({ error: 'Invalid amount charged (must be between 1-10000)' });
+        }
+        
+        if (isNaN(expectedAmount) || expectedAmount <= 0 || expectedAmount > 10000) {
+            return res.status(400).json({ error: 'Invalid expected fare (must be between 1-10000)' });
+        }
+
+        // Validate that charged amount is higher than expected (otherwise not overpricing)
+        if (chargedAmount <= expectedAmount) {
+            return res.status(400).json({ error: 'Amount charged must be higher than expected fare to report overpricing' });
+        }
+
+        // Get franchise information to get operator name
+        const FranchiseInformation = require('../models/franchiseInformationModel');
+        const franchise = await FranchiseInformation.findOne({ operatorId });
+        
+        if (!franchise) {
+            return res.status(404).json({ error: 'Operator not found' });
+        }
+
+        const reportData = {
+            franchiseeName: franchise.operatorName,
+            dateReported: new Date(),
+            timeReported: new Date().toLocaleTimeString('en-PH', { 
+                timeZone: 'Asia/Manila',
+                hour12: true 
+            }),
+            amountCharged: chargedAmount,
+            expectedFare: expectedAmount,
+            description: description.trim(),
+            reporterContact: `${fullName} - ${contactNumber}`
+        };
+
+        const newReport = await reportsRepository.createReport(reportData);
+        
+        // Log for audit trail
+        const ipAddress = req.ip || req.socket.remoteAddress || req.headers['x-forwarded-for']?.split(',')[0];
+        console.log(`[PUBLIC REPORT] Operator: ${operatorId}, Reporter: ${fullName}, IP: ${ipAddress}`);
+        
+        res.status(201).json({ 
+            success: true,
+            message: 'Report submitted successfully. Thank you for helping maintain fair fare practices.',
+            reportId: newReport.reportID
+        });
+    } catch (error) {
+        console.error('Error creating public report:', error);
+        next(error);
+    }   
+};
+
+/**
  * Create a new report
  */
 exports.createReport = async (req, res, next) => {

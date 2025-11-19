@@ -316,23 +316,26 @@ exports.login = async (req, res, next) => {
     // Generate tokens (include franchise info for users, admin info for admins)
     const accessToken = generateAccessToken(user, franchiseInfo, isAdmin);
     const accountType = isAdmin ? 'admin' : 'user';
-    const refreshToken = await generateRefreshToken(user, accountType, req, refreshTokenDays);
-
-      // Enforce max 2 active sessions per user
-      try {
-        const sessions = await sessionRepository.getUserSessions(user._id);
-        if (sessions.length > 2) {
-          // Sort by lastUsed (oldest first)
-          const sorted = sessions.sort((a, b) => new Date(a.lastUsed) - new Date(b.lastUsed));
-          // Keep the newest two, delete the rest
-          const toDelete = sorted.slice(0, -2);
-          for (const s of toDelete) {
-            await sessionRepository.deleteSession(s._id);
-          }
+     
+    // Enforce max 2 active sessions per user BEFORE creating new session
+    try {
+      const sessions = await sessionRepository.getUserSessions(user._id);
+      if (sessions.length >= 2) {
+        // Sort by lastUsed (oldest first)
+        const sorted = sessions.sort((a, b) => new Date(a.lastUsed) - new Date(b.lastUsed));
+        // Delete the oldest session(s) to make room for the new one
+        const toDelete = sorted.slice(0, sessions.length - 1); // Keep only 1, delete the rest
+        console.log(`[Login] User has ${sessions.length} sessions, removing ${toDelete.length} oldest session(s)`);
+        for (const s of toDelete) {
+          await sessionRepository.deleteSession(s._id);
         }
-      } catch (e) {
-        console.error('[Login] Failed to enforce session limit:', e);
       }
+    } catch (e) {
+      console.error('[Login] Failed to enforce session limit:', e);
+    }
+    
+    // Now create the new session (this will be the 2nd one)
+    const refreshToken = await generateRefreshToken(user, accountType, req, refreshTokenDays);
 
     // Check if this is a trusted device (Remember Me feature)
     const trustedDeviceToken = req.cookies.trustedDevice;
@@ -756,6 +759,22 @@ exports.googleCallback = async (req, res, next) => {
 
     // Issue tokens (reuse existing helpers, include operator info)
     const accessToken = generateAccessToken(user, operatorInfo);
+    
+    // Enforce max 2 active sessions per user BEFORE creating new session
+    try {
+      const sessions = await sessionRepository.getUserSessions(user._id);
+      if (sessions.length >= 2) {
+        const sorted = sessions.sort((a, b) => new Date(a.lastUsed) - new Date(b.lastUsed));
+        const toDelete = sorted.slice(0, sessions.length - 1);
+        console.log(`[OAuth] User has ${sessions.length} sessions, removing ${toDelete.length} oldest session(s)`);
+        for (const s of toDelete) {
+          await sessionRepository.deleteSession(s._id);
+        }
+      }
+    } catch (e) {
+      console.error('[OAuth] Failed to enforce session limit:', e);
+    }
+    
     const refreshToken = await generateRefreshToken(user, 'user', req);
 
     // Set refresh token cookie

@@ -21,6 +21,8 @@ function QROperatorID() {
   const [loading, setLoading] = useState(true);
   const [fareMatrixOpen, setFareMatrixOpen] = useState(false);
   const [reportModalOpen, setReportModalOpen] = useState(false);
+  const [submittingReport, setSubmittingReport] = useState(false);
+  const [reportSuccess, setReportSuccess] = useState(false);
   const [reportData, setReportData] = useState({
     fullName: '',
     contactNumber: '',
@@ -90,10 +92,22 @@ function QROperatorID() {
       });
   }, [operatorId]);
 
-  // Check if franchise is expired
+  // Store operatorId in state before URL changes (for report submission)
+  const [storedOperatorId] = useState(operatorId);
+
+  // Change URL to show only the base URL immediately after data loads
+  useEffect(() => {
+    if (!loading && (user || matchedFranchise)) {
+      const homeUrl = import.meta.env.VITE_CLIENT_REDIRECT || 'http://localhost:5173';
+      // Use replaceState to change URL without navigating away
+      window.history.replaceState(null, '', homeUrl);
+    }
+  }, [loading, user, matchedFranchise]);
+
+  // Check if franchise is expired or inactive
   const isFranchiseExpired = () => {
-    if (!matchedFranchise?.expiryDate) return false;
-    return dayjs(matchedFranchise.expiryDate).isBefore(dayjs());
+    if (!matchedFranchise?.status) return false;
+    return matchedFranchise.status === 'expired' || matchedFranchise.status === 'inactive';
   };
 
 
@@ -367,8 +381,8 @@ function QROperatorID() {
                 textAlign: 'center',
                 minWidth: '220px'
               }}
-            >
-              ID NO: {user?.operatorId || operatorId}
+              >
+              ID NO: {user?.operatorId || storedOperatorId}
             </Box>
           </Box>
 
@@ -397,8 +411,8 @@ function QROperatorID() {
             {matchedFranchise?.address || user?.address || ''}
           </Typography>
 
-          {/* Franchise Status Badge - Green for active, blue for inactive, red for not linked */}
-          <Box sx={{ display: 'flex', justifyContent: 'center', mb: 3 }}>
+          {/* Franchise Status Badge - Green for active, red for expired/inactive, gray for not linked */}
+          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mb: 3, gap: 2 }}>
             {matchedFranchise?.notLinked ? (
               <Box
                 sx={{ 
@@ -433,17 +447,36 @@ function QROperatorID() {
               >
                 ACTIVE FRANCHISE
               </Box>
-            ) : (
+            ) : matchedFranchise?.status === 'expired' ? (
               <Box
                 sx={{ 
-                  bgcolor: '#083d77', // Blue for inactive
+                  bgcolor: '#d32f2f', // Red for expired
                   color: 'white',
                   fontWeight: 'bold',
                   fontSize: { xs: '0.85rem', sm: '0.95rem' },
                   px: 4,
                   py: 1.5,
                   borderRadius: '6px',
-                  border: '2px solid #083d77',
+                  border: '2px solid #b71c1c',
+                  boxShadow: 1,
+                  letterSpacing: '1px',
+                  textAlign: 'center',
+                  minWidth: '180px'
+                }}
+              >
+                EXPIRED FRANCHISE
+              </Box>
+            ) : (
+              <Box
+                sx={{ 
+                  bgcolor: '#757575', // Gray for inactive
+                  color: 'white',
+                  fontWeight: 'bold',
+                  fontSize: { xs: '0.85rem', sm: '0.95rem' },
+                  px: 4,
+                  py: 1.5,
+                  borderRadius: '6px',
+                  border: '2px solid #616161',
                   boxShadow: 1,
                   letterSpacing: '1px',
                   textAlign: 'center',
@@ -451,6 +484,27 @@ function QROperatorID() {
                 }}
               >
                 INACTIVE FRANCHISE
+              </Box>
+            )}
+            
+            {/* Warning for expired/inactive franchises */}
+            {(matchedFranchise?.status === 'expired' || matchedFranchise?.status === 'inactive') && (
+              <Box
+                sx={{
+                  bgcolor: '#fff3cd',
+                  border: '1px solid #ffc107',
+                  borderRadius: '4px',
+                  p: 2,
+                  width: '100%',
+                  textAlign: 'center'
+                }}
+              >
+                <Typography sx={{ fontSize: '0.85rem', color: '#856404', fontWeight: 'bold' }}>
+                  ⚠️ Warning
+                </Typography>
+                <Typography sx={{ fontSize: '0.75rem', color: '#856404', mt: 0.5 }}>
+                  This operator's franchise is {matchedFranchise?.status}. They may not be authorized to operate.
+                </Typography>
               </Box>
             )}
           </Box>
@@ -496,6 +550,8 @@ function QROperatorID() {
               VIEW FARE MATRIX
             </Button>
           </Box>
+
+
         </Box>
       </Box>
 
@@ -543,14 +599,17 @@ function QROperatorID() {
               label="Full Name"
               value={reportData.fullName}
               onChange={(e) => setReportData({ ...reportData, fullName: e.target.value })}
+              inputProps={{ maxLength: 100 }}
               sx={{ mb: 2 }}
             />
 
             <TextField
               fullWidth
               label="Contact Number"
+              placeholder="09123456789"
               value={reportData.contactNumber}
               onChange={(e) => setReportData({ ...reportData, contactNumber: e.target.value })}
+              inputProps={{ maxLength: 20 }}
               sx={{ mb: 3 }}
             />
 
@@ -617,6 +676,8 @@ function QROperatorID() {
               onChange={(e) => setReportData({ ...reportData, description: e.target.value })}
               multiline
               rows={4}
+              inputProps={{ maxLength: 1000 }}
+              helperText={`${reportData.description.length}/1000 characters`}
               sx={{ mb: 3 }}
             />
 
@@ -641,32 +702,116 @@ function QROperatorID() {
               </Button>
               <Button
                 variant="contained"
-                onClick={() => {
-                  console.log('Report submitted:', reportData);
-                  // Handle report submission here
-                  setReportModalOpen(false);
-                  // Reset form
-                  setReportData({
-                    fullName: '',
-                    contactNumber: '',
-                    amountCharged: '',
-                    expectedFare: '',
-                    description: ''
-                  });
+                disabled={submittingReport}
+                onClick={async () => {
+                  // Validate all fields
+                  if (!reportData.fullName || !reportData.contactNumber || 
+                      !reportData.amountCharged || !reportData.expectedFare || 
+                      !reportData.description) {
+                    alert('Please fill in all fields');
+                    return;
+                  }
+
+                  // Validate name format
+                  if (!/^[a-zA-Z\s\-.']+$/.test(reportData.fullName)) {
+                    alert('Please enter a valid name (letters only)');
+                    return;
+                  }
+
+                  // Validate phone number (Philippine format)
+                  const phoneClean = reportData.contactNumber.replace(/[\s\-]/g, '');
+                  if (!/^(\+63|0)?9\d{9}$/.test(phoneClean)) {
+                    alert('Please enter a valid Philippine mobile number (e.g., 09123456789)');
+                    return;
+                  }
+
+                  // Validate amounts are positive numbers
+                  const charged = parseFloat(reportData.amountCharged);
+                  const expected = parseFloat(reportData.expectedFare);
+
+                  if (isNaN(charged) || charged <= 0 || charged > 10000) {
+                    alert('Please enter a valid amount charged (1-10000)');
+                    return;
+                  }
+
+                  if (isNaN(expected) || expected <= 0 || expected > 10000) {
+                    alert('Please enter a valid expected fare (1-10000)');
+                    return;
+                  }
+
+                  // Validate that it's actually overpricing
+                  if (charged <= expected) {
+                    alert('Amount charged must be higher than expected fare to report overpricing');
+                    return;
+                  }
+
+                  // Validate description length
+                  if (reportData.description.length > 1000) {
+                    alert('Description is too long (max 1000 characters)');
+                    return;
+                  }
+
+                  setSubmittingReport(true);
+
+                  try {
+                    const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170';
+                    const response = await fetch(`${API_BASE_URL}/reports/public`, {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/json'
+                      },
+                      body: JSON.stringify({
+                        operatorId: storedOperatorId,
+                        fullName: reportData.fullName.trim(),
+                        contactNumber: reportData.contactNumber.trim(),
+                        amountCharged: parseFloat(reportData.amountCharged),
+                        expectedFare: parseFloat(reportData.expectedFare),
+                        description: reportData.description.trim()
+                      })
+                    });
+
+                    const result = await response.json();
+
+                    if (response.ok && result.success) {
+                      setReportSuccess(true);
+                      setTimeout(() => {
+                        setReportModalOpen(false);
+                        setReportSuccess(false);
+                        setReportData({
+                          fullName: '',
+                          contactNumber: '',
+                          amountCharged: '',
+                          expectedFare: '',
+                          description: ''
+                        });
+                      }, 2000);
+                    } else {
+                      alert(result.error || 'Failed to submit report. Please try again.');
+                    }
+                  } catch (error) {
+                    console.error('Error submitting report:', error);
+                    alert('Failed to submit report. Please check your connection and try again.');
+                  } finally {
+                    setSubmittingReport(false);
+                  }
                 }}
                 sx={{
-                  bgcolor: '#FFA726',
+                  bgcolor: reportSuccess ? '#4CAF50' : '#FFA726',
                   color: 'white',
                   textTransform: 'none',
                   px: 4,
                   py: 1.5,
                   fontWeight: 'bold',
                   '&:hover': {
-                    bgcolor: '#FF9800'
+                    bgcolor: reportSuccess ? '#45a049' : '#FF9800'
+                  },
+                  '&:disabled': {
+                    bgcolor: '#BDBDBD',
+                    color: 'white'
                   }
                 }}
               >
-                SUBMIT
+                {submittingReport ? 'SUBMITTING...' : reportSuccess ? '✓ SUBMITTED' : 'SUBMIT'}
               </Button>
             </Box>
           </DialogContent>

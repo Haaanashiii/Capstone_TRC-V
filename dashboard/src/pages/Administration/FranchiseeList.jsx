@@ -83,24 +83,7 @@ const modalStyle = {
 };
 
 // FranchiseeDetailsModal Component
-const FranchiseeDetailsModal = ({ open, onClose, franchisee, isEditing, onEdit, onSave, onFilePreview, getFileIcon }) => {
-  const [editedData, setEditedData] = useState(franchisee || {});
-
-  // Update editedData when franchisee changes
-  React.useEffect(() => {
-    if (franchisee) {
-      setEditedData(franchisee);
-    }
-  }, [franchisee]);
-
-  const handleFieldChange = useCallback((field, value) => {
-    setEditedData(prev => ({ ...prev, [field]: value }));
-  }, []);
-
-  const handleSave = useCallback(() => {
-    onSave(editedData);
-  }, [editedData, onSave]);
-
+const FranchiseeDetailsModal = ({ open, onClose, franchisee, isEditing, onEdit, onSave, onFilePreview, getFileIcon, qrBlobUrl }) => {
   if (!franchisee) return null;
 
   return (
@@ -108,432 +91,162 @@ const FranchiseeDetailsModal = ({ open, onClose, franchisee, isEditing, onEdit, 
       open={open}
       onClose={onClose}
       aria-labelledby="franchisee-details-modal"
-      aria-describedby="franchisee-details-description"
     >
-      <Box sx={modalStyle}>
-        {/* Modal Header */}
-        <Box
-          sx={{
-            bgcolor: '#0a3161',
-            color: 'white',
-            p: 2,
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-          }}
-        >
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <Typography variant="h6" component="h2" fontWeight="bold">
-              Franchisee Details
-            </Typography>
-            <Chip 
-              label={`Record #${franchisee.recordNumber}`} 
-              sx={{ bgcolor: 'rgba(255,255,255,0.2)', color: 'white', fontWeight: 'bold' }}
-            />
-          </Box>
-          <IconButton
-            onClick={onClose}
-            sx={{ color: 'white' }}
-            aria-label="close"
-          >
+      <Box className="modal-container">
+        <div className="modal-header">
+          <Typography variant="h5" component="h2">
+            FRANCHISEE DETAILS
+          </Typography>
+          <IconButton onClick={onClose}>
             <CloseIcon />
           </IconButton>
-        </Box>
+        </div>
+        
+        <Typography variant="h6" className="section-header">
+          PERSONAL INFORMATION
+        </Typography>
+        
+        <div className="info-grid">
+          <Typography variant="subtitle2" className="label">Franchise Number:</Typography>
+          <Typography>{franchisee.franchiseNumber}</Typography>
+          
+          <Typography variant="subtitle2" className="label">Name:</Typography>
+          <Typography>{franchisee.franchiseeName}</Typography>
+          
+          <Typography variant="subtitle2" className="label">Contact Number:</Typography>
+          <Typography>{franchisee.contactNumber || 'N/A'}</Typography>
+          
+          <Typography variant="subtitle2" className="label">Birth Place:</Typography>
+          <Typography>{franchisee.birthPlace || 'N/A'}</Typography>
+          
+          <Typography variant="subtitle2" className="label">Birth Date:</Typography>
+          <Typography>{franchisee.birthDate || 'N/A'}</Typography>
+          
+          <Typography variant="subtitle2" className="label">Civil Status:</Typography>
+          <Typography>{franchisee.civilStatus || 'N/A'}</Typography>
+          
+          <Typography variant="subtitle2" className="label">Citizenship:</Typography>
+          <Typography>{franchisee.citizenship || 'N/A'}</Typography>
+          
+          <Typography variant="subtitle2" className="label">TODA Membership:</Typography>
+          <Typography>{franchisee.todaMembership || 'N/A'}</Typography>
+          
+          <Typography variant="subtitle2" className="label">Address:</Typography>
+          <Typography>{franchisee.address}</Typography>
+        </div>
+        
+        <Typography variant="h6" className="section-header">
+          MOTORCYCLE INFORMATION
+        </Typography>
+        
+        <div className="info-grid">
+          <Typography variant="subtitle2" className="label">Unit Model:</Typography>
+          <Typography>{franchisee.unitModel || 'N/A'}</Typography>
+          
+          <Typography variant="subtitle2" className="label">Color (Motor):</Typography>
+          <Typography>{franchisee.colorMotor || 'N/A'}</Typography>
+          
+          <Typography variant="subtitle2" className="label">Color (Sidecar):</Typography>
+          <Typography>{franchisee.colorSidecar || 'N/A'}</Typography>
+          
+          <Typography variant="subtitle2" className="label">MV Plate:</Typography>
+          <Typography>{franchisee.mvPlate || 'N/A'}</Typography>
+          
+          <Typography variant="subtitle2" className="label">Motor/Engine Number:</Typography>
+          <Typography>{franchisee.motorEngineNumber || 'N/A'}</Typography>
+          
+          <Typography variant="subtitle2" className="label">Chassis Number:</Typography>
+          <Typography>{franchisee.chassisNumber || 'N/A'}</Typography>
+          
+          <Typography variant="subtitle2" className="label">Make:</Typography>
+          <Typography>{franchisee.make}</Typography>
+          
+          <Typography variant="subtitle2" className="label">Plate Number:</Typography>
+          <Typography>{franchisee.plateNumber}</Typography>
+        </div>
 
-        {/* Modal Content */}
-        <Box sx={{ overflowY: 'auto', flex: 1, p: 3 }}>
-          {/* Action Buttons */}
-          <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
-            <Button
-              variant="contained"
-              startIcon={isEditing ? <SaveIcon /> : <EditIcon />}
-              onClick={isEditing ? handleSave : onEdit}
-              sx={{
-                bgcolor: '#0a3161',
-                '&:hover': { bgcolor: '#082648' },
-              }}
-            >
-              {isEditing ? 'Save Changes' : 'Edit Details'}
-            </Button>
-          </Box>
-
-          {/* Franchisee Information Card */}
-          <Card elevation={2} sx={{ mb: 3 }}>
-            <CardHeader
-              title="FRANCHISEE INFORMATION"
-              sx={{
-                bgcolor: '#0a3161',
-                color: 'white',
-                '& .MuiCardHeader-title': { fontWeight: 'bold', fontSize: '1rem' },
-              }}
-            />
-            <CardContent>
-              <Grid container spacing={3}>
-                <Grid item xs={12} sm={6}>
-                  <Typography variant="subtitle2" fontWeight="bold" color="text.secondary" gutterBottom>
-                    FULL NAME
-                  </Typography>
-                  <TextField
-                    fullWidth
-                    value={isEditing ? editedData.franchiseeName : franchisee.franchiseeName}
-                    variant="outlined"
-                    size="small"
-                    disabled={!isEditing}
-                    onChange={(e) => handleFieldChange('franchiseeName', e.target.value)}
-                  />
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <Typography variant="subtitle2" fontWeight="bold" color="text.secondary" gutterBottom>
-                    ADDRESS
-                  </Typography>
-                  <TextField
-                    fullWidth
-                    value={isEditing ? editedData.address : franchisee.address}
-                    variant="outlined"
-                    size="small"
-                    disabled={!isEditing}
-                    onChange={(e) => handleFieldChange('address', e.target.value)}
-                  />
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <Typography variant="subtitle2" fontWeight="bold" color="text.secondary" gutterBottom>
-                    CIVIL STATUS
-                  </Typography>
-                  <TextField
-                    fullWidth
-                    defaultValue="SINGLE"
-                    variant="outlined"
-                    size="small"
-                    disabled={!isEditing}
-                  />
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <Typography variant="subtitle2" fontWeight="bold" color="text.secondary" gutterBottom>
-                    CO-OWNER
-                  </Typography>
-                  <TextField
-                    fullWidth
-                    defaultValue="N/A"
-                    variant="outlined"
-                    size="small"
-                    disabled={!isEditing}
-                  />
-                </Grid>
-              </Grid>
-            </CardContent>
-          </Card>
-
-          {/* Franchise Card */}
-          <Card elevation={2} sx={{ mb: 3 }}>
-            <CardHeader
-              title="MOTORIZED TRICYCLE OPERATORS FRANCHISE"
-              sx={{
-                bgcolor: '#0a3161',
-                color: 'white',
-                '& .MuiCardHeader-title': { fontWeight: 'bold', fontSize: '1rem' },
-              }}
-            />
-            <CardContent>
-              <Grid container spacing={3}>
-                <Grid item xs={12} sm={6}>
-                  <Typography variant="subtitle2" fontWeight="bold" color="text.secondary" gutterBottom>
-                    OR NUMBER
-                  </Typography>
-                  <TextField
-                    fullWidth
-                    defaultValue="7163721"
-                    variant="outlined"
-                    size="small"
-                    disabled={!isEditing}
-                  />
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <Typography variant="subtitle2" fontWeight="bold" color="text.secondary" gutterBottom>
-                    FRANCHISE NUMBER
-                  </Typography>
-                  <TextField
-                    fullWidth
-                    value={isEditing ? editedData.franchiseNumber : franchisee.franchiseNumber}
-                    variant="outlined"
-                    size="small"
-                    disabled={!isEditing}
-                    onChange={(e) => handleFieldChange('franchiseNumber', e.target.value)}
-                  />
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <Typography variant="subtitle2" fontWeight="bold" color="text.secondary" gutterBottom>
-                    DATE APPROVED
-                  </Typography>
-                  <TextField
-                    fullWidth
-                    defaultValue="2025-09-01"
-                    variant="outlined"
-                    size="small"
-                    disabled={!isEditing}
-                    type="date"
-                  />
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <Typography variant="subtitle2" fontWeight="bold" color="text.secondary" gutterBottom>
-                    EXPIRY DATE
-                  </Typography>
-                  <TextField
-                    fullWidth
-                    defaultValue="2029-09-01"
-                    variant="outlined"
-                    size="small"
-                    disabled={!isEditing}
-                    type="date"
-                  />
-                </Grid>
-              </Grid>
-            </CardContent>
-          </Card>
-
-          {/* Motorcycle Information Card */}
-          <Card elevation={2} sx={{ mb: 3 }}>
-            <CardHeader
-              title="MOTORCYCLE INFORMATION"
-              sx={{
-                bgcolor: '#0a3161',
-                color: 'white',
-                '& .MuiCardHeader-title': { fontWeight: 'bold', fontSize: '1rem' },
-              }}
-            />
-            <CardContent>
-              <Grid container spacing={3}>
-                <Grid item xs={12} sm={4}>
-                  <Typography variant="subtitle2" fontWeight="bold" color="text.secondary" gutterBottom>
-                    MAKE
-                  </Typography>
-                  <TextField
-                    fullWidth
-                    value={isEditing ? editedData.make : franchisee.make}
-                    variant="outlined"
-                    size="small"
-                    disabled={!isEditing}
-                    onChange={(e) => handleFieldChange('make', e.target.value)}
-                  />
-                </Grid>
-                <Grid item xs={12} sm={4}>
-                  <Typography variant="subtitle2" fontWeight="bold" color="text.secondary" gutterBottom>
-                    SIDECAR NUMBER
-                  </Typography>
-                  <TextField
-                    fullWidth
-                    value={franchisee.franchiseNumber}
-                    variant="outlined"
-                    size="small"
-                    disabled={!isEditing}
-                  />
-                </Grid>
-                <Grid item xs={12} sm={4}>
-                  <Typography variant="subtitle2" fontWeight="bold" color="text.secondary" gutterBottom>
-                    PLATE NUMBER
-                  </Typography>
-                  <TextField
-                    fullWidth
-                    value={isEditing ? editedData.plateNumber : franchisee.plateNumber}
-                    variant="outlined"
-                    size="small"
-                    disabled={!isEditing}
-                    onChange={(e) => handleFieldChange('plateNumber', e.target.value)}
-                  />
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <Typography variant="subtitle2" fontWeight="bold" color="text.secondary" gutterBottom>
-                    CHASSIS NUMBER
-                  </Typography>
-                  <TextField
-                    fullWidth
-                    defaultValue="LXRSF8J813NDD"
-                    variant="outlined"
-                    size="small"
-                    disabled={!isEditing}
-                  />
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <Typography variant="subtitle2" fontWeight="bold" color="text.secondary" gutterBottom>
-                    MOTOR NUMBER
-                  </Typography>
-                  <TextField
-                    fullWidth
-                    defaultValue="12655G8775758"
-                    variant="outlined"
-                    size="small"
-                    disabled={!isEditing}
-                  />
-                </Grid>
-              </Grid>
-            </CardContent>
-          </Card>
-
-          {/* Documents Card */}
-          <Card elevation={2}>
-            <CardHeader
-              title="DOCUMENTARY REQUIREMENTS"
-              sx={{
-                bgcolor: '#0a3161',
-                color: 'white',
-                '& .MuiCardHeader-title': { fontWeight: 'bold', fontSize: '1rem' },
-              }}
-            />
-            <CardContent>
-              <Grid container spacing={3}>
-                <Grid item xs={12} sm={6}>
-                  <Typography variant="subtitle2" fontWeight="bold" color="text.secondary" gutterBottom>
-                    Registration
-                  </Typography>
-                  {franchisee.documentRegistration ? (
-                    <Link
-                      component="button"
-                      variant="body2"
-                      onClick={() => onFilePreview(franchisee.documentRegistration)}
-                      sx={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 1,
-                        textDecoration: 'none',
-                        color: '#0a3161',
-                        '&:hover': { textDecoration: 'underline' }
-                      }}
-                    >
-                      {getFileIcon(franchisee.documentRegistration?.type)}
-                      <span>{franchisee.documentRegistration?.name || 'View Document'}</span>
-                    </Link>
-                  ) : (
-                    <Typography variant="body2" color="text.secondary">No file</Typography>
-                  )}
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <Typography variant="subtitle2" fontWeight="bold" color="text.secondary" gutterBottom>
-                    Barangay Clearance
-                  </Typography>
-                  {franchisee.documentBarangayClearance ? (
-                    <Link
-                      component="button"
-                      variant="body2"
-                      onClick={() => onFilePreview(franchisee.documentBarangayClearance)}
-                      sx={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 1,
-                        textDecoration: 'none',
-                        color: '#0a3161',
-                        '&:hover': { textDecoration: 'underline' }
-                      }}
-                    >
-                      {getFileIcon(franchisee.documentBarangayClearance?.type)}
-                      <span>{franchisee.documentBarangayClearance?.name || 'View Document'}</span>
-                    </Link>
-                  ) : (
-                    <Typography variant="body2" color="text.secondary">No file</Typography>
-                  )}
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <Typography variant="subtitle2" fontWeight="bold" color="text.secondary" gutterBottom>
-                    Cedula
-                  </Typography>
-                  {franchisee.documentCedula ? (
-                    <Link
-                      component="button"
-                      variant="body2"
-                      onClick={() => onFilePreview(franchisee.documentCedula)}
-                      sx={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 1,
-                        textDecoration: 'none',
-                        color: '#0a3161',
-                        '&:hover': { textDecoration: 'underline' }
-                      }}
-                    >
-                      {getFileIcon(franchisee.documentCedula?.type)}
-                      <span>{franchisee.documentCedula?.name || 'View Document'}</span>
-                    </Link>
-                  ) : (
-                    <Typography variant="body2" color="text.secondary">No file</Typography>
-                  )}
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <Typography variant="subtitle2" fontWeight="bold" color="text.secondary" gutterBottom>
-                    Driver's License
-                  </Typography>
-                  {franchisee.documentDriversLicense ? (
-                    <Link
-                      component="button"
-                      variant="body2"
-                      onClick={() => onFilePreview(franchisee.documentDriversLicense)}
-                      sx={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 1,
-                        textDecoration: 'none',
-                        color: '#0a3161',
-                        '&:hover': { textDecoration: 'underline' }
-                      }}
-                    >
-                      {getFileIcon(franchisee.documentDriversLicense?.type)}
-                      <span>{franchisee.documentDriversLicense?.name || 'View Document'}</span>
-                    </Link>
-                  ) : (
-                    <Typography variant="body2" color="text.secondary">No file</Typography>
-                  )}
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <Typography variant="subtitle2" fontWeight="bold" color="text.secondary" gutterBottom>
-                    Voter's Affidavit
-                  </Typography>
-                  {franchisee.documentVotersAffidavit ? (
-                    <Link
-                      component="button"
-                      variant="body2"
-                      onClick={() => onFilePreview(franchisee.documentVotersAffidavit)}
-                      sx={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 1,
-                        textDecoration: 'none',
-                        color: '#0a3161',
-                        '&:hover': { textDecoration: 'underline' }
-                      }}
-                    >
-                      {getFileIcon(franchisee.documentVotersAffidavit?.type)}
-                      <span>{franchisee.documentVotersAffidavit?.name || 'View Document'}</span>
-                    </Link>
-                  ) : (
-                    <Typography variant="body2" color="text.secondary">No file</Typography>
-                  )}
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <Typography variant="subtitle2" fontWeight="bold" color="text.secondary" gutterBottom>
-                    Picture
-                  </Typography>
-                  {franchisee.documentPicture ? (
-                    <Link
-                      component="button"
-                      variant="body2"
-                      onClick={() => onFilePreview(franchisee.documentPicture)}
-                      sx={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 1,
-                        textDecoration: 'none',
-                        color: '#0a3161',
-                        '&:hover': { textDecoration: 'underline' }
-                      }}
-                    >
-                      {getFileIcon(franchisee.documentPicture?.type)}
-                      <span>{franchisee.documentPicture?.name || 'View Document'}</span>
-                    </Link>
-                  ) : (
-                    <Typography variant="body2" color="text.secondary">No file</Typography>
-                  )}
-                </Grid>
-              </Grid>
-            </CardContent>
-          </Card>
-        </Box>
+        <Typography variant="h6" className="section-header">
+          QR CODE
+        </Typography>
+        
+        <div className="qr-code-container">
+          {qrBlobUrl ? (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px' }}>
+              <img 
+                src={qrBlobUrl} 
+                alt="Franchisee QR Code" 
+                className="qr-code-image"
+                onError={(e) => {
+                  console.error('QR Code image failed to load');
+                  e.target.style.display = 'none';
+                }}
+              />
+              <Button
+                variant="contained"
+                href={qrBlobUrl}
+                download={`QR-${franchisee.franchiseNumber}.png`}
+                sx={{
+                  bgcolor: '#0a3161',
+                  '&:hover': { bgcolor: '#082648' },
+                  textTransform: 'none',
+                  fontWeight: 600
+                }}
+              >
+                Download QR Code
+              </Button>
+            </div>
+          ) : franchisee.qrCode ? (
+            <Typography variant="body2" color="text.secondary">
+              Loading QR code...
+            </Typography>
+          ) : (
+            <Typography variant="body2" color="text.secondary">
+              No QR code available
+            </Typography>
+          )}
+        </div>
+        
+        <Typography variant="h6" className="section-header">
+          DOCUMENTS
+        </Typography>
+        
+        <div className="info-grid">
+          <Typography variant="subtitle2" className="label">Registration:</Typography>
+          <Link className="document-link" onClick={() => onFilePreview(franchisee.documentRegistration)}>
+            {getFileIcon(franchisee.documentRegistration?.type)}
+            <span>{franchisee.documentRegistration?.name || 'No file'}</span>
+          </Link>
+          
+          <Typography variant="subtitle2" className="label">Barangay Clearance:</Typography>
+          <Link className="document-link" onClick={() => onFilePreview(franchisee.documentBarangayClearance)}>
+            {getFileIcon(franchisee.documentBarangayClearance?.type)}
+            <span>{franchisee.documentBarangayClearance?.name || 'No file'}</span>
+          </Link>
+          
+          <Typography variant="subtitle2" className="label">Cedula:</Typography>
+          <Link className="document-link" onClick={() => onFilePreview(franchisee.documentCedula)}>
+            {getFileIcon(franchisee.documentCedula?.type)}
+            <span>{franchisee.documentCedula?.name || 'No file'}</span>
+          </Link>
+          
+          <Typography variant="subtitle2" className="label">Driver's License:</Typography>
+          <Link className="document-link" onClick={() => onFilePreview(franchisee.documentDriversLicense)}>
+            {getFileIcon(franchisee.documentDriversLicense?.type)}
+            <span>{franchisee.documentDriversLicense?.name || 'No file'}</span>
+          </Link>
+          
+          <Typography variant="subtitle2" className="label">Voter's Affidavit:</Typography>
+          <Link className="document-link" onClick={() => onFilePreview(franchisee.documentVotersAffidavit)}>
+            {getFileIcon(franchisee.documentVotersAffidavit?.type)}
+            <span>{franchisee.documentVotersAffidavit?.name || 'No file'}</span>
+          </Link>
+          
+          <Typography variant="subtitle2" className="label">Picture:</Typography>
+          <Link className="document-link" onClick={() => onFilePreview(franchisee.documentPicture)}>
+            {getFileIcon(franchisee.documentPicture?.type)}
+            <span>{franchisee.documentPicture?.name || 'No file'}</span>
+          </Link>
+        </div>
       </Box>
     </Modal>
   );
@@ -553,6 +266,8 @@ function FranchiseeList() {
   const [openFilePreview, setOpenFilePreview] = useState(false);
   const [previewFile, setPreviewFile] = useState({ name: '', type: '', path: '' });
   const currentBlobUrlRef = useRef(null);
+  const qrBlobUrlRef = useRef(null);
+  const [qrBlobUrl, setQrBlobUrl] = useState(null);
 
   // Get auth token
   const getAuthToken = () => {
@@ -588,32 +303,58 @@ function FranchiseeList() {
           recordNumber: String(index + 1).padStart(3, '0'),
           franchiseeName: app.operatorName || '',
           franchiseNumber: app.mtopNumber || app.operatorId || '',
-          make: 'N/A', // Not stored in FranchiseInformation model
-          plateNumber: 'N/A', // Not stored in FranchiseInformation model
+          make: app.unitModel || 'N/A',
+          plateNumber: app.mvPlateNo || 'N/A',
           applicationType: 'Approved', // All are approved franchises
           address: app.address || '',
           // Additional fields for details modal
           civilStatus: app.civilStatus || '',
-          birthPlace: '',
-          birthDate: '',
-          citizenship: '',
-          todaMembership: '',
-          colorMotor: '',
-          colorSidecar: '',
-          motorEngineNumber: '',
-          chassisNumber: '',
+          birthPlace: app.birthPlace || '',
+          birthDate: app.birthDate ? new Date(app.birthDate).toLocaleDateString() : '',
+          citizenship: app.citizenship || '',
+          todaMembership: app.todaMembership || '',
+          unitModel: app.unitModel || '',
+          colorMotor: app.colorMotor || '',
+          colorSidecar: app.sideCarColor || '',
+          mvPlate: app.mvPlateNo || '',
+          motorEngineNumber: app.motorEngineNo || '',
+          chassisNumber: app.chasisNo || '',
           driversID: app.driversID || '',
-          driversAddress: app.address || '',
+          driversAddress: app.driversAddress || app.address || '',
           contactNumber: app.contactNumber || '',
           qrCode: app.qrCode || null,
           profilePhoto: app.profilePhoto || null,
-          // Document files from documents subdocument
-          documentRegistration: docs.motorRegistration || null,
-          documentBarangayClearance: docs.barangayClearance || null,
-          documentCedula: docs.cedula || null,
-          documentDriversLicense: docs.driversLicense || null,
-          documentVotersAffidavit: docs.votersAffidavit || null,
-          documentPicture: docs.picture || app.profilePhoto || null
+          // Document files from documents subdocument - normalize to objects with name and path
+          documentRegistration: docs.motorRegistration ? { 
+            name: docs.motorRegistration.split('/').pop() || 'Registration Document',
+            path: docs.motorRegistration,
+            type: docs.motorRegistration.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg'
+          } : null,
+          documentBarangayClearance: docs.barangayClearance ? {
+            name: docs.barangayClearance.split('/').pop() || 'Barangay Clearance',
+            path: docs.barangayClearance,
+            type: docs.barangayClearance.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg'
+          } : null,
+          documentCedula: docs.cedula ? {
+            name: docs.cedula.split('/').pop() || 'Cedula',
+            path: docs.cedula,
+            type: docs.cedula.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg'
+          } : null,
+          documentDriversLicense: docs.driversLicense ? {
+            name: docs.driversLicense.split('/').pop() || 'Drivers License',
+            path: docs.driversLicense,
+            type: docs.driversLicense.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg'
+          } : null,
+          documentVotersAffidavit: docs.votersAffidavit ? {
+            name: docs.votersAffidavit.split('/').pop() || 'Voters Affidavit',
+            path: docs.votersAffidavit,
+            type: docs.votersAffidavit.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg'
+          } : null,
+          documentPicture: (docs.picture || app.profilePhoto) ? {
+            name: (docs.picture || app.profilePhoto).split('/').pop() || 'Picture',
+            path: docs.picture || app.profilePhoto,
+            type: 'image/jpeg'
+          } : null
         };
       });
 
@@ -669,6 +410,76 @@ function FranchiseeList() {
     setIsEditing(false);
     setModalOpen(true);
   }, []);
+
+  // When a selected franchisee changes, fetch QR code if available
+  React.useEffect(() => {
+    const fetchQRCode = async () => {
+      if (!selectedFranchisee?.qrCode) {
+        if (qrBlobUrlRef.current) {
+          URL.revokeObjectURL(qrBlobUrlRef.current);
+          qrBlobUrlRef.current = null;
+        }
+        setQrBlobUrl(null);
+        return;
+      }
+
+      try {
+        const apiBase = API_BASE_URL || 'http://localhost:5170';
+        const token = getAuthToken();
+        
+        const qrPath = selectedFranchisee.qrCode;
+        let qrUrl = qrPath;
+        
+        // Handle R2 format: r2://path/to/file -> route through backend proxy
+        if (qrPath.startsWith('r2://')) {
+          qrUrl = `${apiBase.replace(/\/$/, '')}/api/franchise-information/proxy-file?url=${encodeURIComponent(qrPath)}`;
+          console.log('[FranchiseeList] R2 format detected for QR code, routing through proxy');
+        }
+        // Old Cloudflare public URL format -> route through backend proxy
+        else if (/^https?:\/\/pub-[a-f0-9]+\.r2\.dev/i.test(qrPath)) {
+          qrUrl = `${apiBase.replace(/\/$/, '')}/api/franchise-information/proxy-file?url=${encodeURIComponent(qrPath)}`;
+          console.log('[FranchiseeList] Cloudflare R2 public URL detected for QR code, routing through proxy');
+        }
+        // Full HTTP/HTTPS URL
+        else if (qrPath.startsWith('http://') || qrPath.startsWith('https://')) {
+          qrUrl = qrPath;
+        }
+        // Relative path
+        else if (qrPath.startsWith('/')) {
+          qrUrl = `${apiBase}${qrPath}`;
+        } else {
+          qrUrl = `${apiBase}/${qrPath}`;
+        }
+
+        console.log('[FranchiseeList] Fetching QR code from:', qrUrl);
+
+        const response = await fetch(qrUrl, {
+          headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+        });
+
+        if (!response.ok) {
+          throw new Error(`Failed to fetch QR code: ${response.statusText}`);
+        }
+
+        const blob = await response.blob();
+        
+        if (qrBlobUrlRef.current) {
+          URL.revokeObjectURL(qrBlobUrlRef.current);
+        }
+        
+        const blobUrl = URL.createObjectURL(blob);
+        qrBlobUrlRef.current = blobUrl;
+        setQrBlobUrl(blobUrl);
+        
+        console.log('[FranchiseeList] QR code loaded successfully');
+      } catch (err) {
+        console.error('[FranchiseeList] Error fetching QR code:', err);
+        setQrBlobUrl(null);
+      }
+    };
+
+    fetchQRCode();
+  }, [selectedFranchisee]);
 
   const handleCloseModal = useCallback(() => {
     setModalOpen(false);
@@ -827,6 +638,20 @@ function FranchiseeList() {
     setOpenFilePreview(false);
   }, []);
 
+  // Cleanup blob URLs on component unmount
+  useEffect(() => {
+    return () => {
+      if (currentBlobUrlRef.current) {
+        URL.revokeObjectURL(currentBlobUrlRef.current);
+        currentBlobUrlRef.current = null;
+      }
+      if (qrBlobUrlRef.current) {
+        URL.revokeObjectURL(qrBlobUrlRef.current);
+        qrBlobUrlRef.current = null;
+      }
+    };
+  }, []);
+
   const getFileIcon = useCallback((fileType) => {
     if (!fileType) return <InsertDriveFileIcon />;
     
@@ -851,6 +676,8 @@ function FranchiseeList() {
         return '#2196f3';
       case 'Transfer':
         return '#ff9800';
+      case 'Approved':
+        return '#4caf50';
       default:
         return '#757575';
     }
@@ -995,6 +822,7 @@ function FranchiseeList() {
           onSave={handleSave}
           onFilePreview={handleOpenFilePreview}
           getFileIcon={getFileIcon}
+          qrBlobUrl={qrBlobUrl}
         />
 
         {/* File Preview Modal */}

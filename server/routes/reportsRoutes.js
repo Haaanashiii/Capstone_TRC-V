@@ -1,11 +1,14 @@
 const express = require('express');
 const router = express.Router();
 const reportsController = require('../controllers/reportsController');
-const { apiLimiter } = require('../middlewares/rateLimiter');
+const { apiLimiter, publicReportLimiter } = require('../middlewares/rateLimiter');
 const authenticate = require('../middlewares/authenticate');
 const authorize = require('../middlewares/authorize');
 
-// Apply rate limiting to all routes
+// Public route for submitting reports - Strict rate limiting (5 per hour)
+router.post('/public', publicReportLimiter, reportsController.createPublicReport);
+
+// Apply rate limiting to all other routes
 router.use(apiLimiter);
 
 // Basic CRUD routes (require authentication)

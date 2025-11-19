@@ -29,7 +29,8 @@ import {
   Dialog,
   DialogTitle,
   DialogContent,
-  DialogActions
+  DialogActions,
+  Snackbar
 } from '@mui/material';
 import { styled } from "@mui/material/styles";
 import SearchIcon from '@mui/icons-material/Search';
@@ -86,6 +87,9 @@ function Reports() {
     sortBy: 'dateReported',
     sortOrder: 'desc'
   });
+  const [updatingStatus, setUpdatingStatus] = useState(false);
+  const [newStatus, setNewStatus] = useState('');
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'info' });
 
   // Get auth token
   const getAuthToken = () => {
@@ -191,12 +195,53 @@ function Reports() {
 
   const handleOpen = useCallback((report) => {
     setSelectedReport(report);
+    setNewStatus(report.status);
     setOpen(true);
   }, []);
 
   const handleClose = useCallback(() => {
     setOpen(false);
+    setNewStatus('');
   }, []);
+
+  const handleUpdateStatus = async () => {
+    if (!selectedReport || !newStatus) return;
+    
+    setUpdatingStatus(true);
+    try {
+      const token = getAuthToken();
+      if (!token) {
+        setSnackbar({ open: true, message: 'Authentication required', severity: 'error' });
+        return;
+      }
+
+      const response = await fetch(`${API_BASE_URL}/reports/${selectedReport._id}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ status: newStatus })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update report status');
+      }
+
+      // Update local state
+      setReports(prev => prev.map(r => 
+        r._id === selectedReport._id ? { ...r, status: newStatus } : r
+      ));
+      
+      setSnackbar({ open: true, message: 'Report status updated successfully', severity: 'success' });
+      handleClose();
+    } catch (err) {
+      console.error('Error updating report status:', err);
+      setSnackbar({ open: true, message: 'Failed to update report status', severity: 'error' });
+    } finally {
+      setUpdatingStatus(false);
+    }
+  };
 
   const handleChangePage = useCallback((event, newPage) => {
     setPage(newPage);
@@ -254,19 +299,8 @@ function Reports() {
     setPage(0);
   }, []);
 
-  const modalStyle = {
-    position: 'absolute',
-    top: '50%',
-    left: '50%',
-    transform: 'translate(-50%, -50%)',
-    width: 600,
-    maxWidth: '90%',
-    bgcolor: 'background.paper',
-    boxShadow: 24,
-    p: 4,
-    borderRadius: 2,
-    maxHeight: '90vh',
-    overflow: 'auto'
+  const handleCloseSnackbar = () => {
+    setSnackbar({ ...snackbar, open: false });
   };
 
   return (
@@ -548,113 +582,88 @@ function Reports() {
           onClose={handleClose}
           aria-labelledby="report-details-modal"
         >
-          <Box sx={modalStyle}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-              <Typography id="modal-title" variant="h5" component="h2" sx={{ fontWeight: 'bold' }}>
-                Report Details
+          <Box className="modal-container">
+            <div className="modal-header">
+              <Typography variant="h5" component="h2">
+                REPORT DETAILS
               </Typography>
-              <IconButton onClick={handleClose} size="small">
+              <IconButton onClick={handleClose}>
                 <CloseIcon />
               </IconButton>
-            </Box>
-            <Divider sx={{ mb: 3 }} />
+            </div>
             
             {selectedReport && (
-              <Grid container spacing={2}>
-                <Grid item xs={12} sm={6}>
-                  <Typography variant="subtitle2" fontWeight="bold" color="text.secondary">
-                    Report ID
-                  </Typography>
-                  <Typography variant="body1" sx={{ mb: 2 }}>
-                    {selectedReport.reportID}
-                  </Typography>
-                </Grid>
+              <>
+                <Typography variant="h6" className="section-header">
+                  REPORT INFORMATION
+                </Typography>
                 
-                <Grid item xs={12} sm={6}>
-                  <Typography variant="subtitle2" fontWeight="bold">
-                    Status
-                  </Typography>
-                  <Box sx={{ mb: 2 }}>
-                    <Chip 
-                      label={selectedReport.status} 
-                      color={getStatusColor(selectedReport.status)}
+                <div className="info-grid">
+                  <Typography variant="subtitle2" className="label">Report ID:</Typography>
+                  <Typography>{selectedReport.reportID}</Typography>
+                  
+                  <Typography variant="subtitle2" className="label">Franchisee:</Typography>
+                  <Typography>{selectedReport.franchiseeName}</Typography>
+                  
+                  <Typography variant="subtitle2" className="label">Date:</Typography>
+                  <Typography>{formatDate(selectedReport.dateReported)}</Typography>
+                  
+                  <Typography variant="subtitle2" className="label">Contact:</Typography>
+                  <Typography>{selectedReport.reporterContact}</Typography>
+                  
+                  <Typography variant="subtitle2" className="label">Charged:</Typography>
+                  <Typography>₱{selectedReport.amountCharged?.toFixed(2)}</Typography>
+                  
+                  <Typography variant="subtitle2" className="label">Expected:</Typography>
+                  <Typography>₱{selectedReport.expectedFare?.toFixed(2)}</Typography>
+                  
+                  <Typography variant="subtitle2" className="label">Description:</Typography>
+                  <Typography sx={{ gridColumn: '2' }}>{selectedReport.description}</Typography>
+                  
+                  <Typography variant="subtitle2" className="label">Status:</Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                    <FormControl size="small" sx={{ minWidth: 150 }}>
+                      <Select
+                        value={newStatus}
+                        onChange={(e) => setNewStatus(e.target.value)}
+                      >
+                        <MenuItem value="pending">Pending</MenuItem>
+                        <MenuItem value="investigating">Investigating</MenuItem>
+                        <MenuItem value="resolved">Resolved</MenuItem>
+                        <MenuItem value="dismissed">Dismissed</MenuItem>
+                      </Select>
+                    </FormControl>
+                    <Button
+                      variant="contained"
                       size="small"
-                    />
+                      onClick={handleUpdateStatus}
+                      disabled={updatingStatus || newStatus === selectedReport.status}
+                      sx={{
+                        bgcolor: '#0a3161',
+                        '&:hover': { bgcolor: '#082548' },
+                        '&:disabled': { bgcolor: '#ccc' }
+                      }}
+                    >
+                      {updatingStatus ? <CircularProgress size={20} /> : 'Update'}
+                    </Button>
                   </Box>
-                </Grid>
-                
-                <Grid item xs={12} sm={6}>
-                  <Typography variant="subtitle2" fontWeight="bold" color="text.secondary">
-                    Franchisee Name
-                  </Typography>
-                  <Typography variant="body1" sx={{ mb: 2 }}>
-                    {selectedReport.franchiseeName}
-                  </Typography>
-                </Grid>
-                
-                <Grid item xs={12} sm={6}>
-                  <Typography variant="subtitle2" fontWeight="bold">
-                    Date Reported
-                  </Typography>
-                  <Typography variant="body1" sx={{ mb: 2 }}>
-                    {formatDate(selectedReport.dateReported)}
-                  </Typography>
-                </Grid>
-                
-                <Grid item xs={12} sm={6}>
-                  <Typography variant="subtitle2" fontWeight="bold">
-                    Amount Charged
-                  </Typography>
-                  <Typography variant="body1" sx={{ mb: 2 }}>
-                    ₱{selectedReport.amountCharged?.toFixed(2)}
-                  </Typography>
-                </Grid>
-                
-                <Grid item xs={12} sm={6}>
-                  <Typography variant="subtitle2" fontWeight="bold">
-                    Expected Fare
-                  </Typography>
-                  <Typography variant="body1" sx={{ mb: 2 }}>
-                    ₱{selectedReport.expectedFare?.toFixed(2)}
-                  </Typography>
-                </Grid>
-                
-                <Grid item xs={12}>
-                  <Typography variant="subtitle2" fontWeight="bold" color="text.secondary">
-                    Description
-                  </Typography>
-                  <Typography variant="body1" sx={{ mb: 2 }}>
-                    {selectedReport.description}
-                  </Typography>
-                </Grid>
-                
-                <Grid item xs={12}>
-                  <Typography variant="subtitle2" fontWeight="bold" color="text.secondary">
-                    Reporter's Contact
-                  </Typography>
-                  <Typography variant="body1" sx={{ mb: 2 }}>
-                    {selectedReport.reporterContact}
-                  </Typography>
-                </Grid>
-              </Grid>
+                </div>
+              </>
             )}
-            
-            <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 3 }}>
-              <Button 
-                variant="contained" 
-                onClick={handleClose}
-                sx={{
-                  bgcolor: '#0a3161',
-                  '&:hover': {
-                    bgcolor: '#082548'
-                  }
-                }}
-              >
-                Close
-              </Button>
-            </Box>
           </Box>
         </Modal>
+        
+        {/* Snackbar for notifications */}
+        <Snackbar
+          open={snackbar.open}
+          autoHideDuration={6000}
+          onClose={handleCloseSnackbar}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        >
+          <Alert onClose={handleCloseSnackbar} severity={snackbar.severity} sx={{ width: '100%' }}>
+            {snackbar.message}
+          </Alert>
+        </Snackbar>
       </div>
     </div>
   );
