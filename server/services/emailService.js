@@ -37,22 +37,30 @@ async function sendViaGmailApi({ from, to, subject, text, html, attachments }) {
   if (!oAuth2Client) throw new Error('Gmail API credentials not configured');
   const gmail = google.gmail({ version: 'v1', auth: oAuth2Client });
   const boundary = '----=_Part_' + Date.now();
+  
+  // Use multipart/related for inline images, with multipart/alternative nested inside
   let messageParts = [
     `From: ${from}`,
     `To: ${to}`,
     `Subject: ${subject}`,
     'MIME-Version: 1.0',
-    `Content-Type: multipart/alternative; boundary="${boundary}"`,
+    `Content-Type: multipart/related; boundary="${boundary}"`,
     '',
     `--${boundary}`,
+    'Content-Type: multipart/alternative; boundary="alt_' + boundary + '"',
+    '',
+    `--alt_${boundary}`,
     'Content-Type: text/plain; charset="UTF-8"',
     '',
     text,
-    `--${boundary}`,
+    `--alt_${boundary}`,
     'Content-Type: text/html; charset="UTF-8"',
     '',
     html,
+    `--alt_${boundary}--`,
   ];
+  
+  // Add inline attachments
   if (attachments && attachments.length) {
     for (const att of attachments) {
       const attData = fs.readFileSync(att.path);
@@ -66,7 +74,7 @@ async function sendViaGmailApi({ from, to, subject, text, html, attachments }) {
     }
   }
   messageParts.push(`--${boundary}--`);
-  const rawMessage = Buffer.from(messageParts.join('\r\n')).toString('base64').replace(/\+/g, '-').replace(/\//g, '_');
+  const rawMessage = Buffer.from(messageParts.join('\r\n')).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
   await gmail.users.messages.send({
     userId: 'me',
     requestBody: { raw: rawMessage }
