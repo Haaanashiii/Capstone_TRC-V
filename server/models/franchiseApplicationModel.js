@@ -1,60 +1,65 @@
 const mongoose = require('mongoose');
+const operatorInformationModel = require('./operatorInformationModel');
 
 // Documents are now stored as Cloudflare R2 URLs (compressed to ~300KB)
-const documentSchema = new mongoose.Schema({
-  motorRegistration: { type: String, required: true }, 
-  barangayClearance: { type: String, required: true }, 
-  cedula: { type: String, required: true }, 
-  driversLicense: { type: String, required: true }, 
-  votersAffidavit: { type: String, required: true }, 
-  motorChassisStencil: { type: String, required: false },
-  picture: { type: String, required: true } 
+const DocumentReferenceSchema = new mongoose.Schema({
+  motorRegistrationObj: { type: String, required: true },
+  barangayClearanceObj: { type: String, required: true },
+  cedulaObj: { type: String, required: true },
+  driversLicenseObj: { type: String, required: true },
+  votersAffidavitObj: { type: String, required: true },
+  motorChassisStencilObj: { type: String, required: true }, 
+  oRTreasurerOfficeObj: { type: String, required: false },
+  oRLTOObj: { type: String, required: false },
+  cRLTOObj: { type: String, required: false },
+  driverPictureObj: { type: String, required: true },
 });
 
 const franchiseApplicationSchema = new mongoose.Schema({
-  userId: { 
-    type: String, 
-    required: false,
-    index: true  // Add index for faster lookups by userId
-  },
-  
+  operatorId: { type: String, required: true},
   operatorName: { type: String, required: true },
-  operatorContact: { type: String, required: true },
-  operatorEmail: { type: String, lowercase: true, trim: true, match: [/^\S+@\S+\.\S+$/, 'Invalid email address'] },
-  actionType: { type: String, enum: ['NEW', 'RENEWAL', 'AMMENDMENTS'], required: true, uppercase: true ,trim: true},
-  operatorAddress: { type: String, required: true },
-  operatorBarangay: { type: String, required: false }, // Temporarily optional
-
-  driversID: { type: String, required: true },
+  operatorContactNumber: { type: String, required: true, trim: true },
+  coOwnerName: { type: String, required: false },
+  coOwnerAddress: { type: String, required: false }, 
+  address: { type: String, required: true },
+  barangay: { type: String, required: true }, 
+  civilStatus: { type: String, required: true },
   birthPlace: { type: String, required: true },
   birthDate: { type: Date, required: true },
-  civilStatus: { type: String, required: true },
   citizenship: { type: String, required: true },
-  todaMembership: { type: String, required: true },
+  email: { type: String, required: false, lowercase: true, trim: true, match: [/^\S+@\S+\.\S+$/, 'Invalid email address'] }, // Optional - user can have multiple franchises
+  
+  // driver details
+  driversID: { type: String, required: true, unique: true },
+  driverName: { type: String, required: true },
+  driversAddress: { type: String, required: true },
+  todaMembership: { type: String, required: false },
 
+// motor details
   unitModel: { type: String, required: true },
   colorMotor: { type: String, required: true },
-  sidecarPlateNumber: { type: String, required: true },
-  sidecarColor: { type: String, required: true },
-  mvPlateNo: { type: String, required: true },
+  sideCarColor: { type: String, required: true },
+  sideCarPlateNumber: { type: String, required: true },
+  mvPlateNo: { type: String, required: true, unique: true },
+  motorEngineNo: { type: String, required: true, unique: true },
+  chasisNo: { type: String, required: true, unique: true },
 
-  motorEngineNo: { type: String, required: true },
-  chasisNo: { type: String, required: true },
 
-  actionTaken: { type: String },
-  remarks: { type: String },
-  
-  // Additional fields for franchise management
-  franchiseNumber: { type: String },
-  orNumber: { type: String },
-  expiryDate: { type: Date },
-  qrCode: { type: String },
+  approvedByBplo: {type: String, enum: ['approved', 'pending' , 'temporarily', 'rejected'], required: true ,default: 'temporarily' },
+  bploRemarks: { type: String },
 
   approvedAt: { type: Date },
   submittedAt: { type: Date, default: Date.now },
 
-  documents: documentSchema,
-}, { collection: 'franchiseapplications' });
+  documents: DocumentReferenceSchema,
+
+  operatorInformationModel: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Operator Information',
+    required: false,
+    default: null
+  }
+}, { collection: 'Franchise Applications' });
 
 
-module.exports = mongoose.model('FranchiseApplication', franchiseApplicationSchema);
+module.exports = mongoose.model('Franchise Application', franchiseApplicationSchema);

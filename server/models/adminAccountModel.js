@@ -73,12 +73,4 @@ const adminAccountSchema = new mongoose.Schema({
   }]
 }, { timestamps: true });
 
-// Unique indexes for email and username
-adminAccountSchema.index({ email: 1 }, { unique: true });
-adminAccountSchema.index({ username: 1 }, { unique: true });
-
-// Non-unique indexes for faster queries
-adminAccountSchema.index({ role: 1 });
-adminAccountSchema.index({ isActive: 1 });
-
 module.exports = mongoose.model('AdminAccount', adminAccountSchema);

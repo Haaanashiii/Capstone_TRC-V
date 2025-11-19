@@ -201,7 +201,7 @@ const generateAccessToken = (user, franchiseInfo = null, isAdmin = false) => {
   // MINIMAL JWT PAYLOAD - Only include non-sensitive, essential data
   // Use custom userId field (UUID) instead of MongoDB _id for better consistency
   const payload = { 
-    id: user.userId || user._id.toString(), // Prefer userId (UUID), fallback to _id
+    id: user.userId || user._id.toString(), 
     _id: user._id.toString(), // Keep _id for backward compatibility
     role: user.role,
     name: user.name,
@@ -210,6 +210,15 @@ const generateAccessToken = (user, franchiseInfo = null, isAdmin = false) => {
     hasFranchise: !!franchiseInfo,
     franchiseStatus: user.franchiseStatus || 'inactive'
   };
+  
+  // Add admin-specific claims if this is an admin account
+  if (isAdmin) {
+    payload.adminId = user.adminId || user._id.toString();
+    payload.department = user.department || null;
+    payload.position = user.position || null;
+    payload.permissions = user.permissions || [];
+    console.log('[JWT] Admin claims added:', { adminId: payload.adminId, department: payload.department, position: payload.position });
+  }
   
   return jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '1h' }); // Temporary:limit to 1hr
 };
@@ -757,8 +766,8 @@ exports.googleCallback = async (req, res, next) => {
       }
     }
 
-    // Issue tokens (reuse existing helpers, include operator info)
-    const accessToken = generateAccessToken(user, operatorInfo);
+    // Issue tokens (reuse existing helpers, include operator info, isAdmin is always false for OAuth)
+    const accessToken = generateAccessToken(user, operatorInfo, false);
     
     // Enforce max 2 active sessions per user BEFORE creating new session
     try {

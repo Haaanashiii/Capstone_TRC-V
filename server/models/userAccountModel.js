@@ -1,13 +1,14 @@
-const { v4: uuidv4 } = require('uuid');
+const { uuidv7 } = require('uuidv7');
 const mongoose = require('mongoose'); 
 
 const userAccountSchema = new mongoose.Schema({
-    userId: { type: String, default: uuidv4, unique: true },
+    userId: { type: String, default: uuidv7, unique: true },
     name: { type: String, required: true },
     username: { 
         type: String,
         required: function() { return !this.oauthProvider; }
     },
+        phoneNumber: { type: String },
     email: { 
         type: String,
         required: true,
@@ -25,36 +26,14 @@ const userAccountSchema = new mongoose.Schema({
     oauthProvider: { type: String },
     oauthId: { type: String },
     googleId: { type: String },
-   
-    // REFERENCE to FranchiseInformation (null for non-operators or pending applications)
-    franchiseInfo: {
+
+    operatorInfo: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'Franchise Information',
+        ref: 'Operator Information',
         required: false,
+        unique: true,
         default: null
-    },
-   
-    franchiseStatus: { type: String, enum: ['active', 'expired', 'inactive'], default: 'inactive' },
-    operatorId: { type: String }, // Keep for backward compatibility
-    address: { type: String },
-    phoneNumber: { type: String },
-    profilePicture: { type: String },
-
-    approvedAt: { type: Date },
-    expiryDate: { type: Date }
-    
+    },    
 });
-
-// Unique partial index for username: only index documents where `username` exists and is a string.
-// This is preferred over `sparse: true` because it is explicit and avoids surprises with null
-// or non-string values. It also prevents duplicate schema index declarations when field-level
-// `unique: true` is not used.
-userAccountSchema.index(
-    { username: 1 },
-    { unique: true, partialFilterExpression: { username: { $type: 'string' } } }
-);
-
-
-userAccountSchema.index({ oauthProvider: 1, oauthId: 1 }, { unique: true, sparse: true });
 
 module.exports = mongoose.model('User Accounts', userAccountSchema);
