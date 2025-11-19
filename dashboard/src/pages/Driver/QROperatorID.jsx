@@ -68,7 +68,7 @@ function QROperatorID() {
           });
           setMatchedFranchise({
             address: data.address,
-            expiryDate: '', // Not provided in API, can be added if needed
+            expiryDate: '', 
             status: data.franchiseStatus,
             statusColor: data.statusColor,
             notLinked: !data.linked,
