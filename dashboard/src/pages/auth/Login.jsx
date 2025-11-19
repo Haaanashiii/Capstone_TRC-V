@@ -59,16 +59,14 @@ const Login = () => {
     setSuccess("");
     setIsLoading(true);
     
-    // login attempt started (no sensitive data logged)
-    
     try {
       console.log("Making login API call");
       // Backend accepts 'identifier' which can be username or email
-      // Send rememberMe flag to extend refresh token expiry
+      // rememberMe flag tells backend to use 30-day refresh token instead of 7-day
       const response = await api.post('/auth/login', {
-        identifier: form.email, // Can be email or username
+        identifier: form.email,
         password: form.password,
-        rememberMe: rememberMe // If true, backend issues 30-day refresh token
+        rememberMe: rememberMe
       });
 
       const data = response.data;
@@ -76,24 +74,20 @@ const Login = () => {
       // Save accessToken using TokenManager (stores in sessionStorage)
       if (data.accessToken) {
         TokenManager.setTokens(data.accessToken);
-        console.log('[Login] Access token stored in sessionStorage');
+        console.log('[Login] Access token stored');
         
-        // User data is now in JWT - no need to store separately
-        // All user info can be decoded from the token when needed
         const tokenData = TokenManager.decodeToken(data.accessToken);
         console.log('[Login] JWT contains:', tokenData);
       }
 
-      // Refresh token is automatically stored in HTTP-only cookie by backend
       console.log('[Login] Refresh token stored in HTTP-only cookie by backend');
 
-      // Check if OTP should be skipped (trusted device)
+      // Check if OTP should be skipped (trusted device from previous login)
       if (data.skipOTP) {
         console.log('[Login] Trusted device - skipping OTP verification');
         handleVerificationSuccess();
       } else {
-        // Open verification modal. The backend has attempted to send the OTP
-        // to the user's email on record; the modal will POST to /auth/verify-otp.
+        // Open OTP verification modal
         setShowVerificationModal(true);
       }
     } catch (error) {
