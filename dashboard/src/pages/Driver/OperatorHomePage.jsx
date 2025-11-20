@@ -17,9 +17,13 @@ import {
   Box,
   IconButton,
   Chip,
-  Button
+  Button,
+  Dialog,
+  DialogContent,
+  TextField
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
+import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 
 const OperatorHomePage = () => {
   // Use AuthContext for user data (consistent with UnifiedSidebar)
@@ -438,7 +442,7 @@ const OperatorHomePage = () => {
                   fontSize: '14px',
                   fontFamily: 'Poppins, sans-serif'
                 }}>
-                  Connect your existing franchise to access all features and benefits
+                  Connect your existing franchise.
                 </Typography>
               </Box>
 
@@ -472,7 +476,7 @@ const OperatorHomePage = () => {
                   fontSize: '14px',
                   fontFamily: 'Poppins, sans-serif'
                 }}>
-                  Apply your franchise now
+                  Apply your franchise now.
                 </Typography>
               </Box>
             </Box>
@@ -723,71 +727,213 @@ const OperatorHomePage = () => {
         </div>
 
       {/* Link Franchise Modal */}
-      {showModal && (
-        <div className="franchise-modal-bg">
-          <div className="franchise-modal">
-            <div className="franchise-modal-title">{t.franchiseLinkTitle}</div>
-            <div className="franchise-modal-desc">{t.franchiseLinkDesc}</div>
-            <div style={{ marginBottom: 18 }}>
-              <label className="franchise-modal-label">{t.orNumberLabel}</label>
-              <input
-                type="text"
-                value={orNumber}
-                onChange={e => {
-                  const val = e.target.value;
-                  if (/[^0-9]/.test(val)) {
-                    setOrWarning(t.numbersOnlyWarning);
-                  } else {
-                    setOrWarning("");
+      <Dialog
+        open={showModal}
+        onClose={() => setShowModal(false)}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: '24px',
+            padding: '32px',
+            maxWidth: '550px'
+          }
+        }}
+      >
+        <DialogContent sx={{ padding: 0 }}>
+          {/* Modal Header */}
+          <Box sx={{ marginBottom: '8px' }}>
+            <Typography
+              sx={{
+                fontSize: '28px',
+                fontWeight: 700,
+                color: '#000',
+                fontFamily: 'Poppins, sans-serif',
+                marginBottom: '4px'
+              }}
+            >
+              Franchise Link
+            </Typography>
+            <Typography
+              sx={{
+                fontSize: '14px',
+                color: '#6b7280',
+                fontFamily: 'Poppins, sans-serif',
+                marginBottom: '24px'
+              }}
+            >
+              Link your existing franchise to TRC-V for easy management of tricycle franchise
+            </Typography>
+          </Box>
+
+          {/* Franchise Number Input */}
+          <Box sx={{ marginBottom: '24px' }}>
+            <Typography
+              sx={{
+                fontSize: '16px',
+                fontWeight: 600,
+                color: '#000',
+                fontFamily: 'Poppins, sans-serif',
+                marginBottom: '8px'
+              }}
+            >
+              Franchise Number
+            </Typography>
+            <TextField
+              fullWidth
+              value={orNumber}
+              onChange={e => {
+                const val = e.target.value;
+                if (/[^0-9]/.test(val)) {
+                  setOrWarning(t.numbersOnlyWarning);
+                } else {
+                  setOrWarning("");
+                }
+                setOrNumber(val.replace(/[^0-9]/g, ""));
+              }}
+              placeholder="Enter Franchise Number"
+              variant="outlined"
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  borderRadius: '8px',
+                  fontFamily: 'Poppins, sans-serif',
+                  '& fieldset': {
+                    borderColor: '#e5e7eb',
+                  },
+                  '&:hover fieldset': {
+                    borderColor: '#d1d5db',
+                  },
+                  '&.Mui-focused fieldset': {
+                    borderColor: '#174D7A',
                   }
-                  setOrNumber(val.replace(/[^0-9]/g, ""));
+                }
+              }}
+            />
+            {orWarning && (
+              <Typography sx={{ color: '#b71c1c', fontSize: '14px', marginTop: '4px', fontFamily: 'Poppins, sans-serif' }}>
+                ⚠️ {orWarning}
+              </Typography>
+            )}
+          </Box>
+
+          {/* Upload MTOF Document */}
+          <Box sx={{ marginBottom: '32px' }}>
+            <Typography
+              sx={{
+                fontSize: '16px',
+                fontWeight: 600,
+                color: '#000',
+                fontFamily: 'Poppins, sans-serif',
+                marginBottom: '8px'
+              }}
+            >
+              Upload MTOF Document
+            </Typography>
+            
+            {/* Upload Box */}
+            <Box
+              sx={{
+                border: '2px dashed #174D7A',
+                borderRadius: '12px',
+                padding: '32px',
+                textAlign: 'center',
+                backgroundColor: '#f9fafb',
+                cursor: 'pointer',
+                transition: 'all 0.3s ease',
+                '&:hover': {
+                  backgroundColor: '#f3f4f6',
+                  borderColor: '#0f3a5f'
+                }
+              }}
+              onClick={() => document.getElementById('mtop-upload').click()}
+            >
+              <CloudUploadIcon sx={{ fontSize: 48, color: '#174D7A', marginBottom: '8px' }} />
+              <Typography
+                sx={{
+                  fontSize: '14px',
+                  color: '#174D7A',
+                  fontFamily: 'Poppins, sans-serif',
+                  fontWeight: 500
                 }}
-                className="franchise-modal-input"
-                placeholder={t.orNumberPlaceholder}
+              >
+                Browse Files to upload
+              </Typography>
+              <input
+                id="mtop-upload"
+                type="file"
+                style={{ display: "none" }}
+                accept=".pdf,.jpg,.jpeg,.png"
+                onChange={e => setMtopFile(e.target.files[0])}
               />
-              {orWarning && (
-                <div style={{ color: '#b71c1c', fontWeight: 'bold', marginTop: '4px', fontSize: '14px', fontFamily: 'Poppins, sans-serif' }}>
-                  <span style={{ marginRight: '6px' }}>⚠️</span>{orWarning}
-                </div>
-              )}
-            </div>
-            <div style={{ marginBottom: 18 }}>
-              <label className="franchise-modal-label">{t.uploadMtop}</label>
-              <div className="franchise-upload-box">
-                <label htmlFor="mtop-upload" className="franchise-upload-label">
-                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
-                    <div className="franchise-upload-icon">
-                      <svg width="32" height="32" fill="#FEDE05" viewBox="0 0 24 24"><path d="M12 16V4m0 0l-4 4m4-4l4 4" stroke="#FEDE05" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/><path d="M20 16v2a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-2" stroke="#174D7A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                    </div>
-                    <span className="franchise-upload-text">{t.browseFiles}</span>
-                  </div>
-                  <input
-                    id="mtop-upload"
-                    type="file"
-                    style={{ display: "none" }}
-                    onChange={e => setMtopFile(e.target.files[0])}
-                  />
-                </label>
-                <div className="franchise-upload-filename">
-                  {mtopFile ? mtopFile.name : t.noFileSelected}
-                </div>
-              </div>
-            </div>
-            <div className="franchise-modal-actions">
-              <button
-                className="franchise-cancel-btn"
-                onClick={() => setShowModal(false)}>
-                {t.cancel}
-              </button>
-              <button
-                className="franchise-submit-btn"
-                onClick={handleSubmitFranchiseLink}>
-                {t.submit}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+            </Box>
+            
+            {/* File name display */}
+            <Box
+              sx={{
+                marginTop: '12px',
+                padding: '12px 16px',
+                backgroundColor: '#e8f4f8',
+                borderRadius: '8px',
+                textAlign: 'center'
+              }}
+            >
+              <Typography
+                sx={{
+                  fontSize: '14px',
+                  color: '#374151',
+                  fontFamily: 'Poppins, sans-serif'
+                }}
+              >
+                {mtopFile ? mtopFile.name : 'No selected File -'}
+              </Typography>
+            </Box>
+          </Box>
+
+          {/* Action Buttons */}
+          <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center' }}>
+            <Button
+              variant="outlined"
+              onClick={() => setShowModal(false)}
+              sx={{
+                borderRadius: '8px',
+                padding: '12px 32px',
+                fontSize: '16px',
+                fontWeight: 600,
+                fontFamily: 'Poppins, sans-serif',
+                textTransform: 'none',
+                borderColor: '#d1d5db',
+                color: '#6b7280',
+                minWidth: '120px',
+                '&:hover': {
+                  borderColor: '#9ca3af',
+                  backgroundColor: '#f9fafb'
+                }
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="contained"
+              onClick={handleSubmitFranchiseLink}
+              sx={{
+                borderRadius: '8px',
+                padding: '12px 32px',
+                fontSize: '16px',
+                fontWeight: 600,
+                fontFamily: 'Poppins, sans-serif',
+                textTransform: 'none',
+                backgroundColor: '#174D7A',
+                minWidth: '120px',
+                '&:hover': {
+                  backgroundColor: '#0f3a5f'
+                }
+              }}
+            >
+              Submit
+            </Button>
+          </Box>
+        </DialogContent>
+      </Dialog>
 
       {/* Notice Modal */}
       <Modal
