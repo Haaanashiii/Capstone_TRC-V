@@ -677,10 +677,15 @@ html, body, .franchise-bg, #root {
 
 /* Page-level content wrapper (no white paper) */
 .franchise-page-content {
-  max-width: 1200px;
-  margin: 12px 24px;
-  padding: 0;
+  position: absolute;
+  left: 80px; 
+  right: 0;
+  padding: 20px 40px;
   box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
 }
 
 /* Reduce header/card sizing so content fits vertically */
@@ -701,7 +706,7 @@ html, body, .franchise-bg, #root {
   .application-inner { max-height: calc(100vh - 200px); overflow-y: auto; }
 }
 
-.franchise-page-content { margin: 18px auto !important; }
+
 .profile-header-card {
 
   background: #F5D76E !important;

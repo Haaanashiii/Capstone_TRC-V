@@ -1,0 +1,182 @@
+/* OperatorHomePage.css */
+
+.operator-home-container {
+  padding: 20px;
+  background-color: #f5f5f5;
+  min-height: 100vh;
+}
+
+.time-date-display {
+  background-color: white;
+  padding: 8px 16px;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  display: inline-block;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.time-date-display span {
+  color: #174D7A;
+  font-size: 14px;
+  font-weight: 500;
+  margin-right: 20px;
+}
+
+.greeting-card {
+  background-color: #FEDE05;
+  padding: 24px;
+  border-radius: 12px;
+  margin-bottom: 24px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.greeting-text {
+  color: #174D7A;
+  font-size: 32px;
+  font-weight: bold;
+  margin: 0;
+}
+
+.datetime-subtext {
+  color: #174D7A;
+  font-size: 14px;
+  margin-top: 8px;
+  font-weight: 400;
+}
+
+.options-card {
+  background-color: white;
+  padding: 32px;
+  border-radius: 12px;
+  margin-bottom: 24px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.options-container {
+  display: flex;
+  gap: 24px;
+  justify-content: center;
+}
+
+.option-card {
+  background-color: #FEDE05;
+  padding: 32px;
+  border-radius: 12px;
+  text-align: center;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+  flex: 1;
+  max-width: 300px;
+}
+
+.option-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 12px rgba(0, 0, 0, 0.15);
+}
+
+.option-icon {
+  margin-bottom: 16px;
+}
+
+.option-title {
+  color: #174D7A;
+  font-size: 20px;
+  font-weight: bold;
+  margin: 0;
+}
+
+.section-title {
+  color: #174D7A;
+  font-size: 24px;
+  font-weight: bold;
+  margin: 32px 0 16px 0;
+  text-transform: uppercase;
+}
+
+.table-container {
+  margin-bottom: 32px;
+}
+
+.no-data-message {
+  text-align: center;
+  padding: 32px;
+  color: #666;
+  font-size: 16px;
+}
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background-color: white;
+  border-radius: 12px;
+  max-width: 600px;
+  width: 90%;
+  max-height: 80vh;
+  overflow: hidden;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+}
+
+.modal-header {
+  background-color: #174D7A;
+  color: white;
+  padding: 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.modal-title {
+  font-size: 20px;
+  font-weight: bold;
+  margin: 0;
+}
+
+.modal-body {
+  padding: 24px;
+}
+
+.notice-message-box {
+  background-color: #FEDE05;
+  padding: 20px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+}
+
+.notice-message {
+  color: #174D7A;
+  font-size: 16px;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.notice-details {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.close-button {
+  background-color: #174D7A;
+  color: white;
+  border: none;
+  padding: 10px 24px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 16px;
+  transition: background-color 0.2s;
+}
+
+.close-button:hover {
+  background-color: #0d3a5f;
+}

@@ -2,7 +2,6 @@
 import React from "react";
 import { Box, Button, TextField, Typography, InputAdornment, IconButton, Divider, Paper, ThemeProvider, createTheme, Checkbox, FormControlLabel } from "@mui/material";
 import { Visibility, VisibilityOff } from "@mui/icons-material";
-import GoogleIcon from "@mui/icons-material/Google"; 
 import AccountVerificationModal from '../Services/AccountVerificationModal';
 import { useNavigate } from 'react-router-dom';
 import api, { TokenManager } from '../Services/api';

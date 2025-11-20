@@ -3,7 +3,6 @@ import React, { useState } from "react";
 import { useNavigate } from 'react-router-dom';
 import { Box, Button, TextField, Typography, InputAdornment, IconButton, Divider, Paper, ThemeProvider, createTheme } from "@mui/material";
 import { Visibility, VisibilityOff } from "@mui/icons-material";
-import GoogleIcon from "@mui/icons-material/Google";
 import AccountVerificationModal from '../Services/AccountVerificationModal';
 import api from '../Services/api';
 import '../../Styles/SignupCss/signup.css';
@@ -278,22 +277,6 @@ const SignUp = () => {
               {isLoading ? 'Creating Account...' : 'Create'}
             </Button>
             
-            <Box className="signup-divider-box">
-              <hr className="signup-divider-line" />
-            <span className="signup-divider-text">⸻ OR ⸻</span>
-            <hr className="signup-divider-line" />
-                            </Box>
-          <Button
-            variant="outlined"
-            startIcon={<GoogleIcon />}
-            fullWidth
-            className="signup-google-btn"
-            style={{ fontFamily: 'Poppins, sans-serif' }}
-            onClick={() => { window.location.href = `${API_BASE_URL}/auth/google`; }}
-            disabled={isLoading}
-          >
-            Continue with Google
-          </Button>
           </Box>
           </form>
         </Paper>

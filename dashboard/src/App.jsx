@@ -4,10 +4,10 @@ import ProtectedRoute from './components/ProtectedRoute';
 import SignUp from './pages/auth/SignUp';
 import OAuthCallback from './pages/auth/OAuthCallback';
 import Sidebar from './pages/Administration/Sidebar';
-import DriverID from './pages/Driver/DriverID';
+import FranchiseeListOperatorSide from './pages/Driver/FranchiseeListOperatorSide';
 import LandingPage from './pages/Landing/LandingPage';
 import Login from './pages/auth/Login';
-import Franchise from './pages/Driver/Franchise';
+import OperatorHomePage from './pages/Driver/OperatorHomePage';
 import FranchiseApplication from './pages/Driver/FranchiseApplication';
 import RequestAmendment from './pages/Driver/RequestAmendment';
 import MaintenancePage from './pages/Maintenance/MaintenancePage';
@@ -44,10 +44,14 @@ function App() {
         
         {/* Protected Driver Routes */}
         <Route 
+          path="/operator/franchisee-list" 
+          element={<FranchiseeListOperatorSide />} 
+        />
+        <Route 
           path="/operator/id" 
           element={
             <ProtectedRoute requiredRole="operator">
-              <DriverID />
+              <FranchiseeListOperatorSide />
             </ProtectedRoute>
           } 
         />
@@ -55,7 +59,7 @@ function App() {
           path="/operator/franchise" 
           element={
             <ProtectedRoute requiredRole="operator">
-              <Franchise />
+              <OperatorHomePage />
             </ProtectedRoute>
           } 
         />

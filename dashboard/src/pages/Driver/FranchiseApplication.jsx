@@ -181,7 +181,6 @@ export default function FranchiseApplication() {
   };
   const [fields, setFields] = useState({
     date: dayjs(),
-    sidecarPlate: "",
     operatorName: "",
     contact: "",
     birthPlace: "",
@@ -198,10 +197,14 @@ export default function FranchiseApplication() {
     driverName: "",
     driverAddress: "",
     barangay: "",
+    hasCoOwner: "",
+    motorcyclePicture: null,
   });
 
+  // Co-owner state
+  const [coOwners, setCoOwners] = useState([]);
+
   // Error states for sidecar fields
-  const [sidecarPlateError, setSidecarPlateError] = useState("");
   const [sidecarColorError, setSidecarColorError] = useState("");
 
   const [addressError, setAddressError] = useState("");
@@ -248,6 +251,15 @@ export default function FranchiseApplication() {
     } else {
       setContactError("Only numbers are allowed in the contact field");
     }
+  };
+
+  // Helper function to truncate long filenames
+  const truncateFilename = (filename, maxLength = 40) => {
+    if (!filename || filename.length <= maxLength) return filename;
+    const extension = filename.split('.').pop();
+    const nameWithoutExt = filename.substring(0, filename.lastIndexOf('.'));
+    const truncatedName = nameWithoutExt.substring(0, maxLength - extension.length - 4);
+    return `${truncatedName}...${extension}`;
   };
 
   const [uploads, setUploads] = useState({
@@ -298,12 +310,11 @@ export default function FranchiseApplication() {
   const validateRequiredFields = () => {
     // Reset previous errors
     const newErrors = {};
-    setSidecarPlateError("");
     setSidecarColorError("");
 
-    // Ensure every field in `fields` (except `date`) is present and non-empty
+    // Ensure every field in `fields` (except `date`, `hasCoOwner`, and `motorcyclePicture`) is present and non-empty
     Object.keys(fields).forEach(k => {
-      if (k === 'date') return;
+      if (k === 'date' || k === 'hasCoOwner' || k === 'motorcyclePicture') return;
       const v = fields[k];
       if (k === 'birthDate') {
         if (!v) newErrors[k] = 'Date of birth is required';
@@ -314,11 +325,7 @@ export default function FranchiseApplication() {
       }
     });
 
-    // Strict validation for sidecar fields
-    if (!fields.sidecarPlate.trim()) {
-      newErrors.sidecarPlate = 'Sidecar plate number is required';
-      setSidecarPlateError('Sidecar plate number is required');
-    }
+    // Strict validation for sidecar color field
     if (!fields.colorSidecar.trim()) {
       newErrors.colorSidecar = 'Sidecar color is required';
       setSidecarColorError('Sidecar color is required');
@@ -333,6 +340,20 @@ export default function FranchiseApplication() {
     // Contact numeric check
     if (fields.contact && !/^[0-9]+$/.test(fields.contact)) {
       newErrors.contact = 'Only numbers are allowed in the contact field';
+    }
+
+    // Validate co-owners if selected
+    if (fields.hasCoOwner === 'Yes') {
+      coOwners.forEach((owner, idx) => {
+        if (!owner.name.trim()) newErrors[`coOwner_${idx}_name`] = 'Co-owner name is required';
+        if (!owner.address.trim()) newErrors[`coOwner_${idx}_address`] = 'Co-owner address is required';
+        if (!owner.relationship) newErrors[`coOwner_${idx}_relationship`] = 'Relationship is required';
+      });
+    }
+
+    // Validate motorcycle picture
+    if (!fields.motorcyclePicture) {
+      newErrors.motorcyclePicture = 'Motorcycle 1x1 picture is required';
     }
 
     // Special mapping to keep older per-field error states for UI
@@ -420,8 +441,8 @@ export default function FranchiseApplication() {
                     onChange={handleModalFileChange}
                   />
                 </div>
-                <div style={{ background: '#eaf1ff', borderRadius: 8, padding: '12px 0', textAlign: 'center', fontWeight: 500, color: '#222', fontSize: 16, marginTop: 4 }}>
-                  {modalFile ? modalFile.name : t.noFileSelected}
+                <div style={{ background: '#eaf1ff', borderRadius: 8, padding: '12px 0', textAlign: 'center', fontWeight: 500, color: '#222', fontSize: 16, marginTop: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingLeft: '8px', paddingRight: '8px' }}>
+                  {modalFile ? truncateFilename(modalFile.name) : t.noFileSelected}
                 </div>
               </div>
               <div style={{ display: 'flex', gap: 18, justifyContent: 'flex-end', marginTop: 24 }}>
@@ -450,6 +471,9 @@ export default function FranchiseApplication() {
             </div>
           </div>
         )}
+
+
+
           <div className="franchise-app-logo">
             <img src="/public/Logos/SBLogo.png" alt="Seal" />
             <img src="/public/Logos/TRC-vLogo.png" alt="TRC-V Logo" />
@@ -467,17 +491,40 @@ export default function FranchiseApplication() {
                 />
               </LocalizationProvider>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', flex: 2 }}>
-              <label style={{ fontWeight: 700, marginBottom: 4 }}>{t.sidecarPlate}</label>
-              <TextField
-                size="small"
-                className="franchise-app-input"
-                value={fields.sidecarPlate}
-                onChange={handleChange('sidecarPlate')}
-                required
-                error={!!sidecarPlateError}
-                helperText={sidecarPlateError}
-              />
+            <div style={{ display: 'flex', flexDirection: 'column', flex: 2, marginTop: 25 }}>
+              <label style={{ fontWeight: 700, marginBottom: 8 }}>Co-Owner</label>
+              <div style={{ display: 'flex', gap: 24, alignItems: 'center' }}>
+                <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', fontSize: 16 }}>
+                  <input
+                    type="radio"
+                    name="coOwner"
+                    value="Yes"
+                    checked={fields.hasCoOwner === 'Yes'}
+                    onChange={(e) => {
+                      setFields({ ...fields, hasCoOwner: e.target.value });
+                      if (coOwners.length === 0) {
+                        setCoOwners([{ name: '', address: '', relationship: '' }]);
+                      }
+                    }}
+                    style={{ marginRight: 8, cursor: 'pointer', width: 18, height: 18 }}
+                  />
+                  Yes
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', fontSize: 16 }}>
+                  <input
+                    type="radio"
+                    name="coOwner"
+                    value="No"
+                    checked={fields.hasCoOwner === 'No'}
+                    onChange={(e) => {
+                      setFields({ ...fields, hasCoOwner: e.target.value });
+                      setCoOwners([]);
+                    }}
+                    style={{ marginRight: 8, cursor: 'pointer', width: 18, height: 18 }}
+                  />
+                  No
+                </label>
+              </div>
             </div>
           </div>
           <div className="franchise-app-section">
@@ -564,6 +611,66 @@ export default function FranchiseApplication() {
             <TextField label={t.todaMembership} size="small" className="franchise-app-input" value={fields.todaMembership} onChange={handleChange('todaMembership')} />
           </div>
 
+          {/* Co-Owner Information */}
+          {fields.hasCoOwner === 'Yes' && coOwners.length > 0 && (
+            <div style={{ marginTop: 24 }}>
+              <div style={{ fontWeight: 700, fontSize: 18, marginBottom: 16, color: '#174D7A' }}>
+                Co-Owner Information
+              </div>
+              {coOwners.map((owner, index) => (
+                <div key={index} style={{ marginBottom: 24, padding: 16, border: '2px solid #e0e0e0', borderRadius: 8 }}>
+                  <div style={{ fontWeight: 600, fontSize: 16, marginBottom: 12, color: '#333' }}>
+                    Co-Owner #{index + 1}
+                  </div>
+                  <div className="franchise-app-grid-2">
+                    <TextField
+                      label="Co-Owner Name"
+                      size="small"
+                      className="franchise-app-input"
+                      value={owner.name}
+                      onChange={(e) => {
+                        const updated = [...coOwners];
+                        updated[index].name = e.target.value;
+                        setCoOwners(updated);
+                      }}
+                    />
+                    <TextField
+                      label="Address"
+                      size="small"
+                      className="franchise-app-input"
+                      value={owner.address}
+                      onChange={(e) => {
+                        const updated = [...coOwners];
+                        updated[index].address = e.target.value;
+                        setCoOwners(updated);
+                      }}
+                    />
+                  </div>
+                  <div style={{ marginTop: 12 }}>
+                    <FormControl size="small" className="franchise-app-input" fullWidth>
+                      <InputLabel id={`relationship-label-${index}`}>Relationship</InputLabel>
+                      <Select
+                        labelId={`relationship-label-${index}`}
+                        label="Relationship"
+                        value={owner.relationship || ''}
+                        onChange={(e) => {
+                          const updated = [...coOwners];
+                          updated[index].relationship = e.target.value;
+                          setCoOwners(updated);
+                        }}
+                      >
+                        <MenuItem value="Family">Family</MenuItem>
+                        <MenuItem value="Spouse">Spouse</MenuItem>
+                        <MenuItem value="Husband">Husband</MenuItem>
+                        <MenuItem value="Others">Others</MenuItem>
+                      </Select>
+                    </FormControl>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
 
           {/* Motorcycle Information Section */}
           <div className="franchise-app-section" style={{ marginTop: 32 }}>
@@ -595,10 +702,50 @@ export default function FranchiseApplication() {
             <TextField label={t.chassisNumber} size="small" className="franchise-app-input" value={fields.chassisNumber} onChange={handleChange('chassisNumber')} />
           </div>
           
+          {/* 1x1 Picture Upload for Motorcycle */}
+          <div style={{ marginTop: 24 }}>
+            <div style={{ fontWeight: 600, marginBottom: 8 }}>{t.picture}</div>
+            <div
+              style={{
+                background: '#eaf1ff',
+                borderRadius: 8,
+                padding: '12px 16px',
+                textAlign: 'center',
+                fontWeight: 500,
+                color: '#222',
+                fontSize: 16,
+                cursor: 'pointer',
+                border: '2px dashed #174D7A',
+              }}
+              onClick={() => {
+                const input = document.createElement('input');
+                input.type = 'file';
+                input.accept = 'image/*';
+                input.onchange = async (e) => {
+                  const file = e.target.files[0];
+                  if (file) {
+                    const validation = validateFile(file);
+                    if (!validation.success) {
+                      setToast({ open: true, message: validation.message, severity: 'error' });
+                      return;
+                    }
+                    try {
+                      const processedFile = await compressFile(file);
+                      setFields({ ...fields, motorcyclePicture: processedFile });
+                      setToast({ open: true, message: 'Picture uploaded successfully', severity: 'success' });
+                    } catch {
+                      setFields({ ...fields, motorcyclePicture: file });
+                      setToast({ open: true, message: 'Picture uploaded', severity: 'success' });
+                    }
+                  }
+                };
+                input.click();
+              }}
+            >
+              {fields.motorcyclePicture ? truncateFilename(fields.motorcyclePicture.name) : t.noFileSelected + ' Click to upload'}
+            </div>
+          </div>
 
-
-
-    
           <div className="franchise-app-section" style={{ marginTop: 32 }}>
             {t.reqDocuments}
             <div className="franchise-app-section-line" />
@@ -648,13 +795,16 @@ export default function FranchiseApplication() {
                       border: 'none',
                       outline: 'none',
                       transition: 'background 0.2s',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap'
                     }}
                     onClick={() => {
                       setModalDocKey(doc.key);
                       setModalFile(null);
                     }}
                   >
-                    {uploads[doc.key] ? uploads[doc.key].name : t.noFileSelected}
+                    {uploads[doc.key] ? truncateFilename(uploads[doc.key].name) : t.noFileSelected}
                   </div>
                 </div>
               </div>
@@ -699,30 +849,44 @@ export default function FranchiseApplication() {
 
                       // Personal Information - Backend expects these exact field names
                       formDataToSend.append('operatorName', fields.operatorName || '');
-                      formDataToSend.append('operatorContact', fields.contact || '');
-                      // operatorEmail is no longer collected from the form
-                      formDataToSend.append('operatorAddress', fields.driverAddress || '');
+                      formDataToSend.append('operatorContactNumber', fields.contact || ''); // Changed from operatorContact
+                      formDataToSend.append('address', fields.driverAddress || ''); // Changed from operatorAddress
+                      formDataToSend.append('barangay', fields.barangay || ''); // Moved up
                       formDataToSend.append('actionType', 'NEW'); // Backend expects uppercase
                       
                       // Driver/Operator Details
                       formDataToSend.append('driversID', fields.driverName || '');
+                      formDataToSend.append('driverName', fields.driverName || ''); // Added
                       formDataToSend.append('driversAddress', fields.driverAddress || '');
                       formDataToSend.append('birthPlace', fields.birthPlace || '');
                       formDataToSend.append('birthDate', fields.birthDate ? (fields.birthDate.format ? fields.birthDate.format('YYYY-MM-DD') : fields.birthDate) : '');
                       formDataToSend.append('civilStatus', fields.civilStatus || '');
                       formDataToSend.append('citizenship', fields.citizenship || '');
                       formDataToSend.append('todaMembership', fields.todaMembership || '');
-                      // Append barangay (new field)
-                      formDataToSend.append('barangay', fields.barangay || '');
                       
                       // Vehicle Information
                       formDataToSend.append('unitModel', fields.unitModel || '');
                       formDataToSend.append('colorMotor', fields.colorMotor || '');
-                      formDataToSend.append('sidecarColor', fields.colorSidecar || ''); 
-                      formDataToSend.append('sidecarPlateNumber', fields.sidecarPlate || ''); 
+                      formDataToSend.append('sideCarColor', fields.colorSidecar || ''); // Changed from sidecarColor
                       formDataToSend.append('mvPlateNo', fields.mvPlateNo || ''); 
                       formDataToSend.append('motorEngineNo', fields.motorEngineNumber || ''); 
-                      formDataToSend.append('chasisNo', fields.chassisNumber || ''); 
+                      formDataToSend.append('chasisNo', fields.chassisNumber || '');
+                      
+                      // Co-Owners Information
+                      formDataToSend.append('hasCoOwner', fields.hasCoOwner || 'No');
+                      if (fields.hasCoOwner === 'Yes' && coOwners.length > 0) {
+                        formDataToSend.append('coOwnerCount', coOwners.length.toString());
+                        coOwners.forEach((owner, index) => {
+                          formDataToSend.append(`coOwner_${index}_name`, owner.name || '');
+                          formDataToSend.append(`coOwner_${index}_address`, owner.address || '');
+                          formDataToSend.append(`coOwner_${index}_relationship`, owner.relationship || '');
+                        });
+                      }
+                      
+                      // Motorcycle Picture
+                      if (fields.motorcyclePicture) {
+                        formDataToSend.append('motorcyclePicture', fields.motorcyclePicture);
+                      }
                       
                       if (uploads.registration) {
                         formDataToSend.append('documentRegistration', uploads.registration);
@@ -782,7 +946,6 @@ export default function FranchiseApplication() {
                   
                       setFields({
                         date: dayjs(),
-                        sidecarPlate: "",
                         operatorName: "",
                         contact: "",
                         birthPlace: "",
@@ -799,10 +962,13 @@ export default function FranchiseApplication() {
                         driverName: "",
                         driverAddress: "",
                         barangay: "",
+                        hasCoOwner: "",
+                        motorcyclePicture: null,
                       })
                       setAddressError('');
                       setBarangayError('');
                       setUploads({ registration: null, barangay: null, cedula: null, license: null, affidavit: null, picture: null })
+                      setCoOwners([]);
 
                       
                       console.log('[FranchiseApplication] Application submitted successfully')

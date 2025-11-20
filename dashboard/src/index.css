@@ -11,7 +11,7 @@ body, html {
   padding: 0;
   background-color: #ffffff;
   overflow-y: scroll;
-  width: 100vw;
+  overflow-x: hidden;
 }
 
 /* removed commented :root and color-scheme blocks to avoid hidden color variables */
