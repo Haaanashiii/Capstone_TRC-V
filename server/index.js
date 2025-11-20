@@ -23,6 +23,8 @@ const franchiseApplicationRoutes = require('./routes/franchiseApplicationRoutes'
 const qrCodeRoutes = require('./routes/qrCodeRoutes');
 const sessionRoutes = require('./routes/sessionRoutes');
 const dashboardRoutes = require('./routes/dashboardRoutes');
+const auditLogRoutes = require('./routes/auditLogRoutes');
+const fareMatrixRoutes = require('./routes/fareMatrixRoutes');
 
 dotenv.config();
 const app = express();
@@ -107,7 +109,7 @@ app.use('/uploads', express.static('uploads', {
 }));
 
 // Audit logging (before rate limiting to log all attempts)
-app.use(auditLogService.createLogMiddleware({
+app.use(auditLogService.createAuditMiddleware({
   excludePaths: ['/health', '/api/verify'],
   logBody: false
 }));
@@ -136,6 +138,8 @@ app.use('/api/franchise-information', franchiseInformationRoutes);
 app.use('/qr', qrCodeRoutes);
 app.use('/api/sessions', sessionRoutes);
 app.use('/api/scheduler', require('./routes/schedulerRoutes'));
+app.use('/api/audit-logs', auditLogRoutes);
+app.use('/api/fare-matrix', fareMatrixRoutes);
 
 
 // Health check endpoint

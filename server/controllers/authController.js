@@ -1,7 +1,7 @@
 // OTP/2FA and Forgot Password
 const { generateOTP, setOTP, verifyOTP } = require('../middlewares/otpMiddleware');
 const { sendOTPEmail } = require('../services/emailService');
-
+const { auditLogService } = require('../services/auditLogService');
 
 const userAccountRepository = require('../repositories/userAccountRepository');
 const sessionRepository = require('../repositories/sessionRepository');
@@ -201,7 +201,7 @@ const generateAccessToken = (user, franchiseInfo = null, isAdmin = false) => {
   // MINIMAL JWT PAYLOAD - Only include non-sensitive, essential data
   // Use custom userId field (UUID) instead of MongoDB _id for better consistency
   const payload = { 
-    id: user.userId || user._id.toString(), // Prefer userId (UUID), fallback to _id
+    id: user.userId || user._id.toString(), 
     _id: user._id.toString(), // Keep _id for backward compatibility
     role: user.role,
     name: user.name,
@@ -210,6 +210,15 @@ const generateAccessToken = (user, franchiseInfo = null, isAdmin = false) => {
     hasFranchise: !!franchiseInfo,
     franchiseStatus: user.franchiseStatus || 'inactive'
   };
+  
+  // Add admin-specific claims if this is an admin account
+  if (isAdmin) {
+    payload.adminId = user.adminId || user._id.toString();
+    payload.department = user.department || null;
+    payload.position = user.position || null;
+    payload.permissions = user.permissions || [];
+    console.log('[JWT] Admin claims added:', { adminId: payload.adminId, department: payload.department, position: payload.position });
+  }
   
   return jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '1h' }); // Temporary:limit to 1hr
 };
@@ -280,7 +289,21 @@ exports.login = async (req, res, next) => {
       }
     }
     
-    if (!user) return res.status(401).json({ error: 'Invalid credentials' });
+    if (!user) {
+      // Log failed login attempt
+      await auditLogService.logAction({
+        user: { id: identifier, username: identifier, role: 'unknown', accountType: 'user', email: identifier },
+        method: 'POST',
+        route: '/auth/login',
+        action: 'LOGIN',
+        statusCode: 401,
+        ipAddress: req.ip || req.connection?.remoteAddress || 'Unknown',
+        userAgent: req.headers['user-agent'],
+        resourceType: 'auth',
+        errorMessage: 'Invalid credentials - user not found'
+      }).catch(err => console.error('Audit log error:', err));
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
 
     // If the account was created via OAuth (no local password), reject password login
     if (!user.password) {
@@ -294,18 +317,48 @@ exports.login = async (req, res, next) => {
       validPassword = await bcrypt.compare(password, user.password);
     } catch (e) {
       console.error('bcrypt.compare error for user', user && user._id, e && e.message ? e.message : e);
+      // Log the error
+      await auditLogService.logAction({
+        user: { id: user._id || user.userId, username: user.username || user.email, role: user.role, accountType: isAdmin ? 'admin' : 'user', email: user.email },
+        method: 'POST',
+        route: '/auth/login',
+        action: 'LOGIN',
+        statusCode: 401,
+        ipAddress: req.ip || req.connection?.remoteAddress || 'Unknown',
+        userAgent: req.headers['user-agent'],
+        resourceType: 'auth',
+        errorMessage: 'Password comparison error'
+      }).catch(err => console.error('Audit log error:', err));
       return res.status(401).json({ error: 'Invalid credentials' });
     }
-    if (!validPassword) return res.status(401).json({ error: 'Invalid credentials' });
+    if (!validPassword) {
+      // Log failed password attempt
+      await auditLogService.logAction({
+        user: { id: user._id || user.userId, username: user.username || user.email, role: user.role, accountType: isAdmin ? 'admin' : 'user', email: user.email },
+        method: 'POST',
+        route: '/auth/login',
+        action: 'LOGIN',
+        statusCode: 401,
+        ipAddress: req.ip || req.connection?.remoteAddress || 'Unknown',
+        userAgent: req.headers['user-agent'],
+        resourceType: 'auth',
+        errorMessage: 'Invalid password'
+      }).catch(err => console.error('Audit log error:', err));
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
     
-    // Populate franchise information if available (only for regular users, not admins)
+    // Populate operator information and franchises if available (only for regular users, not admins)
     let franchiseInfo = null;
-    if (!isAdmin && user.franchiseInfo) {
+    if (!isAdmin && user.operatorInfo) {
       try {
-        const User = require('../models/userAccountModel');
-        const populatedUser = await User.findById(user._id).populate('franchiseInfo');
-        if (populatedUser && populatedUser.franchiseInfo) {
-          franchiseInfo = populatedUser.franchiseInfo;
+        const OperatorInformation = require('../models/operatorInformationModel');
+        const operatorInfo = await OperatorInformation.findById(user.operatorInfo)
+          .populate('franchiseInformations')
+          .lean();
+        
+        if (operatorInfo && operatorInfo.franchiseInformations && operatorInfo.franchiseInformations.length > 0) {
+          // Use the first (or active) franchise
+          franchiseInfo = operatorInfo.franchiseInformations[0];
           console.log('[Login] User has active franchise:', { operatorId: franchiseInfo.operatorId, status: franchiseInfo.franchiseStatus });
         }
       } catch (e) {
@@ -317,24 +370,19 @@ exports.login = async (req, res, next) => {
     const accessToken = generateAccessToken(user, franchiseInfo, isAdmin);
     const accountType = isAdmin ? 'admin' : 'user';
      
-    // Enforce max 2 active sessions per user BEFORE creating new session
+    // Enforce SINGLE session per user - revoke all previous sessions before creating new one
     try {
-      const sessions = await sessionRepository.getUserSessions(user._id);
-      if (sessions.length >= 2) {
-        // Sort by lastUsed (oldest first)
-        const sorted = sessions.sort((a, b) => new Date(a.lastUsed) - new Date(b.lastUsed));
-        // Delete the oldest session(s) to make room for the new one
-        const toDelete = sorted.slice(0, sessions.length - 1); // Keep only 1, delete the rest
-        console.log(`[Login] User has ${sessions.length} sessions, removing ${toDelete.length} oldest session(s)`);
-        for (const s of toDelete) {
-          await sessionRepository.deleteSession(s._id);
-        }
+      const existingSessions = await sessionRepository.getUserSessions(user._id);
+      if (existingSessions.length > 0) {
+        console.log(`[Login] User has ${existingSessions.length} active session(s), revoking all previous sessions`);
+        // Revoke all existing sessions - user can only have ONE active session
+        await sessionRepository.revokeAllUserSessions(user._id);
       }
     } catch (e) {
-      console.error('[Login] Failed to enforce session limit:', e);
+      console.error('[Login] Failed to revoke previous sessions:', e);
     }
     
-    // Now create the new session (this will be the 2nd one)
+    // Now create the NEW single session
     const refreshToken = await generateRefreshToken(user, accountType, req, refreshTokenDays);
 
     // Check if this is a trusted device (Remember Me feature)
@@ -436,6 +484,33 @@ exports.login = async (req, res, next) => {
       };
     }
     
+    // Log successful login
+    await auditLogService.logAction({
+      user: {
+        id: user._id || user.userId,
+        userId: user.userId,
+        username: user.username || user.email,
+        email: user.email,
+        role: user.role,
+        accountType: isAdmin ? 'admin' : 'user',
+        adminId: isAdmin ? (user.adminId || user._id) : null,
+        department: isAdmin ? user.department : null,
+        position: isAdmin ? user.position : null
+      },
+      method: 'POST',
+      route: '/auth/login',
+      action: 'LOGIN',
+      statusCode: 200,
+      ipAddress: req.ip || req.connection?.remoteAddress || 'Unknown',
+      userAgent: req.headers['user-agent'],
+      resourceType: 'auth',
+      details: {
+        email: user.email,
+        rememberMe: rememberMe,
+        authProvider: 'local'
+      }
+    }).catch(err => console.error('Audit log error:', err));
+    
     res.json(responseData);
   } catch (err) {
     next(err);
@@ -492,9 +567,21 @@ exports.refreshToken = async (req, res, next) => {
       isAdmin = true;
     } else {
       const User = require('../models/userAccountModel');
-      user = await User.findById(session.userId).populate('franchiseInfo');
-      if (user && user.franchiseInfo) {
-        operatorInfo = user.franchiseInfo;
+      user = await User.findById(session.userId).populate('operatorInfo');
+      
+      // Get franchises via operator information
+      if (user && user.operatorInfo) {
+        try {
+          const OperatorInformation = require('../models/operatorInformationModel');
+          const populated = await OperatorInformation.findById(user.operatorInfo)
+            .populate('franchiseInformations')
+            .lean();
+          if (populated && populated.franchiseInformations && populated.franchiseInformations.length > 0) {
+            operatorInfo = populated.franchiseInformations[0];
+          }
+        } catch (e) {
+          console.error('[RefreshToken] Error populating franchises:', e.message);
+        }
       }
     }
     
@@ -522,6 +609,20 @@ exports.logout = async (req, res) => {
       // Revoke only the current session in database
       await sessionRepository.revokeSession(refreshToken);
       console.log('[Logout] Session revoked in database');
+    }
+
+    // Log successful logout
+    if (req.user) {
+      await auditLogService.logAction({
+        user: req.user,
+        method: 'POST',
+        route: '/auth/logout',
+        action: 'LOGOUT',
+        statusCode: 200,
+        ipAddress: req.ip || req.connection?.remoteAddress || 'Unknown',
+        userAgent: req.headers['user-agent'],
+        resourceType: 'auth'
+      }).catch(err => console.error('Audit log error:', err));
     }
 
     // Clear refresh token cookie with all possible configurations
@@ -552,30 +653,43 @@ exports.getCurrentUser = async (req, res, next) => {
   try {
     if (!req.user) return res.status(401).json({ error: 'Not authenticated' });
     
-    // Fetch full user details from database and populate operator info
+    // Fetch full user details from database with operator and franchise info
     const User = require('../models/userAccountModel');
+    const OperatorInformation = require('../models/operatorInformationModel');
     const mongoose = require('mongoose');
     
     // Handle both ObjectId and UUID-based user lookup
     let user;
     if (mongoose.Types.ObjectId.isValid(req.user.id)) {
-      user = await User.findById(req.user.id).populate('franchiseInfo');
+      user = await User.findById(req.user.id).populate('operatorInfo');
     }
     if (!user) {
       // Fallback: try finding by userId field (for UUID tokens)
-      user = await User.findOne({ userId: req.user.id }).populate('franchiseInfo');
+      user = await User.findOne({ userId: req.user.id }).populate('operatorInfo');
     }
     
     if (!user) return res.status(404).json({ error: 'User not found' });
     
-    // Debug log for franchise info
-    if (user.franchiseInfo) {
-      console.log('[getCurrentUser] Franchise info found:', {
-        hasQrCode: !!user.franchiseInfo.qrCode,
-        qrCode: user.franchiseInfo.qrCode,
-        hasProfilePhoto: !!user.franchiseInfo.profilePhoto,
-        profilePhoto: user.franchiseInfo.profilePhoto
-      });
+    // Fetch franchises via operator information
+    let franchiseInfo = null;
+    if (user.operatorInfo) {
+      try {
+        const operatorData = await OperatorInformation.findById(user.operatorInfo)
+          .populate('franchiseInformations')
+          .lean();
+        
+        if (operatorData && operatorData.franchiseInformations && operatorData.franchiseInformations.length > 0) {
+          franchiseInfo = operatorData.franchiseInformations[0];
+          console.log('[getCurrentUser] Franchise info found:', {
+            hasQrCode: !!franchiseInfo.qrCode,
+            qrCode: franchiseInfo.qrCode,
+            hasProfilePhoto: !!franchiseInfo.profilePhoto,
+            profilePhoto: franchiseInfo.profilePhoto
+          });
+        }
+      } catch (e) {
+        console.error('Error populating franchises:', e && e.message);
+      }
     }
     
     // Return comprehensive user info (excluding sensitive data)
@@ -594,47 +708,47 @@ exports.getCurrentUser = async (req, res, next) => {
       franchiseStatus: user.franchiseStatus,
       dateCreated: user.createdAt,
       lastLogin: user.lastLogin,
-      hasFranchise: !!user.franchiseInfo
+      hasFranchise: !!franchiseInfo
     };
     
-    // Add franchise information if populated
-    if (user.franchiseInfo) {
+    // Add franchise information if available
+    if (franchiseInfo) {
       userInfo.franchise = {
-        operatorId: user.franchiseInfo.operatorId,
-        operatorName: user.franchiseInfo.operatorName,
-        contactNumber: user.franchiseInfo.contactNumber,
-        email: user.franchiseInfo.email,
-        address: user.franchiseInfo.address,
-        barangay: user.franchiseInfo.barangay,
-        civilStatus: user.franchiseInfo.civilStatus,
-        driversID: user.franchiseInfo.driversID,
-        profilePhoto: user.franchiseInfo.profilePhoto,
-        qrCode: user.franchiseInfo.qrCode,
-        franchiseStatus: user.franchiseInfo.franchiseStatus,
-        mtopNumber: user.franchiseInfo.mtopNumber,
-        approvedAt: user.franchiseInfo.approvedAt,
-        expiryDate: user.franchiseInfo.expiryDate,
+        operatorId: franchiseInfo.operatorId,
+        operatorName: franchiseInfo.operatorName,
+        contactNumber: franchiseInfo.contactNumber,
+        email: franchiseInfo.email,
+        address: franchiseInfo.address,
+        barangay: franchiseInfo.barangay,
+        civilStatus: franchiseInfo.civilStatus,
+        driversID: franchiseInfo.driversID,
+        profilePhoto: franchiseInfo.profilePhoto,
+        qrCode: franchiseInfo.qrCode,
+        franchiseStatus: franchiseInfo.franchiseStatus,
+        mtopNumber: franchiseInfo.mtopNumber,
+        approvedAt: franchiseInfo.approvedAt,
+        expiryDate: franchiseInfo.expiryDate,
         // Add vehicle information fields for DriverID page
-        unitModel: user.franchiseInfo.unitModel,
-        colorMotor: user.franchiseInfo.colorMotor,
-        sidecarColor: user.franchiseInfo.sidecarColor,
-        sidecarPlateNumber: user.franchiseInfo.sidecarPlateNumber,
-        mvPlateNo: user.franchiseInfo.mvPlateNo,
-        plateNumber: user.franchiseInfo.mvPlateNo || user.franchiseInfo.plateNumber,
-        motorEngineNo: user.franchiseInfo.motorEngineNo,
-        chasisNo: user.franchiseInfo.chasisNo,
-        chassisNumber: user.franchiseInfo.chasisNo || user.franchiseInfo.chassisNumber,
-        motorEngineNumber: user.franchiseInfo.motorEngineNo || user.franchiseInfo.motorEngineNumber,
-        orNumber: user.franchiseInfo.orNumber || user.franchiseInfo.franchiseNumber,
-        franchiseNumber: user.franchiseInfo.franchiseNumber,
-        documents: user.franchiseInfo.documents ? {
-          motorRegistration: user.franchiseInfo.documents.motorRegistration,
-          barangayClearance: user.franchiseInfo.documents.barangayClearance,
-          cedula: user.franchiseInfo.documents.cedula,
-          driversLicense: user.franchiseInfo.documents.driversLicense,
-          votersAffidavit: user.franchiseInfo.documents.votersAffidavit,
-          motorChassisStencil: user.franchiseInfo.documents.motorChassisStencil,
-          picture: user.franchiseInfo.documents.picture
+        unitModel: franchiseInfo.unitModel,
+        colorMotor: franchiseInfo.colorMotor,
+        sidecarColor: franchiseInfo.sideCarColor,
+        sidecarPlateNumber: franchiseInfo.sideCarPlateNumber,
+        mvPlateNo: franchiseInfo.mvPlateNo,
+        plateNumber: franchiseInfo.mvPlateNo || franchiseInfo.plateNumber,
+        motorEngineNo: franchiseInfo.motorEngineNo,
+        chasisNo: franchiseInfo.chasisNo,
+        chassisNumber: franchiseInfo.chasisNo || franchiseInfo.chassisNumber,
+        motorEngineNumber: franchiseInfo.motorEngineNo || franchiseInfo.motorEngineNumber,
+        orNumber: franchiseInfo.orNumber || franchiseInfo.franchiseNumber,
+        franchiseNumber: franchiseInfo.franchiseNumber,
+        documents: franchiseInfo.documents ? {
+          motorRegistration: franchiseInfo.documents.motorRegistrationObj,
+          barangayClearance: franchiseInfo.documents.barangayClearanceObj,
+          cedula: franchiseInfo.documents.cedulaObj,
+          driversLicense: franchiseInfo.documents.driversLicenseObj,
+          votersAffidavit: franchiseInfo.documents.votersAffidavitObj,
+          motorChassisStencil: franchiseInfo.documents.motorChassisStencilObj,
+          picture: franchiseInfo.documents.driverPictureObj
         } : null
       };
     }
@@ -737,42 +851,36 @@ exports.googleCallback = async (req, res, next) => {
       }
     }
 
-    // Populate operator information if available and valid
+    // Populate operator information and franchises if available and valid
     let operatorInfo = null;
     if (user.operatorInfo) {
       try {
-        const mongoose = require('mongoose');
-        if (mongoose.Types.ObjectId.isValid(user.operatorInfo)) {
-          const User = require('../models/userAccountModel');
-          const populatedUser = await User.findById(user._id).populate('operatorInfo');
-          if (populatedUser && populatedUser.operatorInfo) {
-            operatorInfo = populatedUser.operatorInfo;
-          }
-        } else {
-          // operatorInfo is not a valid ObjectId, skip population
-          operatorInfo = null;
+        const OperatorInformation = require('../models/operatorInformationModel');
+        const operatorData = await OperatorInformation.findById(user.operatorInfo)
+          .populate('franchiseInformations')
+          .lean();
+        
+        if (operatorData && operatorData.franchiseInformations && operatorData.franchiseInformations.length > 0) {
+          operatorInfo = operatorData.franchiseInformations[0];
         }
       } catch (e) {
-        console.error('Error populating operator info in OAuth:', e && e.message);
+        console.error('Error populating franchises in OAuth:', e && e.message);
       }
     }
 
-    // Issue tokens (reuse existing helpers, include operator info)
-    const accessToken = generateAccessToken(user, operatorInfo);
+    // Issue tokens (reuse existing helpers, include operator info, isAdmin is always false for OAuth)
+    const accessToken = generateAccessToken(user, operatorInfo, false);
     
-    // Enforce max 2 active sessions per user BEFORE creating new session
+    // Enforce SINGLE session per user - revoke all previous sessions
     try {
-      const sessions = await sessionRepository.getUserSessions(user._id);
-      if (sessions.length >= 2) {
-        const sorted = sessions.sort((a, b) => new Date(a.lastUsed) - new Date(b.lastUsed));
-        const toDelete = sorted.slice(0, sessions.length - 1);
-        console.log(`[OAuth] User has ${sessions.length} sessions, removing ${toDelete.length} oldest session(s)`);
-        for (const s of toDelete) {
-          await sessionRepository.deleteSession(s._id);
-        }
+      const existingSessions = await sessionRepository.getUserSessions(user._id);
+      if (existingSessions.length > 0) {
+        console.log(`[OAuth] User has ${existingSessions.length} active session(s), revoking all previous sessions`);
+        // Revoke all existing sessions
+        await sessionRepository.revokeAllUserSessions(user._id);
       }
     } catch (e) {
-      console.error('[OAuth] Failed to enforce session limit:', e);
+      console.error('[OAuth] Failed to revoke previous sessions:', e);
     }
     
     const refreshToken = await generateRefreshToken(user, 'user', req);

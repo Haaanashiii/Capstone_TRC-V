@@ -16,8 +16,6 @@ const poppinsTheme = createTheme({
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
-
-
 const SignUp = () => {
   const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);

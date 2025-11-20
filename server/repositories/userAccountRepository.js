@@ -139,17 +139,60 @@ exports.getAllUsers = async () => {
   return await User.find({}).select('-password').lean();
 };
 
-// Get user with populated franchise information
+// Get user with populated operator information and franchises
 exports.findAccountByIdWithOperator = async (id) => {
   // Try to find by userId first (UUID), then fall back to MongoDB _id
-  let user = await User.findOne({ userId: id }).populate('franchiseInfo');
+  let user = await User.findOne({ userId: id }).populate({
+    path: 'operatorInfo',
+    populate: {
+      path: 'franchiseInformations'
+    }
+  });
   if (!user) {
-    user = await User.findById(id).populate('franchiseInfo');
+    user = await User.findById(id).populate({
+      path: 'operatorInfo',
+      populate: {
+        path: 'franchiseInformations'
+      }
+    });
   }
   return user;
 };
 
-// Get all users with populated franchise information
+// Get all users with populated operator information and franchises
 exports.getAllUsersWithOperator = async () => {
-  return await User.find({}).select('-password').populate('franchiseInfo').lean();
+  return await User.find({}).select('-password').populate({
+    path: 'operatorInfo',
+    populate: {
+      path: 'franchiseInformations'
+    }
+  }).lean();
+};
+
+// Helper: Get user with operator info (single level population)
+exports.findAccountByIdWithOperatorInfo = async (id) => {
+  let user = await User.findOne({ userId: id }).populate('operatorInfo');
+  if (!user) {
+    user = await User.findById(id).populate('operatorInfo');
+  }
+  return user;
+};
+
+// Helper: Get franchises for a user via operator information
+exports.getFranchisesByUserId = async (id) => {
+  let user = await User.findOne({ userId: id }).populate({
+    path: 'operatorInfo',
+    populate: {
+      path: 'franchiseInformations'
+    }
+  });
+  if (!user) {
+    user = await User.findById(id).populate({
+      path: 'operatorInfo',
+      populate: {
+        path: 'franchiseInformations'
+      }
+    });
+  }
+  return user?.operatorInfo?.franchiseInformations || [];
 };

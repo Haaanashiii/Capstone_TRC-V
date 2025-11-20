@@ -239,6 +239,15 @@ api.interceptors.response.use(
       } catch (refreshError) {
         console.error('[API] Token refresh failed:', refreshError);
         
+        // Check if it's a 403 (session revoked/killed)
+        if (refreshError.response?.status === 403) {
+          console.warn('[API] Session killed - user logged in from another device');
+          // Show error message to user
+          if (window.showSessionKilledError) {
+            window.showSessionKilledError('Your session was ended. Please login again.');
+          }
+        }
+        
         // Refresh failed - clear tokens and redirect to login
         processQueue(refreshError, null);
         TokenManager.clearTokens();
