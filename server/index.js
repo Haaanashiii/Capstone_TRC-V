@@ -147,6 +147,32 @@ app.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// IP debug endpoint (helpful for testing IP detection)
+app.get('/debug/ip', (req, res) => {
+  const { getClientIp } = require('./utils/ipHelper');
+  const detectedIp = getClientIp(req, true); // Enable debug logging
+  
+  res.status(200).json({
+    detectedIp,
+    headers: {
+      'cf-connecting-ip': req.headers['cf-connecting-ip'] || null,
+      'x-forwarded-for': req.headers['x-forwarded-for'] || null,
+      'x-real-ip': req.headers['x-real-ip'] || null,
+      'user-agent': req.headers['user-agent'] || null
+    },
+    express: {
+      ip: req.ip || null,
+      ips: req.ips || [],
+      protocol: req.protocol
+    },
+    connection: {
+      remoteAddress: req.connection?.remoteAddress || null,
+      remotePort: req.connection?.remotePort || null
+    },
+    environment: process.env.NODE_ENV || 'development'
+  });
+});
+
 // Error handler (must be last)
 app.use(errorHandler);
 

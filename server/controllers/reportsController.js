@@ -1,4 +1,5 @@
 const reportsRepository = require('../repositories/reportsRepository');
+const { getClientIp } = require('../utils/ipHelper');
 
 /**
  * Create a public report (no authentication required)
@@ -79,7 +80,7 @@ exports.createPublicReport = async (req, res, next) => {
         const newReport = await reportsRepository.createReport(reportData);
         
         // Log for audit trail
-        const ipAddress = req.ip || req.socket.remoteAddress || req.headers['x-forwarded-for']?.split(',')[0];
+        const ipAddress = getClientIp(req);
         console.log(`[PUBLIC REPORT] Operator: ${operatorId}, Reporter: ${fullName}, IP: ${ipAddress}`);
         
         res.status(201).json({ 

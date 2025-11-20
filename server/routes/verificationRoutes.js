@@ -9,6 +9,7 @@ const express = require('express');
 const router = express.Router();
 const { qrVerificationLimiter } = require('../middlewares/rateLimiter');
 const { sanitizeRequest } = require('../middlewares/validateRequest');
+const { getClientIp } = require('../utils/ipHelper');
 const { createEphemeralToken, getOperatorDataFromToken } = require('../services/urlMaskingService');
 const { verifyQRCodeSignature } = require('../services/qrCodeService');
 const Application = require('../models/applicationModel');
@@ -79,7 +80,7 @@ router.get('/verify', sanitizeRequest, async (req, res) => {
 router.get('/temp/:token', sanitizeRequest, async (req, res) => {
   try {
     const { token } = req.params;
-     const ipAddress = req.ip || req.socket.remoteAddress || req.headers['x-forwarded-for']?.split(',')[0];
+    const ipAddress = getClientIp(req);
     
     // Get operator data from the ephemeral token
     const operatorData = getOperatorDataFromToken(token, ipAddress);

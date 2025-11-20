@@ -11,13 +11,18 @@ const DocumentReferenceSchema = new mongoose.Schema({
   oRLTOObj: { type: String, required: false },
   cRLTOObj: { type: String, required: false },
   driverPictureObj: { type: String, required: false },
-  qrCodeObj: { type: String, required: false }
+  qrCodeObj: { type: String, required: false },
+  scannedSignedRegistrationObj: { type: String, required: false},
+
+  //reports of sb
+  individualSessionReportObj: { type: String, required: false },
 });
 
 const franchiseInformationSchema = new mongoose.Schema({
 
-  mtopNumber: { type: String, unique: true },
-  mtofNumber: { type: String, unique: true },
+  franchiseNumber: { type: String, unique: true }, //inputed by sb
+  sessionNumber: { type: String }, // sort 
+
   // operator details
   operatorId: { type: String, required: true },
   operatorName: { type: String, required: true },
@@ -54,16 +59,51 @@ const franchiseInformationSchema = new mongoose.Schema({
   approvedAt: { type: Date },
   expiryDate: { type: Date },
 
+  //rate
+  rate:{type: String, enum: ['Old Rate', 'New Rate',], required: true , default: 'New Rate' },
+  franchiseStatus: { type: String, enum: ['Active', 'Expired' , 'Revoked'], required: true },
   documents: DocumentReferenceSchema,
 
-  franchiseStatus: { type: String, enum: ['active', 'expired' , 'temporarily'], required: true },
+  // Version History System
+  // Each version is a COMPLETE SNAPSHOT of the entire franchise record at that point in time
+  version: { type: Number, default: 1 },
+  isCurrentVersion: { type: Boolean, default: true, index: true },
+  previousVersion: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Franchise Information'
+  },
+  // changeType describes WHY this new version was created
+  changeType: { 
+    type: String, 
+    enum: [
+      'new',              // Initial franchise application approved (first time)
+      'renewal',          // Operator submitted renewal application → Admin approved
+      'update_ownership', // Operator submitted ownership transfer → Admin approved
+      'change_unit',      // Operator submitted unit change → Admin approved
+      'auto_expired',     // System/cron auto-marked as expired after 3 years
+      'auto_revoked'      // System/cron auto-revoked (e.g., expired too long)
+    ],
+    default: 'new'
+  },
+  changeReason: { type: String }, // Human-readable reason for this change
+  changedBy: { type: String }, // Admin username who approved, or 'system' for auto changes
+  changedAt: { type: Date, default: Date.now }, // When this version was created
   
   linkedUser: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Operator Information',
+    ref: 'User Accounts',
     required: false,
     default: null
   }
 }, { timestamps: true });
+
+// Compound index: franchiseNumber can be reused if previous franchise is revoked (not current version)
+franchiseInformationSchema.index(
+  { franchiseNumber: 1, isCurrentVersion: 1 },
+  { 
+    unique: true,
+    partialFilterExpression: { isCurrentVersion: true }
+  }
+);
 
 module.exports = mongoose.model('Franchise Information', franchiseInformationSchema);

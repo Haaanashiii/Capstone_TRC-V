@@ -28,13 +28,5 @@ router.post('/logout', authController.logout);
 // Get current user info
 router.get('/me', authenticate, authController.getCurrentUser);
 
-// Google OAuth (server-side) - redirect to Google and handle callback
-router.get('/google', authController.googleAuth);
-router.get('/google/callback', authController.googleCallback);
-
-// Dev-only test route to create an OAuth user directly (do not enable in production)
-if (process.env.NODE_ENV !== 'production') {
-	router.post('/test-oauth', authController.testCreateOAuth);
-}
 
 module.exports = router;

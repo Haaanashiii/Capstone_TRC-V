@@ -1,6 +1,7 @@
 const franchiseInformationRepository = require('../repositories/franchiseInformationRepository');
 const { generateOperatorQRCode, deleteQRCode } = require('../services/qrCodeService');
 const { getFileFromR2 } = require('../services/cloudflareService');
+const { getClientIp } = require('../utils/ipHelper');
 
 exports.createFranchiseInformation = async (req, res, next) => {
   try {
@@ -141,7 +142,7 @@ exports.franchiseQRLookupByHash = async (req, res, next) => {
     }
     
     // Log QR scan for audit trail
-    const ipAddress = req.ip || req.socket.remoteAddress || req.headers['x-forwarded-for']?.split(',')[0];
+    const ipAddress = getClientIp(req);
     console.log(`[QR SCAN] HashedMTOP: ${hashedMTOP}, IP: ${ipAddress}, Time: ${new Date().toISOString()}`);
     
     // Extract name parts for display
@@ -188,7 +189,7 @@ exports.franchiseQRIDLookup = async (req, res, next) => {
     }
     
     // Log QR scan for audit trail
-    const ipAddress = req.ip || req.socket.remoteAddress || req.headers['x-forwarded-for']?.split(',')[0];
+    const ipAddress = getClientIp(req);
     console.log(`[QR SCAN] Franchise: ${req.params.franchiseId}, IP: ${ipAddress}, Time: ${new Date().toISOString()}`);
     
     // Return only public information for QR code display

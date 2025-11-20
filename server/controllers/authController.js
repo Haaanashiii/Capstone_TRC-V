@@ -2,6 +2,7 @@
 const { generateOTP, setOTP, verifyOTP } = require('../middlewares/otpMiddleware');
 const { sendOTPEmail } = require('../services/emailService');
 const { auditLogService } = require('../services/auditLogService');
+const { getClientIp } = require('../utils/ipHelper');
 
 const userAccountRepository = require('../repositories/userAccountRepository');
 const sessionRepository = require('../repositories/sessionRepository');
@@ -10,8 +11,6 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const fetch = require('node-fetch');
 
-
-// Helper for DRY OTP logic
 async function handleOtpRequest(email, res, next, message) {
   try {
     if (!email) return res.status(400).json({ error: 'Email is required' });
@@ -184,40 +183,46 @@ const getDeviceInfo = (req) => {
     browser,
     os,
     device,
-    ip: req.ip || req.connection.remoteAddress || 'Unknown'
+    ip: getClientIp(req)
   };
 };
 
-const generateAccessToken = (user, franchiseInfo = null, isAdmin = false) => {
+const generateAccessToken = (user, isAdmin = false) => {
   console.log('Generating access token for user:', { 
     _id: user._id, 
     userId: user.userId, 
+    adminId: user.adminId,
     role: user.role, 
     name: user.name, 
-    isAdmin, 
-    hasFranchise: !!franchiseInfo 
+    isAdmin,
+    hasFranchiseApplications: !!(user.franchiseApplications && user.franchiseApplications.length > 0),
+    hasFranchiseInformation: !!(user.franchiseInformation && user.franchiseInformation.length > 0)
   });
   
   // MINIMAL JWT PAYLOAD - Only include non-sensitive, essential data
-  // Use custom userId field (UUID) instead of MongoDB _id for better consistency
   const payload = { 
-    id: user.userId || user._id.toString(), 
+    id: isAdmin ? (user.adminId || user._id.toString()) : (user.userId || user._id.toString()),
     _id: user._id.toString(), // Keep _id for backward compatibility
     role: user.role,
     name: user.name,
-    accountType: isAdmin ? 'admin' : 'user',
-    // Boolean flag to indicate if user has linked franchise info (for UX decisions)
-    hasFranchise: !!franchiseInfo,
-    franchiseStatus: user.franchiseStatus || 'inactive'
+    email: user.email,
+    accountType: isAdmin ? 'admin' : 'user'
   };
   
-  // Add admin-specific claims if this is an admin account
+  // Add user-specific claims (operators)
+  if (!isAdmin) {
+    payload.userId = user.userId || user._id.toString();
+    payload.hasFranchiseApplications = !!(user.franchiseApplications && user.franchiseApplications.length > 0);
+    payload.hasFranchiseInformation = !!(user.franchiseInformation && user.franchiseInformation.length > 0);
+    payload.franchiseApplicationsCount = user.franchiseApplications ? user.franchiseApplications.length : 0;
+    payload.franchiseInformationCount = user.franchiseInformation ? user.franchiseInformation.length : 0;
+  }
+  
+  // Add admin-specific claims
   if (isAdmin) {
     payload.adminId = user.adminId || user._id.toString();
-    payload.department = user.department || null;
-    payload.position = user.position || null;
     payload.permissions = user.permissions || [];
-    console.log('[JWT] Admin claims added:', { adminId: payload.adminId, department: payload.department, position: payload.position });
+    console.log('[JWT] Admin claims added:', { adminId: payload.adminId, role: user.role, permissions: payload.permissions });
   }
   
   return jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '1h' }); // Temporary:limit to 1hr
@@ -297,18 +302,12 @@ exports.login = async (req, res, next) => {
         route: '/auth/login',
         action: 'LOGIN',
         statusCode: 401,
-        ipAddress: req.ip || req.connection?.remoteAddress || 'Unknown',
+        ipAddress: getClientIp(req),
         userAgent: req.headers['user-agent'],
         resourceType: 'auth',
         errorMessage: 'Invalid credentials - user not found'
       }).catch(err => console.error('Audit log error:', err));
       return res.status(401).json({ error: 'Invalid credentials' });
-    }
-
-    // If the account was created via OAuth (no local password), reject password login
-    if (!user.password) {
-      const provider = user.oauthProvider || 'OAuth provider';
-      return res.status(400).json({ error: `This account was registered via ${provider}. Please sign in with ${provider}.` });
     }
 
     // Defensive bcrypt compare (ensure we don't pass undefined and crash)
@@ -324,7 +323,7 @@ exports.login = async (req, res, next) => {
         route: '/auth/login',
         action: 'LOGIN',
         statusCode: 401,
-        ipAddress: req.ip || req.connection?.remoteAddress || 'Unknown',
+        ipAddress: getClientIp(req),
         userAgent: req.headers['user-agent'],
         resourceType: 'auth',
         errorMessage: 'Password comparison error'
@@ -339,35 +338,38 @@ exports.login = async (req, res, next) => {
         route: '/auth/login',
         action: 'LOGIN',
         statusCode: 401,
-        ipAddress: req.ip || req.connection?.remoteAddress || 'Unknown',
+        ipAddress: getClientIp(req),
         userAgent: req.headers['user-agent'],
         resourceType: 'auth',
-        errorMessage: 'Invalid password'
+        errorMessage: 'Invalid credentials - incorrect password'
       }).catch(err => console.error('Audit log error:', err));
       return res.status(401).json({ error: 'Invalid credentials' });
     }
     
-    // Populate operator information and franchises if available (only for regular users, not admins)
-    let franchiseInfo = null;
-    if (!isAdmin && user.operatorInfo) {
+    // Populate franchise data for regular users (not admins)
+    if (!isAdmin && user._id) {
       try {
-        const OperatorInformation = require('../models/operatorInformationModel');
-        const operatorInfo = await OperatorInformation.findById(user.operatorInfo)
-          .populate('franchiseInformations')
-          .lean();
+        const User = require('../models/userAccountModel');
+        const populatedUser = await User.findById(user._id)
+          .populate('franchiseApplications')
+          .populate('franchiseInformation')
+          .select('+password'); // Keep password for validation
         
-        if (operatorInfo && operatorInfo.franchiseInformations && operatorInfo.franchiseInformations.length > 0) {
-          // Use the first (or active) franchise
-          franchiseInfo = operatorInfo.franchiseInformations[0];
-          console.log('[Login] User has active franchise:', { operatorId: franchiseInfo.operatorId, status: franchiseInfo.franchiseStatus });
+        if (populatedUser) {
+          user = populatedUser;
+          console.log('[Login] Populated franchise data:', {
+            applications: user.franchiseApplications?.length || 0,
+            franchises: user.franchiseInformation?.length || 0
+          });
         }
       } catch (e) {
-        console.error('Error populating franchise info:', e && e.message);
+        console.error('[Login] Failed to populate franchise data:', e);
+        // Continue without franchise data in token
       }
     }
     
-    // Generate tokens (include franchise info for users, admin info for admins)
-    const accessToken = generateAccessToken(user, franchiseInfo, isAdmin);
+    // Generate tokens
+    const accessToken = generateAccessToken(user, isAdmin);
     const accountType = isAdmin ? 'admin' : 'user';
      
     // Enforce SINGLE session per user - revoke all previous sessions before creating new one
@@ -450,38 +452,22 @@ exports.login = async (req, res, next) => {
       skipOTP, // Tell frontend whether to skip OTP verification (trusted device)
       user: {
         id: user._id,
+        userId: isAdmin ? (user.adminId || user._id) : (user.userId || user._id),
         name: user.name,
         role: user.role,
         email: user.email,
-        accountType: isAdmin ? 'admin' : 'user' // Indicate account type
+        accountType: isAdmin ? 'admin' : 'user'
       }
     };
     
-    // Include franchise info in response if available (for regular users)
-    if (franchiseInfo) {
-      responseData.user.franchise = {
-        operatorId: franchiseInfo.operatorId,
-        operatorName: franchiseInfo.operatorName,
-        franchiseStatus: franchiseInfo.franchiseStatus,
-        qrCode: franchiseInfo.qrCode,
-        profilePhoto: franchiseInfo.profilePhoto,
-        contactNumber: franchiseInfo.contactNumber,
-        address: franchiseInfo.address,
-        barangay: franchiseInfo.barangay,
-        mtopNumber: franchiseInfo.mtopNumber,
-        approvedAt: franchiseInfo.approvedAt,
-        expiryDate: franchiseInfo.expiryDate
-      };
-    }
-    
     // Include admin-specific info if this is an admin account
     if (isAdmin) {
-      responseData.user.admin = {
-        adminId: user.adminId,
-        department: user.department,
-        position: user.position,
-        permissions: user.permissions || []
-      };
+      responseData.user.adminId = user.adminId || user._id;
+      responseData.user.permissions = user.permissions || [];
+    } else {
+      // Include franchise info for regular users
+      responseData.user.hasFranchiseApplications = !!(user.franchiseApplications && user.franchiseApplications.length > 0);
+      responseData.user.hasFranchiseInformation = !!(user.franchiseInformation && user.franchiseInformation.length > 0);
     }
     
     // Log successful login
@@ -501,7 +487,7 @@ exports.login = async (req, res, next) => {
       route: '/auth/login',
       action: 'LOGIN',
       statusCode: 200,
-      ipAddress: req.ip || req.connection?.remoteAddress || 'Unknown',
+      ipAddress: getClientIp(req),
       userAgent: req.headers['user-agent'],
       resourceType: 'auth',
       details: {
@@ -559,7 +545,6 @@ exports.refreshToken = async (req, res, next) => {
     // Get user based on account type
     let user = null;
     let isAdmin = false;
-    let operatorInfo = null;
     
     if (session.accountType === 'admin') {
       const Admin = require('../models/adminAccountModel');
@@ -567,22 +552,9 @@ exports.refreshToken = async (req, res, next) => {
       isAdmin = true;
     } else {
       const User = require('../models/userAccountModel');
-      user = await User.findById(session.userId).populate('operatorInfo');
-      
-      // Get franchises via operator information
-      if (user && user.operatorInfo) {
-        try {
-          const OperatorInformation = require('../models/operatorInformationModel');
-          const populated = await OperatorInformation.findById(user.operatorInfo)
-            .populate('franchiseInformations')
-            .lean();
-          if (populated && populated.franchiseInformations && populated.franchiseInformations.length > 0) {
-            operatorInfo = populated.franchiseInformations[0];
-          }
-        } catch (e) {
-          console.error('[RefreshToken] Error populating franchises:', e.message);
-        }
-      }
+      user = await User.findById(session.userId)
+        .populate('franchiseApplications')
+        .populate('franchiseInformation');
     }
     
     if (!user) {
@@ -592,7 +564,7 @@ exports.refreshToken = async (req, res, next) => {
     }
     
     // Generate new access token
-    const accessToken = generateAccessToken(user, operatorInfo, isAdmin);
+    const accessToken = generateAccessToken(user, isAdmin);
     
     console.log('[RefreshToken] Token refreshed for user:', user._id, 'Type:', session.accountType);
     res.json({ accessToken });
@@ -619,7 +591,7 @@ exports.logout = async (req, res) => {
         route: '/auth/logout',
         action: 'LOGOUT',
         statusCode: 200,
-        ipAddress: req.ip || req.connection?.remoteAddress || 'Unknown',
+        ipAddress: getClientIp(req),
         userAgent: req.headers['user-agent'],
         resourceType: 'auth'
       }).catch(err => console.error('Audit log error:', err));
@@ -633,14 +605,7 @@ exports.logout = async (req, res) => {
       path: '/' // Ensure path matches cookie creation
     });
 
-    // Also clear any OAuth state cookies
-    res.clearCookie('oauth_state', {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax'
-    });
-
-    console.log('[Logout] All cookies cleared');
+    console.log('[Logout] Cookies cleared');
     res.status(200).json({ message: 'Logged out successfully' });
   } catch (error) {
     console.error('[Logout] Error during logout:', error);
@@ -653,267 +618,44 @@ exports.getCurrentUser = async (req, res, next) => {
   try {
     if (!req.user) return res.status(401).json({ error: 'Not authenticated' });
     
-    // Fetch full user details from database with operator and franchise info
+    // Fetch full user details from database with franchise info
     const User = require('../models/userAccountModel');
-    const OperatorInformation = require('../models/operatorInformationModel');
     const mongoose = require('mongoose');
     
     // Handle both ObjectId and UUID-based user lookup
     let user;
     if (mongoose.Types.ObjectId.isValid(req.user.id)) {
-      user = await User.findById(req.user.id).populate('operatorInfo');
+      user = await User.findById(req.user.id)
+        .populate('franchiseApplications')
+        .populate('franchiseInformation');
     }
     if (!user) {
       // Fallback: try finding by userId field (for UUID tokens)
-      user = await User.findOne({ userId: req.user.id }).populate('operatorInfo');
+      user = await User.findOne({ userId: req.user.id })
+        .populate('franchiseApplications')
+        .populate('franchiseInformation');
     }
     
     if (!user) return res.status(404).json({ error: 'User not found' });
     
-    // Fetch franchises via operator information
-    let franchiseInfo = null;
-    if (user.operatorInfo) {
-      try {
-        const operatorData = await OperatorInformation.findById(user.operatorInfo)
-          .populate('franchiseInformations')
-          .lean();
-        
-        if (operatorData && operatorData.franchiseInformations && operatorData.franchiseInformations.length > 0) {
-          franchiseInfo = operatorData.franchiseInformations[0];
-          console.log('[getCurrentUser] Franchise info found:', {
-            hasQrCode: !!franchiseInfo.qrCode,
-            qrCode: franchiseInfo.qrCode,
-            hasProfilePhoto: !!franchiseInfo.profilePhoto,
-            profilePhoto: franchiseInfo.profilePhoto
-          });
-        }
-      } catch (e) {
-        console.error('Error populating franchises:', e && e.message);
-      }
-    }
-    
     // Return comprehensive user info (excluding sensitive data)
     const userInfo = {
       id: user._id,
+      userId: user.userId,
       name: user.name,
       username: user.username,
       email: user.email,
       role: user.role,
-      isEmailVerified: user.isEmailVerified,
-      profilePicture: user.profilePicture,
-      // Add user-level fields
-      address: user.address,
       phoneNumber: user.phoneNumber,
-      operatorId: user.operatorId,
-      franchiseStatus: user.franchiseStatus,
       dateCreated: user.createdAt,
       lastLogin: user.lastLogin,
-      hasFranchise: !!franchiseInfo
+      hasFranchiseApplications: !!(user.franchiseApplications && user.franchiseApplications.length > 0),
+      hasFranchiseInformation: !!(user.franchiseInformation && user.franchiseInformation.length > 0),
+      franchiseApplicationsCount: user.franchiseApplications ? user.franchiseApplications.length : 0,
+      franchiseInformationCount: user.franchiseInformation ? user.franchiseInformation.length : 0
     };
     
-    // Add franchise information if available
-    if (franchiseInfo) {
-      userInfo.franchise = {
-        operatorId: franchiseInfo.operatorId,
-        operatorName: franchiseInfo.operatorName,
-        contactNumber: franchiseInfo.contactNumber,
-        email: franchiseInfo.email,
-        address: franchiseInfo.address,
-        barangay: franchiseInfo.barangay,
-        civilStatus: franchiseInfo.civilStatus,
-        driversID: franchiseInfo.driversID,
-        profilePhoto: franchiseInfo.profilePhoto,
-        qrCode: franchiseInfo.qrCode,
-        franchiseStatus: franchiseInfo.franchiseStatus,
-        mtopNumber: franchiseInfo.mtopNumber,
-        approvedAt: franchiseInfo.approvedAt,
-        expiryDate: franchiseInfo.expiryDate,
-        // Add vehicle information fields for DriverID page
-        unitModel: franchiseInfo.unitModel,
-        colorMotor: franchiseInfo.colorMotor,
-        sidecarColor: franchiseInfo.sideCarColor,
-        sidecarPlateNumber: franchiseInfo.sideCarPlateNumber,
-        mvPlateNo: franchiseInfo.mvPlateNo,
-        plateNumber: franchiseInfo.mvPlateNo || franchiseInfo.plateNumber,
-        motorEngineNo: franchiseInfo.motorEngineNo,
-        chasisNo: franchiseInfo.chasisNo,
-        chassisNumber: franchiseInfo.chasisNo || franchiseInfo.chassisNumber,
-        motorEngineNumber: franchiseInfo.motorEngineNo || franchiseInfo.motorEngineNumber,
-        orNumber: franchiseInfo.orNumber || franchiseInfo.franchiseNumber,
-        franchiseNumber: franchiseInfo.franchiseNumber,
-        documents: franchiseInfo.documents ? {
-          motorRegistration: franchiseInfo.documents.motorRegistrationObj,
-          barangayClearance: franchiseInfo.documents.barangayClearanceObj,
-          cedula: franchiseInfo.documents.cedulaObj,
-          driversLicense: franchiseInfo.documents.driversLicenseObj,
-          votersAffidavit: franchiseInfo.documents.votersAffidavitObj,
-          motorChassisStencil: franchiseInfo.documents.motorChassisStencilObj,
-          picture: franchiseInfo.documents.driverPictureObj
-        } : null
-      };
-    }
-    
     res.json({ user: userInfo });
-  } catch (err) {
-    next(err);
-  }
-};
-
-// ------------------------
-// Google OAuth handlers
-// ------------------------
-
-// Redirect user to Google OAuth consent screen
-exports.googleAuth = (req, res) => {
-  const clientId = process.env.GOOGLE_CLIENT_ID;
-  const redirectUri = process.env.GOOGLE_REDIRECT_URI || `${process.env.BASE_URL || 'http://localhost:5170'}/auth/google/callback`;
-  const scope = encodeURIComponent('openid email profile');
-  const state = crypto.randomBytes(8).toString('hex');
-  // You may want to store the state in a cookie or DB to verify on callback
-  res.cookie('oauth_state', state, { httpOnly: true, sameSite: 'lax' });
-
-  const url = `https://accounts.google.com/o/oauth2/v2/auth?response_type=code&client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scope}&state=${state}&access_type=offline&prompt=consent`;
-  res.redirect(url);
-};
-
-// Handle Google callback: exchange code, fetch profile, upsert user, issue tokens
-exports.googleCallback = async (req, res, next) => {
-  try {
-    const { code, state } = req.query;
-    const savedState = req.cookies.oauth_state;
-    if (!code) return res.status(400).send('Missing code');
-    if (!savedState || state !== savedState) return res.status(400).send('Invalid state');
-
-    // Exchange code for tokens
-    const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        code,
-        client_id: process.env.GOOGLE_CLIENT_ID,
-        client_secret: process.env.GOOGLE_CLIENT_SECRET,
-        redirect_uri: process.env.GOOGLE_REDIRECT_URI || `${process.env.BASE_URL || 'http://localhost:5170'}/auth/google/callback`,
-        grant_type: 'authorization_code'
-      })
-    });
-    const tokenJson = await tokenRes.json();
-    if (!tokenJson.access_token) return res.status(400).send('Failed to get access token');
-
-    // Fetch user info
-    const profileRes = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
-      headers: { Authorization: `Bearer ${tokenJson.access_token}` }
-    });
-    const profile = await profileRes.json();
-    if (!profile || !profile.email) return res.status(400).send('Failed to fetch Google profile');
-
-    // Check if email belongs to an admin account first
-    const adminAccountRepository = require('../repositories/adminAccountRepository');
-    let admin = null;
-    try {
-      admin = await adminAccountRepository.findAdminByEmail(profile.email);
-    } catch (e) {}
-    
-    if (admin) {
-      // This email belongs to an admin - don't allow OAuth login for admins
-      // Redirect back with error message
-      const clientRedirect = process.env.CLIENT_REDIRECT || 'http://localhost:5173';
-      return res.redirect(`${clientRedirect}/login?error=admin_oauth_not_allowed&message=${encodeURIComponent('Admin accounts cannot use Google Sign-In. Please use your admin credentials.')}`);
-    }
-    
-    // Upsert user by email (only for non-admin accounts)
-    let user = await userAccountRepository.findAccountByEmail(profile.email);
-    if (!user) {
-      // Create a new user record. Mark that it's an OAuth account (no password)
-      try {
-        console.log('Google OAuth: creating user for', profile.email);
-        user = await userAccountRepository.createUserAccount({
-          email: profile.email,
-          name: profile.name || profile.given_name || profile.email.split('@')[0],
-          googleId: profile.id,
-          oauthProvider: 'google'
-        });
-        console.log('Google OAuth: user created', user && user._id);
-        console.log('Google OAuth: user role assigned:', user.role); // Debug log
-      } catch (createErr) {
-        console.error('Google OAuth: createUserAccount error', createErr);
-        return next(createErr);
-      }
-    } else {
-      // If user exists but missing googleId, attach it
-      if (!user.googleId) {
-        try {
-          console.log('Google OAuth: attaching googleId to existing user', user._id);
-          user = await userAccountRepository.updateUserAccount(user._id, { googleId: profile.id, oauthProvider: 'google' });
-          console.log('Google OAuth: user updated', user && user._id);
-        } catch (e) {
-          console.error('Google OAuth: updateUserAccount error', e);
-        }
-      }
-    }
-
-    // Populate operator information and franchises if available and valid
-    let operatorInfo = null;
-    if (user.operatorInfo) {
-      try {
-        const OperatorInformation = require('../models/operatorInformationModel');
-        const operatorData = await OperatorInformation.findById(user.operatorInfo)
-          .populate('franchiseInformations')
-          .lean();
-        
-        if (operatorData && operatorData.franchiseInformations && operatorData.franchiseInformations.length > 0) {
-          operatorInfo = operatorData.franchiseInformations[0];
-        }
-      } catch (e) {
-        console.error('Error populating franchises in OAuth:', e && e.message);
-      }
-    }
-
-    // Issue tokens (reuse existing helpers, include operator info, isAdmin is always false for OAuth)
-    const accessToken = generateAccessToken(user, operatorInfo, false);
-    
-    // Enforce SINGLE session per user - revoke all previous sessions
-    try {
-      const existingSessions = await sessionRepository.getUserSessions(user._id);
-      if (existingSessions.length > 0) {
-        console.log(`[OAuth] User has ${existingSessions.length} active session(s), revoking all previous sessions`);
-        // Revoke all existing sessions
-        await sessionRepository.revokeAllUserSessions(user._id);
-      }
-    } catch (e) {
-      console.error('[OAuth] Failed to revoke previous sessions:', e);
-    }
-    
-    const refreshToken = await generateRefreshToken(user, 'user', req);
-
-    // Set refresh token cookie
-    res.cookie('refreshToken', refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax', // 'lax' for development (different ports)
-      maxAge: 7 * 24 * 60 * 60 * 1000
-    });
-
-  // Redirect to the client OAuth callback route and include access token in fragment so SPA can read it
-  const clientRedirect = process.env.CLIENT_REDIRECT || 'http://localhost:5173';
-  // include accessToken in fragment for client-side apps to read
-  res.redirect(`${clientRedirect}/oauth-callback#access_token=${accessToken}`);
-  } catch (err) {
-    next(err);
-  }
-};
-
-// Dev-only: create a test OAuth user directly (for local debugging)
-exports.testCreateOAuth = async (req, res, next) => {
-  try {
-    const { email, name, googleId } = req.body;
-    if (!email) return res.status(400).json({ error: 'email is required' });
-    const user = await userAccountRepository.createUserAccount({
-      email,
-      name: name || email.split('@')[0],
-      googleId,
-      oauthProvider: 'google'
-    });
-    res.json({ ok: true, user });
   } catch (err) {
     next(err);
   }

@@ -1,21 +1,21 @@
 const mongoose = require('mongoose');
-const operatorInformationModel = require('./operatorInformationModel');
 
-// Documents are now stored as Cloudflare R2 URLs (compressed to ~300KB)
 const DocumentReferenceSchema = new mongoose.Schema({
-  motorRegistrationObj: { type: String, required: true },
-  barangayClearanceObj: { type: String, required: true },
-  cedulaObj: { type: String, required: true },
-  driversLicenseObj: { type: String, required: true },
-  votersAffidavitObj: { type: String, required: true },
-  motorChassisStencilObj: { type: String, required: true }, 
-  oRTreasurerOfficeObj: { type: String, required: false },
-  oRLTOObj: { type: String, required: false },
-  cRLTOObj: { type: String, required: false },
-  driverPictureObj: { type: String, required: true },
+  motorRegistrationObj: { type: String, required: false },
+  barangayClearanceObj: { type: String, required: false },
+  cedulaObj: { type: String, required: false },
+  driversLicenseObj: { type: String, required: false },
+  votersAffidavitObj: { type: String, required: false },
+  motorChassisStencilObj: { type: String, required: false }, 
+  oRTreasurerOfficeObj: { type: String, required: false }, // after bplo checks
+  oRLTOObj: { type: String, required: false }, //
+  cRLTOObj: { type: String, required: false }, // temporarily slip?
+  driverPictureObj: { type: String, required: false },
+  operaorPictureObj: { type: String, required: false },
 });
 
 const franchiseApplicationSchema = new mongoose.Schema({
+
   operatorId: { type: String, required: true},
   operatorName: { type: String, required: true },
   operatorContactNumber: { type: String, required: true, trim: true },
@@ -39,23 +39,42 @@ const franchiseApplicationSchema = new mongoose.Schema({
   unitModel: { type: String, required: true },
   colorMotor: { type: String, required: true },
   sideCarColor: { type: String, required: true },
-  sideCarPlateNumber: { type: String, required: true },
+  sideCarPlateNumber: { type: String, required: false }, // 3months for bplo
   mvPlateNo: { type: String, required: true, unique: true },
   motorEngineNo: { type: String, required: true, unique: true },
   chasisNo: { type: String, required: true, unique: true },
 
-
-  approvedByBplo: {type: String, enum: ['approved', 'pending' , 'temporarily', 'rejected'], required: true ,default: 'temporarily' },
-  bploRemarks: { type: String },
+  approvedByBplo: {type: String, enum: ['approved', 'pending' , 'rejected'], required: true ,default: 'pending' },
 
   approvedAt: { type: Date },
   submittedAt: { type: Date, default: Date.now },
 
   documents: DocumentReferenceSchema,
 
-  operatorInformationModel: {
+  // Application type - determines what happens when approved
+  applicationType: { 
+    type: String, 
+    enum: [
+      'new',              // New franchise application (creates initial franchise)
+      'renewal',          // Renew existing franchise (same franchise number, new 3-year period)
+      'update_ownership', // Transfer ownership (same franchise number, different operator)
+      'change_unit'       // Change motor unit (same franchise number, different vehicle)
+    ],
+    default: 'new'
+  },
+  // Link to existing franchise (required for renewal/update_ownership/change_unit)
+  relatedFranchise: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Operator Information',
+    ref: 'Franchise Information',
+    required: function() { 
+      return this.applicationType !== 'new'; 
+    }
+  },
+
+  // Link to User Account (optional - can submit without user account)
+  operatorInfo: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User Accounts',
     required: false,
     default: null
   }

@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { getClientIp } = require('../utils/ipHelper');
 
 // Define audit log schema with comprehensive tracking
 const auditLogSchema = new mongoose.Schema({
@@ -11,7 +12,7 @@ const auditLogSchema = new mongoose.Schema({
   role: { type: String, required: true, enum: ['operator', 'sb-admin', 'bplo-admin', 'super-admin'] },
   accountType: { type: String, enum: ['user', 'admin'], default: 'user' },
   
-  // Admin-specific fields (from JWT if applicable)
+  
   adminId: { type: String }, // Admin UUID from JWT
   department: { type: String }, // Admin department from JWT
   position: { type: String }, // Admin position from JWT
@@ -200,7 +201,7 @@ class AuditLogService {
             route: req.path,
             action: actionName,
             statusCode: res.statusCode,
-            ipAddress: req.ip || req.connection?.remoteAddress || 'Unknown',
+            ipAddress: getClientIp(req),
             userAgent: req.headers['user-agent'],
             requestBody: config.logRequestBody ? req.body : null,
             resourceType,
@@ -373,7 +374,7 @@ class AuditLogService {
       route: `/api/auth/${action.toLowerCase()}`,
       action: action.toUpperCase(),
       statusCode: success ? 200 : 401,
-      ipAddress: req.ip || req.connection?.remoteAddress || 'Unknown',
+      ipAddress: getClientIp(req),
       userAgent: req.headers['user-agent'],
       resourceType: 'auth',
       errorMessage: success ? null : errorMessage,
@@ -394,7 +395,7 @@ class AuditLogService {
       route: `/api/franchise-application/${application._id}/${action.toLowerCase()}`,
       action: `${action.toUpperCase()}_APPLICATION`,
       statusCode: 200,
-      ipAddress: req.ip || req.connection?.remoteAddress || 'Unknown',
+      ipAddress: getClientIp(req),
       userAgent: req.headers['user-agent'],
       resourceType: 'application',
       resourceId: application._id.toString(),

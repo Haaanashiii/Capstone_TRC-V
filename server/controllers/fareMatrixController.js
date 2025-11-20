@@ -90,7 +90,7 @@ exports.uploadFareMatrix = async (req, res, next) => {
       route: '/api/fare-matrix/upload',
       action: 'UPLOAD_FARE_MATRIX',
       statusCode: 201,
-      ipAddress: req.ip || req.connection?.remoteAddress || 'Unknown',
+      ipAddress: getClientIp(req),
       userAgent: req.headers['user-agent'],
       resourceType: 'fare-matrix',
       resourceId: fareMatrix.fareMatrixId,
