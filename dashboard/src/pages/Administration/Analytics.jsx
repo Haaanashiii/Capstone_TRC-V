@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import Sidebar from './Sidebar';
 import KpiCard from '../../components/KpiCard';
 import '../../Styles/Administrator_Css/Analytics.css';
@@ -15,6 +15,7 @@ import {
   TablePagination,
   TextField,
   InputAdornment,
+  Alert,
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import {
@@ -24,8 +25,12 @@ import {
   HourglassEmpty,
 } from '@mui/icons-material';
 
+// API Configuration
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170';
+
 function Analytics() {
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
@@ -39,24 +44,61 @@ function Analytics() {
     barangayData: [],
   });
 
-  useEffect(() => {
-    // TODO: Replace with actual API call
-    // fetchAnalyticsData();
-    // Example:
-    // const fetchAnalyticsData = async () => {
-    //   setLoading(true);
-    //   try {
-    //     const response = await fetch('/api/analytics');
-    //     const data = await response.json();
-    //     setAnalyticsData(data);
-    //   } catch (error) {
-    //     console.error('Error fetching analytics:', error);
-    //   } finally {
-    //     setLoading(false);
-    //   }
-    // };
-    // fetchAnalyticsData();
+  // Get auth token from storage
+  const getAuthToken = useCallback(() => {
+    return sessionStorage.getItem('accessToken') || localStorage.getItem('accessToken');
   }, []);
+
+  // Fetch analytics data from API
+  const fetchAnalyticsData = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    
+    try {
+      const token = getAuthToken();
+      
+      if (!token) {
+        setError('Authentication required. Please log in.');
+        setLoading(false);
+        return;
+      }
+
+      const response = await fetch(`${API_BASE_URL}/api/dashboard/analytics`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          throw new Error('Session expired. Please log in again.');
+        }
+        if (response.status === 403) {
+          throw new Error('You do not have permission to view analytics.');
+        }
+        throw new Error(`Failed to fetch analytics: ${response.statusText}`);
+      }
+
+      const result = await response.json();
+      
+      if (result.success && result.data) {
+        setAnalyticsData(result.data);
+      } else {
+        throw new Error('Invalid response format from server');
+      }
+    } catch (err) {
+      console.error('Error fetching analytics:', err);
+      setError(err.message || 'Failed to fetch analytics. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  }, [getAuthToken]);
+
+  useEffect(() => {
+    fetchAnalyticsData();
+  }, [fetchAnalyticsData]);
 
   const handleChangePage = (event, newPage) => {
     setPage(newPage);
@@ -102,8 +144,16 @@ function Analytics() {
           <Typography variant="h4" className="page-title">
             Franchise Analytics
           </Typography>
-  
+          <Typography variant="body2" className="page-subtitle">
+            Comprehensive franchise distribution and statistics
+          </Typography>
         </header>
+
+        {error && (
+          <Alert severity="error" className="error-alert" onClose={() => setError('')}>
+            {error}
+          </Alert>
+        )}
 
         {loading ? (
           <div className="analytics-loading" role="status" aria-live="polite">
@@ -152,8 +202,15 @@ function Analytics() {
                 <h2 id="top-barangays-heading" className="section-title">Top 5 Barangays</h2>
               </div>
 
-              <div className="top-barangays-grid">
-                {sortedData.slice(0, 5).map((item, index) => (
+              {sortedData.length === 0 ? (
+                <div className="no-data-message">
+                  <Typography variant="body1" color="text.secondary">
+                    No barangay data available yet.
+                  </Typography>
+                </div>
+              ) : (
+                <div className="top-barangays-grid">
+                  {sortedData.slice(0, 5).map((item, index) => (
                   <article 
                     key={item.barangay} 
                     className="barangay-card"
@@ -187,8 +244,9 @@ function Analytics() {
                       </div>
                     </div>
                   </article>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </section>
 
             {/* Data Table */}
@@ -235,9 +293,18 @@ function Analytics() {
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      {paginatedData.map((row) => {
-                        const activePercentage = ((row.active / row.total) * 100).toFixed(1);
-                        return (
+                      {paginatedData.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={5} align="center">
+                            <Typography variant="body2" color="text.secondary" sx={{ py: 4 }}>
+                              {searchQuery ? 'No barangays match your search' : 'No barangay data available'}
+                            </Typography>
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        paginatedData.map((row) => {
+                          const activePercentage = row.total > 0 ? ((row.active / row.total) * 100).toFixed(1) : '0.0';
+                          return (
                           <TableRow 
                             key={row.barangay}
                             className="table-row"
@@ -268,8 +335,9 @@ function Analytics() {
                               </div>
                             </TableCell>
                           </TableRow>
-                        );
-                      })}
+                          );
+                        })
+                      )}
                     </TableBody>
                   </Table>
                 </TableContainer>

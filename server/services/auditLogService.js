@@ -304,13 +304,17 @@ class AuditLogService {
         if (endDate) query.createdAt.$lte = new Date(endDate);
       }
 
+      // Get total count for pagination
+      const total = await AuditLog.countDocuments(query);
+
       const logs = await AuditLog.find(query)
         .sort({ [sortBy]: sortOrder })
         .limit(limit)
         .skip(skip)
+        .lean()
         .exec();
-
-      return logs;
+      
+      return { total, logs };
     } catch (error) {
       console.error('[AuditLog] Error retrieving logs:', error.message);
       return [];

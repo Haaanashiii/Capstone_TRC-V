@@ -25,6 +25,9 @@ import InfoIcon from '@mui/icons-material/Info';
 import LocalTaxiIcon from '@mui/icons-material/LocalTaxi';
 import SecurityIcon from '@mui/icons-material/Security';
 
+// API Configuration
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170';
+
 const StyledTab = styled(Tab)(({ theme }) => ({
   textTransform: 'none',
   fontWeight: 600,
@@ -83,12 +86,15 @@ const ROLES = [
 function Settings() {
   const [activeTab, setActiveTab] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const [notification, setNotification] = useState({ open: false, message: '', type: 'success' });
   
   // Fare Matrix State (Photo Upload)
   const [fareMatrixImage, setFareMatrixImage] = useState(null);
   const [fareMatrixPreview, setFareMatrixPreview] = useState(null);
+  const [fareMatrixId, setFareMatrixId] = useState(null);
   const [uploadDate, setUploadDate] = useState(null);
+  const [currentFileName, setCurrentFileName] = useState('');
 
   // Permissions State
   const [permissions, setPermissions] = useState({
@@ -126,6 +132,11 @@ function Settings() {
     }
   }, [hasPermissionChanges]);
 
+  // Get auth token from storage
+  const getAuthToken = useCallback(() => {
+    return sessionStorage.getItem('accessToken') || localStorage.getItem('accessToken');
+  }, []);
+
   // Notification Handler
   const showNotification = useCallback((message, type = 'success') => {
     setNotification({ open: true, message, type });
@@ -134,6 +145,30 @@ function Settings() {
   const closeNotification = useCallback(() => {
     setNotification({ ...notification, open: false });
   }, [notification]);
+
+  // Fetch existing fare matrix from backend
+  const fetchFareMatrix = useCallback(async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/fare-matrix`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success && result.fareMatrix) {
+          setFareMatrixPreview(result.fareMatrix.imageUrl);
+          setFareMatrixId(result.fareMatrix.fareMatrixId);
+          setCurrentFileName(result.fareMatrix.fileName);
+          setUploadDate(new Date(result.fareMatrix.createdAt).toLocaleString());
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching fare matrix:', error);
+    }
+  }, []);
 
   // ==================== Fare Matrix Handlers ====================
   
@@ -173,41 +208,120 @@ function Settings() {
     }
 
     setLoading(true);
+    setError('');
 
     try {
-      // TODO: API call to upload fare matrix image
-      // const formData = new FormData();
-      // formData.append('fareMatrix', fareMatrixImage);
-      // await fareAPI.uploadMatrix(formData);
+      const token = getAuthToken();
+      
+      if (!token) {
+        showNotification('Authentication required. Please log in.', 'error');
+        setLoading(false);
+        return;
+      }
 
-      // Simulate upload delay
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      const formData = new FormData();
+      formData.append('fareMatrixImage', fareMatrixImage);
 
-      setUploadDate(new Date().toLocaleString());
-      showNotification('Fare matrix updated successfully');
+      const response = await fetch(`${API_BASE_URL}/api/fare-matrix/upload`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+        body: formData,
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          throw new Error('Session expired. Please log in again.');
+        }
+        if (response.status === 403) {
+          throw new Error('You do not have permission to upload fare matrix.');
+        }
+        throw new Error(result.error || 'Failed to upload fare matrix');
+      }
+
+      if (result.success && result.fareMatrix) {
+        setFareMatrixPreview(result.fareMatrix.imageUrl);
+        setFareMatrixId(result.fareMatrix.fareMatrixId);
+        setCurrentFileName(result.fareMatrix.fileName);
+        setUploadDate(new Date(result.fareMatrix.createdAt).toLocaleString());
+        setFareMatrixImage(null); // Clear the selected file
+        showNotification('Fare matrix uploaded successfully');
+      } else {
+        throw new Error('Invalid response from server');
+      }
     } catch (error) {
-      showNotification('Failed to upload fare matrix', 'error');
+      console.error('Upload error:', error);
+      showNotification(error.message || 'Failed to upload fare matrix', 'error');
     } finally {
       setLoading(false);
     }
-  }, [fareMatrixImage, showNotification]);
+  }, [fareMatrixImage, showNotification, getAuthToken]);
 
   const handleRemoveFareImage = useCallback(() => {
     setFareMatrixImage(null);
     setFareMatrixPreview(null);
   }, []);
 
-  const handleDeleteFareMatrix = useCallback(() => {
-    if (window.confirm('Are you sure you want to delete the current fare matrix?')) {
-      // TODO: API call to delete fare matrix
-      // await fareAPI.deleteMatrix();
-      
-      setFareMatrixImage(null);
-      setFareMatrixPreview(null);
-      setUploadDate(null);
-      showNotification('Fare matrix deleted successfully');
+  const handleDeleteFareMatrix = useCallback(async () => {
+    if (!window.confirm('Are you sure you want to delete the current fare matrix? This action cannot be undone.')) {
+      return;
     }
-  }, [showNotification]);
+
+    setLoading(true);
+    setError('');
+
+    try {
+      const token = getAuthToken();
+      
+      if (!token) {
+        showNotification('Authentication required. Please log in.', 'error');
+        setLoading(false);
+        return;
+      }
+
+      const response = await fetch(`${API_BASE_URL}/api/fare-matrix`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          throw new Error('Session expired. Please log in again.');
+        }
+        if (response.status === 403) {
+          throw new Error('You do not have permission to delete fare matrix.');
+        }
+        if (response.status === 404) {
+          throw new Error('No active fare matrix to delete.');
+        }
+        throw new Error(result.error || 'Failed to delete fare matrix');
+      }
+
+      if (result.success) {
+        setFareMatrixImage(null);
+        setFareMatrixPreview(null);
+        setFareMatrixId(null);
+        setCurrentFileName('');
+        setUploadDate(null);
+        showNotification('Fare matrix deleted successfully');
+      } else {
+        throw new Error('Invalid response from server');
+      }
+    } catch (error) {
+      console.error('Delete error:', error);
+      showNotification(error.message || 'Failed to delete fare matrix', 'error');
+    } finally {
+      setLoading(false);
+    }
+  }, [showNotification, getAuthToken]);
 
   // ==================== Permission Handlers ====================
   
@@ -262,20 +376,8 @@ function Settings() {
 
   // Load existing fare matrix on mount
   useEffect(() => {
-    // TODO: Fetch existing fare matrix image from backend
-    // const loadFareMatrix = async () => {
-    //   try {
-    //     const response = await fareAPI.getMatrix();
-    //     if (response.data.imageUrl) {
-    //       setFareMatrixPreview(response.data.imageUrl);
-    //       setUploadDate(response.data.uploadDate);
-    //     }
-    //   } catch (error) {
-    //     console.error('Failed to load fare matrix:', error);
-    //   }
-    // };
-    // loadFareMatrix();
-  }, []);
+    fetchFareMatrix();
+  }, [fetchFareMatrix]);
 
   const permissionStats = useMemo(() => {
     const rolePerms = permissions[selectedRole];
@@ -298,8 +400,16 @@ function Settings() {
           <Typography variant="h4" className="page-title">
             System Settings
           </Typography>
-
+          <Typography variant="body2" className="page-subtitle">
+            Manage fare matrix and system permissions
+          </Typography>
         </header>
+
+        {error && (
+          <Alert severity="error" className="error-alert" onClose={() => setError('')}>
+            {error}
+          </Alert>
+        )}
 
         {/* Tabs */}
         <Paper className="settings-tabs-container" elevation={0}>
@@ -359,9 +469,16 @@ function Settings() {
                         </Tooltip>
                       </Box>
                       {uploadDate && (
-                        <Typography variant="caption" className="upload-date">
-                          Last updated: {uploadDate}
-                        </Typography>
+                        <Box className="image-info">
+                          <Typography variant="caption" className="upload-date">
+                            Last updated: {uploadDate}
+                          </Typography>
+                          {currentFileName && (
+                            <Typography variant="caption" className="file-name">
+                              File: {currentFileName}
+                            </Typography>
+                          )}
+                        </Box>
                       )}
                     </Box>
                   ) : (

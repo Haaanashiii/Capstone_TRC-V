@@ -194,3 +194,144 @@ exports.getQuickStats = async (req, res, next) => {
     next(error);
   }
 };
+
+/**
+ * Get analytics data for franchise distribution by barangay
+ * Provides comprehensive analytics including total, active, and expired franchises per barangay
+ */
+exports.getAnalytics = async (req, res, next) => {
+  try {
+    const currentDate = new Date();
+
+    // Run all queries in parallel for optimal performance
+    const [
+      totalFranchises,
+      activeFranchises,
+      expiredFranchises,
+      pendingApplications,
+      barangayStats
+    ] = await Promise.all([
+      // Total franchises count
+      FranchiseInformation.countDocuments(),
+
+      // Active franchises (not expired)
+      FranchiseInformation.countDocuments({ 
+        expiryDate: { $gte: currentDate }
+      }),
+
+      // Expired franchises
+      FranchiseInformation.countDocuments({ 
+        expiryDate: { $lt: currentDate }
+      }),
+
+      // Pending applications
+      FranchiseApplication.countDocuments({
+        $or: [
+          { actionTaken: { $exists: false } },
+          { actionTaken: null },
+          { actionTaken: '' }
+        ]
+      }),
+
+      // Barangay-wise franchise distribution
+      FranchiseInformation.aggregate([
+        {
+          $facet: {
+            // Get active franchises by barangay
+            activeByBarangay: [
+              {
+                $match: {
+                  expiryDate: { $gte: currentDate }
+                }
+              },
+              {
+                $group: {
+                  _id: '$barangay',
+                  count: { $sum: 1 }
+                }
+              }
+            ],
+            // Get expired franchises by barangay
+            expiredByBarangay: [
+              {
+                $match: {
+                  expiryDate: { $lt: currentDate }
+                }
+              },
+              {
+                $group: {
+                  _id: '$barangay',
+                  count: { $sum: 1 }
+                }
+              }
+            ],
+            // Get total franchises by barangay
+            totalByBarangay: [
+              {
+                $group: {
+                  _id: '$barangay',
+                  count: { $sum: 1 }
+                }
+              }
+            ]
+          }
+        }
+      ])
+    ]);
+
+    // Process barangay statistics
+    const barangayMap = new Map();
+
+    // Extract results from aggregation
+    const { activeByBarangay, expiredByBarangay, totalByBarangay } = barangayStats[0] || {
+      activeByBarangay: [],
+      expiredByBarangay: [],
+      totalByBarangay: []
+    };
+
+    // Initialize map with total counts
+    totalByBarangay.forEach(item => {
+      if (item._id) {
+        barangayMap.set(item._id, {
+          barangay: item._id,
+          active: 0,
+          expired: 0,
+          total: item.count
+        });
+      }
+    });
+
+    // Add active counts
+    activeByBarangay.forEach(item => {
+      if (item._id && barangayMap.has(item._id)) {
+        barangayMap.get(item._id).active = item.count;
+      }
+    });
+
+    // Add expired counts
+    expiredByBarangay.forEach(item => {
+      if (item._id && barangayMap.has(item._id)) {
+        barangayMap.get(item._id).expired = item.count;
+      }
+    });
+
+    // Convert map to array and sort by active count (descending)
+    const barangayData = Array.from(barangayMap.values())
+      .sort((a, b) => b.active - a.active);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        totalFranchises,
+        activeFranchises,
+        expiredFranchises,
+        pendingApplications,
+        barangayData
+      },
+      timestamp: currentDate.toISOString()
+    });
+  } catch (error) {
+    console.error('[Dashboard] Error fetching analytics:', error);
+    next(error);
+  }
+};

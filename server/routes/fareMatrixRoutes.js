@@ -36,4 +36,12 @@ router.post(
   fareMatrixController.uploadFareMatrix
 );
 
+// Super Admin only - Delete active fare matrix
+router.delete(
+  '/',
+  authenticate,
+  authorize(['super-admin']),
+  fareMatrixController.deleteFareMatrix
+);
+
 module.exports = router;

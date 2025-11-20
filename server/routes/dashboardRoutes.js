@@ -44,4 +44,16 @@ router.get(
   dashboardController.getQuickStats
 );
 
+/**
+ * GET /api/dashboard/analytics
+ * Get comprehensive analytics including franchise distribution by barangay
+ * Protected route - requires admin authentication
+ */
+router.get(
+  '/analytics',
+  authenticate,
+  authorize(['sb-admin', 'bplo-admin', 'super-admin']),
+  dashboardController.getAnalytics
+);
+
 module.exports = router;

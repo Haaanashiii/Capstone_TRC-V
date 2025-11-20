@@ -32,7 +32,7 @@ router.get(
       const skip = (page - 1) * limit;
       const sortOrder = order === 'asc' ? 1 : -1;
 
-      const logs = await auditLogService.getLogs({
+      const result = await auditLogService.getLogs({
         userId,
         role,
         startDate,
@@ -48,11 +48,11 @@ router.get(
 
       res.json({
         success: true,
-        data: logs,
+        data: result.logs,
         pagination: {
           page: parseInt(page),
           limit: parseInt(limit),
-          total: logs.length
+          total: result.total
         }
       });
     } catch (error) {
@@ -111,7 +111,7 @@ router.get(
 
       const skip = (page - 1) * limit;
 
-      const logs = await auditLogService.getLogs({
+      const result = await auditLogService.getLogs({
         userId,
         limit: parseInt(limit),
         skip: parseInt(skip),
@@ -120,10 +120,11 @@ router.get(
 
       res.json({
         success: true,
-        data: logs,
+        data: result.logs,
         pagination: {
           page: parseInt(page),
-          limit: parseInt(limit)
+          limit: parseInt(limit),
+          total: result.total
         }
       });
     } catch (error) {
@@ -152,7 +153,7 @@ router.get(
 
       const skip = (page - 1) * limit;
 
-      const logs = await auditLogService.getLogs({
+      const result = await auditLogService.getLogs({
         adminId,
         limit: parseInt(limit),
         skip: parseInt(skip),
@@ -161,10 +162,11 @@ router.get(
 
       res.json({
         success: true,
-        data: logs,
+        data: result.logs,
         pagination: {
           page: parseInt(page),
-          limit: parseInt(limit)
+          limit: parseInt(limit),
+          total: result.total
         }
       });
     } catch (error) {
@@ -189,7 +191,7 @@ router.get(
 
       const skip = (page - 1) * limit;
 
-      const logs = await auditLogService.getLogs({
+      const result = await auditLogService.getLogs({
         route,
         limit: parseInt(limit),
         skip: parseInt(skip),
@@ -198,11 +200,12 @@ router.get(
 
       res.json({
         success: true,
-        data: logs,
+        data: result.logs,
         route,
         pagination: {
           page: parseInt(page),
-          limit: parseInt(limit)
+          limit: parseInt(limit),
+          total: result.total
         }
       });
     } catch (error) {

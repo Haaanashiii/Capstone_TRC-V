@@ -34,6 +34,9 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ErrorIcon from '@mui/icons-material/Error';
 
+// API Configuration
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170';
+
 // Styled components for table
 const StyledTableCell = styled(TableCell)(() => ({
   [`&.${tableCellClasses.head}`]: {
@@ -73,6 +76,17 @@ const ACTION_COLORS = {
   REJECT: 'error',
   VIEW: 'default',
   EXPORT: 'info',
+  CREATE_FRANCHISE: 'info',
+  UPDATE_FRANCHISE: 'warning',
+  DELETE_FRANCHISE: 'error',
+  GET_FRANCHISE_INFO: 'default',
+  CREATE_APPLICATION: 'info',
+  UPDATE_APPLICATION: 'warning',
+  APPROVE_APPLICATION: 'success',
+  QR_SCAN: 'info',
+  SIGNUP: 'success',
+  VERIFY_OTP: 'success',
+  RESET_PASSWORD: 'warning',
 };
 
 // Role color mapping - matches the design system
@@ -112,97 +126,179 @@ function AuditTrail() {
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [totalCount, setTotalCount] = useState(0);
 
-  // Fetch audit logs
-  const fetchAuditLogs = useCallback(async () => {
-    setLoading(true);
-    try {
-      // TODO: Replace with actual API call
-      // const response = await fetch('/api/audit-logs');
-      // const data = await response.json();
-      // setAuditLogs(data);
-      setLoading(false);
-    } catch (err) {
-      setError('Failed to fetch audit logs');
-      setLoading(false);
-    }
+  // Get auth token from storage
+  const getAuthToken = useCallback(() => {
+    return sessionStorage.getItem('accessToken') || localStorage.getItem('accessToken');
   }, []);
 
+  // Fetch audit logs from API
+  const fetchAuditLogs = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    
+    try {
+      const token = getAuthToken();
+      
+      if (!token) {
+        setError('Authentication required. Please log in.');
+        setLoading(false);
+        return;
+      }
+
+      // Build query parameters
+      const params = new URLSearchParams({
+        page: (page + 1).toString(),
+        limit: rowsPerPage.toString(),
+        sort: 'createdAt',
+        order: 'desc',
+      });
+
+      // Add filters if they are set
+      if (filterAction !== 'all') {
+        params.append('action', filterAction);
+      }
+      if (filterRole !== 'all') {
+        params.append('role', filterRole);
+      }
+      if (filterStatus !== 'all') {
+        params.append('success', filterStatus === 'success' ? 'true' : 'false');
+      }
+
+      const response = await fetch(`${API_BASE_URL}/api/audit-logs?${params.toString()}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          throw new Error('Session expired. Please log in again.');
+        }
+        if (response.status === 403) {
+          throw new Error('You do not have permission to view audit logs.');
+        }
+        throw new Error(`Failed to fetch audit logs: ${response.statusText}`);
+      }
+
+      const result = await response.json();
+      
+      if (result.success && Array.isArray(result.data)) {
+        setAuditLogs(result.data);
+        setTotalCount(result.pagination?.total || result.data.length);
+      } else {
+        throw new Error('Invalid response format from server');
+      }
+    } catch (err) {
+      console.error('Error fetching audit logs:', err);
+      setError(err.message || 'Failed to fetch audit logs. Please try again.');
+      setAuditLogs([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [page, rowsPerPage, filterAction, filterRole, filterStatus, getAuthToken]);
+
+  // Fetch logs on component mount and when filters/pagination change
   useEffect(() => {
     fetchAuditLogs();
   }, [fetchAuditLogs]);
 
-  // Apply filters and search with useMemo for optimization
+  // Apply client-side search filter (for loaded data)
   const filteredLogs = useMemo(() => {
-    let filtered = [...auditLogs];
-
-    // Search filter
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(log => 
-        log.username.toLowerCase().includes(query) ||
-        log.email.toLowerCase().includes(query) ||
-        log.action.toLowerCase().includes(query) ||
-        log.route.toLowerCase().includes(query) ||
-        log.ipAddress.includes(query)
-      );
+    if (!searchQuery.trim()) {
+      return auditLogs;
     }
 
-    // Action filter
-    if (filterAction !== 'all') {
-      filtered = filtered.filter(log => log.action === filterAction);
-    }
-
-    // Role filter
-    if (filterRole !== 'all') {
-      filtered = filtered.filter(log => log.role === filterRole);
-    }
-
-    // Status filter
-    if (filterStatus !== 'all') {
-      filtered = filtered.filter(log => 
-        filterStatus === 'success' ? log.success : !log.success
-      );
-    }
-
-    return filtered;
-  }, [auditLogs, searchQuery, filterAction, filterRole, filterStatus]);
+    const query = searchQuery.toLowerCase();
+    return auditLogs.filter(log => 
+      log.username?.toLowerCase().includes(query) ||
+      log.email?.toLowerCase().includes(query) ||
+      log.action?.toLowerCase().includes(query) ||
+      log.route?.toLowerCase().includes(query) ||
+      log.ipAddress?.includes(query) ||
+      log.resourceType?.toLowerCase().includes(query)
+    );
+  }, [auditLogs, searchQuery]);
 
   // Reset page when filters change
   useEffect(() => {
     setPage(0);
-  }, [searchQuery, filterAction, filterRole, filterStatus]);
+  }, [filterAction, filterRole, filterStatus]);
 
   // Export to CSV
-  const handleExport = useCallback(() => {
-    const headers = ['Date/Time', 'Username', 'Email', 'Role', 'Action', 'Method', 'Route', 'Status Code', 'Success', 'Resource Type', 'IP Address'];
-    const csvContent = [
-      headers.join(','),
-      ...filteredLogs.map(log => [
-        new Date(log.createdAt).toLocaleString(),
-        log.username,
-        log.email,
-        log.role,
-        log.action,
-        log.method,
-        `"${log.route}"`,
-        log.statusCode,
-        log.success,
-        log.resourceType,
-        log.ipAddress
-      ].join(','))
-    ].join('\n');
+  const handleExport = useCallback(async () => {
+    try {
+      const token = getAuthToken();
+      
+      if (!token) {
+        setError('Authentication required. Please log in.');
+        return;
+      }
 
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    link.setAttribute('href', url);
-    link.setAttribute('download', `audit_trail_${new Date().toISOString().split('T')[0]}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  }, [filteredLogs]);
+      // For CSV export, fetch all logs without pagination
+      const params = new URLSearchParams({
+        limit: '10000', // Large limit to get all logs
+        sort: 'createdAt',
+        order: 'desc',
+      });
+
+      if (filterAction !== 'all') params.append('action', filterAction);
+      if (filterRole !== 'all') params.append('role', filterRole);
+      if (filterStatus !== 'all') params.append('success', filterStatus === 'success' ? 'true' : 'false');
+
+      const response = await fetch(`${API_BASE_URL}/api/audit-logs?${params.toString()}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch logs for export');
+      }
+
+      const result = await response.json();
+      const logsToExport = result.success && Array.isArray(result.data) ? result.data : [];
+
+      // Create CSV content
+      const headers = ['Date/Time', 'Username', 'Email', 'Role', 'Action', 'Method', 'Route', 'Status Code', 'Success', 'Resource Type', 'IP Address'];
+      const csvContent = [
+        headers.join(','),
+        ...logsToExport.map(log => [
+          new Date(log.createdAt).toLocaleString(),
+          `"${log.username || ''}"`,
+          `"${log.email || ''}"`,
+          log.role || '',
+          log.action || '',
+          log.method || '',
+          `"${log.route || ''}"`,
+          log.statusCode || '',
+          log.success ? 'Yes' : 'No',
+          log.resourceType || '',
+          log.ipAddress || ''
+        ].join(','))
+      ].join('\n');
+
+      // Download CSV
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `audit_trail_${new Date().toISOString().split('T')[0]}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Export error:', err);
+      setError('Failed to export audit logs. Please try again.');
+    }
+  }, [filterAction, filterRole, filterStatus, getAuthToken]);
 
   const handleChangePage = (event, newPage) => {
     setPage(newPage);
@@ -218,21 +314,23 @@ function AuditTrail() {
     setFilterAction('all');
     setFilterRole('all');
     setFilterStatus('all');
+    setPage(0);
   }, []);
 
-  // Extract unique values for filters using useMemo
+  // Extract unique values for filters from current loaded logs
   const uniqueActions = useMemo(() => 
-    [...new Set(auditLogs.map(log => log.action))].sort(),
+    [...new Set(auditLogs.map(log => log.action).filter(Boolean))].sort(),
     [auditLogs]
   );
   
   const uniqueRoles = useMemo(() => 
-    [...new Set(auditLogs.map(log => log.role))].sort(),
+    [...new Set(auditLogs.map(log => log.role).filter(Boolean))].sort(),
     [auditLogs]
   );
 
   // Format date/time
   const formatDateTime = (dateString) => {
+    if (!dateString) return 'N/A';
     const date = new Date(dateString);
     return date.toLocaleString('en-US', {
       year: 'numeric',
@@ -244,14 +342,6 @@ function AuditTrail() {
     });
   };
 
-  // Get status color based on HTTP status code
-  const getStatusColor = (statusCode) => {
-    if (statusCode >= 200 && statusCode < 300) return 'success';
-    if (statusCode >= 400 && statusCode < 500) return 'warning';
-    if (statusCode >= 500) return 'error';
-    return 'default';
-  };
-
   return (
     <div className="audit-trail-container">
       <Sidebar />
@@ -261,7 +351,9 @@ function AuditTrail() {
           <Typography variant="h4" className="page-title">
             Audit Trail
           </Typography>
-        
+          <Typography variant="body2" className="page-subtitle">
+            Track all system activities and user actions
+          </Typography>
         </header>
 
         {error && (
@@ -332,7 +424,7 @@ function AuditTrail() {
               </FormControl>
 
               <Tooltip title="Refresh">
-                <IconButton onClick={fetchAuditLogs} className="refresh-btn">
+                <IconButton onClick={fetchAuditLogs} className="refresh-btn" disabled={loading}>
                   <RefreshIcon />
                 </IconButton>
               </Tooltip>
@@ -343,6 +435,7 @@ function AuditTrail() {
                 onClick={clearFilters}
                 size="small"
                 className="clear-filters-btn"
+                disabled={loading}
               >
                 Clear
               </Button>
@@ -351,7 +444,7 @@ function AuditTrail() {
                 variant="contained"
                 startIcon={<FileDownloadIcon />}
                 onClick={handleExport}
-                disabled={filteredLogs.length === 0}
+                disabled={filteredLogs.length === 0 || loading}
                 className="export-button"
               >
                 Export
@@ -397,42 +490,40 @@ function AuditTrail() {
                         </StyledTableCell>
                       </TableRow>
                     ) : (
-                      filteredLogs
-                        .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
-                        .map((log) => (
-                          <StyledTableRow key={log._id}>
-                            <StyledTableCell>
-                              <Typography variant="body2" className="timestamp-text">
-                                {formatDateTime(log.createdAt)}
-                              </Typography>
-                            </StyledTableCell>
-                            <StyledTableCell>
-                              <Typography variant="body2" className="user-name">
-                                {log.username}
-                              </Typography>
-                              <Typography variant="caption" className="email-text">
-                                {log.email}
-                              </Typography>
-                            </StyledTableCell>
-                            <StyledTableCell>
-                              <Chip
-                                label={formatRoleLabel(log.role)}
-                                color={ROLE_COLORS[log.role] || 'default'}
-                                size="small"
-                                className="role-chip"
-                              />
-                            </StyledTableCell>
-                            <StyledTableCell>
-                              <Chip
-                                label={log.action}
-                                color={ACTION_COLORS[log.action] || 'default'}
-                                size="small"
-                                className="action-chip"
-                              />
-                            </StyledTableCell>
+                      filteredLogs.map((log) => (
+                        <StyledTableRow key={log._id}>
+                          <StyledTableCell>
+                            <Typography variant="body2" className="timestamp-text">
+                              {formatDateTime(log.createdAt)}
+                            </Typography>
+                          </StyledTableCell>
+                          <StyledTableCell>
+                            <Typography variant="body2" className="user-name">
+                              {log.username || 'Unknown'}
+                            </Typography>
+                            <Typography variant="caption" className="email-text">
+                              {log.email || 'N/A'}
+                            </Typography>
+                          </StyledTableCell>
+                          <StyledTableCell>
+                            <Chip
+                              label={formatRoleLabel(log.role)}
+                              color={ROLE_COLORS[log.role] || 'default'}
+                              size="small"
+                              className="role-chip"
+                            />
+                          </StyledTableCell>
+                          <StyledTableCell>
+                            <Chip
+                              label={log.action || 'N/A'}
+                              color={ACTION_COLORS[log.action] || 'default'}
+                              size="small"
+                              className="action-chip"
+                            />
+                          </StyledTableCell>
                             <StyledTableCell>
                               <Chip
-                                label={log.method}
+                                label={log.method || 'N/A'}
                                 size="small"
                                 variant="outlined"
                                 className="method-chip"
@@ -451,10 +542,10 @@ function AuditTrail() {
                             </StyledTableCell>
                             <StyledTableCell>
                               <Typography variant="body2" className="route-text">
-                                {log.route}
+                                {log.route || 'N/A'}
                               </Typography>
                               <Typography variant="caption" className="resource-text">
-                                {log.resourceType}
+                                {log.resourceType || 'N/A'}
                               </Typography>
                             </StyledTableCell>
                             <StyledTableCell>
@@ -465,7 +556,7 @@ function AuditTrail() {
                                   <ErrorIcon sx={{ fontSize: 16, color: '#EF4444' }} />
                                 )}
                                 <Chip
-                                  label={log.statusCode}
+                                  label={log.statusCode || 'N/A'}
                                   color={getStatusColor(log.statusCode)}
                                   size="small"
                                   className="status-chip"
@@ -474,7 +565,7 @@ function AuditTrail() {
                             </StyledTableCell>
                             <StyledTableCell>
                               <Typography variant="body2" className="ip-text">
-                                {log.ipAddress}
+                                {log.ipAddress || 'N/A'}
                               </Typography>
                             </StyledTableCell>
                           </StyledTableRow>
@@ -486,12 +577,12 @@ function AuditTrail() {
 
               <TablePagination
                 component="div"
-                count={filteredLogs.length}
+                count={totalCount}
                 page={page}
                 onPageChange={handleChangePage}
                 rowsPerPage={rowsPerPage}
                 onRowsPerPageChange={handleChangeRowsPerPage}
-                rowsPerPageOptions={[5, 10, 25, 50]}
+                rowsPerPageOptions={[5, 10, 25, 50, 100]}
                 className="table-pagination"
               />
             </>
@@ -499,7 +590,7 @@ function AuditTrail() {
         </Paper>
       </div>
     </div>
-  )
+  );
 }
 
-export default AuditTrail
+export default AuditTrail;

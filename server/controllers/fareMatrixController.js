@@ -90,7 +90,7 @@ exports.uploadFareMatrix = async (req, res, next) => {
       route: '/api/fare-matrix/upload',
       action: 'UPLOAD_FARE_MATRIX',
       statusCode: 201,
-      ipAddress: getClientIp(req),
+      ipAddress: req.ip || req.connection?.remoteAddress || 'Unknown',
       userAgent: req.headers['user-agent'],
       resourceType: 'fare-matrix',
       resourceId: fareMatrix.fareMatrixId,
@@ -110,6 +110,65 @@ exports.uploadFareMatrix = async (req, res, next) => {
     });
   } catch (error) {
     console.error('[FareMatrix] Upload error:', error);
+    return next(error);
+  }
+};
+
+/**
+ * Delete active fare matrix (super-admin only)
+ * - Marks as inactive (soft delete)
+ * - Deletes from Cloudflare R2
+ */
+exports.deleteFareMatrix = async (req, res, next) => {
+  try {
+    const fareMatrix = await fareMatrixRepository.getActiveFareMatrix();
+    
+    if (!fareMatrix) {
+      return res.status(404).json({ 
+        error: 'No active fare matrix to delete' 
+      });
+    }
+
+    // Delete from R2 if exists
+    if (fareMatrix.r2FilePath) {
+      try {
+        await deleteFileFromR2(fareMatrix.r2FilePath);
+        console.log('[FareMatrix] File deleted from R2:', fareMatrix.r2FilePath);
+      } catch (err) {
+        console.error('[FareMatrix] Error deleting from R2:', err.message);
+        // Continue with soft delete anyway
+      }
+    }
+
+    // Soft delete the fare matrix
+    const adminId = req.user.adminId || req.user.id || req.user._id.toString();
+    await fareMatrixRepository.softDeleteFareMatrix(fareMatrix.fareMatrixId, adminId);
+
+    // Log deletion
+    await auditLogService.logAction({
+      user: req.user,
+      method: 'DELETE',
+      route: '/api/fare-matrix',
+      action: 'DELETE_FARE_MATRIX',
+      statusCode: 200,
+      ipAddress: getClientIp(req),
+      userAgent: req.headers['user-agent'],
+      resourceType: 'fare-matrix',
+      resourceId: fareMatrix.fareMatrixId,
+      details: {
+        fileName: fareMatrix.fileName,
+        deletedFrom: 'Cloudflare R2'
+      }
+    }).catch(err => console.error('Audit log error:', err));
+
+    console.log('[FareMatrix] Successfully deleted:', fareMatrix.fareMatrixId);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Fare matrix deleted successfully'
+    });
+  } catch (error) {
+    console.error('[FareMatrix] Delete error:', error);
     return next(error);
   }
 };
