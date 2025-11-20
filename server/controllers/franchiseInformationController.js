@@ -230,3 +230,30 @@ exports.franchiseQRLookupByHash = async (req, res, next) => {
   }
 };
 
+
+
+// ========================================
+// FILE PROXY - CORS BYPASS
+// ========================================
+
+/**
+ * GET /franchise-information/proxy-file?url=...
+ * Proxy Cloudflare R2 files to bypass CORS restrictions
+ * PUBLIC - Used for driver pictures in QR verification
+ */
+exports.proxyCloudflareFile = async (req, res, next) => {
+  try {
+    const { url } = req.query;
+    if (!url) return res.status(400).json({ error: 'Missing url parameter' });
+    
+    const key = url.startsWith('r2://') ? url.substring(5) : url;
+    const { buffer, contentType } = await getFileFromR2(key);
+    
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    res.send(buffer);
+  } catch (error) {
+    next(error);
+  }
+};
+

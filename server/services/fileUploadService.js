@@ -9,8 +9,15 @@ const fs = require('fs').promises;
  * Supports TRC-V-DIR structure with baseFolder/subFolder/category
  */
 
-const UPLOAD_TO_LOCAL = process.env.UPLOAD_TO_LOCAL_DIR === 'true';
-const LOCAL_BASE_PATH = './TRC-V-DIR'; // New base path for TRC-V structure
+// Only upload to local if explicitly enabled AND running on localhost
+const isLocalhost = () => {
+  const hostname = process.env.HOSTNAME || process.env.COMPUTERNAME || 'unknown';
+  const nodeEnv = process.env.NODE_ENV || 'development';
+  return nodeEnv === 'development' || hostname.includes('localhost') || hostname.includes('127.0.0.1');
+};
+
+const UPLOAD_TO_LOCAL = process.env.UPLOAD_TO_LOCAL_DIR === 'true' && isLocalhost();
+const LOCAL_BASE_PATH = './TRC-V-DIR';
 
 /**
  * Generate secure filename with hash
@@ -43,7 +50,8 @@ async function uploadToLocalDir(buffer, originalname, metadata) {
   // Structure: TRC-V-DIR/baseFolder/subFolder/category/
   const uploadDir = path.join(LOCAL_BASE_PATH, baseFolder, subFolder, category);
   
-  // Ensure directory exists
+  // Lazy directory creation - only create when actually uploading a file
+  // This prevents empty directory creation on server start
   await fs.mkdir(uploadDir, { recursive: true });
   
   // Generate secure filename
@@ -53,7 +61,7 @@ async function uploadToLocalDir(buffer, originalname, metadata) {
   // Write file to disk
   await fs.writeFile(filePath, buffer);
   
-  console.log(`[LOCAL] Uploaded file to: ${filePath}`);
+  console.log(`[LOCAL] ✅ Uploaded file to: ${filePath}`);
   return filePath;
 }
 
@@ -83,19 +91,20 @@ async function uploadFile(buffer, originalname, mimetype, metadata) {
     throw new Error(`Failed to upload to Cloudflare: ${err.message}`);
   }
   
-  // Conditionally upload to local directory (for LAN/offline access)
+  // Conditionally upload to local directory (ONLY on localhost for development/testing)
   if (UPLOAD_TO_LOCAL) {
     try {
       const localPath = await uploadToLocalDir(buffer, originalname, metadata);
       results.local = localPath;
-      console.log(`[UPLOAD_SERVICE] Local upload success: ${localPath}`);
+      console.log(`[UPLOAD_SERVICE] ✅ Local upload success: ${localPath}`);
     } catch (err) {
-      console.error(`[UPLOAD_SERVICE] Local upload failed:`, err);
+      console.error(`[UPLOAD_SERVICE] ❌ Local upload failed:`, err);
       // Don't throw - local upload failure shouldn't block the operation
-      // Cloudflare is the primary storage
+      // Cloudflare R2 is the primary storage (always works online and offline)
     }
   } else {
-    console.log(`[UPLOAD_SERVICE] Local upload disabled (UPLOAD_TO_LOCAL_DIR=${UPLOAD_TO_LOCAL})`);
+    const reason = !isLocalhost() ? '(deployed online)' : '(UPLOAD_TO_LOCAL_DIR not enabled)';
+    console.log(`[UPLOAD_SERVICE] Local upload disabled ${reason}`);
   }
   
   return results;

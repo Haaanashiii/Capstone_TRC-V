@@ -10,10 +10,11 @@ const authorize = require('../middlewares/authorize');
 // PUBLIC ROUTES (No Authentication)
 // ========================================
 
+
 /**
  * GET /franchise-information/proxy-file?url=...
- * Proxy Cloudflare R2 files through backend (bypasses CORS)
- * PUBLIC - Used by QR verification pages to display driver pictures
+ * Proxy Cloudflare R2 files to bypass CORS restrictions
+ * PUBLIC - Used for driver pictures in QR verification
  */
 router.get('/proxy-file', franchiseInformationController.proxyCloudflareFile);
 
@@ -30,19 +31,6 @@ router.get(
   combinedQrRateLimiter,
   sanitizeRequest,
   franchiseInformationController.franchiseQRLookupByHash
-);
-
-/**
- * GET /franchise-information/qr/:franchiseId
- * LEGACY QR code endpoint (backward compatibility)
- * PUBLIC - Rate limited
- * ⚠️ DEPRECATED - Old QR codes only, use /qr/hash/:hashedMTOP for new QR codes
- */
-router.get(
-  '/qr/:franchiseId',
-  combinedQrRateLimiter,
-  sanitizeRequest,
-  franchiseInformationController.franchiseQRIDLookup
 );
 
 // ========================================
@@ -88,18 +76,6 @@ router.get(
   authenticate,
   authorize(['sb-admin', 'bplo-admin', 'super-admin']),
   franchiseInformationController.getFranchiseInformation
-);
-
-/**
- * POST /franchise-information/:franchiseId/regenerate-qr
- * Regenerate QR code for existing franchise
- * PROTECTED - Admin only
- */
-router.post(
-  '/:franchiseId/regenerate-qr',
-  authenticate,
-  authorize(['sb-admin', 'bplo-admin']),
-  franchiseInformationController.regenerateQRCode
 );
 
 module.exports = router;
