@@ -10,6 +10,9 @@ import PeopleAltIcon from '@mui/icons-material/PeopleAlt'
 import AccountCircleIcon from '@mui/icons-material/AccountCircle'
 import LogoutIcon from '@mui/icons-material/Logout'
 import CampaignIcon from '@mui/icons-material/Campaign'
+import AnalyticsIcon from '@mui/icons-material/Analytics'
+import HistoryIcon from '@mui/icons-material/History'
+import SettingsIcon from '@mui/icons-material/Settings'
 
 function Sidebar() {
   const location = useLocation();
@@ -118,9 +121,11 @@ function Sidebar() {
     { name: 'Franchisee List', icon: <ListAltIcon />, path: '/sb-admin/franchisee-list' },
     { name: 'Franchise Management', icon: <BusinessIcon />, path: '/sb-admin/franchise-management' },
     { name: 'Reports', icon: <AssessmentIcon />, path: '/sb-admin/reports' },
-    { name: 'Announcements', icon: <CampaignIcon />, path: '/sb-admin/announcements' },
-    { name: 'User Management', icon: <PeopleAltIcon />, path: '/sb-admin/user-management' }
-
+    { name: 'Analytics', icon: <AnalyticsIcon />, path: '/sb-admin/analytics' },
+    { name: 'Announcements', icon: <CampaignIcon />, path: '/sb-admin/announcements', requiresSuperAdmin: true },
+    { name: 'Audit Trail', icon: <HistoryIcon />, path: '/sb-admin/audit-trail', requiresSuperAdmin: true },
+    { name: 'User Management', icon: <PeopleAltIcon />, path: '/sb-admin/user-management' },
+    { name: 'Settings', icon: <SettingsIcon />, path: '/sb-admin/settings', requiresSuperAdmin: true }
   ]
 
   return (
@@ -139,17 +144,19 @@ function Sidebar() {
 
       <div className="sidebar-items">
         <ul>
-          {menuItems.map((item) => (
-            <li
-              key={item.name}
-              className={location.pathname === item.path ? 'active' : ''}
-            >
-              <Link to={item.path}>
-                <span className="menu-icon">{item.icon}</span>
-                <span className="menu-text">{item.name}</span>
-              </Link>
-            </li>
-          ))}
+          {menuItems
+            .filter(item => !item.requiresSuperAdmin || user?.role === 'super-admin')
+            .map((item) => (
+              <li
+                key={item.name}
+                className={location.pathname === item.path ? 'active' : ''}
+              >
+                <Link to={item.path}>
+                  <span className="menu-icon">{item.icon}</span>
+                  <span className="menu-text">{item.name}</span>
+                </Link>
+              </li>
+            ))}
         </ul>
       </div>
 

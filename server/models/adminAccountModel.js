@@ -36,29 +36,6 @@ const adminAccountSchema = new mongoose.Schema({
     default: 'sb-admin',
     required: true 
   },
-  phoneNumber: { 
-    type: String, 
-    trim: true,
-    match: [/^\+?[0-9]{10,15}$/, 'Invalid phone number']
-  },
-  profilePicture: { 
-    type: String  
-  },
-  department: {
-    type: String,
-    trim: true
-  },
-  position: {
-    type: String,
-    trim: true
-  },
-  isActive: { 
-    type: Boolean, 
-    default: true 
-  },
-  lastLogin: { 
-    type: Date 
-  },
   permissions: [{
     type: String,
     enum: [

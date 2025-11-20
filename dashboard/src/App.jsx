@@ -19,6 +19,9 @@ import FranchiseMgmt from './pages/Administration/FranchiseMgmt';
 import Dashboard from './pages/Administration/Dashboard';
 import Reports from './pages/Administration/Reports';
 import Announcement from './pages/Administration/Announcement';
+import Analytics from './pages/Administration/Analytics';
+import AuditTrail from './pages/Administration/AuditTrail';
+import Settings from './pages/Administration/Settings';
 import QROperatorID from './pages/Driver/QROperatorID';
 
 function LandingPageWithNav() {
@@ -156,8 +159,32 @@ function App() {
         <Route 
           path="/sb-admin/announcements" 
           element={
-            <ProtectedRoute requiredRole={["sb-admin", "super-admin"]}>
+            <ProtectedRoute requiredRole={["super-admin"]}>
               <Announcement />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/sb-admin/analytics" 
+          element={
+            <ProtectedRoute requiredRole={["sb-admin", "super-admin"]}>
+              <Analytics />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/sb-admin/audit-trail" 
+          element={
+            <ProtectedRoute requiredRole={["super-admin"]}>
+              <AuditTrail />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/sb-admin/settings" 
+          element={
+            <ProtectedRoute requiredRole={["super-admin"]}>
+              <Settings />
             </ProtectedRoute>
           } 
         />
