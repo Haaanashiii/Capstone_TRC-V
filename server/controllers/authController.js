@@ -188,16 +188,22 @@ const getDeviceInfo = (req) => {
 };
 
 const generateAccessToken = (user, isAdmin = false) => {
-  console.log('Generating access token for user:', { 
+  const logInfo = { 
     _id: user._id, 
     userId: user.userId, 
     adminId: user.adminId,
     role: user.role, 
     name: user.name, 
-    isAdmin,
-    hasFranchiseApplications: !!(user.franchiseApplications && user.franchiseApplications.length > 0),
-    hasFranchiseInformation: !!(user.franchiseInformation && user.franchiseInformation.length > 0)
-  });
+    isAdmin
+  };
+  
+  // Only include franchise info for non-admin users
+  if (!isAdmin) {
+    logInfo.hasFranchiseApplications = !!(user.franchiseApplications && user.franchiseApplications.length > 0);
+    logInfo.hasFranchiseInformation = !!(user.franchiseInformation && user.franchiseInformation.length > 0);
+  }
+  
+  console.log('Generating access token for user:', logInfo);
   
   // MINIMAL JWT PAYLOAD - Only include non-sensitive, essential data
   const payload = { 

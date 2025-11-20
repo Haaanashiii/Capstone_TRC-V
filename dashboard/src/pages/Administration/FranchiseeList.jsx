@@ -281,9 +281,15 @@ function FranchiseeList() {
     
     try {
       const apiBase = API_BASE_URL || 'http://localhost:5170';
+      const token = getAuthToken();
       
       // Fetch from franchise-information endpoint (approved franchises with correct file paths)
-      const response = await fetch(`${apiBase}/api/franchise-information`);
+      const response = await fetch(`${apiBase}/api/franchise-information`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
