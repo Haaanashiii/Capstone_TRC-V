@@ -1,36 +1,36 @@
 const mongoose = require('mongoose');
 
 const DocumentReferenceSchema = new mongoose.Schema({
-  motorRegistrationObj: { type: String, required: false },
-  barangayClearanceObj: { type: String, required: false },
-  cedulaObj: { type: String, required: false },
-  driversLicenseObj: { type: String, required: false },
+  motorRegistrationObj: { type: String, required: true },
+  barangayClearanceObj: { type: String, required: true },
+  cedulaObj: { type: String, required: true },
+  driversLicenseObj: { type: String, required: true },
   votersAffidavitObj: { type: String, required: false },
-  motorChassisStencilObj: { type: String, required: false }, 
-  oRTreasurerOfficeObj: { type: String, required: false }, // after bplo checks
-  oRLTOObj: { type: String, required: false }, //
-  cRLTOObj: { type: String, required: false }, // temporarily slip?
+  motorChassisStencilObj: { type: String, required: true }, 
+  oRLTOObj: { type: String, required: true }, //
+  cRLTOObj: { type: String, required: true }, // 
   driverPictureObj: { type: String, required: false },
-  operaorPictureObj: { type: String, required: false },
+  operatorPictureObj: { type: String, required: false },
+  oRTreasurerOfficeObj: { type: String, required: false }, // after bplo checks
 });
 
 const franchiseApplicationSchema = new mongoose.Schema({
 
-  operatorId: { type: String, required: true},
+  // operator details
   operatorName: { type: String, required: true },
   operatorContactNumber: { type: String, required: true, trim: true },
   coOwnerName: { type: String, required: false },
   coOwnerAddress: { type: String, required: false }, 
-  address: { type: String, required: true },
-  barangay: { type: String, required: true }, 
-  civilStatus: { type: String, required: true },
-  birthPlace: { type: String, required: true },
-  birthDate: { type: Date, required: true },
-  citizenship: { type: String, required: true },
-  email: { type: String, required: false, lowercase: true, trim: true, match: [/^\S+@\S+\.\S+$/, 'Invalid email address'] }, // Optional - user can have multiple franchises
+  operatorAddress: { type: String, required: true },
+  operatorBarangay: { type: String, required: true }, 
+  operatorCivilStatus: { type: String, required: true },
+  operatorBirthPlace: { type: String, required: true },
+  operatorBirthDate: { type: Date, required: true },
+  operatorCitizenship: { type: String, required: true },
+  operatorEmail: { type: String, required: false, lowercase: true, trim: true, match: [/^\S+@\S+\.\S+$/, 'Invalid email address'] }, 
   
   // driver details
-  driversID: { type: String, required: true, unique: true },
+  driversID: { type: String, required: true },
   driverName: { type: String, required: true },
   driversAddress: { type: String, required: true },
   todaMembership: { type: String, required: false },
@@ -44,8 +44,8 @@ const franchiseApplicationSchema = new mongoose.Schema({
   motorEngineNo: { type: String, required: true, unique: true },
   chasisNo: { type: String, required: true, unique: true },
 
-  approvedByBplo: {type: String, enum: ['approved', 'pending' , 'rejected'], required: true ,default: 'pending' },
-
+  statusOfBPLO: {type: String, enum: ['approved', 'pending' , 'rejected'], required: true ,default: 'pending' },
+  officialRecieptNumber: { type: String, required: false },
   approvedAt: { type: Date },
   submittedAt: { type: Date, default: Date.now },
 
@@ -70,7 +70,6 @@ const franchiseApplicationSchema = new mongoose.Schema({
       return this.applicationType !== 'new'; 
     }
   },
-
   // Link to User Account (optional - can submit without user account)
   operatorInfo: {
     type: mongoose.Schema.Types.ObjectId,
@@ -79,6 +78,16 @@ const franchiseApplicationSchema = new mongoose.Schema({
     default: null
   }
 }, { collection: 'Franchise Applications' });
+
+// Indexes for performance optimization
+franchiseApplicationSchema.index({ statusOfBPLO: 1 });
+franchiseApplicationSchema.index({ operatorInfo: 1 });
+franchiseApplicationSchema.index({ applicationType: 1 });
+franchiseApplicationSchema.index({ relatedFranchise: 1 });
+franchiseApplicationSchema.index({ submittedAt: -1 });
+franchiseApplicationSchema.index({ approvedAt: -1 });
+// Compound index for common queries
+franchiseApplicationSchema.index({ operatorInfo: 1, statusOfBPLO: 1 });
 
 
 module.exports = mongoose.model('Franchise Application', franchiseApplicationSchema);

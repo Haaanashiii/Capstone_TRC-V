@@ -5,6 +5,8 @@ const morgan = require('morgan');
 const dotenv = require('dotenv');
 const cookieParser = require('cookie-parser');
 const helmet = require('helmet');
+const http = require('http');
+const { Server } = require('socket.io');
 const errorHandler = require('./middlewares/errorHandler');
 const { apiLimiter, authLimiter, qrVerificationLimiter } = require('./middlewares/rateLimiter');
 const { sanitizeRequest } = require('./middlewares/validateRequest');
@@ -28,6 +30,45 @@ const fareMatrixRoutes = require('./routes/fareMatrixRoutes');
 
 dotenv.config();
 const app = express();
+const server = http.createServer(app);
+
+// Initialize Socket.IO with CORS configuration
+// Dynamically allows origins from CORS_ORIGIN env variable
+const socketCorsOrigin = process.env.CORS_ORIGIN 
+  ? process.env.CORS_ORIGIN.split(',').map(s => s.trim()).filter(Boolean)
+  : (process.env.NODE_ENV === 'production' ? false : '*');
+
+const io = new Server(server, {
+  cors: {
+    origin: socketCorsOrigin,
+    methods: ['GET', 'POST'],
+    credentials: true
+  },
+  // Additional production-ready settings
+  pingTimeout: 60000,
+  pingInterval: 25000,
+  transports: ['websocket', 'polling'] 
+});
+
+// Store io instance in app for access in controllers
+app.set('io', io);
+
+// Socket.IO connection handling
+io.on('connection', (socket) => {
+  console.log(`[SOCKET.IO] Client connected: ${socket.id}`);
+  
+  // Allow clients to join specific rooms based on their role
+  socket.on('join-room', (room) => {
+    if (['bplo-admins', 'sb-admins', 'users'].includes(room)) {
+      socket.join(room);
+      console.log(`[SOCKET.IO] Client ${socket.id} joined room: ${room}`);
+    }
+  });
+  
+  socket.on('disconnect', () => {
+    console.log(`[SOCKET.IO] Client disconnected: ${socket.id}`);
+  });
+});
 
 // Trust proxy - required when behind Cloudflare Worker/Render
 app.set('trust proxy', 1);
@@ -126,20 +167,20 @@ if (process.env.NODE_ENV !== 'production') {
 
 
 // Routes
-app.use('/auth', authRoutes);
-app.use('/users', userRoutes);
-app.use('/admins', adminRoutes);
-app.use('/api/pending-apps', pendingAppsRoutes);
-app.use('/api/franchise-applications', franchiseApplicationRoutes);
-app.use('/api/dashboard', dashboardRoutes);
-app.use('/reports', reportsRoutes);
-app.use('/announcements', announcementRoutes);
-app.use('/api/franchise-information', franchiseInformationRoutes);
-app.use('/qr', qrCodeRoutes);
-app.use('/api/sessions', sessionRoutes);
-app.use('/api/scheduler', require('./routes/schedulerRoutes'));
-app.use('/api/audit-logs', auditLogRoutes);
-app.use('/api/fare-matrix', fareMatrixRoutes);
+app.use('/auth', authLimiter, authRoutes);
+app.use('/users', apiLimiter, userRoutes);
+app.use('/admins', apiLimiter, adminRoutes);
+app.use('/api/pending-apps', apiLimiter, pendingAppsRoutes);
+app.use('/api/franchise-applications', apiLimiter, franchiseApplicationRoutes);
+app.use('/api/dashboard', apiLimiter, dashboardRoutes);
+app.use('/reports', apiLimiter, reportsRoutes);
+app.use('/announcements', apiLimiter, announcementRoutes);
+app.use('/api/franchise-information', apiLimiter, franchiseInformationRoutes);
+app.use('/qr', qrVerificationLimiter, qrCodeRoutes);
+app.use('/api/sessions', apiLimiter, sessionRoutes);
+app.use('/api/scheduler', apiLimiter, require('./routes/schedulerRoutes'));
+app.use('/api/audit-logs', apiLimiter, auditLogRoutes);
+app.use('/api/fare-matrix', apiLimiter, fareMatrixRoutes);
 
 
 // Health check endpoint
@@ -189,7 +230,10 @@ mongoose.connect(process.env.MONGO_URI, {
     const { initializeFranchiseExpiryScheduler } = require('./services/franchiseExpiryScheduler');
     initializeFranchiseExpiryScheduler();
     
-    app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+    server.listen(PORT, () => {
+      console.log(`Server running on port ${PORT}`);
+      console.log(`Socket.IO enabled on port ${PORT}`);
+    });
   })
   .catch((err) => {
     console.error('MongoDB connection error:', err);

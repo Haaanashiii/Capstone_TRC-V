@@ -12,9 +12,8 @@ const DocumentReferenceSchema = new mongoose.Schema({
   cRLTOObj: { type: String, required: false },
   driverPictureObj: { type: String, required: false },
   qrCodeObj: { type: String, required: false },
-  scannedSignedRegistrationObj: { type: String, required: false},
 
-  //reports of sb
+  //added of sb
   individualSessionReportObj: { type: String, required: false },
 });
 
@@ -24,18 +23,17 @@ const franchiseInformationSchema = new mongoose.Schema({
   sessionNumber: { type: String }, // sort 
 
   // operator details
-  operatorId: { type: String, required: true },
   operatorName: { type: String, required: true },
   operatorContactNumber: { type: String, required: true, trim: true },
   coOwnerName: { type: String, required: false },
   coOwnerAddress: { type: String, required: false }, 
-  address: { type: String, required: true },
-  barangay: { type: String, required: true }, 
-  civilStatus: { type: String, required: true },
-  birthPlace: { type: String, required: true },
-  birthDate: { type: Date, required: true },
-  citizenship: { type: String, required: true },
-  email: { type: String, required: false, lowercase: true, trim: true, match: [/^\S+@\S+\.\S+$/, 'Invalid email address'] }, 
+  operatorAddress: { type: String, required: true },
+  operatorBarangay: { type: String, required: true }, 
+  operatorCivilStatus: { type: String, required: true },
+  operatorBirthPlace: { type: String, required: true },
+  operatorBirthDate: { type: Date, required: true },
+  operatorCitizenship: { type: String, required: true },
+  operatorEmail: { type: String, required: false, lowercase: true, trim: true, match: [/^\S+@\S+\.\S+$/, 'Invalid email address'] }, 
   
   // driver details
   driversID: { type: String, required: true, unique: true },
@@ -105,5 +103,15 @@ franchiseInformationSchema.index(
     partialFilterExpression: { isCurrentVersion: true }
   }
 );
+
+// Additional indexes for performance
+franchiseInformationSchema.index({ linkedUser: 1 });
+franchiseInformationSchema.index({ franchiseStatus: 1 });
+franchiseInformationSchema.index({ expiryDate: 1 });
+franchiseInformationSchema.index({ operatorBarangay: 1 });
+franchiseInformationSchema.index({ changeType: 1 });
+// Compound indexes for common queries
+franchiseInformationSchema.index({ isCurrentVersion: 1, franchiseStatus: 1 });
+franchiseInformationSchema.index({ linkedUser: 1, isCurrentVersion: 1 });
 
 module.exports = mongoose.model('Franchise Information', franchiseInformationSchema);

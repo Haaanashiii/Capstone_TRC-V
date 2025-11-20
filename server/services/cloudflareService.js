@@ -154,16 +154,18 @@ async function compressPDF(buffer) {
  * @param {string} originalName - Original filename
  * @param {string} mimetype - File MIME type
  * @param {Object} options - Upload options
- * @param {string} options.folder - Base folder (default: 'franchise-applications')
- * @param {string} options.applicationId - Application ID for organization
- * @param {string} options.documentType - Type of document (e.g., 'registration', 'profile')
+ * @param {string} options.baseFolder - Base folder (franchiseApplications/franchiseInformations)
+ * @param {string} options.subFolder - Sub folder (userId or franchiseNo)
+ * @param {string} options.category - Category (Documentations/ProfilePictures/QRCode)
+ * @param {string} options.customKey - Optional custom key to override default path
  * @returns {Promise<string>} Public URL of uploaded file
  */
 async function uploadToR2(buffer, originalName, mimetype, options = {}) {
   const {
-    folder = 'franchise-applications',
-    applicationId = 'pending',
-    documentType = 'document'
+    baseFolder = 'franchiseApplications',
+    subFolder = 'pending',
+    category = 'Documentations',
+    customKey = null
   } = options;
   try {
     // Compress file based on type
@@ -175,22 +177,26 @@ async function uploadToR2(buffer, originalName, mimetype, options = {}) {
       finalBuffer = await compressPDF(buffer);
     }
 
-    // Generate secure filename that preserves original name
-    // Format: original-name-{hash}.ext (e.g., barangay-clearance-8b32022d.pdf)
-    const randomHash = crypto.randomBytes(8).toString('hex'); // Shorter hash for readability
-    const fileExt = path.extname(originalName).toLowerCase();
-    const baseName = path.basename(originalName, fileExt)
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-') // Replace special chars with dashes
-      .replace(/^-+|-+$/g, '') // Remove leading/trailing dashes
-      .substring(0, 50); // Limit length
+    let key;
     
-    const fileName = `${baseName}-${randomHash}${fileExt}`;
-    
-    // Organize: TRC-V/franchise-applications/{applicationId}/{documentType}/{readable-filename-hash.ext}
-    // Example: TRC-V/franchise-applications/673abc123/documents/barangay-clearance-8b32022d.pdf
-    //          TRC-V/franchise-applications/673abc123/profile/1x1-picture-a1b2c3d4.jpg
-    const key = `TRC-V/${folder}/${applicationId}/${documentType}/${fileName}`;
+    if (customKey) {
+      // Use custom key if provided (for version control, e.g., version-1/Documentations/...)
+      key = `TRC-V/${baseFolder}/${subFolder}/${customKey}`;
+    } else {
+      // Generate secure filename that preserves original name
+      const randomHash = crypto.randomBytes(8).toString('hex');
+      const fileExt = path.extname(originalName).toLowerCase();
+      const baseName = path.basename(originalName, fileExt)
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .substring(0, 50);
+      
+      const fileName = `${baseName}-${randomHash}${fileExt}`;
+      
+      // Structure: TRC-V/{baseFolder}/{subFolder}/{category}/{filename}
+      key = `TRC-V/${baseFolder}/${subFolder}/${category}/${fileName}`;
+    }
 
     // Upload to R2
     const command = new PutObjectCommand({
@@ -198,17 +204,11 @@ async function uploadToR2(buffer, originalName, mimetype, options = {}) {
       Key: key,
       Body: finalBuffer,
       ContentType: mimetype,
-      // Make file publicly accessible (optional, depending on your bucket settings)
-      // ACL: 'public-read', // R2 doesn't use ACLs, use bucket policies instead
     });
 
     const client = getR2Client();
     await client.send(command);
 
-    // Return the R2 key path (not public URL, since public URL doesn't work)
-    // Files will be accessed through backend proxy: /api/franchise-applications/proxy-file
-    // For backward compatibility with existing DB records, we still return a URL format
-    // but prefix with a marker that this needs backend proxy
     const fileUrl = `r2://${key}`;
     console.log(`File uploaded successfully to R2: ${key}`);
     

@@ -1,22 +1,35 @@
 const express = require('express');
 const router = express.Router();
-const franchiseApplicationController = require('../controllers/franchiseApplicationController');
+const controller = require('../controllers/franchiseApplicationController');
 const authenticate = require('../middlewares/authenticate');
+const authorize = require('../middlewares/authorize');
 const upload = require('../middlewares/upload');
 
-// Accept multipart/form-data for application creation (documents)
-// REQUIRED authentication: Must be logged in as operator to submit application
-// This ensures userId is always captured and linked to the application
-router.post('/', authenticate, upload.uploadOperatorDocuments, franchiseApplicationController.createFranchiseApplication);
-router.get('/', franchiseApplicationController.getAllFranchiseApplications);
-router.get('/mine', authenticate, franchiseApplicationController.getMyFranchiseApplication);
+// USER ROUTES - Franchise application submission and management
+router.post('/new-application', authenticate, authorize(['user']), upload.uploadOperatorDocuments, controller.createNewApplication);
+router.get('/pending', authenticate, authorize(['user']), controller.getPendingFranchises);
+router.get('/pending/:id', authenticate, authorize(['user']), controller.getSpecificPendingFranchise);
+router.put('/pending/:id', authenticate, authorize(['user']), upload.uploadOperatorDocuments, controller.editPendingFranchise);
+router.post('/renew-amend', authenticate, authorize(['user']), upload.uploadOperatorDocuments, controller.createRenewOrAmendment);
+router.put('/approved/:id/add-receipt', authenticate, authorize(['user']), upload.uploadOperatorDocuments, controller.editApprovedFranchise);
 
-// Proxy route to fetch Cloudflare files (must come before /:id to avoid conflict)
-router.get('/proxy-file', franchiseApplicationController.proxyCloudflareFile);
+// BPLO ADMIN ROUTES - Review and approve applications
+router.get('/bplo/pending-websocket', authenticate, authorize(['bplo', 'admin']), controller.getFranchisesWithWebSocketIO);
+router.put('/bplo/approve/:id', authenticate, authorize(['bplo', 'admin']), controller.approveFranchiseByBPLO);
 
-router.get('/:id', franchiseApplicationController.getFranchiseApplication);
-router.put('/:id', franchiseApplicationController.updateFranchiseApplication);
-router.put('/:id/approve', franchiseApplicationController.approveFranchiseApplication);
-router.delete('/:id', franchiseApplicationController.deleteFranchiseApplication);
+// SB ADMIN ROUTES - Final acceptance and franchise creation
+router.get('/sb/approved-websocket', authenticate, authorize(['sb', 'admin']), controller.getApprovedRoutesForSBAdmin);
+router.post('/sb/accept-new/:id', authenticate, authorize(['sb', 'admin']), upload.uploadOperatorDocuments, controller.sbAdminAcceptNewFranchise);
+router.post('/sb/accept-renew-amend/:id', authenticate, authorize(['sb', 'admin']), upload.uploadOperatorDocuments, controller.sbAdminAcceptRenewOrAmendment);
+
+// LEGACY ROUTES (backward compatibility)
+router.post('/', authenticate, upload.uploadOperatorDocuments, controller.createFranchiseApplication);
+router.get('/', controller.getAllFranchiseApplications);
+router.get('/mine', authenticate, controller.getMyFranchiseApplication);
+router.get('/proxy-file', controller.proxyCloudflareFile);
+router.get('/:id', controller.getFranchiseApplication);
+router.put('/:id', controller.updateFranchiseApplication);
+router.put('/:id/approve', controller.approveFranchiseApplication);
+router.delete('/:id', controller.deleteFranchiseApplication);
 
 module.exports = router;

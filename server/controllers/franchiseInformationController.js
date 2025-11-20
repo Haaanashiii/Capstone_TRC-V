@@ -2,127 +2,170 @@ const franchiseInformationRepository = require('../repositories/franchiseInforma
 const { generateOperatorQRCode, deleteQRCode } = require('../services/qrCodeService');
 const { getFileFromR2 } = require('../services/cloudflareService');
 const { getClientIp } = require('../utils/ipHelper');
+const { generateHashedFranchiseNo } = require('../utils/franchiseHelpers');
 
-exports.createFranchiseInformation = async (req, res, next) => {
+
+
+// ========================================
+// READ FRANCHISES
+// ========================================
+
+/**
+ * GET /franchise-information
+ * Get all CURRENT VERSION franchises with WebSocket notification
+ * 
+ * Features:
+ * - Returns only isCurrentVersion = true franchises
+ * - Emits to WebSocket room 'franchise-admins' for real-time updates
+ * - Populated with linked user and previous version info
+ * 
+ * Used by: Admin dashboards, franchise management pages
+ */
+exports.getAllFranchiseInformation = async (req, res, next) => {
   try {
-    if (!req.body || typeof req.body !== 'object' || Object.keys(req.body).length === 0) {
-      return res.status(400).json({ error: 'Request body is required' });
-    }
+    const FranchiseInformation = require('../models/franchiseInformationModel');
+    const franchises = await FranchiseInformation.find({ isCurrentVersion: true })
+      .populate('linkedUser', 'username email')
+      .populate('previousVersion', 'version changeType changedAt')
+      .sort({ franchiseNumber: 1 });
     
-    // Prevent id injection and prototype pollution
-    const { id, _id, ...body } = req.body;
-    for (const k of ['__proto__', 'prototype', 'constructor']) delete body[k];
-    
-    // Handle file uploads from multer
-    if (req.files) {
-   
-      if (req.files.profilePhoto && req.files.profilePhoto[0]) {
-        body.profilePhoto = `/uploads/operators/profiles/${req.files.profilePhoto[0].filename}`;
-      }
-      
-      // Documents
-      const documentFields = [
-        'motorRegistration',
-        'barangayClearance',
-        'cedula',
-        'driversLicense',
-        'votersAffidavit',
-        'motorChassisStencil',
-        'picture'
-      ];
-      
-      body.documents = {};
-      documentFields.forEach(field => {
-        if (req.files[field] && req.files[field][0]) {
-          body.documents[field] = `/uploads/operators/documents/${req.files[field][0].filename}`;
-        }
+    // Emit to WebSocket for real-time updates
+    if (req.app.get('io')) {
+      req.app.get('io').to('franchise-admins').emit('franchises-list-updated', {
+        count: franchises.length,
+        timestamp: new Date().toISOString()
       });
     }
     
-    const franchiseInformation = await franchiseInformationRepository.createFranchiseInformation(body);
-    
-    // Generate QR code for the franchise
-    try {
-      const qrCodeData = await generateOperatorQRCode(franchiseInformation._id, { saveToFile: true });
-      
-      franchiseInformation.qrCode = qrCodeData.filePath;
-      await franchiseInformation.save();
-      
-      console.log(`[QR GENERATED] Franchise: ${franchiseInformation._id}, File: ${qrCodeData.filePath}`);
-    } catch (qrError) {
-      console.error('QR Code generation failed:', qrError);
-      // Continue without QR code - can be generated later
-    }
-
-    return res.status(201).json({
-      success: true,
-      message: 'Franchise information created successfully',
-      data: franchiseInformation
+    return res.status(200).json({ 
+      success: true, 
+      count: franchises.length,
+      data: franchises 
     });
-  }
-  catch (error) {
-    if (error?.name === 'SequelizeUniqueConstraintError' || error?.code === 11000) {
-      return res.status(409).json({ error: 'Duplicate franchise information' });
-    }
-    return next(error);
-  }
-};
-
-exports.getAllFranchiseInformation = async (req, res, next) => {
-  try {
-    const franchises = await franchiseInformationRepository.getAllFranchiseInformation();
-    return res.status(200).json(franchises || []);
   } catch (error) {
     return next(error);
   }
 };
 
+/**
+ * GET /franchise-information/search?q=...
+ * Search franchises by name OR franchise number (all versions)
+ * 
+ * Smart Search Logic:
+ * - Pure letters (A-Z, spaces) → Search by operator name (case-insensitive)
+ * - Contains numbers → Search by franchise number (includes all versions)
+ * 
+ * Examples:
+ * - "Juan Dela Cruz" → Searches operatorName
+ * - "F-2024-001" → Searches franchiseNumber (all versions)
+ * - "2024" → Searches franchiseNumber containing "2024"
+ * 
+ * Returns: All matching franchises (current and previous versions)
+ */
+exports.searchFranchiseInformation = async (req, res, next) => {
+  try {
+    const { q } = req.query;
+    
+    if (!q || q.trim().length === 0) {
+      return res.status(400).json({ 
+        error: 'Search query is required',
+        message: 'Provide ?q=searchTerm in the URL' 
+      });
+    }
+    
+    const searchTerm = q.trim();
+    const FranchiseInformation = require('../models/franchiseInformationModel');
+    
+    // Determine search type based on query content
+    const hasNumbers = /\d/.test(searchTerm);
+    const isPureLetters = /^[a-zA-Z\s]+$/.test(searchTerm);
+    
+    let franchises = [];
+    let searchType = '';
+    
+    if (isPureLetters) {
+      // Search by OPERATOR NAME (case-insensitive, partial match)
+      searchType = 'name';
+      franchises = await FranchiseInformation.find({
+        operatorName: { $regex: searchTerm, $options: 'i' }
+      })
+      .populate('linkedUser', 'username email')
+      .populate('previousVersion', 'version changeType')
+      .sort({ operatorName: 1, version: -1 });
+      
+    } else if (hasNumbers) {
+      // Search by FRANCHISE NUMBER (exact or partial match, all versions)
+      searchType = 'franchiseNumber';
+      franchises = await FranchiseInformation.find({
+        franchiseNumber: { $regex: searchTerm, $options: 'i' }
+      })
+      .populate('linkedUser', 'username email')
+      .populate('previousVersion', 'version changeType')
+      .sort({ franchiseNumber: 1, version: -1 });
+      
+    } else {
+      return res.status(400).json({
+        error: 'Invalid search query',
+        message: 'Search must contain letters (for name) or numbers (for franchise number)'
+      });
+    }
+    
+    return res.status(200).json({
+      success: true,
+      searchType: searchType,
+      query: searchTerm,
+      count: franchises.length,
+      data: franchises
+    });
+    
+  } catch (error) {
+    return next(error);
+  }
+};
+
+/**
+ * GET /franchise-information/:id
+ * Get specific franchise by MongoDB _id (any version)
+ * 
+ * Purpose: View detailed franchise information including version history
+ * Returns: Single franchise with populated references
+ */
 exports.getFranchiseInformation = async (req, res, next) => {
   try {
     if (!req.params?.id) {
       return res.status(400).json({ error: 'id param is required' });
     }
-    const franchiseInformation = await franchiseInformationRepository.getFranchiseInformationById(req.params.id);
+    
+    const FranchiseInformation = require('../models/franchiseInformationModel');
+    const franchiseInformation = await FranchiseInformation.findById(req.params.id)
+      .populate('linkedUser', 'username email')
+      .populate('previousVersion', 'version changeType changedAt franchiseStatus');
+    
     if (!franchiseInformation) {
       return res.status(404).json({ error: 'Franchise information not found' });
     }
-    return res.status(200).json(franchiseInformation);
+    
+    return res.status(200).json({ 
+      success: true, 
+      data: franchiseInformation 
+    });
   } catch (error) {
-    if (error?.name === 'CastError' || /invalid input syntax.*uuid/i.test(error?.message || '')) {
+    if (error?.name === 'CastError') {
       return res.status(400).json({ error: 'Invalid id format' });
     }
     return next(error);
   }
 };
 
-exports.updateFranchiseInformation = async (req, res, next) => {
-  try {
-    const franchiseInformation = await franchiseInformationRepository.updateFranchiseInformation(req.params.id, req.body);
-    if (!franchiseInformation) {
-      return res.status(404).json({ error: 'Franchise information not found' });
-    }
-    res.status(200).json(franchiseInformation);
-  } catch (error) {
-    next(error);
-  }
-};
 
-exports.deleteFranchiseInformation = async (req, res, next) => {
-  try {
-    const franchiseInformation = await franchiseInformationRepository.deleteFranchiseInformation(req.params.id);
-    if (!franchiseInformation) {
-      return res.status(404).json({ error: 'Franchise information not found' });
-    }
-    res.status(204).send();
-  } catch (error) {
-    next(error);
-  }
-};
 
-/**
- * Lookup franchise by hashed MTOP (from QR code scan)
- * This is the PUBLIC endpoint that QR codes link to
- */
+
+
+// ========================================
+// QR CODE LOOKUP - DRIVER VERIFICATION
+// ========================================
+
+
 exports.franchiseQRLookupByHash = async (req, res, next) => {
   try {
     const { hashedMTOP } = req.params;
@@ -131,299 +174,59 @@ exports.franchiseQRLookupByHash = async (req, res, next) => {
       return res.status(400).json({ error: 'Invalid QR code' });
     }
     
-    // Find franchise by operatorId (which stores the hashed MTOP)
+    // Fetch all current version franchises
     const FranchiseInformation = require('../models/franchiseInformationModel');
-    const franchiseInformation = await FranchiseInformation.findOne({ 
-      operatorId: hashedMTOP 
+    const allCurrentFranchises = await FranchiseInformation.find({ 
+      isCurrentVersion: true 
     });
     
+    // Find the franchise whose hashed franchise number matches
+    let franchiseInformation = null;
+    for (const franchise of allCurrentFranchises) {
+      const computedHash = generateHashedFranchiseNo(franchise.franchiseNumber);
+      if (computedHash === hashedMTOP) {
+        franchiseInformation = franchise;
+        break;
+      }
+    }
+    
     if (!franchiseInformation) {
-      return res.status(404).json({ error: 'Franchise not found' });
+      return res.status(404).json({ 
+        error: 'Franchise not found',
+        message: 'This QR code is invalid or the franchise has been revoked' 
+      });
     }
     
     // Log QR scan for audit trail
     const ipAddress = getClientIp(req);
-    console.log(`[QR SCAN] HashedMTOP: ${hashedMTOP}, IP: ${ipAddress}, Time: ${new Date().toISOString()}`);
+    console.log(`[QR SCAN] Hashed: ${hashedMTOP}, Franchise#: ${franchiseInformation.franchiseNumber}, Driver: ${franchiseInformation.driverName}, Status: ${franchiseInformation.franchiseStatus}, IP: ${ipAddress}, Time: ${new Date().toISOString()}`);
     
-    // Extract name parts for display
-    const nameParts = franchiseInformation.operatorName.split(' ');
-    const lastName = nameParts.pop() || '';
-    const firstName = nameParts.shift() || '';
-    const middleName = nameParts.join(' ') || '';
+    // Get driver picture URL (with proxy for CORS bypass)
+    let driverPictureUrl = null;
+    if (franchiseInformation.documents?.driverPictureObj) {
+      const API_BASE_URL = process.env.VITE_API_BASE_URL || process.env.API_BASE_URL || '';
+      driverPictureUrl = `${API_BASE_URL.replace(/\/$/, '')}/api/franchise-information/proxy-file?url=${encodeURIComponent(franchiseInformation.documents.driverPictureObj)}`;
+    }
     
-    // Return only public information for QR code display
+    // Return DRIVER-focused public information for QR code verification
     const publicData = {
+      // Driver Information (PRIMARY)
       driversID: franchiseInformation.driversID,
-      firstName: firstName,
-      middleName: middleName,
-      lastName: lastName,
-      suffix: '', // Add if stored separately
-      address: franchiseInformation.address,
-      barangay: franchiseInformation.barangay,
-      profilePhoto: franchiseInformation.profilePhoto || null,
-      franchiseStatus: franchiseInformation.franchiseStatus,
-      expiryDate: franchiseInformation.expiryDate,
-      approvedAt: franchiseInformation.approvedAt
+      driverName: franchiseInformation.driverName,
+      driversAddress: franchiseInformation.driversAddress,
+      driverPicture: driverPictureUrl,
+      driverPictureObj: franchiseInformation.documents?.driverPictureObj || null,
+      
+      todaMembership: franchiseInformation.todaMembership
     };
     
-    return res.status(200).json(publicData);
+    return res.status(200).json({ 
+      success: true, 
+      data: publicData 
+    });
   } catch (error) {
     console.error('[QR SCAN ERROR]', error);
     return next(error);
   }
 };
 
-/**
- * Legacy: Lookup franchise by MongoDB _id (backward compatibility)
- */
-exports.franchiseQRIDLookup = async (req, res, next) => {
-  try {
-    if (!req.params?.franchiseId) {
-      return res.status(400).json({ error: 'franchiseId param is required' });
-    }
-    
-    const franchiseInformation = await franchiseInformationRepository.getFranchiseInformationById(req.params.franchiseId);
-    
-    if (!franchiseInformation) {
-      return res.status(404).json({ error: 'Franchise information not found' });
-    }
-    
-    // Log QR scan for audit trail
-    const ipAddress = getClientIp(req);
-    console.log(`[QR SCAN] Franchise: ${req.params.franchiseId}, IP: ${ipAddress}, Time: ${new Date().toISOString()}`);
-    
-    // Return only public information for QR code display
-    const publicData = {
-      driversID: franchiseInformation.driversID,
-      operatorName: franchiseInformation.operatorName,
-      address: franchiseInformation.address,
-      barangay: franchiseInformation.barangay,
-      profilePhoto: franchiseInformation.profilePhoto || null,
-      franchiseStatus: franchiseInformation.franchiseStatus
-    };
-    
-    return res.status(200).json(publicData);
-  } catch (error) {
-    if (error?.name === 'CastError' || /invalid input syntax.*uuid/i.test(error?.message || '')) {
-      return res.status(400).json({ error: 'Invalid franchiseId format' });
-    }
-    return next(error);
-  }
-};
-
-exports.regenerateQRCode = async (req, res, next) => {
-  try {
-    const { franchiseId } = req.params;
-    
-    if (!franchiseId) {
-      return res.status(400).json({ error: 'franchiseId param is required' });
-    }
-    
-    const franchiseInformation = await franchiseInformationRepository.getFranchiseInformationById(franchiseId);
-    
-    if (!franchiseInformation) {
-      return res.status(404).json({ error: 'Franchise information not found' });
-    }
-    
-    // Delete old QR code if it exists
-    if (franchiseInformation.qrCode) {
-      await deleteQRCode(franchiseInformation.qrCode);
-    }
-    
-    // Generate new QR code
-    const qrCodeData = await generateOperatorQRCode(franchiseId, { saveToFile: true });
-    
-    // Update franchise with new QR code path
-    franchiseInformation.qrCode = qrCodeData.filePath;
-    await franchiseInformation.save();
-    
-    console.log(`[QR REGENERATED] Franchise: ${franchiseId}, File: ${qrCodeData.filePath}`);
-    
-    return res.status(200).json({
-      success: true,
-      message: 'QR code regenerated successfully',
-      data: {
-        qrCode: qrCodeData.filePath,
-        dataURL: qrCodeData.dataURL,
-        verificationUrl: qrCodeData.verificationUrl
-      }
-    });
-  } catch (error) {
-    console.error('QR code regeneration error:', error);
-    return next(error);
-  }
-};
-
-/**
- * Proxy endpoint to fetch files from Cloudflare R2 and serve them through backend
- * This bypasses CORS restrictions and allows frontend to preview/download files
- * Uses presigned URLs for secure access without enabling public bucket access
- */
-exports.proxyCloudflareFile = async (req, res, next) => {
-    try {
-        const { url } = req.query;
-
-        console.log('[PROXY-FI] Received request for URL:', url);
-
-        if (!url) {
-            console.error('[PROXY-FI] No URL parameter provided');
-            return res.status(400).json({ error: 'URL parameter is required' });
-        }
-
-        let key;
-        
-        // Handle new format: r2://path/to/file
-        if (url.startsWith('r2://')) {
-            key = url.substring(5); // Remove 'r2://' prefix
-            console.log('[PROXY-FI] New R2 format detected, key:', key);
-        }
-        // Handle old format: https://pub-xxx.r2.dev/path/to/file (for backward compatibility)
-        else if (url.includes('.r2.dev')) {
-            const r2Domain = process.env.CLOUDFLARE_R2_PUBLIC_URL;
-            console.log('[PROXY-FI] Old R2 public URL format detected');
-            
-            if (!url.startsWith(r2Domain)) {
-                console.error('[PROXY-FI] Invalid file URL - does not match R2 domain');
-                return res.status(403).json({ error: 'Invalid file URL' });
-            }
-            
-            const urlObj = new URL(url);
-            key = urlObj.pathname.substring(1); // Remove leading slash
-        }
-        // Handle direct key path
-        else {
-            key = url;
-            console.log('[PROXY-FI] Direct key path provided:', key);
-        }
-
-        console.log('[PROXY-FI] Extracted key:', key);
-        console.log('[PROXY-FI] Fetching file directly from R2 using API credentials...');
-
-        // Fetch the file directly from R2 using API credentials
-        const { buffer, contentType } = await getFileFromR2(key);
-
-        console.log('[PROXY-FI] File retrieved successfully:', contentType, buffer.length, 'bytes');
-        
-        // Set permissive CORS headers for public access
-        res.setHeader('Access-Control-Allow-Origin', '*');
-        res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-        res.setHeader('Access-Control-Allow-Headers', 'Origin, Content-Type, Accept');
-        res.setHeader('Content-Type', contentType);
-        res.setHeader('Cache-Control', 'public, max-age=3600');
-        res.setHeader('X-Content-Type-Options', 'nosniff');
-
-        // Extract filename from URL
-        const filename = key.split('/').pop();
-        res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
-
-        // Send the file buffer
-        res.send(buffer);
-
-        console.log('[PROXY-FI] ✅ File served successfully:', filename, contentType, buffer.length, 'bytes');
-    } catch (error) {
-        console.error('[PROXY-FI] ❌ Error proxying file:', error.message);
-        console.error('[PROXY-FI] Error stack:', error.stack);
-        res.status(500).json({ 
-            error: 'Failed to proxy file',
-            message: error.message
-        });
-    }
-};
-
-/**
- * GET /franchise-information/mtop/:mtopNumber
- * Returns franchise info by unhashed MTOP number
- * Includes: name, address, 1x1 R2 picture, unhashed mtopNumber, franchise status
- * If not linked to operator, returns Franchise not linked
- */
-exports.getFranchiseByMtopNumber = async (req, res, next) => {
-  try {
-    const { mtopNumber } = req.params;
-    if (!mtopNumber) {
-      return res.status(400).json({ error: 'MTOP number is required' });
-    }
-    const FranchiseInformation = require('../models/franchiseInformationModel');
-    const franchise = await FranchiseInformation.findOne({ mtopNumber });
-    if (!franchise) {
-      return res.status(404).json({ error: 'Franchise not found', status: 'Franchise not linked', linked: false, message: 'Franchise not linked' });
-    }
-    // Compose name
-    const name = franchise.operatorName || '';
-    // Compose 1x1 R2 picture URL
-    let pictureUrl = franchise.profilePhoto || null;
-    if (pictureUrl && pictureUrl.startsWith('r2://')) {
-      const API_BASE_URL = process.env.VITE_API_BASE_URL || process.env.API_BASE_URL || '';
-      pictureUrl = API_BASE_URL.replace(/\/$/, '') + '/api/franchise-applications/proxy-file?url=' + encodeURIComponent(pictureUrl);
-    }
-    // Franchise status color
-    let statusColor = 'blue';
-    if (franchise.franchiseStatus === 'active') statusColor = 'blue';
-    if (franchise.franchiseStatus === 'expired') statusColor = 'red';
-    // Determine linked status
-    const isLinked = franchise.linkedUser !== null && typeof franchise.linkedUser !== 'undefined';
-    // Compose response
-    return res.status(200).json({
-      name,
-      address: franchise.address,
-      mtopNumber: franchise.mtopNumber,
-      profilePhoto: pictureUrl,
-      franchiseStatus: franchise.franchiseStatus,
-      statusColor,
-      linked: isLinked,
-      message: isLinked ? undefined : 'Franchise not linked'
-    });
-  } catch (error) {
-    return next(error);
-  }
-};
-
-/**
- * GET /franchise-information/mtop-hash/:hashedMTOP
- * Returns franchise info by hashed MTOP (operatorId)
- * Same response as unhashed endpoint, but uses operatorId for lookup
- */
-exports.getFranchiseByHashedMtop = async (req, res, next) => {
-  try {
-    const { hashedMTOP } = req.params;
-    if (!hashedMTOP) {
-      return res.status(400).json({ error: 'Hashed MTOP is required' });
-    }
-    const FranchiseInformation = require('../models/franchiseInformationModel');
-    const franchise = await FranchiseInformation.findOne({ operatorId: hashedMTOP });
-    if (!franchise) {
-      return res.status(404).json({ error: 'Franchise not found', status: 'Franchise not linked', linked: false, message: 'Franchise not linked' });
-    }
-    // Compose name
-    const name = franchise.operatorName || '';
-    // Compose 1x1 R2 picture URL (prefer documents.picture if available)
-    let pictureUrl = null;
-    if (franchise.documents && franchise.documents.picture) {
-      pictureUrl = franchise.documents.picture;
-    } else if (franchise.profilePhoto) {
-      pictureUrl = franchise.profilePhoto;
-    }
-    if (pictureUrl && pictureUrl.startsWith('r2://')) {
-      const API_BASE_URL = process.env.VITE_API_BASE_URL || process.env.API_BASE_URL || '';
-      pictureUrl = API_BASE_URL.replace(/\/$/, '') + '/api/franchise-applications/proxy-file?url=' + encodeURIComponent(pictureUrl);
-    }
-    // Franchise status color
-    let statusColor = 'blue';
-    if (franchise.franchiseStatus === 'active') statusColor = 'blue';
-    if (franchise.franchiseStatus === 'expired') statusColor = 'red';
-    // Determine linked status
-    const isLinked = franchise.linkedUser !== null && typeof franchise.linkedUser !== 'undefined';
-    // Compose response
-    return res.status(200).json({
-      name,
-      address: franchise.address,
-      mtopNumber: franchise.mtopNumber,
-      profilePhoto: pictureUrl,
-      franchiseStatus: franchise.franchiseStatus,
-      statusColor,
-      linked: isLinked,
-      message: isLinked ? undefined : 'Franchise not linked'
-    });
-  } catch (error) {
-    return next(error);
-  }
-};
