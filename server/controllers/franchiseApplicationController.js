@@ -12,6 +12,15 @@ exports.createNewApplication = async (req, res, next) => {
     const { body, files, user } = req;
     const userId = user?._id || user?.userId || String(user?.id);
     
+    console.log('[createNewApplication] Request body:', {
+      operatorName: body.operatorName,
+      operatorContactNumber: body.operatorContactNumber,
+      operatorAddress: body.operatorAddress,
+      operatorBarangay: body.operatorBarangay,
+      mvPlateNo: body.mvPlateNo,
+      filesCount: files ? Object.keys(files).length : 0
+    });
+    
     // Build application data from request body
     const applicationData = {
       operatorName: body.operatorName,
@@ -20,19 +29,19 @@ exports.createNewApplication = async (req, res, next) => {
       operatorBarangay: body.operatorBarangay,
       operatorCivilStatus: body.operatorCivilStatus,
       operatorBirthPlace: body.operatorBirthPlace,
-      operatorBirthDate: new Date(body.operatorBirthDate),
+      operatorBirthDate: body.operatorBirthDate ? new Date(body.operatorBirthDate) : null,
       operatorCitizenship: body.operatorCitizenship,
-      operatorEmail: body.operatorEmail,
-      coOwnerName: body.coOwnerName,
-      coOwnerAddress: body.coOwnerAddress,
+      operatorEmail: body.operatorEmail || '',
+      coOwnerName: body.coOwnerName || '',
+      coOwnerAddress: body.coOwnerAddress || '',
       driversID: body.driversID,
       driverName: body.driverName,
       driversAddress: body.driversAddress,
-      todaMembership: body.todaMembership,
+      todaMembership: body.todaMembership || '',
       unitModel: body.unitModel,
       colorMotor: body.colorMotor,
       sideCarColor: body.sideCarColor,
-      sideCarPlateNumber: body.sideCarPlateNumber,
+      sideCarPlateNumber: body.sideCarPlateNumber || '',
       mvPlateNo: body.mvPlateNo,
       motorEngineNo: body.motorEngineNo,
       chasisNo: body.chasisNo,
@@ -41,7 +50,9 @@ exports.createNewApplication = async (req, res, next) => {
       operatorInfo: user?._id || null
     };
     
+    console.log('[createNewApplication] Creating application with data:', applicationData);
     const application = await franchiseApplicationRepository.createFranchiseApplication(applicationData);
+    console.log('[createNewApplication] Application created:', application._id);
     const appId = String(application._id);
     
     // Upload documents if provided
@@ -89,6 +100,16 @@ exports.createNewApplication = async (req, res, next) => {
     
     res.status(201).json({ success: true, data: await franchiseApplicationRepository.getFranchiseApplicationById(appId) });
   } catch (error) {
+    console.error('[createNewApplication] Error:', error.message);
+    console.error('[createNewApplication] Stack:', error.stack);
+    if (error.code === 11000) {
+      // Duplicate key error
+      const field = Object.keys(error.keyPattern || {})[0];
+      return res.status(400).json({ 
+        success: false, 
+        error: `Duplicate ${field}: A franchise application with this ${field} already exists.` 
+      });
+    }
     next(error);
   }
 };

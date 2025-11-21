@@ -847,67 +847,69 @@ export default function FranchiseApplication() {
 
                       const formDataToSend = new FormData();
 
-                      // Personal Information - Backend expects these exact field names
+                      // Personal Information - EXACT field names backend expects
                       formDataToSend.append('operatorName', fields.operatorName || '');
-                      formDataToSend.append('operatorContactNumber', fields.contact || ''); // Changed from operatorContact
-                      formDataToSend.append('address', fields.driverAddress || ''); // Changed from operatorAddress
-                      formDataToSend.append('barangay', fields.barangay || ''); // Moved up
-                      formDataToSend.append('actionType', 'NEW'); // Backend expects uppercase
+                      formDataToSend.append('operatorContactNumber', fields.contact || '');
+                      formDataToSend.append('operatorAddress', fields.driverAddress || ''); // FIXED: was 'address'
+                      formDataToSend.append('operatorBarangay', fields.barangay || ''); // FIXED: was 'barangay'
+                      formDataToSend.append('operatorBirthPlace', fields.birthPlace || ''); // FIXED: was 'birthPlace'
+                      formDataToSend.append('operatorBirthDate', fields.birthDate ? (fields.birthDate.format ? fields.birthDate.format('YYYY-MM-DD') : fields.birthDate) : ''); // FIXED: was 'birthDate'
+                      formDataToSend.append('operatorCivilStatus', fields.civilStatus || ''); // FIXED: was 'civilStatus'
+                      formDataToSend.append('operatorCitizenship', fields.citizenship || ''); // FIXED: was 'citizenship'
+                      formDataToSend.append('operatorEmail', ''); // Backend requires this field (empty is OK)
                       
                       // Driver/Operator Details
                       formDataToSend.append('driversID', fields.driverName || '');
-                      formDataToSend.append('driverName', fields.driverName || ''); // Added
+                      formDataToSend.append('driverName', fields.driverName || '');
                       formDataToSend.append('driversAddress', fields.driverAddress || '');
-                      formDataToSend.append('birthPlace', fields.birthPlace || '');
-                      formDataToSend.append('birthDate', fields.birthDate ? (fields.birthDate.format ? fields.birthDate.format('YYYY-MM-DD') : fields.birthDate) : '');
-                      formDataToSend.append('civilStatus', fields.civilStatus || '');
-                      formDataToSend.append('citizenship', fields.citizenship || '');
                       formDataToSend.append('todaMembership', fields.todaMembership || '');
                       
                       // Vehicle Information
                       formDataToSend.append('unitModel', fields.unitModel || '');
                       formDataToSend.append('colorMotor', fields.colorMotor || '');
-                      formDataToSend.append('sideCarColor', fields.colorSidecar || ''); // Changed from sidecarColor
+                      formDataToSend.append('sideCarColor', fields.colorSidecar || '');
+                      formDataToSend.append('sideCarPlateNumber', fields.mvPlateNo || ''); // FIXED: Added this field
                       formDataToSend.append('mvPlateNo', fields.mvPlateNo || ''); 
                       formDataToSend.append('motorEngineNo', fields.motorEngineNumber || ''); 
                       formDataToSend.append('chasisNo', fields.chassisNumber || '');
                       
                       // Co-Owners Information
-                      formDataToSend.append('hasCoOwner', fields.hasCoOwner || 'No');
                       if (fields.hasCoOwner === 'Yes' && coOwners.length > 0) {
-                        formDataToSend.append('coOwnerCount', coOwners.length.toString());
-                        coOwners.forEach((owner, index) => {
-                          formDataToSend.append(`coOwner_${index}_name`, owner.name || '');
-                          formDataToSend.append(`coOwner_${index}_address`, owner.address || '');
-                          formDataToSend.append(`coOwner_${index}_relationship`, owner.relationship || '');
-                        });
+                        formDataToSend.append('coOwnerName', coOwners[0].name || '');
+                        formDataToSend.append('coOwnerAddress', coOwners[0].address || '');
+                        // Store additional co-owners in metadata if needed
+                        if (coOwners.length > 1) {
+                          formDataToSend.append('additionalCoOwners', JSON.stringify(coOwners.slice(1)));
+                        }
+                      } else {
+                        formDataToSend.append('coOwnerName', '');
+                        formDataToSend.append('coOwnerAddress', '');
                       }
                       
-                      // Motorcycle Picture
-                      if (fields.motorcyclePicture) {
-                        formDataToSend.append('motorcyclePicture', fields.motorcyclePicture);
-                      }
-                      
+                      // Documents - EXACT field names backend expects (with 'Obj' suffix)
                       if (uploads.registration) {
-                        formDataToSend.append('documentRegistration', uploads.registration);
+                        formDataToSend.append('motorRegistrationObj', uploads.registration);
                       }
                       if (uploads.barangay) {
-                        formDataToSend.append('documentBarangayClearance', uploads.barangay);
+                        formDataToSend.append('barangayClearanceObj', uploads.barangay);
                       }
                       if (uploads.cedula) {
-                        formDataToSend.append('documentCedula', uploads.cedula);
+                        formDataToSend.append('cedulaObj', uploads.cedula);
                       }
                       if (uploads.license) {
-                        formDataToSend.append('documentDriversLicense', uploads.license);
+                        formDataToSend.append('driversLicenseObj', uploads.license);
                       }
                       if (uploads.stencil) {
-                        formDataToSend.append('documentChassisStencil', uploads.stencil);
+                        formDataToSend.append('motorChassisStencilObj', uploads.stencil);
                       }
                       if (uploads.affidavit) {
-                        formDataToSend.append('documentVotersAffidavit', uploads.affidavit);
+                        formDataToSend.append('votersAffidavitObj', uploads.affidavit);
                       }
                       if (uploads.picture) {
-                        formDataToSend.append('documentPicture', uploads.picture);
+                        formDataToSend.append('driverPictureObj', uploads.picture);
+                      }
+                      if (fields.motorcyclePicture) {
+                        formDataToSend.append('operatorPictureObj', fields.motorcyclePicture);
                       }
                       // Debug: Log all FormData keys and values before submission
                       console.log('[FranchiseApplication] FormData to send:');

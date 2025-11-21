@@ -94,7 +94,7 @@ const uploadOperatorDocuments = multer({
     fileSize: 10 * 1024 * 1024, // 10MB per file (will be compressed to 300KB)
   }
 }).fields([
-  // Field names matching the dashboard form inputs
+  // Legacy field names (for backward compatibility)
   { name: 'documentRegistration', maxCount: 1 },
   { name: 'documentBarangayClearance', maxCount: 1 },
   { name: 'documentCedula', maxCount: 1 },
@@ -102,7 +102,18 @@ const uploadOperatorDocuments = multer({
   { name: 'documentVotersAffidavit', maxCount: 1 },
   { name: 'documentPicture', maxCount: 1 },
   { name: 'documentChassisStencil', maxCount: 1 },
-  { name: 'profilePhoto', maxCount: 1 }
+  { name: 'profilePhoto', maxCount: 1 },
+  // New field names (matching controller expectations with 'Obj' suffix)
+  { name: 'motorRegistrationObj', maxCount: 1 },
+  { name: 'barangayClearanceObj', maxCount: 1 },
+  { name: 'cedulaObj', maxCount: 1 },
+  { name: 'driversLicenseObj', maxCount: 1 },
+  { name: 'votersAffidavitObj', maxCount: 1 },
+  { name: 'driverPictureObj', maxCount: 1 },
+  { name: 'motorChassisStencilObj', maxCount: 1 },
+  { name: 'operatorPictureObj', maxCount: 1 },
+  { name: 'oRLTOObj', maxCount: 1 },
+  { name: 'cRLTOObj', maxCount: 1 }
 ]);
 
 // Combined upload for operator creation (profile + documents)
