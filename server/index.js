@@ -13,7 +13,8 @@ const { sanitizeRequest } = require('./middlewares/validateRequest');
 const { enforceHttps } = require('./middlewares/securityHeaders');
 const { auditLogService } = require('./services/auditLogService');
   
-//routes
+// Lazy-load routes (improves startup time)
+console.log('[SERVER] Loading routes...');
 const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userAccountRoutes');
 const adminRoutes = require('./routes/adminAccountRoutes');
@@ -27,6 +28,7 @@ const sessionRoutes = require('./routes/sessionRoutes');
 const dashboardRoutes = require('./routes/dashboardRoutes');
 const auditLogRoutes = require('./routes/auditLogRoutes');
 const fareMatrixRoutes = require('./routes/fareMatrixRoutes');
+console.log('[SERVER] ✅ Routes loaded');
 
 dotenv.config();
 const app = express();
@@ -219,23 +221,38 @@ app.use(errorHandler);
 
 // Connect to MongoDB and start server
 const PORT = process.env.PORT || 5170;
+
+console.log('[SERVER] Starting server initialization...');
+const startTime = Date.now();
+
 mongoose.connect(process.env.MONGO_URI, {
-  serverSelectionTimeoutMS: 5000,
-  maxPoolSize: 10
+  serverSelectionTimeoutMS: 10000, // Increase timeout to 10 seconds
+  maxPoolSize: 10,
+  socketTimeoutMS: 45000, // Close sockets after 45 seconds of inactivity
+  family: 4 // Use IPv4, skip trying IPv6
 })
   .then(() => {
-    console.log('MongoDB connected successfully');
+    const dbConnectTime = Date.now() - startTime;
+    console.log(`[SERVER] ✅ MongoDB connected (${dbConnectTime}ms)`);
     
-    // Initialize franchise expiry scheduler
-    const { initializeFranchiseExpiryScheduler } = require('./services/franchiseExpiryScheduler');
-    initializeFranchiseExpiryScheduler();
-    
+    // Start server immediately, initialize scheduler in background
     server.listen(PORT, () => {
-      console.log(`Server running on port ${PORT}`);
-      console.log(`Socket.IO enabled on port ${PORT}`);
+      const totalBootTime = Date.now() - startTime;
+      console.log(`[SERVER] ✅ Server running on port ${PORT} (${totalBootTime}ms)`);
+      console.log(`[SERVER] ✅ Socket.IO enabled`);
+      
+      // Initialize scheduler AFTER server starts (non-blocking)
+      setImmediate(() => {
+        try {
+          const { initializeFranchiseExpiryScheduler } = require('./services/franchiseExpiryScheduler');
+          initializeFranchiseExpiryScheduler();
+        } catch (err) {
+          console.error('[SERVER] ⚠️  Scheduler initialization failed:', err.message);
+        }
+      });
     });
   })
   .catch((err) => {
-    console.error('MongoDB connection error:', err);
+    console.error('[SERVER] ❌ MongoDB connection error:', err.message);
     process.exit(1);
   });

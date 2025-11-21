@@ -1,5 +1,5 @@
 // OTP/2FA and Forgot Password
-const { generateOTP, setOTP, verifyOTP } = require('../middlewares/otpMiddleware');
+const { generateOTP, setOTP, verifyOTP, checkRateLimit, DEFAULT_EXPIRES_MS } = require('../middlewares/otpMiddleware');
 const { sendOTPEmail } = require('../services/emailService');
 const { auditLogService } = require('../services/auditLogService');
 const { getClientIp } = require('../utils/ipHelper');
@@ -14,28 +14,30 @@ const fetch = require('node-fetch');
 async function handleOtpRequest(email, res, next, message) {
   try {
     if (!email) return res.status(400).json({ error: 'Email is required' });
+    
+    // Check rate limiting FIRST (max 10 requests per 5 minutes, 1 minute cooldown between requests)
+    const rateLimitCheck = checkRateLimit(email);
+    if (!rateLimitCheck.allowed) {
+      return res.status(429).json({ 
+        error: rateLimitCheck.message,
+        retryAfter: rateLimitCheck.retryAfter
+      });
+    }
+    
     // Always respond with success to prevent email enumeration
     let user;
     try {
       user = await userAccountRepository.findAccountByEmail(email);
     } catch (e) {}
 
-    // OTP resend cooldown logic
-    const otpStore = require('../middlewares/otpMiddleware').otpStore;
-    const entry = otpStore?.get?.(email);
-    const now = Date.now();
-    if (entry && entry.lastRequestedAt && now - entry.lastRequestedAt < 60 * 1000) {
-      // Less than 1 minute since last request
-      return res.status(429).json({ error: 'Please wait before requesting another OTP.' });
-    }
-
     // For pre-signup flows we want to be able to send an OTP even when the
     // account doesn't exist yet. Generate and store an OTP regardless. The
     // response stays generic to avoid leaking whether the account exists.
     try {
       const otp = generateOTP();
-      setOTP(email, otp, now); // Pass now for lastRequestedAt
+      setOTP(email, otp); // OTP will expire in 5 minutes (DEFAULT_EXPIRES_MS)
       await sendOTPEmail(email, otp);
+      console.log(`[OTP] Generated and sent OTP for ${email} - Valid for 5 minutes`);
     } catch (e) {
       // Log the error for server operators (do not expose to client)
       console.error('Failed to generate/send OTP for', email, e && e.message ? e.message : e);
