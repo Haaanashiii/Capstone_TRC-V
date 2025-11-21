@@ -24,6 +24,7 @@
   height: 100vh;
   width: 100vw;
   background: #fff;
+  overflow: hidden;
 }
 .login-left {
   flex: 1;
@@ -32,36 +33,39 @@
   justify-content: center;
   align-items: center;
   background: #fff;
-  padding: 0 48px;
+  padding: clamp(20px, 5vw, 48px);
   width: 100%;
   box-sizing: border-box;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 .login-header {
   display: flex;
   align-items: center;
-  gap: 16px;
-  margin-bottom: 16px;
+  gap: clamp(12px, 2vw, 16px);
+  margin-bottom: clamp(12px, 2vw, 16px);
   width: 100%;
-  max-width: 400px;
+  max-width: clamp(300px, 90vw, 400px);
 }
 .login-logo {
-  width: 64px;
-  height: 64px;
+  width: clamp(48px, 8vw, 64px);
+  height: clamp(48px, 8vw, 64px);
 }
 .login-qr {
-  width: 48px;
-  height: 48px;
+  width: clamp(36px, 6vw, 48px);
+  height: clamp(36px, 6vw, 48px);
 }
 .login-title {
   font-weight: 700;
-  margin-bottom: 28px;
+  margin-bottom: clamp(20px, 3vw, 28px);
   text-align: left;
   width: 100%;
-  max-width: 400px;
+  max-width: clamp(300px, 90vw, 400px);
+  font-size: clamp(1.2rem, 3vw, 1.5rem);
 }
 .login-form {
   width: 100%;
-  max-width: 400px;
+  max-width: clamp(300px, 90vw, 400px);
 }
 .login-label {
   color: #333;
@@ -84,15 +88,17 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 8px;
+  margin-bottom: clamp(6px, 1vw, 8px);
   width: 100%;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 .login-remember {
   margin-left: -9px;
-  font-size: 0.9rem;
+  font-size: clamp(0.8rem, 1.5vw, 0.9rem);
 }
 .login-forgot {
-  font-size: 0.9rem;
+  font-size: clamp(0.8rem, 1.5vw, 0.9rem);
 }
 .login-forgot a {
   color: #0a3570;
@@ -103,11 +109,11 @@
   background: #0a3570 !important;
   color: #fff !important;
   font-weight: 600;
-  margin: 20px 0 20px 0;
+  margin: clamp(16px, 2.5vw, 20px) 0;
   border-radius: 4px;
-  height: 48px;
+  height: clamp(44px, 7vw, 48px);
   box-shadow: none;
-  font-size: 1rem;
+  font-size: clamp(0.9rem, 1.8vw, 1rem);
   text-transform: none;
   transition: background 0.2s;
 }
@@ -116,11 +122,11 @@
 }
 .login-create-account {
   text-align: center;
-  margin-top: 20px;
+  margin-top: clamp(16px, 2.5vw, 20px);
 }
 .login-no-account {
   color: #555;
-  font-size: 0.9rem;
+  font-size: clamp(0.8rem, 1.5vw, 0.9rem);
 }
 .login-create-link {
   color: #0a3570;
@@ -131,10 +137,10 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 12px;
-  margin: 16px auto;
+  gap: clamp(8px, 1.5vw, 12px);
+  margin: clamp(12px, 2vw, 16px) auto;
   width: 100%;
-  max-width: 400px;
+  max-width: clamp(300px, 90vw, 400px);
 }
 .login-divider-line {
   flex: 1;
@@ -348,28 +354,18 @@ ogin-right-title {
     max-width: 100%;
     object-fit: cover;
   }
-  .login-title {
-    font-size: 1.5rem;
-    margin-bottom: 12px;
+}
+
+/* Mobile Responsiveness - Hide right panel on small screens */
+@media (max-width: 768px) {
+  .login-root {
+    flex-direction: column;
   }
-  .login-header {
-    gap: 10px;
-    margin-bottom: 8px;
+  .login-right {
+    display: none;
   }
-  .login-logo {
-    width: 48px;
-    height: 48px;
-  }
-  .login-qr {
-    width: 36px;
-    height: 36px;
-  }
-  .login-input {
-    margin-bottom: 10px;
-  }
-  .login-signin-btn,
-  .login-google-btn {
-    height: 44px;
-    font-size: 0.9rem;
+  .login-left {
+    width: 100%;
+    padding: clamp(16px, 4vw, 32px);
   }
 }

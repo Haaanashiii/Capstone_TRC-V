@@ -3,176 +3,153 @@
   background: #083d77;
   display: flex;
   justify-content: center;
-  /* push content lower so the white application card doesn't hug the top */
   align-items: flex-start;
-  padding: 80px 0 40px 0; /* top, right, bottom, left */
+  padding: clamp(40px, 10vh, 80px) clamp(8px, 2vw, 20px) clamp(20px, 5vh, 40px);
+  box-sizing: border-box;
 }
 
 .franchise-app-paper {
-  width: 1050px;
-  border-radius: 16px;
-  padding: 40px 48px 32px 48px;
+  width: clamp(320px, 95vw, 1050px);
+  border-radius: clamp(12px, 2vw, 16px);
+  padding: clamp(20px, 4vw, 48px);
   background: #fff;
   box-shadow: 0 4px 32px rgba(0,0,0,0.10);
   position: relative;
-  margin: 90px auto 10 auto; 
+  margin: clamp(20px, 10vh, 90px) auto clamp(10px, 2vh, 20px);
+  box-sizing: border-box;
 }
 
 .franchise-app-title {
-  font-size: 2.5rem;
+  font-size: clamp(1.5rem, 4vw, 2.5rem);
   font-weight: 900;
-  margin-bottom: 32px;
+  margin-bottom: clamp(18px, 3vw, 32px);
   color: #222;
+  word-wrap: break-word;
 }
 
 .franchise-app-date-row {
   display: flex;
-  gap: 24px;
+  gap: clamp(12px, 3vw, 24px);
   align-items: center;
-  margin-bottom: 16px;
+  margin-bottom: clamp(12px, 2vw, 16px);
+  flex-wrap: wrap;
 }
 
 .franchise-app-field {
-  margin-bottom: 18px;
+  margin-bottom: clamp(12px, 2.5vw, 18px);
 }
 
 .franchise-app-section {
   font-weight: 700;
-  font-size: 1.2rem;
-  margin: 32px 0 12px 0;
+  font-size: clamp(1rem, 2vw, 1.2rem);
+  margin: clamp(20px, 4vw, 32px) 0 clamp(8px, 1.5vw, 12px) 0;
   color: #222;
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
+  gap: clamp(8px, 2vw, 16px);
 }
 
 .franchise-app-section-line {
   flex: 1;
   height: 2px;
   background: #222;
-  margin-left: 16px;
+  min-width: 50px;
 }
 
-.franchise-app-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 48px;
-  margin-bottom: 18px;
-}
-
-.franchise-app-grid-4 {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 48px;
-  margin-bottom: 18px;
-}
-
+.franchise-app-grid,
+.franchise-app-grid-4,
 .franchise-app-grid-2 {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 48px;
-  margin-bottom: 18px;
+  grid-template-columns: repeat(auto-fit, minmax(clamp(250px, 40vw, 400px), 1fr));
+  gap: clamp(16px, 4vw, 48px);
+  margin-bottom: clamp(12px, 2.5vw, 18px);
 }
 
 .franchise-app-input {
   width: 100%;
-  margin-bottom: 16px;
+  margin-bottom: clamp(12px, 2vw, 16px);
+  box-sizing: border-box;
 }
 
 .franchise-app-logo {
   position: absolute;
-  top: 32px;
-  right: 48px;
+  top: clamp(20px, 3vw, 32px);
+  right: clamp(20px, 4vw, 48px);
   display: flex;
-  gap: 16px;
+  gap: clamp(12px, 2vw, 16px);
+  flex-wrap: wrap;
 }
 
 .franchise-app-logo img {
-  height: 64px;
+  height: clamp(40px, 7vw, 64px);
   width: auto;
-}
-
-.franchise-app-input {
-  width: 100%;
+  max-width: 100%;
 }
 
 /* Responsive adjustments */
 @media (max-width: 1279px) {
   .franchise-app-paper {
     width: 92%;
-    padding: 32px 28px;
+    padding: clamp(28px, 5vw, 32px);
   }
   .franchise-app-title {
-    font-size: 2.1rem;
-  }
-  .franchise-app-logo {
-    top: 20px;
-    right: 20px;
-  }
-  .franchise-app-logo img {
-    height: 56px;
+    font-size: clamp(1.8rem, 4vw, 2.1rem);
   }
 }
 
 @media (max-width: 1024px) {
   .franchise-app-paper {
     width: 96%;
-    padding: 28px 20px;
-    margin: 40px auto 10px auto;
+    padding: clamp(20px, 4vw, 28px);
+    margin: clamp(30px, 6vh, 40px) auto clamp(10px, 2vh, 20px);
   }
   .franchise-app-date-row {
     flex-direction: column;
-    gap: 12px;
+    gap: clamp(10px, 2vw, 12px);
     align-items: stretch;
   }
   .franchise-app-grid,
   .franchise-app-grid-2,
   .franchise-app-grid-4 {
     grid-template-columns: 1fr;
-    gap: 12px;
-  }
-  .franchise-app-section {
-    font-size: 1.05rem;
-  }
-  .franchise-app-logo img {
-    height: 48px;
+    gap: clamp(12px, 3vw, 16px);
   }
 }
 
 /* Mobile: make everything stack and avoid horizontal overflow */
-@media (max-width: 767px) {
+@media (max-width: 768px) {
   .franchise-app-bg {
-    padding: 24px 8px 40px 8px;
+    padding: clamp(60px, 8vh, 80px) clamp(8px, 2vw, 16px) clamp(20px, 4vh, 40px);
     align-items: flex-start;
   }
   .franchise-app-paper {
     width: 100%;
-    padding: 20px 16px;
-    border-radius: 12px;
+    padding: clamp(16px, 4vw, 20px);
+    border-radius: clamp(8px, 2vw, 12px);
     box-shadow: 0 6px 18px rgba(0,0,0,0.08);
-    margin: 20px auto;
+    margin: clamp(10px, 3vh, 20px) auto;
   }
   .franchise-app-title {
-    font-size: 1.6rem;
-    margin-bottom: 18px;
+    font-size: clamp(1.25rem, 5vw, 1.6rem);
+    margin-bottom: clamp(12px, 3vw, 18px);
+    text-align: center;
   }
   .franchise-app-date-row {
     flex-direction: column;
-    gap: 10px;
+    gap: clamp(8px, 2vw, 10px);
   }
   .franchise-app-logo {
-    position: relative;
-    top: 0;
-    right: 0;
-    justify-content: flex-start;
-    margin-bottom: 8px;
+    position: static;
+    justify-content: center;
+    margin-bottom: clamp(12px, 3vw, 16px);
   }
   .franchise-app-logo img {
-    height: 40px;
+    height: clamp(32px, 6vw, 40px);
   }
   .franchise-app-section {
-    font-size: 1rem;
-    gap: 8px;
-    align-items: flex-start;
+    font-size: clamp(0.875rem, 2vw, 1rem);
+    gap: clamp(6px, 1.5vw, 8px);
   }
   .franchise-app-section-line {
     display: none;

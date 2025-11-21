@@ -67,6 +67,23 @@ router.get(
 );
 
 /**
+ * GET /franchise-information/available-numbers
+ * Get available franchise numbers for new applications
+ * PROTECTED - Admin only
+ * 
+ * Returns:
+ * - Available numbers (revoked + expired 3+ years)
+ * - Next suggested number
+ * - Statistics
+ */
+router.get(
+  '/available-numbers',
+  authenticate,
+  authorize(['sb-admin', 'bplo-admin', 'super-admin']),
+  franchiseInformationController.getAvailableFranchiseNumbers
+);
+
+/**
  * GET /franchise-information/:id
  * Get specific franchise by ID (any version)
  * PROTECTED - Admin only

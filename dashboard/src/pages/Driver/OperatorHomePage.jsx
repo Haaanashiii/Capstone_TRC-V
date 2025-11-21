@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import UnifiedSidebar from "../../components/UnifiedSidebar";
+import UnifiedNavbar from "../../components/UnifiedNavbar";
 import { useAuth } from "../../contexts/AuthContext";
 import "../../Styles/Operator's_CSS/OperatorHomePage.css";
 import { Link2, PlusCircle } from 'lucide-react';
@@ -326,7 +326,7 @@ const OperatorHomePage = () => {
 
   return (
     <div className="franchise-bg">
-      <UnifiedSidebar 
+      <UnifiedNavbar 
         userType="operator"
         language={language}
         onLanguageToggle={() => setLanguage(language === 'en' ? 'tl' : 'en')}

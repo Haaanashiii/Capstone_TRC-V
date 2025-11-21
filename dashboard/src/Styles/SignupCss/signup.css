@@ -49,7 +49,7 @@
   justify-content: flex-start;
   align-items: center;
   background: #fff;
-  padding: 40px 48px;
+  padding: clamp(20px, 4vw, 40px) clamp(20px, 5vw, 48px);
   width: 100%;
   box-sizing: border-box;
   overflow-y: auto;
@@ -58,30 +58,31 @@
 .signup-header {
   display: flex;
   align-items: center;
-  gap: 16px;
-  margin-bottom: 16px;
+  gap: clamp(12px, 2vw, 16px);
+  margin-bottom: clamp(12px, 2vw, 16px);
   width: 100%;
-  max-width: 400px;
+  max-width: clamp(300px, 90vw, 400px);
 }
 .signup-logo {
-  width: 64px;
-  height: 64px;
+  width: clamp(48px, 8vw, 64px);
+  height: clamp(48px, 8vw, 64px);
 }
 .signup-qr {
-  width: 48px;
-  height: 48px;
+  width: clamp(36px, 6vw, 48px);
+  height: clamp(36px, 6vw, 48px);
 }
 .signup-title {
   font-weight: 700;
-  margin-bottom: 24px;
+  margin-bottom: clamp(18px, 3vw, 24px);
   text-align: left;
   width: 100%;
-  max-width: 400px;
+  max-width: clamp(300px, 90vw, 400px);
+  font-size: clamp(1.2rem, 3vw, 1.5rem);
 }
 .signup-input {
   width: 100%;
-  max-width: 400px;
-  margin: 0 auto 8px auto;
+  max-width: clamp(300px, 90vw, 400px);
+  margin: 0 auto clamp(6px, 1vw, 8px) auto;
   display: block;
   box-sizing: border-box;
 }
@@ -103,14 +104,14 @@
   background: #0a3570 !important;
   color: #fff !important;
   font-weight: 600;
-  margin: 20px auto 20px auto;
+  margin: clamp(16px, 2.5vw, 20px) auto;
   border-radius: 16px;
-  height: 48px;
+  height: clamp(44px, 7vw, 48px);
   width: 100%;
-  max-width: 400px;
+  max-width: clamp(300px, 90vw, 400px);
   display: block;
   box-shadow: none;
-  font-size: 1.08rem;
+  font-size: clamp(0.95rem, 1.8vw, 1.08rem);
   letter-spacing: 0.02em;
   transition: background 0.2s;
 }
@@ -121,10 +122,10 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 12px;
-  margin: 16px auto;
+  gap: clamp(8px, 1.5vw, 12px);
+  margin: clamp(12px, 2vw, 16px) auto;
   width: 100%;
-  max-width: 400px;
+  max-width: clamp(300px, 90vw, 400px);
 }
 .signup-divider-line {
   flex: 1;
@@ -387,5 +388,19 @@
   }
   .MuiFormHelperText-root {
     font-size: 9px !important;
+  }
+}
+
+/* Mobile Responsiveness - Hide right panel on small screens */
+@media (max-width: 768px) {
+  .signup-root {
+    flex-direction: column;
+  }
+  .signup-right {
+    display: none;
+  }
+  .signup-left {
+    width: 100%;
+    padding: clamp(16px, 4vw, 32px);
   }
 }

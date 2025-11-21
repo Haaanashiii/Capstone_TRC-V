@@ -12,6 +12,15 @@ exports.createNewApplication = async (req, res, next) => {
     const { body, files, user } = req;
     const userId = user?._id || user?.userId || String(user?.id);
     
+    console.log('[createNewApplication] Request body:', {
+      operatorName: body.operatorName,
+      operatorContactNumber: body.operatorContactNumber,
+      operatorAddress: body.operatorAddress,
+      operatorBarangay: body.operatorBarangay,
+      mvPlateNo: body.mvPlateNo,
+      filesCount: files ? Object.keys(files).length : 0
+    });
+    
     // Build application data from request body
     const applicationData = {
       operatorName: body.operatorName,
@@ -20,19 +29,19 @@ exports.createNewApplication = async (req, res, next) => {
       operatorBarangay: body.operatorBarangay,
       operatorCivilStatus: body.operatorCivilStatus,
       operatorBirthPlace: body.operatorBirthPlace,
-      operatorBirthDate: new Date(body.operatorBirthDate),
+      operatorBirthDate: body.operatorBirthDate ? new Date(body.operatorBirthDate) : null,
       operatorCitizenship: body.operatorCitizenship,
-      operatorEmail: body.operatorEmail,
-      coOwnerName: body.coOwnerName,
-      coOwnerAddress: body.coOwnerAddress,
+      operatorEmail: body.operatorEmail || '',
+      coOwnerName: body.coOwnerName || '',
+      coOwnerAddress: body.coOwnerAddress || '',
       driversID: body.driversID,
       driverName: body.driverName,
       driversAddress: body.driversAddress,
-      todaMembership: body.todaMembership,
+      todaMembership: body.todaMembership || '',
       unitModel: body.unitModel,
       colorMotor: body.colorMotor,
       sideCarColor: body.sideCarColor,
-      sideCarPlateNumber: body.sideCarPlateNumber,
+      sideCarPlateNumber: body.sideCarPlateNumber || '',
       mvPlateNo: body.mvPlateNo,
       motorEngineNo: body.motorEngineNo,
       chasisNo: body.chasisNo,
@@ -41,8 +50,26 @@ exports.createNewApplication = async (req, res, next) => {
       operatorInfo: user?._id || null
     };
     
+    console.log('[createNewApplication] Creating application with data:', applicationData);
     const application = await franchiseApplicationRepository.createFranchiseApplication(applicationData);
+    console.log('[createNewApplication] Application created:', application._id);
     const appId = String(application._id);
+    
+    // Link application to user's franchiseApplications array
+    if (user?._id) {
+      try {
+        const User = require('../models/userAccountModel');
+        await User.findByIdAndUpdate(
+          user._id,
+          { $addToSet: { franchiseApplications: application._id } },
+          { new: true }
+        );
+        console.log('[createNewApplication] Application linked to user:', user._id);
+      } catch (linkError) {
+        console.error('[createNewApplication] Failed to link application to user:', linkError);
+        // Don't fail the whole operation if linking fails
+      }
+    }
     
     // Upload documents if provided
     if (files && Object.keys(files).length > 0) {
@@ -89,6 +116,16 @@ exports.createNewApplication = async (req, res, next) => {
     
     res.status(201).json({ success: true, data: await franchiseApplicationRepository.getFranchiseApplicationById(appId) });
   } catch (error) {
+    console.error('[createNewApplication] Error:', error.message);
+    console.error('[createNewApplication] Stack:', error.stack);
+    if (error.code === 11000) {
+      // Duplicate key error
+      const field = Object.keys(error.keyPattern || {})[0];
+      return res.status(400).json({ 
+        success: false, 
+        error: `Duplicate ${field}: A franchise application with this ${field} already exists.` 
+      });
+    }
     next(error);
   }
 };
@@ -210,6 +247,22 @@ exports.createRenewOrAmendment = async (req, res, next) => {
     
     const application = await franchiseApplicationRepository.createFranchiseApplication(applicationData);
     
+    // Link application to user's franchiseApplications array
+    if (user?._id) {
+      try {
+        const User = require('../models/userAccountModel');
+        await User.findByIdAndUpdate(
+          user._id,
+          { $addToSet: { franchiseApplications: application._id } },
+          { new: true }
+        );
+        console.log('[createRenewOrAmendment] Application linked to user:', user._id);
+      } catch (linkError) {
+        console.error('[createRenewOrAmendment] Failed to link application to user:', linkError);
+        // Don't fail the whole operation if linking fails
+      }
+    }
+    
     // Upload new documents if provided
     if (files && Object.keys(files).length > 0) {
       const uploadHelper = async (fieldName, category) => {
@@ -293,18 +346,38 @@ exports.approveFranchiseByBPLO = async (req, res, next) => {
 };
 
 // 8) EDIT APPROVED FRANCHISE (Add OR + Receipt)
+// Users can add Official Receipt number and OR document after BPLO approval
 exports.editApprovedFranchise = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { officialRecieptNumber, files } = req;
+    const { officialReceiptNumber } = req.body; // Correct: extract from req.body
+    const { files } = req;
+    
+    console.log('[editApprovedFranchise] Request:', { id, officialReceiptNumber, hasFiles: !!files });
     
     const application = await franchiseApplicationRepository.getFranchiseApplicationById(id);
-    if (!application || application.statusOfBPLO !== 'approved') {
-      return res.status(400).json({ error: 'Can only edit approved applications' });
+    if (!application) {
+      return res.status(404).json({ error: 'Application not found' });
+    }
+    
+    if (application.statusOfBPLO !== 'approved') {
+      return res.status(400).json({ error: 'Application must be approved by BPLO first' });
+    }
+    
+    // Check if user owns this application
+    const userId = req.user?._id?.toString() || req.user?.userId || String(req.user?.id);
+    const appUserId = application.operatorInfo?.toString();
+    if (userId !== appUserId && req.user?.role !== 'admin') {
+      return res.status(403).json({ error: 'You can only edit your own applications' });
     }
     
     const updateData = {};
-    if (officialRecieptNumber) updateData.officialRecieptNumber = officialRecieptNumber;
+    
+    // Update Official Receipt Number if provided
+    if (officialReceiptNumber) {
+      updateData.officialReceiptNumber = officialReceiptNumber;
+      console.log('[editApprovedFranchise] Adding OR number:', officialReceiptNumber);
+    }
     
     // Upload OR document if provided
     if (files?.oRTreasurerOfficeObj) {
@@ -313,11 +386,24 @@ exports.editApprovedFranchise = async (req, res, next) => {
       const result = await uploadFile(file.buffer, file.originalname, file.mimetype, 
         { baseFolder: 'franchiseApplications', subFolder: application.operatorInfo || 'pending', category: 'Documentations' });
       updateData['documents.oRTreasurerOfficeObj'] = result.cloudflare;
+      console.log('[editApprovedFranchise] OR document uploaded:', result.cloudflare);
+    }
+    
+    // Require at least one field to update
+    if (Object.keys(updateData).length === 0) {
+      return res.status(400).json({ error: 'Please provide officialReceiptNumber or oRTreasurerOfficeObj document' });
     }
     
     const updated = await franchiseApplicationRepository.updateFranchiseApplication(id, updateData);
-    res.json({ success: true, data: updated });
+    console.log('[editApprovedFranchise] Application updated successfully');
+    
+    res.json({ 
+      success: true, 
+      data: updated,
+      message: 'Official Receipt information added successfully. Application ready for SB Admin review.' 
+    });
   } catch (error) {
+    console.error('[editApprovedFranchise] Error:', error);
     next(error);
   }
 };

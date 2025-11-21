@@ -1,12 +1,12 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useNavigate } from 'react-router-dom';
-import UnifiedSidebar from "../../components/UnifiedSidebar";
+import UnifiedNavbar from "../../components/UnifiedNavbar";
 import { TextField, Button, Snackbar, Alert, CircularProgress, Select, MenuItem, FormControl, InputLabel, FormHelperText } from "@mui/material";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import dayjs from "dayjs";
-import { franchiseAPI } from '../Services/api';
+import api, { franchiseAPI, TokenManager } from '../Services/api';
 import { validateFile, formatFileSize } from '../../utils/fileValidation';
 import { compressFile } from '../../utils/compressFile';
 import "../../Styles/Operator's_CSS/FranchiseApplication.css";
@@ -14,6 +14,59 @@ import "../../Styles/Operator's_CSS/FranchiseApplication.css";
 export default function FranchiseApplication() {
   // Language state
   const [language, setLanguage] = useState('en'); // 'en' for English, 'tl' for Tagalog
+  
+  // Fetch user email from backend API (not from JWT for security)
+  const [userEmail, setUserEmail] = useState('');
+  const [userId, setUserId] = useState('');
+  const [isLoadingUserData, setIsLoadingUserData] = useState(true);
+  
+  useEffect(() => {
+    const fetchUserData = async () => {
+      try {
+        const token = TokenManager.getAccessToken();
+        if (!token) {
+          console.error('[FranchiseApplication] No access token found');
+          setIsLoadingUserData(false);
+          return;
+        }
+        
+        const userData = TokenManager.decodeToken(token);
+        console.log('[FranchiseApplication] JWT payload (no email for security):', userData);
+        
+        if (userData) {
+          // Extract user ID from JWT
+          const extractedUserId = userData.userId || userData.id || userData._id;
+          if (extractedUserId) {
+            setUserId(extractedUserId);
+            console.log('[FranchiseApplication] ✓ User ID extracted:', extractedUserId);
+            
+            // Fetch user email from backend API using the user ID
+            try {
+              const response = await api.get('/auth/me');
+              if (response.data && response.data.user && response.data.user.email) {
+                setUserEmail(response.data.user.email);
+                console.log('[FranchiseApplication] ✓ Email fetched from backend API');
+              } else {
+                console.error('[FranchiseApplication] ✗ No email in API response');
+              }
+            } catch (apiError) {
+              console.error('[FranchiseApplication] ✗ Failed to fetch user data from API:', apiError);
+            }
+          } else {
+            console.error('[FranchiseApplication] ✗ No user ID found in JWT token');
+          }
+        } else {
+          console.error('[FranchiseApplication] ✗ Failed to decode JWT token');
+        }
+      } catch (error) {
+        console.error('[FranchiseApplication] Error extracting data from token:', error);
+      } finally {
+        setIsLoadingUserData(false);
+      }
+    };
+    
+    fetchUserData();
+  }, []);
   
   // Translation object
   const translations = {
@@ -390,7 +443,7 @@ export default function FranchiseApplication() {
   return (
     <div>
 
-      <UnifiedSidebar 
+      <UnifiedNavbar 
         userType="operator" 
         language={language}
         onLanguageToggle={() => setLanguage(language === 'en' ? 'tl' : 'en')}
@@ -492,7 +545,7 @@ export default function FranchiseApplication() {
               </LocalizationProvider>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', flex: 2, marginTop: 25 }}>
-              <label style={{ fontWeight: 700, marginBottom: 8 }}>Co-Owner</label>
+              <label style={{ fontWeight: 700, marginBottom: 8 }}>Do you have a Co-Owner for this Franchise?</label>
               <div style={{ display: 'flex', gap: 24, alignItems: 'center' }}>
                 <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', fontSize: 16 }}>
                   <input
@@ -847,67 +900,83 @@ export default function FranchiseApplication() {
 
                       const formDataToSend = new FormData();
 
-                      // Personal Information - Backend expects these exact field names
+                      // Personal Information - EXACT field names backend expects
                       formDataToSend.append('operatorName', fields.operatorName || '');
-                      formDataToSend.append('operatorContactNumber', fields.contact || ''); // Changed from operatorContact
-                      formDataToSend.append('address', fields.driverAddress || ''); // Changed from operatorAddress
-                      formDataToSend.append('barangay', fields.barangay || ''); // Moved up
-                      formDataToSend.append('actionType', 'NEW'); // Backend expects uppercase
+                      formDataToSend.append('operatorContactNumber', fields.contact || '');
+                      formDataToSend.append('operatorAddress', fields.driverAddress || ''); // FIXED: was 'address'
+                      formDataToSend.append('operatorBarangay', fields.barangay || ''); // FIXED: was 'barangay'
+                      formDataToSend.append('operatorBirthPlace', fields.birthPlace || ''); // FIXED: was 'birthPlace'
+                      formDataToSend.append('operatorBirthDate', fields.birthDate ? (fields.birthDate.format ? fields.birthDate.format('YYYY-MM-DD') : fields.birthDate) : ''); // FIXED: was 'birthDate'
+                      formDataToSend.append('operatorCivilStatus', fields.civilStatus || ''); // FIXED: was 'civilStatus'
+                      formDataToSend.append('operatorCitizenship', fields.citizenship || ''); // FIXED: was 'citizenship'
+                      
+                      // Email fetched from backend API (NOT from JWT for security)
+                      if (userEmail) {
+                        formDataToSend.append('operatorEmail', userEmail);
+                        console.log('[FranchiseApplication] Using email from backend API:', userEmail);
+                      } else {
+                        console.warn('[FranchiseApplication] No email available from backend API');
+                        formDataToSend.append('operatorEmail', '');
+                      }
+                      
+                      // User ID for tracking (extracted from JWT, then used to fetch email)
+                      if (userId) {
+                        formDataToSend.append('userId', userId);
+                        console.log('[FranchiseApplication] Including user ID:', userId);
+                      }
                       
                       // Driver/Operator Details
                       formDataToSend.append('driversID', fields.driverName || '');
-                      formDataToSend.append('driverName', fields.driverName || ''); // Added
+                      formDataToSend.append('driverName', fields.driverName || '');
                       formDataToSend.append('driversAddress', fields.driverAddress || '');
-                      formDataToSend.append('birthPlace', fields.birthPlace || '');
-                      formDataToSend.append('birthDate', fields.birthDate ? (fields.birthDate.format ? fields.birthDate.format('YYYY-MM-DD') : fields.birthDate) : '');
-                      formDataToSend.append('civilStatus', fields.civilStatus || '');
-                      formDataToSend.append('citizenship', fields.citizenship || '');
                       formDataToSend.append('todaMembership', fields.todaMembership || '');
                       
                       // Vehicle Information
                       formDataToSend.append('unitModel', fields.unitModel || '');
                       formDataToSend.append('colorMotor', fields.colorMotor || '');
-                      formDataToSend.append('sideCarColor', fields.colorSidecar || ''); // Changed from sidecarColor
+                      formDataToSend.append('sideCarColor', fields.colorSidecar || '');
+                      formDataToSend.append('sideCarPlateNumber', fields.mvPlateNo || ''); // FIXED: Added this field
                       formDataToSend.append('mvPlateNo', fields.mvPlateNo || ''); 
                       formDataToSend.append('motorEngineNo', fields.motorEngineNumber || ''); 
                       formDataToSend.append('chasisNo', fields.chassisNumber || '');
                       
                       // Co-Owners Information
-                      formDataToSend.append('hasCoOwner', fields.hasCoOwner || 'No');
                       if (fields.hasCoOwner === 'Yes' && coOwners.length > 0) {
-                        formDataToSend.append('coOwnerCount', coOwners.length.toString());
-                        coOwners.forEach((owner, index) => {
-                          formDataToSend.append(`coOwner_${index}_name`, owner.name || '');
-                          formDataToSend.append(`coOwner_${index}_address`, owner.address || '');
-                          formDataToSend.append(`coOwner_${index}_relationship`, owner.relationship || '');
-                        });
+                        formDataToSend.append('coOwnerName', coOwners[0].name || '');
+                        formDataToSend.append('coOwnerAddress', coOwners[0].address || '');
+                        // Store additional co-owners in metadata if needed
+                        if (coOwners.length > 1) {
+                          formDataToSend.append('additionalCoOwners', JSON.stringify(coOwners.slice(1)));
+                        }
+                      } else {
+                        formDataToSend.append('coOwnerName', '');
+                        formDataToSend.append('coOwnerAddress', '');
                       }
                       
-                      // Motorcycle Picture
-                      if (fields.motorcyclePicture) {
-                        formDataToSend.append('motorcyclePicture', fields.motorcyclePicture);
-                      }
-                      
+                      // Documents - EXACT field names backend expects (with 'Obj' suffix)
                       if (uploads.registration) {
-                        formDataToSend.append('documentRegistration', uploads.registration);
+                        formDataToSend.append('motorRegistrationObj', uploads.registration);
                       }
                       if (uploads.barangay) {
-                        formDataToSend.append('documentBarangayClearance', uploads.barangay);
+                        formDataToSend.append('barangayClearanceObj', uploads.barangay);
                       }
                       if (uploads.cedula) {
-                        formDataToSend.append('documentCedula', uploads.cedula);
+                        formDataToSend.append('cedulaObj', uploads.cedula);
                       }
                       if (uploads.license) {
-                        formDataToSend.append('documentDriversLicense', uploads.license);
+                        formDataToSend.append('driversLicenseObj', uploads.license);
                       }
                       if (uploads.stencil) {
-                        formDataToSend.append('documentChassisStencil', uploads.stencil);
+                        formDataToSend.append('motorChassisStencilObj', uploads.stencil);
                       }
                       if (uploads.affidavit) {
-                        formDataToSend.append('documentVotersAffidavit', uploads.affidavit);
+                        formDataToSend.append('votersAffidavitObj', uploads.affidavit);
                       }
                       if (uploads.picture) {
-                        formDataToSend.append('documentPicture', uploads.picture);
+                        formDataToSend.append('driverPictureObj', uploads.picture);
+                      }
+                      if (fields.motorcyclePicture) {
+                        formDataToSend.append('operatorPictureObj', fields.motorcyclePicture);
                       }
                       // Debug: Log all FormData keys and values before submission
                       console.log('[FranchiseApplication] FormData to send:');
