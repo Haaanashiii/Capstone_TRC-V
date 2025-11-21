@@ -123,21 +123,24 @@ const UnifiedNavbar = ({ language, onLanguageToggle, translations }) => {
   // Get navigation items based on mode
   const getNavigationItems = () => {
     if (isLandingPage) {
-      // Landing page mode - only show HOME and NEW APPLICATION
+      // Landing page mode - only show HOME, ANNOUNCEMENTS, and NEW APPLICATION
       return [
         { label: "HOME", path: "/", isActive: true, disabled: false },
+        { label: "ANNOUNCEMENTS", path: "/", isActive: false, disabled: false },
         { label: "NEW APPLICATION", path: "/operator/franchise/application", isActive: false, disabled: false }
       ];
     } else {
       // Logged in operator mode
       if (!userHasFranchise) {
         return [
+          { label: "ANNOUNCEMENTS", path: "/", isActive: location.pathname === "/", disabled: false },
           { label: "MY FRANCHISE", path: "/operator/franchise", isActive: location.pathname === "/operator/franchise", disabled: false },
           { label: "FRANCHISEE LIST", path: "/operator/franchisee-list", isActive: location.pathname === "/operator/franchisee-list", disabled: false },
         ];
       }
       
       return [
+        { label: "ANNOUNCEMENTS", path: "/", isActive: location.pathname === "/", disabled: false },
         { label: "MY FRANCHISE", path: "/operator/franchise", isActive: location.pathname === "/operator/franchise", disabled: false },
         { label: "REQUEST FOR AMENDMENT", path: "/operator/request-amendment", isActive: location.pathname === "/operator/request-amendment", disabled: false },
         { label: "FRANCHISEE LIST", path: "/operator/franchisee-list", isActive: location.pathname === "/operator/franchisee-list", disabled: false },

@@ -13,7 +13,7 @@ const poppinsTheme = createTheme({
   },
 });
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 const SignUp = () => {
   const navigate = useNavigate();
@@ -276,11 +276,6 @@ const SignUp = () => {
             >
               {isLoading ? 'Creating Account...' : 'Create'}
             </Button>
-          </Box>
-          <Box style={{ textAlign: 'center', marginTop: '16px', maxWidth: '400px', margin: '16px auto 0' }}>
-            <Typography variant="body2" style={{ fontFamily: 'Poppins, sans-serif', color: '#555' }}>
-              Already have an account? <a href="/login" style={{ color: '#0a3570', fontWeight: 600, textDecoration: 'none' }}>Sign in</a>
-            </Typography>
           </Box>
           </form>
           <Box style={{ textAlign: 'center', marginTop: '16px' }}>
