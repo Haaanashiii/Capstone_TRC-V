@@ -454,8 +454,27 @@ export default function FranchiseApplication() {
         <div className="franchise-app-paper">
        
         {modalDocKey && (
-          <div className="franchise-modal-bg">
-            <div className="franchise-modal" style={{ maxWidth: 480, borderRadius: 18, background: '#fff', boxShadow: '0 4px 24px #0002', padding: 36, position: 'relative' }}>
+          <div className="franchise-modal-bg" style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999
+          }}>
+            <div className="franchise-modal" style={{ 
+              maxWidth: 480, 
+              borderRadius: 18, 
+              background: '#fff', 
+              boxShadow: '0 4px 24px #0002', 
+              padding: 36, 
+              position: 'relative',
+              margin: '20px'
+            }}>
               <div style={{ fontWeight: 900, fontSize: '2.2rem', marginBottom: 8, letterSpacing: 0.5 }}>{t.selectFile}</div>
               <div style={{ fontWeight: 700, fontSize: 20, marginBottom: 24, color: '#111' }}>
                 {t.upload} {[
