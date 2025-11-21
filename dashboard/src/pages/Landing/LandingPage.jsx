@@ -2,10 +2,8 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from 'react-router-dom';
 import '../../Styles/LandingCss/LandingPage.css';
 import { useAuth } from '../../contexts/AuthContext';
-import { Menu, MenuItem, ListItemIcon, Dialog, DialogTitle, DialogContent, DialogActions, Button, Typography, Box, useMediaQuery, useTheme, MobileStepper } from '@mui/material';
-import PermIdentityIcon from '@mui/icons-material/PermIdentity';
-import LogoutIcon from '@mui/icons-material/Logout';
-import WarningIcon from '@mui/icons-material/Warning';
+import UnifiedNavbar from '../../components/UnifiedNavbar';
+import { Button, Typography, Box, useMediaQuery, useTheme, MobileStepper } from '@mui/material';
 import SwipeableViews from 'react-swipeable-views';
 import { autoPlay } from 'react-swipeable-views-utils';
 import KeyboardArrowLeft from '@mui/icons-material/KeyboardArrowLeft';
@@ -22,13 +20,9 @@ const Card = ({ children, className }) => (
 
 const LandingPage = () => {
   const navigate = useNavigate();
-  const { user, logout, login } = useAuth();
-  const [anchorEl, setAnchorEl] = useState(null);
+  const { user, login } = useAuth();
   const [announcements, setAnnouncements] = useState([]);
   const [loadingAnnouncements, setLoadingAnnouncements] = useState(true);
-  const [warningDialogOpen, setWarningDialogOpen] = useState(false);
-  const [activeFranchiseDialogOpen, setActiveFranchiseDialogOpen] = useState(false);
-  const menuOpen = Boolean(anchorEl);
   
   // --- Added for responsiveness and carousel
   const theme = useTheme();
@@ -36,7 +30,7 @@ const LandingPage = () => {
   const [activeAnnouncementStep, setActiveAnnouncementStep] = useState(0);
   const [activeFeatureStep, setActiveFeatureStep] = useState(0);
   
-  // Get display name from AuthContext user or fallback to token decode (consistent with UnifiedSidebar)
+  // Get display name from AuthContext user or fallback to token decode
   const getDisplayName = () => {
     if (user?.name) {
       const parts = String(user.name).trim().split(/\s+/);
@@ -82,65 +76,14 @@ const LandingPage = () => {
   
   const userHasFranchise = checkHasFranchise();
 
-  const handleMenuOpen = (e) => setAnchorEl(e.currentTarget);
-  const handleMenuClose = () => setAnchorEl(null);
-  
-  const handleGoToId = () => { 
-    handleMenuClose(); 
-    
-    // Check if user has franchise
-    let hasFranchise = false;
-    try {
-      const token = sessionStorage.getItem('accessToken');
-      if (token) {
-        const decoded = JSON.parse(atob(token.split('.')[1]));
-        hasFranchise = decoded.hasFranchise === true;
-      }
-    } catch {
-      hasFranchise = false;
-    }
-    
-    if (!hasFranchise) {
-      // Show warning dialog instead of navigating
-      setWarningDialogOpen(true);
-    } else {
-      navigate('/operator/id');
-    }
-  };
-  
-  const handleWarningClose = () => {
-    setWarningDialogOpen(false);
-  };
-  
-  const handleGoToFranchise = () => {
-    setWarningDialogOpen(false);
-    navigate('/operator/franchise/application');
-  };
-  
   const handleRenewFranchise = () => {
     if (displayName && userHasFranchise) {
-      // User is logged in and has an active franchise
-      setActiveFranchiseDialogOpen(true);
+      // User is logged in and has an active franchise - show message or navigate
+      // For now, just navigate to login (can be enhanced later)
+      navigate('/login');
     } else {
       // User is not logged in or doesn't have a franchise
       navigate('/login');
-    }
-  };
-  
-  const handleActiveFranchiseDialogClose = () => {
-    setActiveFranchiseDialogOpen(false);
-  };
-  
-  const handleLogout = async () => {
-    console.log('[LandingPage] Logout initiated');
-    handleMenuClose();
-    try {
-      await logout(); // Now async - calls backend and clears tokens
-      console.log('[LandingPage] Logout successful');
-    } catch (error) {
-      console.error('[LandingPage] Logout error:', error);
-    } finally {
-      navigate('/');
     }
   };
   
@@ -257,327 +200,11 @@ const LandingPage = () => {
 
   
   return (
-    
-
-     /* Navbar for landing - Responsive */  
     <div className="landing-root">
-      {/* Header/Navbar - Fully responsive with MUI */}
-      <Box
-        component="header"
-        sx={{
-          background: '#083d77',
-          py: { xs: 2, md: 2.5 },
-          px: { xs: 2, sm: 3, md: 5 },
-        }}
-      >
-        <Box
-          sx={{
-            display: 'flex',
-            flexDirection: { xs: 'column', md: 'row' },
-            alignItems: { xs: 'flex-start', md: 'center' },
-            justifyContent: 'space-between',
-            gap: { xs: 2, md: 0 },
-          }}
-        >
-          {/* Logo and Title */}
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <Box
-              component="img"
-              src="/Logos/TRC-vLogo.png"
-              alt="TRC-V Logo"
-              sx={{ width: { xs: 50, md: 60 }, height: { xs: 50, md: 60 } }}
-            />
-            <Box>
-              <Typography
-                sx={{
-                  fontSize: { xs: '1.5rem', md: '2.2rem' },
-                  fontWeight: 700,
-                  color: '#ffe066',
-                  letterSpacing: 2,
-                  lineHeight: 1,
-                  fontFamily: 'Montserrat, sans-serif',
-                }}
-              >
-                TRC-V
-              </Typography>
-              <Typography
-                sx={{
-                  fontSize: { xs: '0.7rem', md: '0.9rem' },
-                  fontWeight: 500,
-                  color: '#fff',
-                  letterSpacing: 1,
-                  fontFamily: 'Montserrat, sans-serif',
-                }}
-              >
-                TRICYCLE VERIFICATION SYSTEM
-              </Typography>
-            </Box>
-          </Box>
+      {/* Use UnifiedNavbar - automatically handles landing page mode */}
+      <UnifiedNavbar />
 
-          {/* Navigation - Responsive */}
-          <Box
-            sx={{
-              display: 'flex',
-              flexWrap: 'wrap',
-              alignItems: 'center',
-              gap: { xs: 1, sm: 1.5, md: 2 },
-              background: '#fff',
-              borderRadius: 4,
-              py: { xs: 1, md: 1.25 },
-              px: { xs: 2, md: 3 },
-              width: { xs: '100%', md: 'auto' },
-              justifyContent: { xs: 'center', md: 'flex-start' },
-            }}
-          >
-            <Button
-              onClick={() => navigate('/')}
-              sx={{
-                fontSize: { xs: '0.85rem', md: '1.1rem' },
-                color: '#222',
-                fontWeight: 600,
-                px: { xs: 1.5, md: 2.75 },
-                py: { xs: 0.75, md: 1 },
-                borderRadius: 2.5,
-                textTransform: 'none',
-                fontFamily: 'Poppins, sans-serif',
-                '&:hover': {
-                  background: '#ffe066',
-                  color: '#143c6e',
-                },
-              }}
-            >
-              HOME
-            </Button>
-
-            {displayName ? (
-              <Button
-                onClick={() => userHasFranchise ? navigate('/operator/request-amendment') : navigate('/operator/franchise')}
-                disabled={!userHasFranchise}
-                title={!userHasFranchise ? 'Complete your franchise application first' : ''}
-                sx={{
-                  fontSize: { xs: '0.75rem', sm: '0.85rem', md: '1.1rem' },
-                  color: '#222',
-                  fontWeight: 600,
-                  px: { xs: 1.5, md: 2.75 },
-                  py: { xs: 0.75, md: 1 },
-                  borderRadius: 2.5,
-                  textTransform: 'none',
-                  fontFamily: 'Poppins, sans-serif',
-                  opacity: userHasFranchise ? 1 : 0.5,
-                  '&:hover': {
-                    background: userHasFranchise ? '#ffe066' : 'transparent',
-                    color: userHasFranchise ? '#143c6e' : '#222',
-                  },
-                }}
-              >
-                REQUEST FOR AMENDMENT
-              </Button>
-            ) : (
-              <Button
-                onClick={() => navigate('/login')}
-                sx={{
-                  fontSize: { xs: '0.85rem', md: '1.1rem' },
-                  color: '#222',
-                  fontWeight: 600,
-                  px: { xs: 1.5, md: 2.75 },
-                  py: { xs: 0.75, md: 1 },
-                  borderRadius: 2.5,
-                  textTransform: 'none',
-                  fontFamily: 'Poppins, sans-serif',
-                  '&:hover': {
-                    background: '#ffe066',
-                    color: '#143c6e',
-                  },
-                }}
-              >
-                VERIFY TRICYCLE
-              </Button>
-            )}
-
-            <Button
-              onClick={() => navigate('/operator/franchise/application')}
-              sx={{
-                fontSize: { xs: '0.85rem', md: '1.1rem' },
-                color: '#222',
-                fontWeight: 600,
-                px: { xs: 1.5, md: 2.75 },
-                py: { xs: 0.75, md: 1 },
-                borderRadius: 2.5,
-                textTransform: 'none',
-                fontFamily: 'Poppins, sans-serif',
-                '&:hover': {
-                  background: '#ffe066',
-                  color: '#143c6e',
-                },
-              }}
-            >
-              NEW APPLICATION
-            </Button>
-
-            {displayName ? (
-              <>
-                <Button
-                  onClick={handleMenuOpen}
-                  sx={{
-                    fontSize: { xs: '0.85rem', md: '1.1rem' },
-                    color: '#fff',
-                    background: '#143c6e',
-                    fontWeight: 700,
-                    px: { xs: 2, md: 2.75 },
-                    py: { xs: 0.75, md: 1 },
-                    borderRadius: 2.5,
-                    textTransform: 'none',
-                    fontFamily: 'Poppins, sans-serif',
-                    border: '2px solid #fff',
-                    ml: { xs: 0, md: 3 },
-                    '&:hover': {
-                      background: '#ffe066',
-                      color: '#143c6e',
-                      borderColor: '#ffe066',
-                    },
-                  }}
-                >
-                  {displayName}
-                </Button>
-                <Menu
-                  anchorEl={anchorEl}
-                  open={menuOpen}
-                  onClose={handleMenuClose}
-                  anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-                  transformOrigin={{ vertical: 'top', horizontal: 'right' }}
-                  PaperProps={{ sx: { borderRadius: 2, minWidth: 200 } }}
-                >
-                  <MenuItem onClick={handleGoToId}>
-                    <ListItemIcon sx={{ minWidth: 40 }}>
-                      <PermIdentityIcon fontSize="small" />
-                    </ListItemIcon>
-                    Operator ID
-                  </MenuItem>
-                  <MenuItem onClick={handleLogout}>
-                    <ListItemIcon sx={{ minWidth: 40 }}>
-                      <LogoutIcon fontSize="small" />
-                    </ListItemIcon>
-                    Logout
-                  </MenuItem>
-                </Menu>
-              </>
-            ) : (
-              <Button
-                onClick={() => navigate('/login')}
-                sx={{
-                  fontSize: { xs: '0.85rem', md: '1.1rem' },
-                  color: '#fff',
-                  background: '#143c6e',
-                  fontWeight: 600,
-                  px: { xs: 2, md: 2.75 },
-                  py: { xs: 0.75, md: 1 },
-                  borderRadius: 2.5,
-                  textTransform: 'none',
-                  fontFamily: 'Poppins, sans-serif',
-                  border: '2px solid #fff',
-                  ml: { xs: 0, md: 3 },
-                  '&:hover': {
-                    background: '#ffe066',
-                    color: '#143c6e',
-                    borderColor: '#ffe066',
-                  },
-                }}
-              >
-                LOGIN
-              </Button>
-            )}
-          </Box>
-        </Box>
-      </Box>
-
-      {/* Warning Dialog for No Franchise */}
-      <Dialog
-        open={warningDialogOpen}
-        onClose={handleWarningClose}
-        PaperProps={{
-          sx: {
-            borderRadius: 3,
-            padding: 2,
-            maxWidth: 500,
-          }
-        }}
-      >
-        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1, color: '#d32f2f' }}>
-          <WarningIcon sx={{ fontSize: 32 }} />
-          No Franchise Found
-        </DialogTitle>
-        <DialogContent>
-          <Typography variant="body1" sx={{ mb: 2 }}>
-            You need an approved franchise to access the Operator ID.
-          </Typography>
-          <Typography variant="body2" sx={{ color: '#666' }}>
-            To view your Operator ID, you need to:
-          </Typography>
-          <Box component="ul" sx={{ mt: 1, pl: 2 }}>
-            <li><Typography variant="body2">Submit a franchise application and get it approved</Typography></li>
-          </Box>
-        </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button 
-            onClick={handleWarningClose} 
-            sx={{ color: '#666' }}
-          >
-            Cancel
-          </Button>
-          <Button 
-            onClick={handleGoToFranchise}
-            variant="contained"
-            sx={{ 
-              bgcolor: '#143c6e',
-              '&:hover': { bgcolor: '#0a3970' }
-            }}
-          >
-            Submit Application
-          </Button>
-        </DialogActions>
-      </Dialog>
-             
-              <Dialog
-                open={activeFranchiseDialogOpen}
-                onClose={handleActiveFranchiseDialogClose}
-                PaperProps={{
-                  sx: {
-                    borderRadius: 3,
-                    padding: 2,
-                    maxWidth: 500
-                  }
-                }}
-              >
-                <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1, color: '#143c6e' }}>
-                  <WarningIcon sx={{ fontSize: 32, color: '#f4d77e' }} />
-                  Active Franchise Found
-                </DialogTitle>
-                <DialogContent>
-                  <Typography variant="body1" sx={{ mb: 1 }}>
-                    Dear User,
-                  </Typography>
-                  <Typography variant="body1">
-                    You already have an active linked franchise. Please contact the administrator if you need to renew or make changes to your franchise.
-                  </Typography>
-                  <Typography variant="body1" sx={{ mb: 1 }}>
-                  </Typography>
-                  <Typography variant="body1" sx={{ mb: 1 }}>
-                    Thank you.
-                  </Typography>
-                </DialogContent>
-                <DialogActions sx={{ px: 3, pb: 2 }}>
-                  <Button 
-                    onClick={handleActiveFranchiseDialogClose}
-                    variant="contained"
-                    sx={{ 
-                      bgcolor: '#143c6e',
-                      '&:hover': { bgcolor: '#0a3970' }
-                    }}
-                  >
-                    Understood
-                  </Button>
-                </DialogActions>
-              </Dialog>
+      {/* Main Content */}
       <main className="landing-main">
         
         <div className="main-content">

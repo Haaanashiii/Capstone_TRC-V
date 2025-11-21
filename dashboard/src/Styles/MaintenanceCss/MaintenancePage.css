@@ -2,21 +2,21 @@
 /* Updated na din */
 .maintenance-header-logo {
   position: fixed;
-  top: 24px;
-  left: 32px;
+  top: clamp(16px, 3vw, 24px);
+  left: clamp(20px, 4vw, 32px);
   display: flex;
   align-items: center;
   background: #0A3576;
-  padding: 10px 28px 10px 18px;
-  border-radius: 10px;
+  padding: clamp(8px, 1.5vw, 10px) clamp(20px, 3.5vw, 28px) clamp(8px, 1.5vw, 10px) clamp(14px, 2.5vw, 18px);
+  border-radius: clamp(8px, 1.2vw, 10px);
   z-index: 10;
   box-shadow: 0 2px 12px 0 rgba(0,0,0,0.04);
 }
 
 .maintenance-header-logo-img {
-  width: 48px;
-  height: 48px;
-  margin-right: 16px;
+  width: clamp(36px, 6vw, 48px);
+  height: clamp(36px, 6vw, 48px);
+  margin-right: clamp(12px, 2vw, 16px);
 }
 
 .maintenance-header-logo-text {
@@ -26,7 +26,7 @@
 }
 
 .maintenance-header-logo-title {
-  font-size: 2.1rem;
+  font-size: clamp(1.5rem, 3vw, 2.1rem);
   font-weight: 800;
   color: #fff;
   letter-spacing: 1px;
@@ -35,7 +35,7 @@
   color: #F7D358;
 }
 .maintenance-header-logo-sub {
-  font-size: 0.85rem;
+  font-size: clamp(0.65rem, 1.2vw, 0.85rem);
   color: #fff;
   font-weight: 500;
   letter-spacing: 1.5px;
@@ -61,7 +61,7 @@
   justify-content: flex-start;
   width: 100%;
   max-width: 1200px;
-  padding: 40px 0 40px 6vw;
+  padding: clamp(30px, 5vw, 40px) 0 clamp(30px, 5vw, 40px) clamp(20px, 6vw, 6vw);
 }
 
 .maintenance-404-left {
@@ -70,11 +70,11 @@
   flex-direction: column;
   justify-content: center;
   align-items: flex-start;
-  min-width: 320px;
+  min-width: clamp(280px, 60vw, 320px);
 }
 
 .maintenance-404-title {
-  font-size: 11rem;
+  font-size: clamp(6rem, 15vw, 11rem);
   font-weight: 1000;
   color: #F7D358;
   margin-bottom: 0.1em;
@@ -83,18 +83,18 @@
 }
 
 .maintenance-404-subtitle {
-  font-size: 2.6rem;
+  font-size: clamp(1.8rem, 4vw, 2.6rem);
   font-weight: 700;
-  margin-bottom: 1.2em;
+  margin-bottom: clamp(0.8em, 2vw, 1.2em);
   color: #fff;
 }
 
 .maintenance-404-message {
-  font-size: 1.3rem;
+  font-size: clamp(1rem, 2vw, 1.3rem);
   color: #F7D358;
-  margin-bottom: 2em;
+  margin-bottom: clamp(1.5em, 3vw, 2em);
   font-weight: 500;
-  max-width: 400px;
+  max-width: clamp(300px, 80vw, 400px);
 }
 
 .maintenance-404-btn {
@@ -102,12 +102,12 @@
   color: #0A3576;
   font-weight: 700;
   border: none;
-  border-radius: 4px;
-  padding: 14px 36px;
-  font-size: 1rem;
+  border-radius: clamp(3px, 0.6vw, 4px);
+  padding: clamp(12px, 2vw, 14px) clamp(28px, 4vw, 36px);
+  font-size: clamp(0.9rem, 1.5vw, 1rem);
   cursor: pointer;
   transition: background 0.2s, color 0.2s;
-  margin-top: 10px;
+  margin-top: clamp(8px, 1.5vw, 10px);
 }
 .maintenance-404-btn:hover {
   background: #fff;
@@ -122,7 +122,7 @@
 }
 
 .maintenance-404-tricycle {
-  width: 320px;
+  width: clamp(200px, 40vw, 320px);
   max-width: 100%;
   animation: tricycleMove404 2s infinite alternate ease-in-out;
 }
@@ -132,16 +132,41 @@
     transform: translateX(0);
   }
   100% {
-    transform: translateX(40px);
+    transform: translateX(clamp(20px, 5vw, 40px));
   }
 }
 
 .maintenance-footer {
   position: absolute;
-  bottom: 40px;
+  bottom: clamp(30px, 5vw, 40px);
   left: 0;
   right: 0;
-  font-size: 1.5rem;
+  font-size: clamp(1.2rem, 2.5vw, 1.5rem);
   font-weight: bold;
   margin: 0;
+}
+
+/* Mobile Responsiveness */
+@media (max-width: 768px) {
+  .maintenance-404-content {
+    flex-direction: column;
+    padding: 20px;
+    text-align: center;
+  }
+  
+  .maintenance-404-left {
+    align-items: center;
+    width: 100%;
+    min-width: auto;
+  }
+  
+  .maintenance-404-right {
+    margin-top: 30px;
+    width: 100%;
+  }
+  
+  .maintenance-header-logo {
+    position: static;
+    margin-bottom: 20px;
+  }
 }

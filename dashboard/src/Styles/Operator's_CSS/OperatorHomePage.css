@@ -1,72 +1,74 @@
 /* OperatorHomePage.css */
 
 .operator-home-container {
-  padding: 20px;
+  padding: clamp(16px, 3vw, 20px);
   background-color: #f5f5f5;
   min-height: 100vh;
 }
 
 .time-date-display {
   background-color: white;
-  padding: 8px 16px;
-  border-radius: 8px;
-  margin-bottom: 16px;
+  padding: clamp(6px, 1.2vw, 8px) clamp(12px, 2vw, 16px);
+  border-radius: clamp(6px, 1vw, 8px);
+  margin-bottom: clamp(12px, 2vw, 16px);
   display: inline-block;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .time-date-display span {
   color: #174D7A;
-  font-size: 14px;
+  font-size: clamp(12px, 1.8vw, 14px);
   font-weight: 500;
-  margin-right: 20px;
+  margin-right: clamp(12px, 2.5vw, 20px);
 }
 
 .greeting-card {
   background-color: #FEDE05;
-  padding: 24px;
-  border-radius: 12px;
-  margin-bottom: 24px;
+  padding: clamp(18px, 3vw, 24px);
+  border-radius: clamp(8px, 1.5vw, 12px);
+  margin-bottom: clamp(18px, 3vw, 24px);
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 }
 
 .greeting-text {
   color: #174D7A;
-  font-size: 32px;
+  font-size: clamp(24px, 4vw, 32px);
   font-weight: bold;
   margin: 0;
 }
 
 .datetime-subtext {
   color: #174D7A;
-  font-size: 14px;
-  margin-top: 8px;
+  font-size: clamp(12px, 1.8vw, 14px);
+  margin-top: clamp(6px, 1vw, 8px);
   font-weight: 400;
 }
 
 .options-card {
   background-color: white;
-  padding: 32px;
-  border-radius: 12px;
-  margin-bottom: 24px;
+  padding: clamp(20px, 4vw, 32px);
+  border-radius: clamp(8px, 1.5vw, 12px);
+  margin-bottom: clamp(18px, 3vw, 24px);
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 }
 
 .options-container {
   display: flex;
-  gap: 24px;
+  gap: clamp(16px, 3vw, 24px);
   justify-content: center;
+  flex-wrap: wrap;
 }
 
 .option-card {
   background-color: #FEDE05;
-  padding: 32px;
-  border-radius: 12px;
+  padding: clamp(20px, 4vw, 32px);
+  border-radius: clamp(8px, 1.5vw, 12px);
   text-align: center;
   cursor: pointer;
   transition: transform 0.2s, box-shadow 0.2s;
   flex: 1;
   max-width: 300px;
+  min-width: clamp(200px, 40vw, 250px);
 }
 
 .option-card:hover {
@@ -75,33 +77,33 @@
 }
 
 .option-icon {
-  margin-bottom: 16px;
+  margin-bottom: clamp(12px, 2vw, 16px);
 }
 
 .option-title {
   color: #174D7A;
-  font-size: 20px;
+  font-size: clamp(16px, 2.5vw, 20px);
   font-weight: bold;
   margin: 0;
 }
 
 .section-title {
   color: #174D7A;
-  font-size: 24px;
+  font-size: clamp(18px, 3vw, 24px);
   font-weight: bold;
-  margin: 32px 0 16px 0;
+  margin: clamp(24px, 4vw, 32px) 0 clamp(12px, 2vw, 16px) 0;
   text-transform: uppercase;
 }
 
 .table-container {
-  margin-bottom: 32px;
+  margin-bottom: clamp(24px, 4vw, 32px);
 }
 
 .no-data-message {
   text-align: center;
-  padding: 32px;
+  padding: clamp(24px, 4vw, 32px);
   color: #666;
-  font-size: 16px;
+  font-size: clamp(14px, 2vw, 16px);
 }
 
 .modal-overlay {
@@ -119,8 +121,8 @@
 
 .modal-content {
   background-color: white;
-  border-radius: 12px;
-  max-width: 600px;
+  border-radius: clamp(8px, 1.5vw, 12px);
+  max-width: clamp(400px, 85vw, 600px);
   width: 90%;
   max-height: 80vh;
   overflow: hidden;
@@ -130,53 +132,76 @@
 .modal-header {
   background-color: #174D7A;
   color: white;
-  padding: 20px;
+  padding: clamp(16px, 2.5vw, 20px);
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
 
 .modal-title {
-  font-size: 20px;
+  font-size: clamp(16px, 2.5vw, 20px);
   font-weight: bold;
   margin: 0;
 }
 
 .modal-body {
-  padding: 24px;
+  padding: clamp(18px, 3vw, 24px);
 }
 
 .notice-message-box {
   background-color: #FEDE05;
-  padding: 20px;
-  border-radius: 8px;
-  margin-bottom: 20px;
+  padding: clamp(16px, 2.5vw, 20px);
+  border-radius: clamp(6px, 1vw, 8px);
+  margin-bottom: clamp(16px, 2.5vw, 20px);
 }
 
 .notice-message {
   color: #174D7A;
-  font-size: 16px;
+  font-size: clamp(14px, 2vw, 16px);
   line-height: 1.6;
   margin: 0;
 }
 
 .notice-details {
   display: flex;
-  gap: 16px;
-  margin-bottom: 16px;
+  gap: clamp(12px, 2vw, 16px);
+  margin-bottom: clamp(12px, 2vw, 16px);
+  flex-wrap: wrap;
 }
 
 .close-button {
   background-color: #174D7A;
   color: white;
   border: none;
-  padding: 10px 24px;
-  border-radius: 6px;
+  padding: clamp(8px, 1.5vw, 10px) clamp(18px, 3vw, 24px);
+  border-radius: clamp(4px, 0.8vw, 6px);
   cursor: pointer;
-  font-size: 16px;
+  font-size: clamp(14px, 2vw, 16px);
   transition: background-color 0.2s;
 }
 
 .close-button:hover {
   background-color: #0d3a5f;
+}
+
+/* Mobile Responsiveness */
+@media (max-width: 768px) {
+  .options-container {
+    flex-direction: column;
+    align-items: center;
+  }
+  
+  .option-card {
+    max-width: 100%;
+    width: 100%;
+  }
+  
+  .modal-content {
+    width: 95%;
+    max-height: 90vh;
+  }
+  
+  .notice-details {
+    flex-direction: column;
+  }
 }
