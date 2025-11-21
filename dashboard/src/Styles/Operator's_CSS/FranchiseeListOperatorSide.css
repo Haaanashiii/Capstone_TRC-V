@@ -6,17 +6,17 @@
   display:flex;
   justify-content:center;
   position:relative;
-  padding:20px 24px 40px;
-  margin-top: 60px; /* keeps the card below the blue header */
+  padding:clamp(16px, 4vw, 20px) clamp(16px, 3vw, 24px) clamp(20px, 5vh, 40px);
+  margin-top: clamp(60px, 10vh, 80px);
   box-sizing:border-box;
 }
 
 .driver-id-card{
   display:flex;
   width:100%;
-  max-width:1200px; /* keep large layout on desktops but allow scaling */
-  min-height:120px; /* slightly taller for comfortable content spacing */
-  border-radius:12px;
+  max-width:1200px;
+  min-height:clamp(100px, 15vh, 120px);
+  border-radius:clamp(8px, 1.5vw, 12px);
   overflow:hidden;
   box-shadow:0 6px 24px rgba(10,35,118,0.12);
   background:transparent;
@@ -28,32 +28,32 @@
 .id-left{
   background:#f3efe9;
   flex:1 1 0;
-  padding:12px 16px;
+  padding:clamp(10px, 2vw, 12px) clamp(12px, 3vw, 16px);
   box-sizing:border-box;
 }
 
 .id-right{
-  width:420px;
+  width:clamp(300px, 35vw, 420px);
   background:#083d77;
   display:flex;
   align-items:center;
   justify-content:center;
-  padding:20px;
+  padding:clamp(16px, 3vw, 20px);
   box-sizing:border-box;
 }
 
 /* REVERTED: center the badge over the card boundary like the first screenshot */
 .driver-id-badge{
   position:absolute;
-  right:40px; /* stick near the right edge of the card on large screens */
-  top:-36px; /* overlaps into the blue header */
+  right:clamp(20px, 4vw, 40px);
+  top:clamp(-30px, -5vh, -36px);
   background:#083d77;
   color:#ffffff;
-  padding:10px 22px;
-  border-radius:8px;
+  padding:clamp(8px, 1.5vw, 10px) clamp(14px, 3vw, 22px);
+  border-radius:clamp(6px, 1vw, 8px);
   box-shadow:0 8px 18px rgba(8,61,119,0.22);
   font-weight:700;
-  font-size:13px;
+  font-size:clamp(11px, 1.8vw, 13px);
   letter-spacing:0.2px;
   z-index:60;
 }
@@ -66,57 +66,58 @@
 .id-title{
   color:#083d77;
   font-weight:700;
-  margin:0 0 6px 0;
-  font-size:16px;
+  margin:0 0 clamp(4px, 1vw, 6px) 0;
+  font-size:clamp(14px, 2.5vw, 16px);
 }
 
 .divider{
   height:2px;
   background:#222;
   opacity:0.08;
-  margin:6px 0 12px 0;
+  margin:clamp(4px, 1vw, 6px) 0 clamp(10px, 2vw, 12px) 0;
 }
 
 .fields-grid{
   display:grid;
   grid-template-columns:1fr 1fr;
-  gap:8px 12px;
+  gap:clamp(6px, 1.5vw, 8px) clamp(10px, 2vw, 12px);
 }
 
 .subheading{
   grid-column:1 / -1;
   font-weight:700;
   color:#083d77;
-  margin-top:6px;
-  font-size:12px;
+  margin-top:clamp(4px, 1vw, 6px);
+  font-size:clamp(11px, 1.8vw, 12px);
 }
 
 .field-group{display:flex;flex-direction:column}
 .field-group.wide{grid-column:1 / -1}
 
-.label{font-size:10px;color:#333;margin-bottom:4px;font-weight:600}
+.label{font-size:clamp(9px, 1.5vw, 10px);color:#333;margin-bottom:clamp(3px, 0.8vw, 4px);font-weight:600}
 
 .value{
   background:#fff;
-  border-radius:12px;
-  padding:6px 10px;
+  border-radius:clamp(8px, 1.5vw, 12px);
+  padding:clamp(5px, 1vw, 6px) clamp(8px, 1.5vw, 10px);
   box-shadow:inset 0 1px 0 rgba(0,0,0,0.03);
   border:1px solid rgba(0,0,0,0.06);
-  font-weight:700;color:#111;font-size:12px;min-height:28px;display:flex;align-items:center
+  font-weight:700;color:#111;font-size:clamp(11px, 1.8vw, 12px);min-height:clamp(24px, 4vw, 28px);display:flex;align-items:center
 }
 
-.qr-container{background:transparent;border-radius:8px;padding:6px}
+.qr-container{background:transparent;border-radius:clamp(6px, 1vw, 8px);padding:clamp(4px, 1vw, 6px)}
 
 @media (max-width: 1100px){
   .driver-id-card{width:92%}
 }
 @media (max-width: 900px){
-  .driver-id-wrapper{margin-top:20px}
+  .driver-id-wrapper{margin-top:clamp(20px, 4vh, 40px)}
   .driver-id-card{width:96%}
+  .driver-id-badge{ top:clamp(-40px, -6vh, -44px); padding:clamp(6px, 1.5vw, 8px) clamp(12px, 2.5vw, 14px); font-size:clamp(10px, 1.5vw, 12px); left:50%; transform:translateX(-50%); right:auto; }
 }
-@media (max-width: 720px){
-  .driver-id-card{flex-direction:column;width:96%}
-  .id-right{width:100%;padding:18px}
-  .id-left{padding:20px}
-  .fields-grid{grid-template-columns:1fr}
+@media (max-width: 768px){
+  .driver-id-card{flex-direction:column;width:100%;max-width:500px}
+  .id-right{width:100%;padding:clamp(16px, 3vw, 18px)}
+  .id-left{padding:clamp(16px, 3vw, 20px)}
+  .fields-grid{grid-template-columns:1fr;gap:clamp(8px, 2vw, 12px)}
 }

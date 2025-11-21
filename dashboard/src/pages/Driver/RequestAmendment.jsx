@@ -17,7 +17,7 @@ import {
   Divider
 } from '@mui/material';
 import { useNavigate, useLocation } from 'react-router-dom';
-import UnifiedSidebar from '../../components/UnifiedSidebar';
+import UnifiedNavbar from '../../components/UnifiedNavbar';
 import { franchiseAPI, API_BASE_URL } from '../Services/api';
 import { validateFile } from '../../utils/fileValidation';
 import { compressFile } from '../../utils/compressFile';
@@ -353,7 +353,7 @@ export default function RequestAmendment() {
 
   return (
     <Box sx={{ minHeight: '100vh', backgroundColor: '#f8fafc' }}>
-      <UnifiedSidebar 
+      <UnifiedNavbar 
         userType="operator" 
         language={language} 
         onLanguageToggle={() => setLanguage(language === 'en' ? 'tl' : 'en')} 

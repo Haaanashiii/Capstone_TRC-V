@@ -5,7 +5,7 @@ import PersonIcon from '@mui/icons-material/Person';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
-import UnifiedSidebar from '../../components/UnifiedSidebar';
+import UnifiedNavbar from '../../components/UnifiedNavbar';
 import './DriverID.css';
 import dayjs from 'dayjs';
 
@@ -653,7 +653,7 @@ function DriverID() {
   return (
     <Box sx={{ minHeight: '100vh', width: '100%', maxWidth: '100vw', bgcolor: '#f5f7fa', overflowX: 'hidden' }}>
    
-      <UnifiedSidebar 
+      <UnifiedNavbar 
         userType="operator" 
         language={language}
         onLanguageToggle={() => setLanguage(language === 'en' ? 'tl' : 'en')}

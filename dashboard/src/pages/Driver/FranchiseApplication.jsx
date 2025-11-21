@@ -1,6 +1,6 @@
 import React, { useState, useRef } from "react";
 import { useNavigate } from 'react-router-dom';
-import UnifiedSidebar from "../../components/UnifiedSidebar";
+import UnifiedNavbar from "../../components/UnifiedNavbar";
 import { TextField, Button, Snackbar, Alert, CircularProgress, Select, MenuItem, FormControl, InputLabel, FormHelperText } from "@mui/material";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
@@ -390,7 +390,7 @@ export default function FranchiseApplication() {
   return (
     <div>
 
-      <UnifiedSidebar 
+      <UnifiedNavbar 
         userType="operator" 
         language={language}
         onLanguageToggle={() => setLanguage(language === 'en' ? 'tl' : 'en')}

@@ -2,7 +2,6 @@
 import React from "react";
 import { Box, Button, TextField, Typography, InputAdornment, IconButton, Divider, Paper, ThemeProvider, createTheme, Checkbox, FormControlLabel } from "@mui/material";
 import { Visibility, VisibilityOff } from "@mui/icons-material";
-import { Google as GoogleIcon } from '@mui/icons-material';
 import AccountVerificationModal from '../Services/AccountVerificationModal';
 import { useNavigate } from 'react-router-dom';
 import api, { TokenManager } from '../Services/api';
@@ -231,21 +230,6 @@ const Login = () => {
               </Button>
             </form>
           </Box>
-          <Box className="login-divider-box">
-            <hr className="login-divider-line" />
-            <span className="login-divider-text">OR</span>
-            <hr className="login-divider-line" />
-          </Box>
-          <Button
-            variant="outlined"
-            startIcon={<GoogleIcon />}
-            fullWidth
-            className="login-google-btn"
-            onClick={() => { window.location.href = `${API_BASE_URL}/auth/google`; }}
-            disabled={isLoading}
-          >
-            Continue with Google
-          </Button>
           <Box className="login-create-account">
             <Typography variant="body2" className="login-no-account">
               Don't have an account? <a href="signup" className="login-create-link" >Create now</a>
