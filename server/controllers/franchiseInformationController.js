@@ -158,6 +158,132 @@ exports.getFranchiseInformation = async (req, res, next) => {
 };
 
 
+/**
+ * GET /franchise-information/available-numbers
+ * OPTIMIZED: Get available franchise numbers for new applications
+ * 
+ * Algorithm Complexity: O(n) - Single pass through franchises
+ * 
+ * Business Rules:
+ * 1. Active franchises = UNAVAILABLE
+ * 2. Revoked franchises expired for 3+ years = AVAILABLE (can be reused)
+ * 3. All other statuses = UNAVAILABLE
+ * 4. Finds gaps in sequence efficiently using HashMap
+ * 5. Returns next available number or latest + 1
+ * 
+ * Optimization:
+ * - Uses Map for O(1) lookup instead of nested loops
+ * - Single pass through franchises O(n)
+ * - Gap detection in O(n) instead of O(n²)
+ */
+exports.getAvailableFranchiseNumbers = async (req, res, next) => {
+  try {
+    const FranchiseInformation = require('../models/franchiseInformationModel');
+    
+    // Only fetch necessary fields for performance
+    const allCurrentFranchises = await FranchiseInformation.find({ 
+      isCurrentVersion: true 
+    })
+    .select('franchiseNumber franchiseStatus expiryDate')
+    .lean() // Use lean() for faster queries (returns plain JS objects)
+    .exec();
+    
+    const now = new Date();
+    const threeYearsAgo = new Date(now);
+    threeYearsAgo.setFullYear(now.getFullYear() - 3);
+    const currentYear = now.getFullYear();
+    
+    // Use Map for O(1) lookup - Key: number, Value: franchise details
+    const franchiseMap = new Map();
+    let latestNumber = 0;
+    let activeCount = 0;
+    let revokedAvailableCount = 0;
+    let revokedUnavailableCount = 0;
+    
+    // SINGLE PASS: O(n) - Build map and gather statistics
+    for (const franchise of allCurrentFranchises) {
+      // Extract numeric part (e.g., "F-2024-001" -> 1)
+      const numberMatch = franchise.franchiseNumber.match(/(\d+)$/);
+      if (!numberMatch) continue; // Skip invalid format
+      
+      const franchiseNum = parseInt(numberMatch[1], 10);
+      latestNumber = Math.max(latestNumber, franchiseNum);
+      
+      // Determine availability
+      const isRevoked = franchise.franchiseStatus === 'revoked';
+      const isExpired3Years = franchise.expiryDate && 
+                              new Date(franchise.expiryDate) <= threeYearsAgo;
+      const isAvailable = isRevoked && isExpired3Years;
+      
+      franchiseMap.set(franchiseNum, {
+        fullNumber: franchise.franchiseNumber,
+        status: franchise.franchiseStatus,
+        available: isAvailable
+      });
+      
+      // Update counters
+      if (franchise.franchiseStatus === 'active') {
+        activeCount++;
+      } else if (isRevoked) {
+        if (isAvailable) {
+          revokedAvailableCount++;
+        } else {
+          revokedUnavailableCount++;
+        }
+      }
+    }
+    
+    // EFFICIENT GAP DETECTION: O(n) - Single loop from 1 to latestNumber
+    const availableNumbers = [];
+    for (let i = 1; i <= latestNumber; i++) {
+      const franchise = franchiseMap.get(i);
+      
+      if (!franchise) {
+        // Gap found - number never used
+        availableNumbers.push(`F-${currentYear}-${String(i).padStart(5, '0')}`);
+      } else if (franchise.available) {
+        // Revoked and expired 3+ years - reusable
+        availableNumbers.push(franchise.fullNumber);
+      }
+    }
+    
+    // Generate next number
+    const nextNum = latestNumber + 1;
+    const nextFranchiseNumber = `F-${currentYear}-${String(nextNum).padStart(5, '0')}`;
+    
+    // Quick response - limited to first 100 for UI performance
+    const displayLimit = 100;
+    const displayedAvailable = availableNumbers.slice(0, displayLimit);
+    
+    return res.status(200).json({
+      success: true,
+      data: {
+        availableNumbers: displayedAvailable,
+        hasMore: availableNumbers.length > displayLimit,
+        totalAvailable: availableNumbers.length,
+        nextNumber: nextFranchiseNumber,
+        recommendation: availableNumbers.length > 0 
+          ? `${availableNumbers.length} available number${availableNumbers.length > 1 ? 's' : ''} (showing first ${Math.min(displayLimit, availableNumbers.length)})`
+          : `Use next number: ${nextFranchiseNumber}`,
+        statistics: {
+          totalFranchises: allCurrentFranchises.length,
+          totalActive: activeCount,
+          totalRevoked: revokedAvailableCount + revokedUnavailableCount,
+          revokedAvailable: revokedAvailableCount,
+          revokedUnavailable: revokedUnavailableCount,
+          gaps: availableNumbers.length - revokedAvailableCount,
+          latestNumber: latestNumber,
+          nextNumber: nextNum
+        }
+      }
+    });
+    
+  } catch (error) {
+    console.error('[getAvailableFranchiseNumbers] Error:', error);
+    return next(error);
+  }
+};
+
 
 
 

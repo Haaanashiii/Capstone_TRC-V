@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useNavigate } from 'react-router-dom';
 import UnifiedSidebar from "../../components/UnifiedSidebar";
 import { TextField, Button, Snackbar, Alert, CircularProgress, Select, MenuItem, FormControl, InputLabel, FormHelperText } from "@mui/material";
@@ -6,7 +6,7 @@ import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import dayjs from "dayjs";
-import { franchiseAPI } from '../Services/api';
+import api, { franchiseAPI, TokenManager } from '../Services/api';
 import { validateFile, formatFileSize } from '../../utils/fileValidation';
 import { compressFile } from '../../utils/compressFile';
 import "../../Styles/Operator's_CSS/FranchiseApplication.css";
@@ -14,6 +14,59 @@ import "../../Styles/Operator's_CSS/FranchiseApplication.css";
 export default function FranchiseApplication() {
   // Language state
   const [language, setLanguage] = useState('en'); // 'en' for English, 'tl' for Tagalog
+  
+  // Fetch user email from backend API (not from JWT for security)
+  const [userEmail, setUserEmail] = useState('');
+  const [userId, setUserId] = useState('');
+  const [isLoadingUserData, setIsLoadingUserData] = useState(true);
+  
+  useEffect(() => {
+    const fetchUserData = async () => {
+      try {
+        const token = TokenManager.getAccessToken();
+        if (!token) {
+          console.error('[FranchiseApplication] No access token found');
+          setIsLoadingUserData(false);
+          return;
+        }
+        
+        const userData = TokenManager.decodeToken(token);
+        console.log('[FranchiseApplication] JWT payload (no email for security):', userData);
+        
+        if (userData) {
+          // Extract user ID from JWT
+          const extractedUserId = userData.userId || userData.id || userData._id;
+          if (extractedUserId) {
+            setUserId(extractedUserId);
+            console.log('[FranchiseApplication] ✓ User ID extracted:', extractedUserId);
+            
+            // Fetch user email from backend API using the user ID
+            try {
+              const response = await api.get('/auth/me');
+              if (response.data && response.data.user && response.data.user.email) {
+                setUserEmail(response.data.user.email);
+                console.log('[FranchiseApplication] ✓ Email fetched from backend API');
+              } else {
+                console.error('[FranchiseApplication] ✗ No email in API response');
+              }
+            } catch (apiError) {
+              console.error('[FranchiseApplication] ✗ Failed to fetch user data from API:', apiError);
+            }
+          } else {
+            console.error('[FranchiseApplication] ✗ No user ID found in JWT token');
+          }
+        } else {
+          console.error('[FranchiseApplication] ✗ Failed to decode JWT token');
+        }
+      } catch (error) {
+        console.error('[FranchiseApplication] Error extracting data from token:', error);
+      } finally {
+        setIsLoadingUserData(false);
+      }
+    };
+    
+    fetchUserData();
+  }, []);
   
   // Translation object
   const translations = {
@@ -492,7 +545,7 @@ export default function FranchiseApplication() {
               </LocalizationProvider>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', flex: 2, marginTop: 25 }}>
-              <label style={{ fontWeight: 700, marginBottom: 8 }}>Co-Owner</label>
+              <label style={{ fontWeight: 700, marginBottom: 8 }}>Do you have a Co-Owner for this Franchise?</label>
               <div style={{ display: 'flex', gap: 24, alignItems: 'center' }}>
                 <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', fontSize: 16 }}>
                   <input
@@ -856,7 +909,21 @@ export default function FranchiseApplication() {
                       formDataToSend.append('operatorBirthDate', fields.birthDate ? (fields.birthDate.format ? fields.birthDate.format('YYYY-MM-DD') : fields.birthDate) : ''); // FIXED: was 'birthDate'
                       formDataToSend.append('operatorCivilStatus', fields.civilStatus || ''); // FIXED: was 'civilStatus'
                       formDataToSend.append('operatorCitizenship', fields.citizenship || ''); // FIXED: was 'citizenship'
-                      formDataToSend.append('operatorEmail', ''); // Backend requires this field (empty is OK)
+                      
+                      // Email fetched from backend API (NOT from JWT for security)
+                      if (userEmail) {
+                        formDataToSend.append('operatorEmail', userEmail);
+                        console.log('[FranchiseApplication] Using email from backend API:', userEmail);
+                      } else {
+                        console.warn('[FranchiseApplication] No email available from backend API');
+                        formDataToSend.append('operatorEmail', '');
+                      }
+                      
+                      // User ID for tracking (extracted from JWT, then used to fetch email)
+                      if (userId) {
+                        formDataToSend.append('userId', userId);
+                        console.log('[FranchiseApplication] Including user ID:', userId);
+                      }
                       
                       // Driver/Operator Details
                       formDataToSend.append('driversID', fields.driverName || '');
