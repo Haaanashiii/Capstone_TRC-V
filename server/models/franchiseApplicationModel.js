@@ -1,14 +1,14 @@
 const mongoose = require('mongoose');
 
 const DocumentReferenceSchema = new mongoose.Schema({
-  motorRegistrationObj: { type: String, required: true },
-  barangayClearanceObj: { type: String, required: true },
-  cedulaObj: { type: String, required: true },
-  driversLicenseObj: { type: String, required: true },
+  motorRegistrationObj: { type: String, required: false }, // Required for initial submission
+  barangayClearanceObj: { type: String, required: false }, // Required for initial submission
+  cedulaObj: { type: String, required: false }, // Required for initial submission
+  driversLicenseObj: { type: String, required: false }, // Required for initial submission
   votersAffidavitObj: { type: String, required: false },
-  motorChassisStencilObj: { type: String, required: true }, 
-  oRLTOObj: { type: String, required: true }, //
-  cRLTOObj: { type: String, required: true }, // 
+  motorChassisStencilObj: { type: String, required: false }, // Required for initial submission
+  oRLTOObj: { type: String, required: false }, // Added after BPLO approval
+  cRLTOObj: { type: String, required: false }, // Added after BPLO approval
   driverPictureObj: { type: String, required: false },
   operatorPictureObj: { type: String, required: false },
   oRTreasurerOfficeObj: { type: String, required: false }, // after bplo checks
