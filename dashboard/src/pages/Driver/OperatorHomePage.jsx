@@ -998,24 +998,6 @@ const OperatorHomePage = () => {
                 {selectedNotice?.message || 'You are required to proceed to BPLO for motorcycle information.'}
               </Typography>
             </Box>
-
-            {/* Location Note */}
-            <Box sx={{ 
-              marginBottom: '24px',
-              padding: '16px',
-              backgroundColor: '#f0f8ff',
-              borderLeft: '4px solid #174D7A',
-              borderRadius: '4px'
-            }}>
-              <Typography sx={{ 
-                color: '#174D7A',
-                fontSize: '14px',
-                fontWeight: 600,
-                fontFamily: 'Poppins, sans-serif'
-              }}>
-                📍 Location: Business Permit and Licensing Office, 2nd Floor
-              </Typography>
-            </Box>
             
             {/* Additional Info */}
             <Box sx={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
@@ -1061,28 +1043,8 @@ const OperatorHomePage = () => {
               </Box>
             </Box>
             
-            {/* Action Buttons */}
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '24px' }}>
-              <Button
-                onClick={() => {
-                  handleCloseNoticeModal();
-                  navigate('/operator/franchise/application');
-                }}
-                sx={{
-                  backgroundColor: '#FEDE05',
-                  color: '#174D7A',
-                  padding: '10px 32px',
-                  borderRadius: '8px',
-                  fontWeight: 600,
-                  fontFamily: 'Poppins, sans-serif',
-                  textTransform: 'none',
-                  '&:hover': {
-                    backgroundColor: '#e5c900'
-                  }
-                }}
-              >
-                Edit Franchise Application
-              </Button>
+            {/* Action Button */}
+            <Box sx={{ display: 'flex', justifyContent: 'flex-end', marginTop: '24px' }}>
               <Button
                 onClick={handleCloseNoticeModal}
                 sx={{
