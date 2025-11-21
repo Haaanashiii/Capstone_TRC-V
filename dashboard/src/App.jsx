@@ -11,7 +11,6 @@ import OperatorHomePage from './pages/Driver/OperatorHomePage';
 import FranchiseApplication from './pages/Driver/FranchiseApplication';
 import RequestAmendment from './pages/Driver/RequestAmendment';
 import MaintenancePage from './pages/Maintenance/MaintenancePage';
-import AdminDashboard from './pages/Administration/AdminDashboard';
 import UserManagement from './pages/Administration/UserManagement';
 import ReportDriver from './pages/Reporting/reportDriver';
 import FranchiseeList from './pages/Administration/FranchiseeList';
