@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import '../../Styles/Administrator_Css/FranchiseMgmt.css'
 import Sidebar from './Sidebar'
 import { franchiseAPI, API_BASE_URL } from '../Services/api'
+import websocketService from '../../services/websocket'
 import {
   Table,
   TableBody,
@@ -89,6 +90,15 @@ function FranchiseMgmt() {
    * Fetch all pending franchise applications from backend
    * Uses secure franchiseAPI.getPending() with automatic token refresh
    */
+  // Helper function to determine file type from URL extension
+  const getFileTypeFromUrl = (url) => {
+    if (!url) return 'unknown'
+    const ext = url.split('.').pop().toLowerCase()
+    if (['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'].includes(ext)) return 'image'
+    if (ext === 'pdf') return 'pdf'
+    return 'document'
+  }
+
   const isFetchingRef = useRef(false)
   const fetchAllPending = useCallback(async () => {
     // Prevent duplicate simultaneous requests
@@ -101,42 +111,54 @@ function FranchiseMgmt() {
     setIsLoading(true)
     try {
       const response = await franchiseAPI.getPending()
-      const serverApps = response.data
+      // Backend returns { success, data }, axios unwraps to response.data
+      const serverApps = response.data?.data || response.data || []
       
-      console.log('[FranchiseMgmt] Fetched pending applications:', serverApps?.length || 0)
+      console.log('[FranchiseMgmt] Fetched pending applications:', Array.isArray(serverApps) ? serverApps.length : 0)
       
-      // Backend already normalizes documents to {name, type, path} objects
-      // Just pass through the data as-is
+      // Map backend fields to frontend format
+      // Backend uses operatorName, operatorContactNumber, operatorBirthPlace, etc.
       const normalizedServerApps = Array.isArray(serverApps) ? serverApps.map((it) => ({
         id: it.id || it._id,
-        franchiseNumber: it.franchiseNumber || it.franchise_number || '',
-        name: it.name || it.driverName || it.operatorName || '',
-        make: it.make || it.unitModel || it.vehicleMake || '',
-        plateNumber: it.plateNumber || it.mvPlate || it.plate_number || '',
-        applicationType: it.applicationType || it.type || 'New',
-        address: it.address || it.driverAddress || it.address_of_driver || '',
-        contactNumber: it.contactNumber || it.phone || it.contact || '',
-        sidecarPlateNumber: it.sidecarPlateNumber || it.sidecar_plate || '',
-        birthPlace: it.birthPlace || it.placeOfBirth || '',
-        birthDate: it.birthDate || it.dateOfBirth || '',
-        civilStatus: it.civilStatus || '',
-        citizenship: it.citizenship || '',
+        franchiseNumber: it.franchiseNumber || '',
+        name: it.operatorName || it.driverName || '',
+        make: it.unitModel || '',
+        plateNumber: it.mvPlateNo || it.mvPlate || '',
+        applicationType: it.applicationType || 'new',
+        address: it.operatorAddress || '',
+        barangay: it.operatorBarangay || '',
+        contactNumber: it.operatorContactNumber || '',
+        email: it.operatorEmail || '',
+        coOwnerName: it.coOwnerName || '',
+        coOwnerAddress: it.coOwnerAddress || '',
+        sidecarPlateNumber: it.sideCarPlateNumber || '',
+        birthPlace: it.operatorBirthPlace || '',
+        birthDate: it.operatorBirthDate ? new Date(it.operatorBirthDate).toLocaleDateString() : '',
+        civilStatus: it.operatorCivilStatus || '',
+        citizenship: it.operatorCitizenship || '',
         todaMembership: it.todaMembership || '',
-        unitModel: it.unitModel || it.make || '',
-        colorMotor: it.colorMotor || it.color || '',
-        colorSidecar: it.colorSidecar || it.sidecarColor || it.sidecar_color || '',
-        mvPlate: it.mvPlate || it.plateNumber || '',
-        motorEngineNumber: it.motorEngineNumber || it.engineNumber || '',
-        chassisNumber: it.chassisNumber || it.chassis || it.chassis_number || '',
-        driverName: it.driverName || it.name || it.operatorName || '',
-        driverAddress: it.driverAddress || it.address || '',
-        // Documents already normalized by backend
-        documentRegistration: it.documentRegistration || null,
-        documentBarangayClearance: it.documentBarangayClearance || null,
-        documentCedula: it.documentCedula || null,
-        documentDriversLicense: it.documentDriversLicense || null,
-        documentVotersAffidavit: it.documentVotersAffidavit || null,
-        documentPicture: it.documentPicture || null,
+        unitModel: it.unitModel || '',
+        colorMotor: it.colorMotor || '',
+        colorSidecar: it.sideCarColor || '',
+        mvPlate: it.mvPlateNo || '',
+        motorEngineNumber: it.motorEngineNo || '',
+        chassisNumber: it.chasisNo || '',
+        driverName: it.driverName || '',
+        driverAddress: it.driversAddress || '',
+        driversID: it.driversID || '',
+        statusOfBPLO: it.statusOfBPLO || 'pending',
+        submittedAt: it.submittedAt ? new Date(it.submittedAt).toLocaleDateString() : '',
+        // Documents - backend returns URLs as strings, convert to {name, path, type} format
+        documentRegistration: it.documents?.motorRegistrationObj ? { name: it.documents.motorRegistrationObj.split('/').pop(), path: it.documents.motorRegistrationObj, type: getFileTypeFromUrl(it.documents.motorRegistrationObj) } : null,
+        documentBarangayClearance: it.documents?.barangayClearanceObj ? { name: it.documents.barangayClearanceObj.split('/').pop(), path: it.documents.barangayClearanceObj, type: getFileTypeFromUrl(it.documents.barangayClearanceObj) } : null,
+        documentCedula: it.documents?.cedulaObj ? { name: it.documents.cedulaObj.split('/').pop(), path: it.documents.cedulaObj, type: getFileTypeFromUrl(it.documents.cedulaObj) } : null,
+        documentDriversLicense: it.documents?.driversLicenseObj ? { name: it.documents.driversLicenseObj.split('/').pop(), path: it.documents.driversLicenseObj, type: getFileTypeFromUrl(it.documents.driversLicenseObj) } : null,
+        documentVotersAffidavit: it.documents?.votersAffidavitObj ? { name: it.documents.votersAffidavitObj.split('/').pop(), path: it.documents.votersAffidavitObj, type: getFileTypeFromUrl(it.documents.votersAffidavitObj) } : null,
+        documentChassisStencil: it.documents?.motorChassisStencilObj ? { name: it.documents.motorChassisStencilObj.split('/').pop(), path: it.documents.motorChassisStencilObj, type: getFileTypeFromUrl(it.documents.motorChassisStencilObj) } : null,
+        documentPicture: it.documents?.driverPictureObj ? { name: it.documents.driverPictureObj.split('/').pop(), path: it.documents.driverPictureObj, type: getFileTypeFromUrl(it.documents.driverPictureObj) } : null,
+        documentOperatorPicture: it.documents?.operatorPictureObj ? { name: it.documents.operatorPictureObj.split('/').pop(), path: it.documents.operatorPictureObj, type: getFileTypeFromUrl(it.documents.operatorPictureObj) } : null,
+        documentORLTO: it.documents?.oRLTOObj ? { name: it.documents.oRLTOObj.split('/').pop(), path: it.documents.oRLTOObj, type: getFileTypeFromUrl(it.documents.oRLTOObj) } : null,
+        documentCRLTO: it.documents?.cRLTOObj ? { name: it.documents.cRLTOObj.split('/').pop(), path: it.documents.cRLTOObj, type: getFileTypeFromUrl(it.documents.cRLTOObj) } : null,
         qrCode: it.qrCode || null,
       })) : []
 
@@ -160,16 +182,70 @@ function FranchiseMgmt() {
   // Pause polling when any modal is open
   const isAnyModalOpen = openAddModal || openViewModal || openRejectModal || openFilePreview
 
+  // WebSocket real-time updates
   useEffect(() => {
+    // Initial fetch
     fetchAllPending()
+    
+    // Connect to WebSocket for real-time updates
+    if (!websocketService.isConnected()) {
+      console.log('[FranchiseMgmt] Connecting to WebSocket...')
+      websocketService.connect('bplo-admins')
+    }
+
+    // Subscribe to real-time application updates
+    const handlePendingApplications = (applications) => {
+      console.log('[FranchiseMgmt] WebSocket update - pending applications:', applications?.length || 0)
+      if (Array.isArray(applications) && applications.length > 0) {
+        const normalizedApps = applications.map((it) => ({
+          id: it.id || it._id,
+          franchiseNumber: it.franchiseNumber || '',
+          name: it.operatorName || it.driverName || '',
+          make: it.unitModel || '',
+          plateNumber: it.mvPlateNo || '',
+          applicationType: it.applicationType || 'new',
+          address: it.operatorAddress || it.driversAddress || '',
+          contactNumber: it.operatorContactNumber || '',
+          sidecarPlateNumber: it.sideCarPlateNumber || '',
+          birthPlace: it.operatorBirthPlace || '',
+          birthDate: it.operatorBirthDate || '',
+          civilStatus: it.operatorCivilStatus || '',
+          citizenship: it.operatorCitizenship || '',
+          todaMembership: it.todaMembership || '',
+          unitModel: it.unitModel || '',
+          colorMotor: it.colorMotor || '',
+          colorSidecar: it.sideCarColor || '',
+          mvPlate: it.mvPlateNo || '',
+          motorEngineNumber: it.motorEngineNo || '',
+          chassisNumber: it.chasisNo || '',
+          driverName: it.driverName || '',
+          driverAddress: it.driversAddress || '',
+          operatorBarangay: it.operatorBarangay || '',
+          documentRegistration: it.documents?.motorRegistrationObj || null,
+          documentBarangayClearance: it.documents?.barangayClearanceObj || null,
+          documentCedula: it.documents?.cedulaObj || null,
+          documentDriversLicense: it.documents?.driversLicenseObj || null,
+          documentVotersAffidavit: it.documents?.votersAffidavitObj || null,
+          documentPicture: it.documents?.driverPictureObj || null,
+          qrCode: it.qrCode || null,
+          statusOfBPLO: it.statusOfBPLO || 'pending',
+        }))
+        setPendingApplications(normalizedApps)
+      }
+    }
+
+    websocketService.on('pending-applications', handlePendingApplications)
+
+    // Polling as fallback
     let pollId = null
-    // Only poll when no modals are open
     if (POLL_INTERVAL_MS > 0 && !isAnyModalOpen) {
       pollId = setInterval(() => {
         fetchAllPending()
       }, POLL_INTERVAL_MS)
     }
+
     return () => {
+      websocketService.off('pending-applications', handlePendingApplications)
       if (pollId) clearInterval(pollId)
     }
   }, [fetchAllPending, isAnyModalOpen])
@@ -1124,6 +1200,12 @@ function FranchiseMgmt() {
               <Typography variant="subtitle2" className="label">Contact Number:</Typography>
               <Typography>{selectedApplication.contactNumber}</Typography>
               
+              <Typography variant="subtitle2" className="label">Email:</Typography>
+              <Typography>{selectedApplication.email || 'N/A'}</Typography>
+              
+              <Typography variant="subtitle2" className="label">Barangay:</Typography>
+              <Typography>{selectedApplication.barangay || 'N/A'}</Typography>
+              
               <Typography variant="subtitle2" className="label">Birth Place:</Typography>
               <Typography>{selectedApplication.birthPlace}</Typography>
               
@@ -1141,6 +1223,31 @@ function FranchiseMgmt() {
               
               <Typography variant="subtitle2" className="label">Address:</Typography>
               <Typography>{selectedApplication.address}</Typography>
+              
+              {(selectedApplication.coOwnerName || selectedApplication.coOwnerAddress) && (
+                <>
+                  <Typography variant="subtitle2" className="label">Co-Owner Name:</Typography>
+                  <Typography>{selectedApplication.coOwnerName || 'N/A'}</Typography>
+                  
+                  <Typography variant="subtitle2" className="label">Co-Owner Address:</Typography>
+                  <Typography>{selectedApplication.coOwnerAddress || 'N/A'}</Typography>
+                </>
+              )}
+            </div>
+            
+            <Typography variant="h6" className="section-header">
+              DRIVER INFORMATION
+            </Typography>
+            
+            <div className="info-grid">
+              <Typography variant="subtitle2" className="label">Driver's ID:</Typography>
+              <Typography>{selectedApplication.driversID || 'N/A'}</Typography>
+              
+              <Typography variant="subtitle2" className="label">Driver Name:</Typography>
+              <Typography>{selectedApplication.driverName}</Typography>
+              
+              <Typography variant="subtitle2" className="label">Driver Address:</Typography>
+              <Typography>{selectedApplication.driverAddress}</Typography>
             </div>
             
             <Typography variant="h6" className="section-header">
@@ -1166,11 +1273,8 @@ function FranchiseMgmt() {
               <Typography variant="subtitle2" className="label">Chassis Number:</Typography>
               <Typography>{selectedApplication.chassisNumber}</Typography>
               
-              <Typography variant="subtitle2" className="label">Driver Name:</Typography>
-              <Typography>{selectedApplication.driverName}</Typography>
-              
-              {/* <Typography variant="subtitle2" className="label">Driver Address:</Typography>
-              <Typography>{selectedApplication.driverAddress}</Typography> */}
+              <Typography variant="subtitle2" className="label">Sidecar Plate Number:</Typography>
+              <Typography>{selectedApplication.sidecarPlateNumber || 'N/A'}</Typography>
             </div>
             
             <Typography variant="h6" className="section-header">
@@ -1208,10 +1312,34 @@ function FranchiseMgmt() {
                 <span>{selectedApplication.documentVotersAffidavit?.name || 'No file'}</span>
               </Link>
               
-              <Typography variant="subtitle2" className="label">Picture:</Typography>
+              <Typography variant="subtitle2" className="label">Chassis Stencil:</Typography>
+              <Link className="document-link" onClick={() => handleOpenFilePreview(selectedApplication.documentChassisStencil)}>
+                {getFileIcon(selectedApplication.documentChassisStencil?.type)}
+                <span>{selectedApplication.documentChassisStencil?.name || 'No file'}</span>
+              </Link>
+              
+              <Typography variant="subtitle2" className="label">Driver Picture:</Typography>
               <Link className="document-link" onClick={() => handleOpenFilePreview(selectedApplication.documentPicture)}>
                 {getFileIcon(selectedApplication.documentPicture?.type)}
                 <span>{selectedApplication.documentPicture?.name || 'No file'}</span>
+              </Link>
+              
+              <Typography variant="subtitle2" className="label">Operator Picture:</Typography>
+              <Link className="document-link" onClick={() => handleOpenFilePreview(selectedApplication.documentOperatorPicture)}>
+                {getFileIcon(selectedApplication.documentOperatorPicture?.type)}
+                <span>{selectedApplication.documentOperatorPicture?.name || 'No file'}</span>
+              </Link>
+              
+              <Typography variant="subtitle2" className="label">OR LTO:</Typography>
+              <Link className="document-link" onClick={() => handleOpenFilePreview(selectedApplication.documentORLTO)}>
+                {getFileIcon(selectedApplication.documentORLTO?.type)}
+                <span>{selectedApplication.documentORLTO?.name || 'No file'}</span>
+              </Link>
+              
+              <Typography variant="subtitle2" className="label">CR LTO:</Typography>
+              <Link className="document-link" onClick={() => handleOpenFilePreview(selectedApplication.documentCRLTO)}>
+                {getFileIcon(selectedApplication.documentCRLTO?.type)}
+                <span>{selectedApplication.documentCRLTO?.name || 'No file'}</span>
               </Link>
             </div>
             

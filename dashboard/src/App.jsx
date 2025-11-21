@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, useNavigate } from 'react-route
 import ProtectedRoute from './components/ProtectedRoute';
 import SignUp from './pages/auth/SignUp';
 import OAuthCallback from './pages/auth/OAuthCallback';
+import './utils/envCheck'; // Check environment variables on app load
 import Sidebar from './pages/Administration/Sidebar';
 import FranchiseeListOperatorSide from './pages/Driver/FranchiseeListOperatorSide';
 import LandingPage from './pages/Landing/LandingPage';

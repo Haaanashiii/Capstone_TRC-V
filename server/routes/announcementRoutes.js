@@ -19,21 +19,21 @@ router.get('/:id', apiLimiter, announcementController.getAnnouncementById);
 // Admin-only routes (create, update, delete)
 router.post(
   '/',
-  authorize(['sb-admin', 'bplo-admin']),
+  authorize(['sb-admin', 'bplo-admin', 'super-admin']),
   apiLimiter,
   announcementController.createAnnouncement
 );
 
 router.put(
   '/:id',
-  authorize(['sb-admin', 'bplo-admin']),
+  authorize(['sb-admin', 'bplo-admin', 'super-admin']),
   apiLimiter,
   announcementController.updateAnnouncement
 );
 
 router.delete(
   '/:id',
-  authorize(['sb-admin', 'bplo-admin']),
+  authorize(['sb-admin', 'bplo-admin', 'super-admin']),
   apiLimiter,
   announcementController.deleteAnnouncement
 );

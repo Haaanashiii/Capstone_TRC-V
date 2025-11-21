@@ -314,7 +314,7 @@ exports.getFranchisesWithWebSocketIO = async (req, res, next) => {
     
     // Emit to WebSocket if available
     if (req.app.get('io')) {
-      req.app.get('io').to('bplo-admins').emit('pending-applications', applications);
+      req.app.get('io').to('bplo-admins','super-admin').emit('pending-applications', applications);
     }
     
     res.json({ success: true, data: applications });
@@ -336,7 +336,7 @@ exports.approveFranchiseByBPLO = async (req, res, next) => {
     
     // Emit to WebSocket
     if (req.app.get('io')) {
-      req.app.get('io').to('bplo-admins').emit('application-approved', updated);
+      req.app.get('io').to('bplo-admins','super-admin').emit('application-approved', updated);
     }
     
     res.json({ success: true, data: updated, message: 'Application approved by BPLO' });

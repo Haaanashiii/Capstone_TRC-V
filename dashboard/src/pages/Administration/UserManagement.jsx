@@ -99,11 +99,12 @@ function UserManagement() {
   const fetchUsers = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await adminAPI.getAll();
+      // Include inactive admins to see all users in database
+      const response = await adminAPI.getAll({ includeInactive: true });
       
       console.log('[UserManagement] Fetched admins:', response.data?.length || 0);
       
-      // Filter to show only Sangguniang Bayan and BPLO admins (exclude super-admin)
+      // Filter to show only Sangguniang Bayan and BPLO admins (include all, even inactive)
       const adminUsers = Array.isArray(response.data) 
         ? response.data.filter(user => user.role === 'sb-admin' || user.role === 'bplo-admin' || user.role === 'super-admin')
         : [];

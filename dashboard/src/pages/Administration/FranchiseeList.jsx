@@ -1,5 +1,7 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import Sidebar from './Sidebar';
+import { franchiseInformationAPI, API_BASE_URL } from '../Services/api';
+import websocketService from '../../services/websocket';
 import {
   Box,
   Typography,
@@ -36,7 +38,6 @@ import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFile';
 import ImageIcon from '@mui/icons-material/Image';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import '../../Styles/Administrator_Css/FranchiseeList.css';
-import { API_BASE_URL } from '../Services/api';
 
 // Styled components for table
 const StyledTableCell = styled(TableCell)(({ theme }) => ({
@@ -113,8 +114,17 @@ const FranchiseeDetailsModal = ({ open, onClose, franchisee, isEditing, onEdit, 
           <Typography variant="subtitle2" className="label">Name:</Typography>
           <Typography>{franchisee.franchiseeName}</Typography>
           
+          <Typography variant="subtitle2" className="label">Session Number:</Typography>
+          <Typography>{franchisee.sessionNumber || 'N/A'}</Typography>
+          
           <Typography variant="subtitle2" className="label">Contact Number:</Typography>
           <Typography>{franchisee.contactNumber || 'N/A'}</Typography>
+          
+          <Typography variant="subtitle2" className="label">Email:</Typography>
+          <Typography>{franchisee.email || 'N/A'}</Typography>
+          
+          <Typography variant="subtitle2" className="label">Barangay:</Typography>
+          <Typography>{franchisee.barangay || 'N/A'}</Typography>
           
           <Typography variant="subtitle2" className="label">Birth Place:</Typography>
           <Typography>{franchisee.birthPlace || 'N/A'}</Typography>
@@ -133,6 +143,49 @@ const FranchiseeDetailsModal = ({ open, onClose, franchisee, isEditing, onEdit, 
           
           <Typography variant="subtitle2" className="label">Address:</Typography>
           <Typography>{franchisee.address}</Typography>
+          
+          {(franchisee.coOwnerName || franchisee.coOwnerAddress) && (
+            <>
+              <Typography variant="subtitle2" className="label">Co-Owner Name:</Typography>
+              <Typography>{franchisee.coOwnerName || 'N/A'}</Typography>
+              
+              <Typography variant="subtitle2" className="label">Co-Owner Address:</Typography>
+              <Typography>{franchisee.coOwnerAddress || 'N/A'}</Typography>
+            </>
+          )}
+        </div>
+        
+        <Typography variant="h6" className="section-header">
+          DRIVER INFORMATION
+        </Typography>
+        
+        <div className="info-grid">
+          <Typography variant="subtitle2" className="label">Driver's ID:</Typography>
+          <Typography>{franchisee.driversID || 'N/A'}</Typography>
+          
+          <Typography variant="subtitle2" className="label">Driver Name:</Typography>
+          <Typography>{franchisee.driverName || 'N/A'}</Typography>
+          
+          <Typography variant="subtitle2" className="label">Driver Address:</Typography>
+          <Typography>{franchisee.driversAddress || 'N/A'}</Typography>
+        </div>
+        
+        <Typography variant="h6" className="section-header">
+          FRANCHISE STATUS
+        </Typography>
+        
+        <div className="info-grid">
+          <Typography variant="subtitle2" className="label">Status:</Typography>
+          <Typography>{franchisee.franchiseStatus || 'N/A'}</Typography>
+          
+          <Typography variant="subtitle2" className="label">Rate:</Typography>
+          <Typography>{franchisee.rate || 'N/A'}</Typography>
+          
+          <Typography variant="subtitle2" className="label">Approved Date:</Typography>
+          <Typography>{franchisee.approvedAt || 'N/A'}</Typography>
+          
+          <Typography variant="subtitle2" className="label">Expiry Date:</Typography>
+          <Typography>{franchisee.expiryDate || 'N/A'}</Typography>
         </div>
         
         <Typography variant="h6" className="section-header">
@@ -157,6 +210,9 @@ const FranchiseeDetailsModal = ({ open, onClose, franchisee, isEditing, onEdit, 
           
           <Typography variant="subtitle2" className="label">Chassis Number:</Typography>
           <Typography>{franchisee.chassisNumber || 'N/A'}</Typography>
+          
+          <Typography variant="subtitle2" className="label">Sidecar Plate Number:</Typography>
+          <Typography>{franchisee.sidecarPlateNumber || 'N/A'}</Typography>
           
           <Typography variant="subtitle2" className="label">Make:</Typography>
           <Typography>{franchisee.make}</Typography>
@@ -241,10 +297,40 @@ const FranchiseeDetailsModal = ({ open, onClose, franchisee, isEditing, onEdit, 
             <span>{franchisee.documentVotersAffidavit?.name || 'No file'}</span>
           </Link>
           
-          <Typography variant="subtitle2" className="label">Picture:</Typography>
+          <Typography variant="subtitle2" className="label">Chassis Stencil:</Typography>
+          <Link className="document-link" onClick={() => onFilePreview(franchisee.documentChassisStencil)}>
+            {getFileIcon(franchisee.documentChassisStencil?.type)}
+            <span>{franchisee.documentChassisStencil?.name || 'No file'}</span>
+          </Link>
+          
+          <Typography variant="subtitle2" className="label">Driver Picture:</Typography>
           <Link className="document-link" onClick={() => onFilePreview(franchisee.documentPicture)}>
             {getFileIcon(franchisee.documentPicture?.type)}
             <span>{franchisee.documentPicture?.name || 'No file'}</span>
+          </Link>
+          
+          <Typography variant="subtitle2" className="label">OR LTO:</Typography>
+          <Link className="document-link" onClick={() => onFilePreview(franchisee.documentORLTO)}>
+            {getFileIcon(franchisee.documentORLTO?.type)}
+            <span>{franchisee.documentORLTO?.name || 'No file'}</span>
+          </Link>
+          
+          <Typography variant="subtitle2" className="label">CR LTO:</Typography>
+          <Link className="document-link" onClick={() => onFilePreview(franchisee.documentCRLTO)}>
+            {getFileIcon(franchisee.documentCRLTO?.type)}
+            <span>{franchisee.documentCRLTO?.name || 'No file'}</span>
+          </Link>
+          
+          <Typography variant="subtitle2" className="label">OR Treasurer:</Typography>
+          <Link className="document-link" onClick={() => onFilePreview(franchisee.documentTreasurerOR)}>
+            {getFileIcon(franchisee.documentTreasurerOR?.type)}
+            <span>{franchisee.documentTreasurerOR?.name || 'No file'}</span>
+          </Link>
+          
+          <Typography variant="subtitle2" className="label">Session Report:</Typography>
+          <Link className="document-link" onClick={() => onFilePreview(franchisee.documentSessionReport)}>
+            {getFileIcon(franchisee.documentSessionReport?.type)}
+            <span>{franchisee.documentSessionReport?.name || 'No file'}</span>
           </Link>
         </div>
       </Box>
@@ -269,6 +355,15 @@ function FranchiseeList() {
   const qrBlobUrlRef = useRef(null);
   const [qrBlobUrl, setQrBlobUrl] = useState(null);
 
+  // Helper function to determine file type from URL extension
+  const getFileTypeFromUrl = (url) => {
+    if (!url) return 'unknown'
+    const ext = url.split('.').pop().toLowerCase()
+    if (['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'].includes(ext)) return 'image'
+    if (ext === 'pdf') return 'pdf'
+    return 'document'
+  }
+
   // Get auth token
   const getAuthToken = () => {
     return sessionStorage.getItem('accessToken') || localStorage.getItem('accessToken');
@@ -280,22 +375,12 @@ function FranchiseeList() {
     setError('');
     
     try {
-      const apiBase = API_BASE_URL || 'http://localhost:5170';
-      const token = getAuthToken();
+      console.log('[FranchiseeList] Fetching franchisees from franchise-information API...');
+      const response = await franchiseInformationAPI.getAll();
+      // Backend returns { success, data, count }, axios unwraps to response.data
+      const data = response.data?.data || response.data || [];
       
-      // Fetch from franchise-information endpoint (approved franchises with correct file paths)
-      const response = await fetch(`${apiBase}/api/franchise-information`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
+      console.log('[FranchiseeList] Received franchisees:', Array.isArray(data) ? data.length : 0);
       
       // Transform the data to match the expected format
       // Data comes from FranchiseInformation model (approved franchises)
@@ -308,58 +393,94 @@ function FranchiseeList() {
           id: app._id || app.id,
           recordNumber: String(index + 1).padStart(3, '0'),
           franchiseeName: app.operatorName || '',
-          franchiseNumber: app.mtopNumber || app.operatorId || '',
+          franchiseNumber: app.franchiseNumber || '',
+          sessionNumber: app.sessionNumber || '',
           make: app.unitModel || 'N/A',
           plateNumber: app.mvPlateNo || 'N/A',
           applicationType: 'Approved', // All are approved franchises
-          address: app.address || '',
+          address: app.operatorAddress || '',
+          barangay: app.operatorBarangay || '',
+          contactNumber: app.operatorContactNumber || '',
+          email: app.operatorEmail || '',
+          coOwnerName: app.coOwnerName || '',
+          coOwnerAddress: app.coOwnerAddress || '',
           // Additional fields for details modal
-          civilStatus: app.civilStatus || '',
-          birthPlace: app.birthPlace || '',
-          birthDate: app.birthDate ? new Date(app.birthDate).toLocaleDateString() : '',
-          citizenship: app.citizenship || '',
+          civilStatus: app.operatorCivilStatus || '',
+          birthPlace: app.operatorBirthPlace || '',
+          birthDate: app.operatorBirthDate ? new Date(app.operatorBirthDate).toLocaleDateString() : '',
+          citizenship: app.operatorCitizenship || '',
           todaMembership: app.todaMembership || '',
           unitModel: app.unitModel || '',
           colorMotor: app.colorMotor || '',
           colorSidecar: app.sideCarColor || '',
+          sidecarPlateNumber: app.sideCarPlateNumber || '',
           mvPlate: app.mvPlateNo || '',
           motorEngineNumber: app.motorEngineNo || '',
           chassisNumber: app.chasisNo || '',
           driversID: app.driversID || '',
-          driversAddress: app.driversAddress || app.address || '',
-          contactNumber: app.contactNumber || '',
+          driverName: app.driverName || '',
+          driversAddress: app.driversAddress || '',
+          rate: app.rate || '',
+          franchiseStatus: app.franchiseStatus || '',
+          approvedAt: app.approvedAt ? new Date(app.approvedAt).toLocaleDateString() : '',
+          expiryDate: app.expiryDate ? new Date(app.expiryDate).toLocaleDateString() : '',
           qrCode: app.qrCode || null,
           profilePhoto: app.profilePhoto || null,
-          // Document files from documents subdocument - normalize to objects with name and path
-          documentRegistration: docs.motorRegistration ? { 
-            name: docs.motorRegistration.split('/').pop() || 'Registration Document',
-            path: docs.motorRegistration,
-            type: docs.motorRegistration.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg'
+          // Document files from documents subdocument - normalize to objects with name, path, and type
+          documentRegistration: docs.motorRegistrationObj ? { 
+            name: docs.motorRegistrationObj.split('/').pop(),
+            path: docs.motorRegistrationObj,
+            type: getFileTypeFromUrl(docs.motorRegistrationObj)
           } : null,
-          documentBarangayClearance: docs.barangayClearance ? {
-            name: docs.barangayClearance.split('/').pop() || 'Barangay Clearance',
-            path: docs.barangayClearance,
-            type: docs.barangayClearance.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg'
+          documentBarangayClearance: docs.barangayClearanceObj ? {
+            name: docs.barangayClearanceObj.split('/').pop(),
+            path: docs.barangayClearanceObj,
+            type: getFileTypeFromUrl(docs.barangayClearanceObj)
           } : null,
-          documentCedula: docs.cedula ? {
-            name: docs.cedula.split('/').pop() || 'Cedula',
-            path: docs.cedula,
-            type: docs.cedula.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg'
+          documentCedula: docs.cedulaObj ? {
+            name: docs.cedulaObj.split('/').pop(),
+            path: docs.cedulaObj,
+            type: getFileTypeFromUrl(docs.cedulaObj)
           } : null,
-          documentDriversLicense: docs.driversLicense ? {
-            name: docs.driversLicense.split('/').pop() || 'Drivers License',
-            path: docs.driversLicense,
-            type: docs.driversLicense.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg'
+          documentDriversLicense: docs.driversLicenseObj ? {
+            name: docs.driversLicenseObj.split('/').pop(),
+            path: docs.driversLicenseObj,
+            type: getFileTypeFromUrl(docs.driversLicenseObj)
           } : null,
-          documentVotersAffidavit: docs.votersAffidavit ? {
-            name: docs.votersAffidavit.split('/').pop() || 'Voters Affidavit',
-            path: docs.votersAffidavit,
-            type: docs.votersAffidavit.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg'
+          documentVotersAffidavit: docs.votersAffidavitObj ? {
+            name: docs.votersAffidavitObj.split('/').pop(),
+            path: docs.votersAffidavitObj,
+            type: getFileTypeFromUrl(docs.votersAffidavitObj)
           } : null,
-          documentPicture: (docs.picture || app.profilePhoto) ? {
-            name: (docs.picture || app.profilePhoto).split('/').pop() || 'Picture',
-            path: docs.picture || app.profilePhoto,
-            type: 'image/jpeg'
+          documentChassisStencil: docs.motorChassisStencilObj ? {
+            name: docs.motorChassisStencilObj.split('/').pop(),
+            path: docs.motorChassisStencilObj,
+            type: getFileTypeFromUrl(docs.motorChassisStencilObj)
+          } : null,
+          documentORLTO: docs.oRLTOObj ? {
+            name: docs.oRLTOObj.split('/').pop(),
+            path: docs.oRLTOObj,
+            type: getFileTypeFromUrl(docs.oRLTOObj)
+          } : null,
+          documentCRLTO: docs.cRLTOObj ? {
+            name: docs.cRLTOObj.split('/').pop(),
+            path: docs.cRLTOObj,
+            type: getFileTypeFromUrl(docs.cRLTOObj)
+          } : null,
+          documentPicture: docs.driverPictureObj ? {
+            name: docs.driverPictureObj.split('/').pop(),
+            path: docs.driverPictureObj,
+            type: getFileTypeFromUrl(docs.driverPictureObj)
+          } : null,
+          documentTreasurerOR: docs.oRTreasurerOfficeObj ? {
+            name: docs.oRTreasurerOfficeObj.split('/').pop(),
+            path: docs.oRTreasurerOfficeObj,
+            type: getFileTypeFromUrl(docs.oRTreasurerOfficeObj)
+          } : null,
+          documentSessionReport: docs.individualSessionReportObj ? {
+            name: docs.individualSessionReportObj.split('/').pop(),
+            path: docs.individualSessionReportObj,
+            type: getFileTypeFromUrl(docs.individualSessionReportObj)
           } : null
         };
       });

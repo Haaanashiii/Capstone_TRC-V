@@ -361,16 +361,16 @@ export const franchiseAPI = {
   getAll: (params = {}) => api.get('/api/franchise-applications', { params }),
 
   /**
-   * Get pending franchise applications
+   * Get pending franchise applications (BPLO Admin endpoint with WebSocket)
    * @returns {Promise} Response with pending applications array
    */
-  getPending: () => api.get('/api/franchise-applications', { params: { status: 'pending' } }),
+  getPending: () => api.get('/api/franchise-applications/bplo/pending-websocket'),
 
   /**
-   * Get approved franchise applications
+   * Get approved franchise applications (SB Admin endpoint with WebSocket)
    * @returns {Promise} Response with approved applications array
    */
-  getApproved: () => api.get('/api/franchise-applications', { params: { status: 'approved' } }),
+  getApproved: () => api.get('/api/franchise-applications/sb/approved-websocket'),
 
   /**
    * Get single franchise application by ID
@@ -610,6 +610,228 @@ export const dashboardAPI = {
    * @returns {Promise} Response with basic KPI numbers
    */
   getQuickStats: () => api.get('/api/dashboard/quick-stats')
+};
+
+// ====================================================================
+// FRANCHISE INFORMATION API METHODS
+// ====================================================================
+
+export const franchiseInformationAPI = {
+  /**
+   * Get all current franchise records
+   * @param {object} params - Query parameters
+   * @returns {Promise} Response with franchise information array
+   */
+  getAll: (params = {}) => api.get('/api/franchise-information', { params }),
+
+  /**
+   * Get franchise by ID
+   * @param {string} id - Franchise ID
+   * @returns {Promise} Response with franchise details
+   */
+  getById: (id) => api.get(`/api/franchise-information/${id}`),
+
+  /**
+   * Get franchise by number
+   * @param {string} franchiseNumber - Franchise number
+   * @returns {Promise} Response with franchise details
+   */
+  getByNumber: (franchiseNumber) => api.get(`/api/franchise-information/number/${franchiseNumber}`),
+
+  /**
+   * Update franchise information
+   * @param {string} id - Franchise ID
+   * @param {object} data - Updated franchise data
+   * @returns {Promise} Response with updated franchise
+   */
+  update: (id, data) => api.put(`/api/franchise-information/${id}`, data),
+
+  /**
+   * Get franchise history/versions
+   * @param {string} franchiseNumber - Franchise number
+   * @returns {Promise} Response with version history
+   */
+  getHistory: (franchiseNumber) => api.get(`/api/franchise-information/history/${franchiseNumber}`)
+};
+
+// ====================================================================
+// ANNOUNCEMENT API METHODS
+// ====================================================================
+
+export const announcementAPI = {
+  /**
+   * Get all announcements
+   * @returns {Promise} Response with announcements array
+   */
+  getAll: () => api.get('/api/announcements'),
+
+  /**
+   * Get published announcements (public)
+   * @returns {Promise} Response with published announcements
+   */
+  getPublished: () => api.get('/api/announcements/published'),
+
+  /**
+   * Get recent announcements
+   * @param {number} limit - Number of announcements to fetch
+   * @returns {Promise} Response with recent announcements
+   */
+  getRecent: (limit = 5) => api.get('/api/announcements/recent', { params: { limit } }),
+
+  /**
+   * Get announcement by ID
+   * @param {string} id - Announcement ID
+   * @returns {Promise} Response with announcement details
+   */
+  getById: (id) => api.get(`/api/announcements/${id}`),
+
+  /**
+   * Create new announcement (Admin only)
+   * @param {object} announcementData - Announcement data
+   * @returns {Promise} Response with created announcement
+   */
+  create: (announcementData) => api.post('/api/announcements', announcementData),
+
+  /**
+   * Update announcement (Admin only)
+   * @param {string} id - Announcement ID
+   * @param {object} data - Updated announcement data
+   * @returns {Promise} Response with updated announcement
+   */
+  update: (id, data) => api.put(`/api/announcements/${id}`, data),
+
+  /**
+   * Delete announcement (Admin only)
+   * @param {string} id - Announcement ID
+   * @returns {Promise} Response
+   */
+  delete: (id) => api.delete(`/api/announcements/${id}`)
+};
+
+// ====================================================================
+// REPORTS API METHODS
+// ====================================================================
+
+export const reportsAPI = {
+  /**
+   * Get all reports
+   * @param {object} params - Query parameters
+   * @returns {Promise} Response with reports array
+   */
+  getAll: (params = {}) => api.get('/api/reports', { params }),
+
+  /**
+   * Get report statistics
+   * @returns {Promise} Response with statistics
+   */
+  getStatistics: () => api.get('/api/reports/statistics'),
+
+  /**
+   * Get monthly reports
+   * @param {number} year - Year
+   * @param {number} month - Month
+   * @returns {Promise} Response with monthly reports
+   */
+  getMonthly: (year, month) => api.get('/api/reports/monthly', { params: { year, month } }),
+
+  /**
+   * Get reports by date range
+   * @param {string} startDate - Start date (YYYY-MM-DD)
+   * @param {string} endDate - End date (YYYY-MM-DD)
+   * @returns {Promise} Response with reports
+   */
+  getByDateRange: (startDate, endDate) => api.get('/api/reports/date-range', { params: { startDate, endDate } }),
+
+  /**
+   * Get report by ID
+   * @param {string} id - Report ID
+   * @returns {Promise} Response with report details
+   */
+  getById: (id) => api.get(`/api/reports/${id}`),
+
+  /**
+   * Create new report
+   * @param {object} reportData - Report data
+   * @returns {Promise} Response with created report
+   */
+  create: (reportData) => api.post('/api/reports', reportData),
+
+  /**
+   * Create public report (no auth required)
+   * @param {object} reportData - Report data
+   * @returns {Promise} Response with created report
+   */
+  createPublic: (reportData) => api.post('/api/reports/public', reportData),
+
+  /**
+   * Update report
+   * @param {string} id - Report ID
+   * @param {object} data - Updated report data
+   * @returns {Promise} Response with updated report
+   */
+  update: (id, data) => api.put(`/api/reports/${id}`, data),
+
+  /**
+   * Delete report
+   * @param {string} id - Report ID
+   * @returns {Promise} Response
+   */
+  delete: (id) => api.delete(`/api/reports/${id}`)
+};
+
+// ====================================================================
+// QR CODE API METHODS
+// ====================================================================
+
+export const qrCodeAPI = {
+  /**
+   * Get all operators with QR codes
+   * @returns {Promise} Response with operators array
+   */
+  getAllOperators: () => api.get('/api/qr/operators'),
+
+  /**
+   * Get operator QR code
+   * @param {string} operatorId - Operator ID
+   * @returns {Promise} Response with QR code data
+   */
+  getOperatorQR: (operatorId) => api.get(`/api/qr/operator/${operatorId}`),
+
+  /**
+   * Generate QR code for operator
+   * @param {string} operatorId - Operator ID
+   * @param {object} options - Generation options
+   * @returns {Promise} Response with generated QR code
+   */
+  generateOperatorQR: (operatorId, options = {}) => api.post(`/api/qr/generate/operator/${operatorId}`, options),
+
+  /**
+   * Regenerate QR code for operator
+   * @param {string} operatorId - Operator ID
+   * @returns {Promise} Response with regenerated QR code
+   */
+  regenerateOperatorQR: (operatorId) => api.put(`/api/qr/regenerate/operator/${operatorId}`),
+
+  /**
+   * Delete operator QR code
+   * @param {string} operatorId - Operator ID
+   * @returns {Promise} Response
+   */
+  deleteOperatorQR: (operatorId) => api.delete(`/api/qr/operator/${operatorId}`),
+
+  /**
+   * Generate QR code for franchise application
+   * @param {string} applicationId - Application ID
+   * @returns {Promise} Response with generated QR code
+   */
+  generateFranchiseQR: (applicationId) => api.post(`/api/qr/generate/franchise/${applicationId}`),
+
+  /**
+   * Download QR code as PNG
+   * @param {string} operatorId - Operator ID
+   * @returns {Promise} Response with file blob
+   */
+  downloadOperatorQR: (operatorId) => api.get(`/api/qr/download/operator/${operatorId}`, { responseType: 'blob' })
 };
 
 // Export default api instance for custom requests

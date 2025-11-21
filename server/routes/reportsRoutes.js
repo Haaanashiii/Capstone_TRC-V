@@ -14,17 +14,17 @@ router.use(apiLimiter);
 // Basic CRUD routes (require authentication)
 router.post('/', authenticate, reportsController.createReport);
 router.get('/', authenticate, reportsController.getAllReports);
-router.get('/statistics', authenticate, authorize(['sb-admin', 'bplo-admin']), reportsController.getReportsStatistics);
+router.get('/statistics', authenticate, authorize(['sb-admin', 'bplo-admin', 'super-admin']), reportsController.getReportsStatistics);
 
 // Monthly reports with CSV export (admin only)
-router.get('/monthly', authenticate, authorize(['sb-admin', 'bplo-admin']), reportsController.getMonthlyReports);
+router.get('/monthly', authenticate, authorize(['sb-admin', 'bplo-admin', 'super-admin']), reportsController.getMonthlyReports);
 
 // Date range reports with CSV export (admin only)
-router.get('/date-range', authenticate, authorize(['sb-admin', 'bplo-admin']), reportsController.getReportsByDateRange);
+router.get('/date-range', authenticate, authorize(['sb-admin', 'bplo-admin', 'super-admin']), reportsController.getReportsByDateRange);
 
 // Individual report operations
 router.get('/:id', authenticate, reportsController.getReportById);
-router.put('/:id', authenticate, authorize(['sb-admin', 'bplo-admin']), reportsController.updateReport);
-router.delete('/:id', authenticate, authorize(['sb-admin', 'bplo-admin']), reportsController.deleteReport);
+router.put('/:id', authenticate, authorize(['sb-admin', 'bplo-admin', 'super-admin']), reportsController.updateReport);
+router.delete('/:id', authenticate, authorize(['sb-admin', 'bplo-admin', 'super-admin']), reportsController.deleteReport);
 
 module.exports = router;

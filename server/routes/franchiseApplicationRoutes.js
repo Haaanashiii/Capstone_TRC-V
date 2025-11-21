@@ -14,13 +14,13 @@ router.post('/renew-amend', authenticate, authorize(['user']), upload.uploadOper
 router.put('/approved/:id/add-receipt', authenticate, authorize(['user']), upload.uploadOperatorDocuments, controller.editApprovedFranchise);
 
 // BPLO ADMIN ROUTES - Review and approve applications
-router.get('/bplo/pending-websocket', authenticate, authorize(['bplo', 'admin']), controller.getFranchisesWithWebSocketIO);
-router.put('/bplo/approve/:id', authenticate, authorize(['bplo', 'admin']), controller.approveFranchiseByBPLO);
+router.get('/bplo/pending-websocket', authenticate, authorize(['bplo-admin', 'super-admin']), controller.getFranchisesWithWebSocketIO);
+router.put('/bplo/approve/:id', authenticate, authorize(['bplo-admin', 'super-admin']), controller.approveFranchiseByBPLO);
 
 // SB ADMIN ROUTES - Final acceptance and franchise creation
-router.get('/sb/approved-websocket', authenticate, authorize(['sb', 'admin']), controller.getApprovedRoutesForSBAdmin);
-router.post('/sb/accept-new/:id', authenticate, authorize(['sb', 'admin']), upload.uploadOperatorDocuments, controller.sbAdminAcceptNewFranchise);
-router.post('/sb/accept-renew-amend/:id', authenticate, authorize(['sb', 'admin']), upload.uploadOperatorDocuments, controller.sbAdminAcceptRenewOrAmendment);
+router.get('/sb/approved-websocket', authenticate, authorize(['sb-admin', 'super-admin']), controller.getApprovedRoutesForSBAdmin);
+router.post('/sb/accept-new/:id', authenticate, authorize(['sb-admin', 'super-admin']), upload.uploadOperatorDocuments, controller.sbAdminAcceptNewFranchise);
+router.post('/sb/accept-renew-amend/:id', authenticate, authorize(['sb-admin', 'super-admin']), upload.uploadOperatorDocuments, controller.sbAdminAcceptRenewOrAmendment);
 
 // LEGACY ROUTES (backward compatibility)
 router.post('/', authenticate, upload.uploadOperatorDocuments, controller.createFranchiseApplication);

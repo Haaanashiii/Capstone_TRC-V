@@ -19,7 +19,7 @@ const poppinsTheme = createTheme({
   },
 });
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170';
 
 const AccountVerificationModal = ({ open, onClose, email, rememberMe = false, onVerificationSuccess, buttonText = 'Sign in to your account' }) => {
   const [otp, setOtp] = useState(['', '', '', '', '', '']);

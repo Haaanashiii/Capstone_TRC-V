@@ -23,7 +23,7 @@ const authorize = require('../middlewares/authorize');
 router.post(
   '/generate/operator/:operatorId',
   authenticate,
-  authorize(['sb-admin', 'bplo-admin']),
+  authorize(['sb-admin', 'bplo-admin', 'super-admin']),
   qrCodeController.generateOperatorQRCode
 );
 
@@ -36,7 +36,7 @@ router.post(
 router.put(
   '/regenerate/operator/:operatorId',
   authenticate,
-  authorize(['sb-admin', 'bplo-admin']),
+  authorize(['sb-admin', 'bplo-admin', 'super-admin']),
   qrCodeController.regenerateOperatorQRCode
 );
 
@@ -49,7 +49,7 @@ router.put(
 router.delete(
   '/operator/:operatorId',
   authenticate,
-  authorize(['sb-admin', 'bplo-admin']),
+  authorize(['sb-admin', 'bplo-admin', 'super-admin']),
   qrCodeController.deleteOperatorQRCode
 );
 
@@ -62,7 +62,7 @@ router.delete(
 router.get(
   '/operator/:operatorId',
   authenticate,
-  authorize(['sb-admin', 'bplo-admin']),
+  authorize(['sb-admin', 'bplo-admin', 'super-admin']),
   qrCodeController.getOperatorQRCode
 );
 
@@ -75,7 +75,7 @@ router.get(
 router.get(
   '/operators',
   authenticate,
-  authorize(['sb-admin', 'bplo-admin']),
+  authorize(['sb-admin', 'bplo-admin', 'super-admin']),
   qrCodeController.getAllOperatorsWithQR
 );
 
@@ -88,7 +88,7 @@ router.get(
 router.post(
   '/generate/franchise/:applicationId',
   authenticate,
-  authorize(['sb-admin', 'bplo-admin']),
+  authorize(['sb-admin', 'bplo-admin', 'super-admin']),
   qrCodeController.generateFranchiseQRCode
 );
 
@@ -101,7 +101,7 @@ router.post(
 router.get(
   '/download/operator/:operatorId',
   authenticate,
-  authorize(['sb-admin', 'bplo-admin']),
+  authorize(['sb-admin', 'bplo-admin', 'super-admin']),
   qrCodeController.downloadOperatorQRCode
 );
 
