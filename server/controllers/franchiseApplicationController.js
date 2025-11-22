@@ -314,7 +314,7 @@ exports.getFranchisesWithWebSocketIO = async (req, res, next) => {
     
     // Emit to WebSocket if available
     if (req.app.get('io')) {
-      req.app.get('io').to('bplo-admins','super-admin').emit('pending-applications', applications);
+      req.app.get('io').to('bplo-admins').to('sb-admins').emit('pending-applications', applications);
     }
     
     res.json({ success: true, data: applications });

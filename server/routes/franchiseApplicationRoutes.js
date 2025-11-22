@@ -14,7 +14,7 @@ router.post('/renew-amend', authenticate, authorize(['user']), upload.uploadOper
 router.put('/approved/:id/add-receipt', authenticate, authorize(['user']), upload.uploadOperatorDocuments, controller.editApprovedFranchise);
 
 // BPLO ADMIN ROUTES - Review and approve applications
-router.get('/bplo/pending-websocket', authenticate, authorize(['bplo-admin', 'super-admin']), controller.getFranchisesWithWebSocketIO);
+router.get('/bplo/pending-websocket', authenticate, authorize(['bplo-admin', 'sb-admin', 'super-admin']), controller.getFranchisesWithWebSocketIO);
 router.put('/bplo/approve/:id', authenticate, authorize(['bplo-admin', 'super-admin']), controller.approveFranchiseByBPLO);
 router.put('/bplo/disapprove/:id', authenticate, authorize(['bplo-admin', 'super-admin']), controller.disapproveFranchiseByBPLO);
 

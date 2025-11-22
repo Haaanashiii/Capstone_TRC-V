@@ -197,10 +197,17 @@ function FranchiseMgmt() {
     // Initial fetch
     fetchAllPending()
     
+    // Determine WebSocket room based on user role
+    const websocketRoom = userRole === 'sb-admin' ? 'sb-admins' : 'bplo-admins'
+    
     // Connect to WebSocket for real-time updates
     if (!websocketService.isConnected()) {
-      console.log('[FranchiseMgmt] Connecting to WebSocket...')
-      websocketService.connect('bplo-admins')
+      console.log('[FranchiseMgmt] Connecting to WebSocket as:', websocketRoom)
+      websocketService.connect(websocketRoom)
+    } else {
+      // If already connected, just join the correct room
+      console.log('[FranchiseMgmt] Already connected, joining room:', websocketRoom)
+      websocketService.joinRoom(websocketRoom)
     }
 
     // Subscribe to real-time application updates
@@ -258,7 +265,7 @@ function FranchiseMgmt() {
       websocketService.off('pending-applications', handlePendingApplications)
       if (pollId) clearInterval(pollId)
     }
-  }, [fetchAllPending, isAnyModalOpen])
+  }, [fetchAllPending, isAnyModalOpen, userRole])
 
 
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('')
