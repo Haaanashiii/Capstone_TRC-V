@@ -345,14 +345,25 @@ exports.approveFranchiseByBPLO = async (req, res, next) => {
     });
     
     // Send notification to user about BPLO approval and inspection requirement
-    const notificationService = require('../services/notificationService');
+    // Non-blocking: email failures should not prevent approval
     if (updated.operatorEmail) {
-      await notificationService.sendBPLOApprovalNotification(updated);
+      try {
+        const notificationService = require('../services/notificationService');
+        await notificationService.sendBPLOApprovalNotification(updated);
+        console.log('[BPLO Approval] Email notification sent to:', updated.operatorEmail);
+      } catch (emailError) {
+        console.warn('[BPLO Approval] Failed to send email notification:', emailError.message);
+        // Continue with approval even if email fails
+      }
+    } else {
+      console.warn('[BPLO Approval] No operator email, skipping notification');
     }
     
     // Emit to WebSocket
     if (req.app.get('io')) {
+      // Emit to both BPLO and SB admins - SB admins can now see applications awaiting OR
       req.app.get('io').to('bplo-admins').emit('application-approved', updated);
+      req.app.get('io').to('sb-admins').emit('new-sb-application', updated);
       // Notify user about the approval
       if (updated.operatorInfo) {
         req.app.get('io').to(`user-${updated.operatorInfo}`).emit('bplo-approval', {
@@ -365,6 +376,7 @@ exports.approveFranchiseByBPLO = async (req, res, next) => {
     
     res.json({ success: true, data: updated, message: 'Application approved by BPLO. Applicant will be notified to proceed with inspection and OR submission.' });
   } catch (error) {
+    console.error('[BPLO Approval] Error:', error);
     next(error);
   }
 };
@@ -396,13 +408,23 @@ exports.disapproveFranchiseByBPLO = async (req, res, next) => {
     });
     
     // Send notification to user about BPLO disapproval
-    const notificationService = require('../services/notificationService');
+    // Non-blocking: email failures should not prevent disapproval
     if (updated.operatorEmail) {
-      await notificationService.sendBPLODisapprovalNotification(updated, reason);
+      try {
+        const notificationService = require('../services/notificationService');
+        await notificationService.sendBPLODisapprovalNotification(updated, reason);
+        console.log('[BPLO Disapproval] Email notification sent to:', updated.operatorEmail);
+      } catch (emailError) {
+        console.warn('[BPLO Disapproval] Failed to send email notification:', emailError.message);
+        // Continue with disapproval even if email fails
+      }
+    } else {
+      console.warn('[BPLO Disapproval] No operator email, skipping notification');
     }
     
     // Emit to WebSocket
     if (req.app.get('io')) {
+      // Only emit to BPLO admins - SB admins don't need disapproval notifications
       req.app.get('io').to('bplo-admins').emit('application-disapproved', updated);
       // Notify user about the disapproval
       if (updated.operatorInfo) {
@@ -417,6 +439,7 @@ exports.disapproveFranchiseByBPLO = async (req, res, next) => {
     
     res.json({ success: true, data: updated, message: 'Application disapproved by BPLO. Applicant has been notified.' });
   } catch (error) {
+    console.error('[BPLO Disapproval] Error:', error);
     next(error);
   }
 };
@@ -496,17 +519,20 @@ exports.editApprovedFranchise = async (req, res, next) => {
 // 9) GET APPROVED ROUTES FOR SB ADMIN (WebSocket)
 exports.getApprovedRoutesForSBAdmin = async (req, res, next) => {
   try {
-    // Get applications awaiting SB approval (have OR submitted)
+    // Get applications for SB review - includes both:
+    // 1. Applications with OR submitted (awaiting-sb)
+    // 2. Applications approved by BPLO but OR not yet submitted (bplo-approved)
     const applications = await FranchiseApplication.find({
       $or: [
-        { statusOfBPLO: 'awaiting-sb' },
+        { statusOfBPLO: 'bplo-approved' }, // Approved by BPLO, awaiting OR from client
+        { statusOfBPLO: 'awaiting-sb' }, // OR submitted, ready for SB final approval
         { 
           statusOfBPLO: 'approved',
           officialRecieptNumber: { $exists: true, $ne: null, $ne: '' },
           'documents.oRTreasurerOfficeObj': { $exists: true, $ne: null, $ne: '' }
         }
       ]
-    }).sort({ orSubmittedAt: -1, approvedAt: -1 });
+    }).sort({ statusOfBPLO: 1, orSubmittedAt: -1, bploApprovedAt: -1 });
     
     // Emit to WebSocket
     if (req.app.get('io')) {
@@ -535,12 +561,16 @@ exports.approveFranchiseBySBAdmin = async (req, res, next) => {
       return res.status(404).json({ error: 'Application not found' });
     }
     
-    // Allow approval for awaiting-sb or legacy 'approved' with OR
-    const canApprove = application.statusOfBPLO === 'awaiting-sb' || 
+    // Allow approval for:
+    // 1. bplo-approved (even without OR - SB can approve in advance)
+    // 2. awaiting-sb (with OR submitted)
+    // 3. legacy 'approved' with OR
+    const canApprove = application.statusOfBPLO === 'bplo-approved' ||
+                       application.statusOfBPLO === 'awaiting-sb' || 
                        (application.statusOfBPLO === 'approved' && application.officialReceiptNumber);
     
     if (!canApprove) {
-      return res.status(400).json({ error: 'Application must have OR submitted and be awaiting SB approval' });
+      return res.status(400).json({ error: 'Application must be approved by BPLO before SB can give final approval' });
     }
     
     const adminUsername = req.user?.username || req.user?.email || 'SB Admin';
@@ -553,14 +583,23 @@ exports.approveFranchiseBySBAdmin = async (req, res, next) => {
     });
     
     // Send notification to user about final approval
-    const notificationService = require('../services/notificationService');
+    // Non-blocking: email failures should not prevent approval
     if (updated.operatorEmail) {
-      await notificationService.sendSBApprovalNotification(updated, resolutionNumber);
+      try {
+        const notificationService = require('../services/notificationService');
+        await notificationService.sendSBApprovalNotification(updated, resolutionNumber);
+        console.log('[SB Approval] Email notification sent to:', updated.operatorEmail);
+      } catch (emailError) {
+        console.warn('[SB Approval] Failed to send email notification:', emailError.message);
+        // Continue with approval even if email fails
+      }
+    } else {
+      console.warn('[SB Approval] No operator email, skipping notification');
     }
     
     // Emit to WebSocket
     if (req.app.get('io')) {
-      req.app.get('io').to('sb-admins').emit('application-sb-approved', updated);
+      req.app.get('io').to('sb-admins').to('bplo-admins').emit('application-sb-approved', updated);
       // Notify user about the final approval
       if (updated.operatorInfo) {
         req.app.get('io').to(`user-${updated.operatorInfo}`).emit('sb-approval', {
@@ -578,6 +617,8 @@ exports.approveFranchiseBySBAdmin = async (req, res, next) => {
       message: 'Application finally approved by SB Admin. Applicant can now claim their certificate.' 
     });
   } catch (error) {
+    console.error('[SB Approval] Error:', error);
+    next(error);
     next(error);
   }
 };

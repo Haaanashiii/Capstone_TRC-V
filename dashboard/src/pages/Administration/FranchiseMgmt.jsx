@@ -117,14 +117,17 @@ function FranchiseMgmt() {
     isFetchingRef.current = true
     setIsLoading(true)
     try {
-      // Fetch ALL pending applications regardless of role
-      // The filter will determine what the user sees
-      const response = await franchiseAPI.getPending()
+      // Fetch applications based on user role
+      // SB Admin sees applications awaiting final approval (with OR submitted)
+      // BPLO Admin sees pending applications
+      const response = userRole === 'sb-admin' 
+        ? await franchiseAPI.getApproved() 
+        : await franchiseAPI.getPending()
       
       // Backend returns { success, data }, axios unwraps to response.data
       const serverApps = response.data?.data || response.data || []
       
-      console.log('[FranchiseMgmt] Fetched pending applications:', Array.isArray(serverApps) ? serverApps.length : 0)
+      console.log(`[FranchiseMgmt] Fetched ${userRole === 'sb-admin' ? 'SB approval' : 'pending'} applications:`, Array.isArray(serverApps) ? serverApps.length : 0)
       
       // Map backend fields to frontend format
       // Backend uses operatorName, operatorContactNumber, operatorBirthPlace, etc.
@@ -158,6 +161,16 @@ function FranchiseMgmt() {
         driversID: it.driversID || '',
         statusOfBPLO: it.statusOfBPLO || 'pending',
         submittedAt: it.submittedAt ? new Date(it.submittedAt).toLocaleDateString() : '',
+        // OR and approval information (for SB admins)
+        officialReceiptNumber: it.officialReceiptNumber || '',
+        orSubmittedAt: it.orSubmittedAt ? new Date(it.orSubmittedAt).toLocaleDateString() : '',
+        bploApprovedBy: it.bploApprovedBy || '',
+        bploApprovedAt: it.bploApprovedAt || '',
+        bploInspectionRequired: it.bploInspectionRequired || false,
+        bploDisapprovedReason: it.bploDisapprovedReason || '',
+        sbApprovedBy: it.sbApprovedBy || '',
+        sbApprovedAt: it.sbApprovedAt || '',
+        sbResolutionNumber: it.sbResolutionNumber || '',
         // Documents - backend returns URLs as strings, convert to {name, path, type} format
         documentRegistration: it.documents?.motorRegistrationObj ? { name: it.documents.motorRegistrationObj.split('/').pop(), path: it.documents.motorRegistrationObj, type: getFileTypeFromUrl(it.documents.motorRegistrationObj) } : null,
         documentBarangayClearance: it.documents?.barangayClearanceObj ? { name: it.documents.barangayClearanceObj.split('/').pop(), path: it.documents.barangayClearanceObj, type: getFileTypeFromUrl(it.documents.barangayClearanceObj) } : null,
@@ -187,7 +200,7 @@ function FranchiseMgmt() {
       setIsLoading(false)
       isFetchingRef.current = false
     }
-  }, [])
+  }, [userRole])
 
   // Pause polling when any modal is open
   const isAnyModalOpen = openAddModal || openViewModal || openRejectModal || openFilePreview
@@ -197,8 +210,9 @@ function FranchiseMgmt() {
     // Initial fetch
     fetchAllPending()
     
-    // Determine WebSocket room based on user role
+    // Determine WebSocket room and event based on user role
     const websocketRoom = userRole === 'sb-admin' ? 'sb-admins' : 'bplo-admins'
+    const websocketEvent = userRole === 'sb-admin' ? 'approved-applications' : 'pending-applications'
     
     // Connect to WebSocket for real-time updates
     if (!websocketService.isConnected()) {
@@ -211,9 +225,17 @@ function FranchiseMgmt() {
     }
 
     // Subscribe to real-time application updates
-    const handlePendingApplications = (applications) => {
-      console.log('[FranchiseMgmt] WebSocket update - pending applications:', applications?.length || 0)
-      if (Array.isArray(applications) && applications.length > 0) {
+    const handleApplicationUpdates = (applications) => {
+      console.log(`[FranchiseMgmt] WebSocket update - ${websocketEvent}:`, applications?.length || 0)
+      // Only update if we have applications or if this is an explicit clear
+      if (Array.isArray(applications)) {
+        // For SB admins, ignore empty WebSocket updates if we already have data
+        // This prevents the WebSocket from clearing data when BPLO approves (which triggers a re-emit)
+        if (userRole === 'sb-admin' && applications.length === 0 && pendingApplications.length > 0) {
+          console.log('[FranchiseMgmt] Ignoring empty WebSocket update for SB admin (preserving existing data)')
+          return
+        }
+        
         const normalizedApps = applications.map((it) => ({
           id: it.id || it._id,
           franchiseNumber: it.franchiseNumber || '',
@@ -223,6 +245,7 @@ function FranchiseMgmt() {
           applicationType: it.applicationType || 'new',
           address: it.operatorAddress || it.driversAddress || '',
           contactNumber: it.operatorContactNumber || '',
+          email: it.operatorEmail || '',
           sidecarPlateNumber: it.sideCarPlateNumber || '',
           birthPlace: it.operatorBirthPlace || '',
           birthDate: it.operatorBirthDate || '',
@@ -238,6 +261,8 @@ function FranchiseMgmt() {
           driverName: it.driverName || '',
           driverAddress: it.driversAddress || '',
           operatorBarangay: it.operatorBarangay || '',
+          officialReceiptNumber: it.officialReceiptNumber || '',
+          orSubmittedAt: it.orSubmittedAt || '',
           documentRegistration: it.documents?.motorRegistrationObj || null,
           documentBarangayClearance: it.documents?.barangayClearanceObj || null,
           documentCedula: it.documents?.cedulaObj || null,
@@ -251,7 +276,18 @@ function FranchiseMgmt() {
       }
     }
 
-    websocketService.on('pending-applications', handlePendingApplications)
+    websocketService.on(websocketEvent, handleApplicationUpdates)
+    
+    // For SB admins, also listen for new applications (when OR is submitted)
+    const handleNewSBApplication = (application) => {
+      console.log('[FranchiseMgmt] New SB application received:', application)
+      // Refresh the list to show the new application
+      fetchAllPending()
+    }
+    
+    if (userRole === 'sb-admin') {
+      websocketService.on('new-sb-application', handleNewSBApplication)
+    }
 
     // Polling as fallback
     let pollId = null
@@ -262,7 +298,10 @@ function FranchiseMgmt() {
     }
 
     return () => {
-      websocketService.off('pending-applications', handlePendingApplications)
+      websocketService.off(websocketEvent, handleApplicationUpdates)
+      if (userRole === 'sb-admin') {
+        websocketService.off('new-sb-application', handleNewSBApplication)
+      }
       if (pollId) clearInterval(pollId)
     }
   }, [fetchAllPending, isAnyModalOpen, userRole])
@@ -842,14 +881,18 @@ function FranchiseMgmt() {
   /**
    * Get status display information
    */
-  const getStatusInfo = (statusOfBPLO) => {
+  const getStatusInfo = (statusOfBPLO, hasOR) => {
     switch (statusOfBPLO) {
       case 'pending':
         return { label: 'For BPLO Verification', color: '#F59E0B', bgColor: '#FEF3C7' }
       case 'bplo-approved':
-        return { label: 'Approved by BPLO - Awaiting OR', color: '#059669', bgColor: '#D1FAE5' }
+        // Check if OR is submitted for more accurate status
+        if (hasOR) {
+          return { label: 'Approved by BPLO - OR Submitted', color: '#059669', bgColor: '#D1FAE5' }
+        }
+        return { label: 'Awaiting OR Document and OR Number from Client', color: '#DC8C09', bgColor: '#FFF4E6' }
       case 'awaiting-sb':
-        return { label: 'Awaiting SB Resolution', color: '#0A356B', bgColor: '#DBEAFE' }
+        return { label: 'Ready for SB Final Approval', color: '#0A356B', bgColor: '#DBEAFE' }
       case 'bplo-disapproved':
         return { label: 'Disapproved by BPLO', color: '#DC2626', bgColor: '#FEE2E2' }
       default:
@@ -940,7 +983,8 @@ function FranchiseMgmt() {
               <TableBody>
                 {filteredApplications.length > 0 ? (
                   filteredApplications.map((application, index) => {
-                    const statusInfo = getStatusInfo(application.statusOfBPLO || 'pending')
+                    const hasOR = !!(application.officialReceiptNumber && application.officialReceiptNumber.trim())
+                    const statusInfo = getStatusInfo(application.statusOfBPLO || 'pending', hasOR)
                     return (
                       <TableRow 
                         key={application.id}
@@ -1630,22 +1674,41 @@ function FranchiseMgmt() {
                 </>
               )}
               
-              {userRole === 'sb-admin' && (selectedApplication.statusOfBPLO === 'awaiting-sb' || 
-                (selectedApplication.statusOfBPLO === 'approved' && selectedApplication.officialReceiptNumber)) && (
-                <Button
-                  className="button-success"
-                  onClick={handleApproveApplication}
-                  disabled={isLoading}
-                  fullWidth
-                >
-                  {isLoading ? <CircularProgress className="circular-progress-small circular-progress-inherit" /> : 'Final Approval with Resolution Number'}
-                </Button>
+              {userRole === 'sb-admin' && (
+                selectedApplication.statusOfBPLO === 'bplo-approved' ||
+                selectedApplication.statusOfBPLO === 'awaiting-sb' || 
+                (selectedApplication.statusOfBPLO === 'approved' && selectedApplication.officialReceiptNumber)
+              ) && (
+                <>
+                  {selectedApplication.statusOfBPLO === 'bplo-approved' && !selectedApplication.officialReceiptNumber && (
+                    <Typography variant="body2" sx={{ 
+                      textAlign: 'center', 
+                      p: 1.5, 
+                      mb: 2,
+                      bgcolor: '#FFF4E6',
+                      borderRadius: 1,
+                      color: '#DC8C09',
+                      fontWeight: 600,
+                      border: '1px solid #FBBF24'
+                    }}>
+                      ⚠️ Note: Client has not submitted OR document yet. You can proceed with approval, but it's recommended to wait for OR submission.
+                    </Typography>
+                  )}
+                  <Button
+                    className="button-success"
+                    onClick={handleApproveApplication}
+                    disabled={isLoading}
+                    fullWidth
+                  >
+                    {isLoading ? <CircularProgress className="circular-progress-small circular-progress-inherit" /> : 'Final Approval with Resolution Number'}
+                  </Button>
+                </>
               )}
               
               {(selectedApplication.statusOfBPLO === 'bplo-approved' || 
                 selectedApplication.statusOfBPLO === 'awaiting-sb' ||
                 selectedApplication.statusOfBPLO === 'sb-approved' ||
-                selectedApplication.statusOfBPLO === 'bplo-disapproved') && (
+                selectedApplication.statusOfBPLO === 'bplo-disapproved') && userRole !== 'sb-admin' && (
                 <Typography variant="body2" sx={{ 
                   textAlign: 'center', 
                   p: 2, 
