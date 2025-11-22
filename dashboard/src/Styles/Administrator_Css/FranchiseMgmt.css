@@ -190,10 +190,10 @@
 
 .label {
     font-weight: 600;
-    color: #0A356B;
+    color: #5f6368;
     font-size: 13px;
-    text-transform: uppercase;
-    letter-spacing: 0.3px;
+    text-transform: none;
+    letter-spacing: 0;
 }
 
 .document-link {
@@ -231,15 +231,25 @@
     justify-content: space-between;
     align-items: center;
     margin-bottom: 24px;
-    padding-bottom: 16px;
+    padding: 16px 20px;
+    background: linear-gradient(135deg, #0A356B 0%, #083d77 100%);
+    border-radius: 8px;
     border-bottom: 2px solid rgba(10, 53, 107, 0.1);
 }
 
 .modal-header h2,
 .modal-header h5 {
-    color: #0A356B;
+    color: #ffffff;
     font-weight: 600;
     margin: 0;
+}
+
+.modal-header .MuiIconButton-root {
+    color: #ffffff !important;
+}
+
+.modal-header .MuiIconButton-root:hover {
+    background-color: rgba(255, 255, 255, 0.1) !important;
 }
 
 .pending-header {
@@ -259,6 +269,28 @@
 .add-button {
     background-color: #0d47a1;
     color: white;
+}
+
+/* Info Grid for Modal Details */
+.info-grid {
+    display: grid;
+    grid-template-columns: 180px 1fr;
+    gap: 12px 20px;
+    align-items: start;
+}
+
+.info-grid .label {
+    padding-top: 4px;
+}
+
+/* Section Header for Modal Sections */
+.section-header {
+    font-weight: 600 !important;
+    color: #0A356B !important;
+    font-size: 16px !important;
+    margin: 24px 0 16px 0 !important;
+    padding-bottom: 8px !important;
+    border-bottom: 2px solid rgba(10, 53, 107, 0.1) !important;
 }
 
 /* Modal styles */

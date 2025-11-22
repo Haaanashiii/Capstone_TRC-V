@@ -74,6 +74,7 @@ const franchiseApplicationSchema = new mongoose.Schema({
   sbApprovedBy: { type: String, required: false },           // SB admin username
   sbApprovedAt: { type: Date, required: false },             // Final approval timestamp
   sbResolutionNumber: { type: String, required: false },     // Resolution number for certificate
+  sbResolutionDocument: { type: String, required: false },   // URL to resolution document uploaded by SB admin
   
   // Legacy fields
   approvedAt: { type: Date },                                // Kept for backward compatibility

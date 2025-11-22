@@ -49,6 +49,7 @@ function FranchiseMgmt() {
   const [selectedApplication, setSelectedApplication] = useState(null)
   const [rejectionReason, setRejectionReason] = useState('')
   const [resolutionNumber, setResolutionNumber] = useState('')
+  const [resolutionFile, setResolutionFile] = useState(null)
   const [isLoading, setIsLoading] = useState(false)
   const [notification, setNotification] = useState({ open: false, message: '', type: 'info' })
   
@@ -58,11 +59,13 @@ function FranchiseMgmt() {
   const currentBlobUrlRef = useRef(null)
   const qrBlobUrlRef = useRef(null)
   const [qrBlobUrl, setQrBlobUrl] = useState(null)
+  const isUpdatingRef = useRef(false) // Prevent duplicate WebSocket updates
   
   const [pendingApplications, setPendingApplications] = useState([])
 
-  // Polling interval (ms). Set to 0 to disable polling. 10000 = 10s
-  const POLL_INTERVAL_MS = 10000
+  // Polling interval (ms). Set to 0 to disable polling completely.
+  // When WebSocket is connected, polling is automatically disabled
+  const POLL_INTERVAL_MS = 0 // Disabled - relying on WebSocket for real-time updates
 
   // State for the form when adding a new franchise
   const [formData, setFormData] = useState({
@@ -207,104 +210,171 @@ function FranchiseMgmt() {
 
   // WebSocket real-time updates
   useEffect(() => {
-    // Initial fetch
-    fetchAllPending()
-    
     // Determine WebSocket room and event based on user role
     const websocketRoom = userRole === 'sb-admin' ? 'sb-admins' : 'bplo-admins'
     const websocketEvent = userRole === 'sb-admin' ? 'approved-applications' : 'pending-applications'
+    
+    let hasReceivedInitialData = false
+    let connectionTimeout = null
     
     // Connect to WebSocket for real-time updates
     if (!websocketService.isConnected()) {
       console.log('[FranchiseMgmt] Connecting to WebSocket as:', websocketRoom)
       websocketService.connect(websocketRoom)
+      
+      // Wait for WebSocket to emit initial data before falling back to API
+      // The server will emit current state upon connection
+      connectionTimeout = setTimeout(() => {
+        if (!hasReceivedInitialData) {
+          console.log('[FranchiseMgmt] No WebSocket data received, fetching via API fallback')
+          fetchAllPending()
+        }
+      }, 2000) // 2 second timeout
     } else {
       // If already connected, just join the correct room
       console.log('[FranchiseMgmt] Already connected, joining room:', websocketRoom)
       websocketService.joinRoom(websocketRoom)
+      
+      // Already connected, fetch immediately as we may have missed the initial emit
+      fetchAllPending()
     }
 
     // Subscribe to real-time application updates
     const handleApplicationUpdates = (applications) => {
       console.log(`[FranchiseMgmt] WebSocket update - ${websocketEvent}:`, applications?.length || 0)
-      // Only update if we have applications or if this is an explicit clear
-      if (Array.isArray(applications)) {
-        // For SB admins, ignore empty WebSocket updates if we already have data
-        // This prevents the WebSocket from clearing data when BPLO approves (which triggers a re-emit)
-        if (userRole === 'sb-admin' && applications.length === 0 && pendingApplications.length > 0) {
-          console.log('[FranchiseMgmt] Ignoring empty WebSocket update for SB admin (preserving existing data)')
-          return
-        }
-        
-        const normalizedApps = applications.map((it) => ({
-          id: it.id || it._id,
-          franchiseNumber: it.franchiseNumber || '',
-          name: it.operatorName || it.driverName || '',
-          make: it.unitModel || '',
-          plateNumber: it.mvPlateNo || '',
-          applicationType: it.applicationType || 'new',
-          address: it.operatorAddress || it.driversAddress || '',
-          contactNumber: it.operatorContactNumber || '',
-          email: it.operatorEmail || '',
-          sidecarPlateNumber: it.sideCarPlateNumber || '',
-          birthPlace: it.operatorBirthPlace || '',
-          birthDate: it.operatorBirthDate || '',
-          civilStatus: it.operatorCivilStatus || '',
-          citizenship: it.operatorCitizenship || '',
-          todaMembership: it.todaMembership || '',
-          unitModel: it.unitModel || '',
-          colorMotor: it.colorMotor || '',
-          colorSidecar: it.sideCarColor || '',
-          mvPlate: it.mvPlateNo || '',
-          motorEngineNumber: it.motorEngineNo || '',
-          chassisNumber: it.chasisNo || '',
-          driverName: it.driverName || '',
-          driverAddress: it.driversAddress || '',
-          operatorBarangay: it.operatorBarangay || '',
-          officialReceiptNumber: it.officialReceiptNumber || '',
-          orSubmittedAt: it.orSubmittedAt || '',
-          documentRegistration: it.documents?.motorRegistrationObj || null,
-          documentBarangayClearance: it.documents?.barangayClearanceObj || null,
-          documentCedula: it.documents?.cedulaObj || null,
-          documentDriversLicense: it.documents?.driversLicenseObj || null,
-          documentVotersAffidavit: it.documents?.votersAffidavitObj || null,
-          documentPicture: it.documents?.driverPictureObj || null,
-          qrCode: it.qrCode || null,
-          statusOfBPLO: it.statusOfBPLO || 'pending',
-        }))
-        setPendingApplications(normalizedApps)
+      
+      // Mark that we received data from WebSocket
+      hasReceivedInitialData = true
+      if (connectionTimeout) {
+        clearTimeout(connectionTimeout)
+        connectionTimeout = null
       }
+      
+      // Prevent duplicate updates during processing
+      if (isUpdatingRef.current) {
+        console.log('[FranchiseMgmt] Already updating, skipping duplicate WebSocket event')
+        return
+      }
+      
+      // Only update if we have applications or if this is an explicit clear
+      if (!Array.isArray(applications)) {
+        console.log('[FranchiseMgmt] Invalid applications data, skipping update')
+        return
+      }
+      
+      // For SB admins, ignore empty WebSocket updates if we already have data
+      // This prevents the WebSocket from clearing data when BPLO approves (which triggers a re-emit)
+      if (userRole === 'sb-admin' && applications.length === 0 && pendingApplications.length > 0) {
+        console.log('[FranchiseMgmt] Ignoring empty WebSocket update for SB admin (preserving existing data)')
+        return
+      }
+      
+      isUpdatingRef.current = true
+      console.log('[FranchiseMgmt] Processing WebSocket update...')
+      
+      const normalizedApps = applications.map((it) => ({
+        id: it.id || it._id,
+        franchiseNumber: it.franchiseNumber || '',
+        name: it.operatorName || it.driverName || '',
+        make: it.unitModel || '',
+        plateNumber: it.mvPlateNo || '',
+        applicationType: it.applicationType || 'new',
+        address: it.operatorAddress || it.driversAddress || '',
+        contactNumber: it.operatorContactNumber || '',
+        email: it.operatorEmail || '',
+        sidecarPlateNumber: it.sideCarPlateNumber || '',
+        birthPlace: it.operatorBirthPlace || '',
+        birthDate: it.operatorBirthDate || '',
+        civilStatus: it.operatorCivilStatus || '',
+        citizenship: it.operatorCitizenship || '',
+        todaMembership: it.todaMembership || '',
+        unitModel: it.unitModel || '',
+        colorMotor: it.colorMotor || '',
+        colorSidecar: it.sideCarColor || '',
+        mvPlate: it.mvPlateNo || '',
+        motorEngineNumber: it.motorEngineNo || '',
+        chassisNumber: it.chasisNo || '',
+        driverName: it.driverName || '',
+        driverAddress: it.driversAddress || '',
+        driversID: it.driversID || '',
+        operatorBarangay: it.operatorBarangay || '',
+        coOwnerName: it.coOwnerName || '',
+        coOwnerAddress: it.coOwnerAddress || '',
+        officialReceiptNumber: it.officialReceiptNumber || '',
+        orSubmittedAt: it.orSubmittedAt || '',
+        bploApprovedBy: it.bploApprovedBy || '',
+        bploApprovedAt: it.bploApprovedAt || '',
+        bploDisapprovedReason: it.bploDisapprovedReason || '',
+        bploInspectionRequired: it.bploInspectionRequired || false,
+        sbApprovedBy: it.sbApprovedBy || '',
+        sbApprovedAt: it.sbApprovedAt || '',
+        sbResolutionNumber: it.sbResolutionNumber || '',
+        sbResolutionDocument: it.sbResolutionDocument || '',
+        documentRegistration: it.documents?.motorRegistrationObj || null,
+        documentBarangayClearance: it.documents?.barangayClearanceObj || null,
+        documentCedula: it.documents?.cedulaObj || null,
+        documentDriversLicense: it.documents?.driversLicenseObj || null,
+        documentVotersAffidavit: it.documents?.votersAffidavitObj || null,
+        documentChassisStencil: it.documents?.motorChassisStencilObj || null,
+        documentPicture: it.documents?.driverPictureObj || null,
+        documentOperatorPicture: it.documents?.operatorPictureObj || null,
+        documentORLTO: it.documents?.oRLTOObj || null,
+        documentCRLTO: it.documents?.cRLTOObj || null,
+        documents: it.documents || {},
+        qrCode: it.qrCode || null,
+        statusOfBPLO: it.statusOfBPLO || 'pending',
+        submittedAt: it.submittedAt || '',
+      }))
+      setPendingApplications(normalizedApps)
+      console.log('[FranchiseMgmt] State updated with', normalizedApps.length, 'applications')
+      
+      // Reset the updating flag immediately after state update
+      // Using setTimeout to ensure state has been committed
+      setTimeout(() => {
+        isUpdatingRef.current = false
+        console.log('[FranchiseMgmt] Update lock released')
+      }, 50)
     }
 
     websocketService.on(websocketEvent, handleApplicationUpdates)
     
-    // For SB admins, also listen for new applications (when OR is submitted)
+    // For SB admins, listen for new applications but DON'T refetch immediately
+    // The backend should emit the full updated list via 'approved-applications'
     const handleNewSBApplication = (application) => {
-      console.log('[FranchiseMgmt] New SB application received:', application)
-      // Refresh the list to show the new application
-      fetchAllPending()
+      console.log('[FranchiseMgmt] New SB application received:', application?._id)
+      // Don't refetch - wait for the 'approved-applications' event instead
+      // This prevents duplicate fetches
     }
     
     if (userRole === 'sb-admin') {
       websocketService.on('new-sb-application', handleNewSBApplication)
     }
 
-    // Polling as fallback
+    // Polling as fallback (only when modals are closed AND WebSocket is not connected)
     let pollId = null
-    if (POLL_INTERVAL_MS > 0 && !isAnyModalOpen) {
+    const isWebSocketActive = websocketService.isConnected()
+    if (POLL_INTERVAL_MS > 0 && !isAnyModalOpen && !isWebSocketActive) {
+      console.log('[FranchiseMgmt] WebSocket not active, starting polling fallback...')
       pollId = setInterval(() => {
+        console.log('[FranchiseMgmt] Polling for updates (fallback mode)...')
         fetchAllPending()
       }, POLL_INTERVAL_MS)
+    } else if (POLL_INTERVAL_MS > 0 && isWebSocketActive) {
+      console.log('[FranchiseMgmt] WebSocket active, polling disabled')
     }
 
     return () => {
+      if (connectionTimeout) {
+        clearTimeout(connectionTimeout)
+      }
       websocketService.off(websocketEvent, handleApplicationUpdates)
       if (userRole === 'sb-admin') {
         websocketService.off('new-sb-application', handleNewSBApplication)
       }
       if (pollId) clearInterval(pollId)
     }
-  }, [fetchAllPending, isAnyModalOpen, userRole])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAnyModalOpen, userRole]) // Removed fetchAllPending from dependencies to prevent refetch loops
 
 
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('')
@@ -781,7 +851,7 @@ function FranchiseMgmt() {
   }
   
   /**
-   * SB Admin final approval with resolution number
+   * SB Admin final approval with resolution number and optional document
    */
   const handleSBApproval = async () => {
     if (!selectedApplication || !resolutionNumber.trim()) {
@@ -798,7 +868,14 @@ function FranchiseMgmt() {
     try {
       console.log('[FranchiseMgmt] SB approving application:', selectedApplication.id)
       
-      const response = await franchiseAPI.approveSB(selectedApplication.id, resolutionNumber.trim())
+      // Create FormData for multipart upload if resolution document is provided
+      const formData = new FormData()
+      formData.append('resolutionNumber', resolutionNumber.trim())
+      if (resolutionFile) {
+        formData.append('resolutionDocument', resolutionFile)
+      }
+      
+      const response = await franchiseAPI.approveSBWithDocument(selectedApplication.id, formData)
       
       console.log('[FranchiseMgmt] Application finally approved by SB:', response.data)
 
@@ -812,6 +889,7 @@ function FranchiseMgmt() {
       
       setOpenSBApprovalModal(false)
       setResolutionNumber('')
+      setResolutionFile(null)
     } catch (error) {
       console.error('[FranchiseMgmt] Error in SB approval:', error)
       
@@ -1040,6 +1118,14 @@ function FranchiseMgmt() {
         open={openAddModal}
         onClose={handleCloseAddModal}
         aria-labelledby="add-franchise-modal"
+        slotProps={{
+          backdrop: {
+            sx: {
+              backgroundColor: 'rgba(0, 0, 0, 0.5)',
+              backdropFilter: 'blur(3px)',
+            },
+          },
+        }}
       >
         <Box className="modal-container">
           <div className="modal-header">
@@ -1367,6 +1453,14 @@ function FranchiseMgmt() {
           open={openViewModal}
           onClose={handleCloseViewModal}
           aria-labelledby="view-franchise-modal"
+          slotProps={{
+            backdrop: {
+              sx: {
+                backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                backdropFilter: 'blur(3px)',
+              },
+            },
+          }}
         >
           <Box className="modal-container">
             <div className="modal-header">
@@ -1453,21 +1547,41 @@ function FranchiseMgmt() {
                   </>
                 )}
                 
-                {selectedApplication.officialReceiptNumber && (
+                {/* OR Number and Document - Always show for BPLO/SB */}
+                <Typography variant="subtitle2" className="label">OR Number:</Typography>
+                <Typography sx={{ 
+                  fontWeight: selectedApplication.officialReceiptNumber ? 'bold' : 'normal', 
+                  color: selectedApplication.officialReceiptNumber ? 'primary.main' : 'text.secondary',
+                  fontStyle: selectedApplication.officialReceiptNumber ? 'normal' : 'italic'
+                }}>
+                  {selectedApplication.officialReceiptNumber || 'To be uploaded by the client'}
+                </Typography>
+                
+                <Typography variant="subtitle2" className="label">OR Document:</Typography>
+                {selectedApplication.documents?.oRTreasurerOfficeObj ? (
+                  <Link 
+                    className="document-link" 
+                    onClick={() => handleOpenFilePreview({
+                      name: 'OR Document',
+                      type: 'application/pdf',
+                      path: selectedApplication.documents.oRTreasurerOfficeObj
+                    })}
+                    sx={{ cursor: 'pointer', textDecoration: 'underline', color: 'primary.main' }}
+                  >
+                    View OR Document
+                  </Link>
+                ) : (
+                  <Typography sx={{ color: 'text.secondary', fontStyle: 'italic' }}>
+                    To be uploaded by the client
+                  </Typography>
+                )}
+                
+                {selectedApplication.orSubmittedAt && (
                   <>
-                    <Typography variant="subtitle2" className="label">OR Number:</Typography>
-                    <Typography sx={{ fontWeight: 'bold', color: 'primary.main' }}>
-                      {selectedApplication.officialReceiptNumber}
+                    <Typography variant="subtitle2" className="label">OR Submitted:</Typography>
+                    <Typography>
+                      {new Date(selectedApplication.orSubmittedAt).toLocaleString()}
                     </Typography>
-                    
-                    {selectedApplication.orSubmittedAt && (
-                      <>
-                        <Typography variant="subtitle2" className="label">OR Submitted:</Typography>
-                        <Typography>
-                          {new Date(selectedApplication.orSubmittedAt).toLocaleString()}
-                        </Typography>
-                      </>
-                    )}
                   </>
                 )}
                 
@@ -1491,6 +1605,25 @@ function FranchiseMgmt() {
                     }}>
                       {selectedApplication.sbResolutionNumber}
                     </Typography>
+                    
+                    <Typography variant="subtitle2" className="label">Resolution Document:</Typography>
+                    {selectedApplication.sbResolutionDocument ? (
+                      <Link 
+                        className="document-link" 
+                        onClick={() => handleOpenFilePreview({
+                          name: 'Resolution Document',
+                          type: 'application/pdf',
+                          path: selectedApplication.sbResolutionDocument
+                        })}
+                        sx={{ cursor: 'pointer', textDecoration: 'underline', color: 'success.main' }}
+                      >
+                        View Resolution Document
+                      </Link>
+                    ) : (
+                      <Typography sx={{ color: 'text.secondary', fontStyle: 'italic' }}>
+                        Not uploaded
+                      </Typography>
+                    )}
                   </>
                 )}
               </div>
@@ -1736,6 +1869,14 @@ function FranchiseMgmt() {
         open={openFilePreview}
         onClose={handleCloseFilePreview}
         aria-labelledby="file-preview-modal"
+        slotProps={{
+          backdrop: {
+            sx: {
+              backgroundColor: 'rgba(0, 0, 0, 0.5)',
+              backdropFilter: 'blur(3px)',
+            },
+          },
+        }}
       >
         <Box className="file-preview-modal">
           <div className="modal-header">
@@ -1791,6 +1932,14 @@ function FranchiseMgmt() {
         open={openRejectModal}
         onClose={handleCloseRejectModal}
         aria-labelledby="rejection-modal"
+        slotProps={{
+          backdrop: {
+            sx: {
+              backgroundColor: 'rgba(0, 0, 0, 0.5)',
+              backdropFilter: 'blur(3px)',
+            },
+          },
+        }}
       >
         <Box className="modal-container rejection-modal">
           <div className="modal-header">
@@ -1835,6 +1984,14 @@ function FranchiseMgmt() {
         open={openSBApprovalModal}
         onClose={() => setOpenSBApprovalModal(false)}
         aria-labelledby="sb-approval-modal"
+        slotProps={{
+          backdrop: {
+            sx: {
+              backgroundColor: 'rgba(0, 0, 0, 0.5)',
+              backdropFilter: 'blur(3px)',
+            },
+          },
+        }}
       >
         <Box className="modal-container rejection-modal">
           <div className="modal-header">
@@ -1881,12 +2038,33 @@ function FranchiseMgmt() {
             sx={{ mb: 2 }}
           />
           
+          <Box sx={{ mb: 2 }}>
+            <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
+              Resolution Document (Optional)
+            </Typography>
+            <TextField
+              type="file"
+              fullWidth
+              onChange={(e) => setResolutionFile(e.target.files[0])}
+              inputProps={{ 
+                accept: "application/pdf,image/jpeg,image/png"
+              }}
+              helperText="Upload the official resolution document (PDF, JPG, or PNG)"
+            />
+            {resolutionFile && (
+              <Typography variant="caption" sx={{ mt: 1, display: 'block', color: 'success.main' }}>
+                ✓ Selected: {resolutionFile.name}
+              </Typography>
+            )}
+          </Box>
+          
           <div className="action-buttons">
             <Button
               variant="outlined"
               onClick={() => {
                 setOpenSBApprovalModal(false)
                 setResolutionNumber('')
+                setResolutionFile(null)
               }}
               disabled={isLoading}
             >

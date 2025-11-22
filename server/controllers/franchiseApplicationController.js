@@ -545,11 +545,12 @@ exports.getApprovedRoutesForSBAdmin = async (req, res, next) => {
   }
 };
 
-// 9b) SB ADMIN FINAL APPROVAL (with resolution number)
+// 9b) SB ADMIN FINAL APPROVAL (with resolution number and optional document)
 exports.approveFranchiseBySBAdmin = async (req, res, next) => {
   try {
     const { id } = req.params;
     const { resolutionNumber } = req.body;
+    const { files } = req;
     
     if (!resolutionNumber || !resolutionNumber.trim()) {
       return res.status(400).json({ error: 'Resolution number is required for final approval' });
@@ -575,12 +576,29 @@ exports.approveFranchiseBySBAdmin = async (req, res, next) => {
     
     const adminUsername = req.user?.username || req.user?.email || 'SB Admin';
     
-    const updated = await franchiseApplicationRepository.updateFranchiseApplication(id, { 
+    const updateData = { 
       statusOfBPLO: 'sb-approved',
       sbApprovedBy: adminUsername,
       sbApprovedAt: new Date(),
       sbResolutionNumber: resolutionNumber.trim()
-    });
+    };
+    
+    // Upload resolution document if provided
+    if (files?.resolutionDocument) {
+      const { validateFile, uploadFile } = require('../services/fileUploadService');
+      const file = files.resolutionDocument[0];
+      validateFile(file);
+      const result = await uploadFile(
+        file.buffer, 
+        file.originalname, 
+        file.mimetype, 
+        { baseFolder: 'franchiseApplications', subFolder: 'resolutions', category: 'Documentations' }
+      );
+      updateData.sbResolutionDocument = result.cloudflare;
+      console.log('[SB Approval] Resolution document uploaded:', result.cloudflare);
+    }
+    
+    const updated = await franchiseApplicationRepository.updateFranchiseApplication(id, updateData);
     
     // Send notification to user about final approval
     // Non-blocking: email failures should not prevent approval
@@ -618,7 +636,6 @@ exports.approveFranchiseBySBAdmin = async (req, res, next) => {
     });
   } catch (error) {
     console.error('[SB Approval] Error:', error);
-    next(error);
     next(error);
   }
 };

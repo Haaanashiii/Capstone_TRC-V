@@ -24,6 +24,7 @@ import {
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
+import { franchiseAPI } from '../Services/api';
 
 const OperatorHomePage = () => {
   // Use AuthContext for user data (consistent with UnifiedSidebar)
@@ -202,18 +203,31 @@ const OperatorHomePage = () => {
   const [selectedNotice, setSelectedNotice] = useState(null);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [greeting, setGreeting] = useState('');
+  const [userApplications, setUserApplications] = useState([]);
+  const [openORModal, setOpenORModal] = useState(false);
+  const [selectedAppForOR, setSelectedAppForOR] = useState(null);
+  const [orNumberInput, setOrNumberInput] = useState('');
+  const [orFileInput, setOrFileInput] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const navigate = useNavigate();
 
-  // Mock data for pending applications
-  const mockPendingApplications = [
-    {
-      id: 1,
-      noticeType: "BPLO Notice",
-      message: "Please proceed to BPLO for motorcycle information verification.",
-      date: "2025-11-15",
-      status: "Pending"
+  // Fetch user's franchise applications
+  useEffect(() => {
+    const fetchApplications = async () => {
+      try {
+        const response = await franchiseAPI.getMyApplications();
+        if (response.data?.success && Array.isArray(response.data.data)) {
+          setUserApplications(response.data.data);
+        }
+      } catch (error) {
+        console.error('Error fetching applications:', error);
+      }
+    };
+    
+    if (currentUser) {
+      fetchApplications();
     }
-  ];
+  }, [currentUser]);
 
   // Update time every second
   useEffect(() => {
@@ -312,7 +326,21 @@ const OperatorHomePage = () => {
   const handleLinkFranchise = () => setShowModal(true);
   const handleApplyNew = () => navigate('/operator/franchise/application');
 
-  const handleOpenNoticeModal = (notice) => {
+  const handleOpenNoticeModal = (application) => {
+    // Create notice object from application data
+    const notice = {
+      id: application._id,
+      application: application,
+      noticeType: application.statusOfBPLO === 'bplo-disapproved' ? 'BPLO Disapproval' : 
+                  application.statusOfBPLO === 'bplo-approved' ? 'BPLO Approval' : 'Application Status',
+      message: application.statusOfBPLO === 'bplo-disapproved' ? 
+                `Your application requires attention. Reason: ${application.bploDisapprovedReason}` : 
+                application.statusOfBPLO === 'bplo-approved' ?
+                'Your application has been approved by BPLO. Please submit your Official Receipt.' :
+                'Your application is being processed.',
+      date: application.bploApprovedAt || application.submittedAt,
+      status: application.statusOfBPLO
+    };
     setSelectedNotice(notice);
     setOpenNoticeModal(true);
   };
@@ -320,6 +348,52 @@ const OperatorHomePage = () => {
   const handleCloseNoticeModal = () => {
     setOpenNoticeModal(false);
     setSelectedNotice(null);
+  };
+
+  const handleOpenORModal = (application) => {
+    setSelectedAppForOR(application);
+    setOrNumberInput('');
+    setOrFileInput(null);
+    setOpenORModal(true);
+  };
+
+  const handleCloseORModal = () => {
+    setOpenORModal(false);
+    setSelectedAppForOR(null);
+    setOrNumberInput('');
+    setOrFileInput(null);
+  };
+
+  const handleSubmitOR = async () => {
+    if (!orNumberInput.trim() || !orFileInput) {
+      alert('Please provide both OR Number and OR Document');
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      const formData = new FormData();
+      formData.append('officialReceiptNumber', orNumberInput.trim());
+      formData.append('oRTreasurerOfficeObj', orFileInput);
+
+      await franchiseAPI.submitOR(selectedAppForOR._id, formData);
+
+      alert('OR submitted successfully! Your application will now proceed to SB for final approval.');
+      
+      // Refresh applications
+      const response = await franchiseAPI.getMyApplications();
+      if (response.data?.success && Array.isArray(response.data.data)) {
+        setUserApplications(response.data.data);
+      }
+
+      handleCloseORModal();
+    } catch (error) {
+      console.error('Error submitting OR:', error);
+      alert(error.response?.data?.error || 'Failed to submit OR. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
 
@@ -646,10 +720,10 @@ const OperatorHomePage = () => {
             fontFamily: 'Poppins, sans-serif',
             fontSize: { xs: '1.125rem', sm: '1.25rem' }
           }}>
-            PENDING APPLICATIONS
+            MY APPLICATIONS
           </Typography>
 
-          {mockPendingApplications.length > 0 ? (
+          {userApplications.length > 0 ? (
             <TableContainer component={Paper} sx={{ 
               boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
               '& .MuiTableCell-head': {
@@ -667,7 +741,6 @@ const OperatorHomePage = () => {
                 fontFamily: 'Poppins, sans-serif'
               },
               '& .MuiTableRow-root': {
-                cursor: 'pointer',
                 '&:hover': {
                   backgroundColor: '#f5f7fa'
                 }
@@ -677,29 +750,79 @@ const OperatorHomePage = () => {
                 <TableHead>
                   <TableRow>
                     <TableCell>No.</TableCell>
-                    <TableCell>Notice Type</TableCell>
-                    <TableCell>Message</TableCell>
-                    <TableCell>Date</TableCell>
+                    <TableCell>Plate Number</TableCell>
                     <TableCell>Status</TableCell>
+                    <TableCell>Submitted</TableCell>
+                    <TableCell>Action</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {mockPendingApplications.map((app, index) => (
-                    <TableRow key={app.id} onClick={() => handleOpenNoticeModal(app)}>
+                  {userApplications.map((app, index) => (
+                    <TableRow key={app._id}>
                       <TableCell>{index + 1}</TableCell>
-                      <TableCell>{app.noticeType}</TableCell>
-                      <TableCell>{app.message}</TableCell>
-                      <TableCell>{new Date(app.date).toLocaleDateString()}</TableCell>
+                      <TableCell>{app.mvPlateNo}</TableCell>
                       <TableCell>
                         <Chip 
-                          label={app.status}
+                          label={
+                            app.statusOfBPLO === 'pending' ? 'Pending Review' :
+                            app.statusOfBPLO === 'bplo-approved' ? 'BPLO Approved - Submit OR' :
+                            app.statusOfBPLO === 'bplo-disapproved' ? 'Disapproved' :
+                            app.statusOfBPLO === 'awaiting-sb' ? 'Awaiting SB Approval' :
+                            app.statusOfBPLO === 'sb-approved' ? 'Finally Approved' :
+                            app.statusOfBPLO
+                          }
                           size="small"
                           sx={{
-                            backgroundColor: '#f39c12',
+                            backgroundColor: 
+                              app.statusOfBPLO === 'bplo-disapproved' ? '#e74c3c' :
+                              app.statusOfBPLO === 'bplo-approved' ? '#f39c12' :
+                              app.statusOfBPLO === 'awaiting-sb' ? '#3498db' :
+                              app.statusOfBPLO === 'sb-approved' ? '#2ecc71' :
+                              '#95a5a6',
                             color: '#fff',
                             fontWeight: 600
                           }}
                         />
+                      </TableCell>
+                      <TableCell>{new Date(app.submittedAt).toLocaleDateString()}</TableCell>
+                      <TableCell>
+                        {app.statusOfBPLO === 'bplo-approved' && !app.officialReceiptNumber && (
+                          <Button
+                            variant="contained"
+                            size="small"
+                            onClick={() => handleOpenORModal(app)}
+                            sx={{
+                              backgroundColor: '#FEDE05',
+                              color: '#174D7A',
+                              fontWeight: 600,
+                              fontSize: '12px',
+                              '&:hover': {
+                                backgroundColor: '#e5c900'
+                              }
+                            }}
+                          >
+                            Submit OR
+                          </Button>
+                        )}
+                        {(app.statusOfBPLO === 'bplo-disapproved' || app.statusOfBPLO === 'bplo-approved') && (
+                          <Button
+                            variant="outlined"
+                            size="small"
+                            onClick={() => handleOpenNoticeModal(app)}
+                            sx={{
+                              ml: app.statusOfBPLO === 'bplo-approved' && !app.officialReceiptNumber ? 1 : 0,
+                              borderColor: '#174D7A',
+                              color: '#174D7A',
+                              fontSize: '12px',
+                              '&:hover': {
+                                borderColor: '#0f3a5f',
+                                backgroundColor: 'rgba(23, 77, 122, 0.04)'
+                              }
+                            }}
+                          >
+                            View Details
+                          </Button>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -719,7 +842,7 @@ const OperatorHomePage = () => {
                 fontSize: '16px',
                 fontFamily: 'Poppins, sans-serif'
               }}>
-                You do not have any pending applications.
+                You do not have any applications yet.
               </Typography>
             </Box>
           )}
@@ -1099,6 +1222,169 @@ const OperatorHomePage = () => {
                 }}
               >
                 Close
+              </Button>
+            </Box>
+          </Box>
+        </Box>
+      </Modal>
+
+      {/* OR Submission Modal */}
+      <Modal
+        open={openORModal}
+        onClose={handleCloseORModal}
+        aria-labelledby="or-modal-title"
+      >
+        <Box sx={{
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          width: 550,
+          bgcolor: 'background.paper',
+          borderRadius: '16px',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
+          overflow: 'hidden'
+        }}>
+          {/* Modal Header */}
+          <Box sx={{ 
+            background: '#174D7A', 
+            padding: '24px 32px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center'
+          }}>
+            <Typography id="or-modal-title" variant="h5" component="h2" sx={{ 
+              color: '#fff', 
+              fontWeight: 700,
+              fontFamily: 'Poppins, sans-serif'
+            }}>
+              Submit Official Receipt
+            </Typography>
+            <IconButton 
+              onClick={handleCloseORModal}
+              sx={{ 
+                color: '#fff',
+                '&:hover': {
+                  backgroundColor: 'rgba(255,255,255,0.1)'
+                }
+              }}
+            >
+              <CloseIcon />
+            </IconButton>
+          </Box>
+          
+          {/* Modal Body */}
+          <Box sx={{ padding: '32px' }}>
+            {selectedAppForOR && (
+              <Box sx={{ 
+                bgcolor: '#e3f2fd', 
+                p: 2, 
+                borderRadius: 1, 
+                mb: 3 
+              }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 1 }}>
+                  Application Details:
+                </Typography>
+                <Typography variant="body2">
+                  Plate Number: {selectedAppForOR.mvPlateNo}
+                </Typography>
+                <Typography variant="body2">
+                  Operator: {selectedAppForOR.operatorName}
+                </Typography>
+              </Box>
+            )}
+
+            <Box sx={{ 
+              backgroundColor: '#fff4e6', 
+              padding: '16px', 
+              borderRadius: '8px',
+              marginBottom: '24px',
+              borderLeft: '4px solid #FEDE05'
+            }}>
+              <Typography sx={{ 
+                color: '#174D7A',
+                fontSize: '14px',
+                fontFamily: 'Poppins, sans-serif',
+                lineHeight: 1.6
+              }}>
+                ℹ️ Your application has been approved by BPLO. Please submit your Official Receipt information to proceed to SB for final approval.
+              </Typography>
+            </Box>
+
+            <TextField
+              label="Official Receipt Number"
+              fullWidth
+              value={orNumberInput}
+              onChange={(e) => setOrNumberInput(e.target.value)}
+              placeholder="Enter OR Number"
+              sx={{ mb: 3 }}
+              required
+            />
+
+            <Box sx={{ mb: 3 }}>
+              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
+                Official Receipt Document
+              </Typography>
+              <TextField
+                type="file"
+                fullWidth
+                onChange={(e) => setOrFileInput(e.target.files[0])}
+                inputProps={{ 
+                  accept: "application/pdf,image/jpeg,image/png"
+                }}
+                helperText="Upload OR document (PDF, JPG, or PNG)"
+                required
+              />
+              {orFileInput && (
+                <Typography variant="caption" sx={{ mt: 1, display: 'block', color: 'success.main' }}>
+                  ✓ Selected: {orFileInput.name}
+                </Typography>
+              )}
+            </Box>
+            
+            {/* Action Buttons */}
+            <Box sx={{ display: 'flex', gap: '12px', marginTop: '24px' }}>
+              <Button
+                onClick={handleCloseORModal}
+                disabled={isSubmitting}
+                sx={{
+                  flex: 1,
+                  backgroundColor: '#e0e0e0',
+                  color: '#666',
+                  padding: '12px',
+                  borderRadius: '8px',
+                  fontWeight: 600,
+                  fontFamily: 'Poppins, sans-serif',
+                  textTransform: 'none',
+                  '&:hover': {
+                    backgroundColor: '#d0d0d0'
+                  }
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleSubmitOR}
+                disabled={isSubmitting || !orNumberInput.trim() || !orFileInput}
+                sx={{
+                  flex: 1,
+                  backgroundColor: '#FEDE05',
+                  color: '#174D7A',
+                  padding: '12px',
+                  borderRadius: '8px',
+                  fontWeight: 600,
+                  fontFamily: 'Poppins, sans-serif',
+                  textTransform: 'none',
+                  '&:hover': {
+                    backgroundColor: '#e5c900'
+                  },
+                  '&:disabled': {
+                    backgroundColor: '#f0f0f0',
+                    color: '#999'
+                  }
+                }}
+              >
+                {isSubmitting ? 'Submitting...' : 'Submit OR'}
               </Button>
             </Box>
           </Box>

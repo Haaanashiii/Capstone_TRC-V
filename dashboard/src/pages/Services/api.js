@@ -419,7 +419,17 @@ export const franchiseAPI = {
   disapproveBPLO: (id, reason) => api.put(`/api/franchise-applications/bplo/disapprove/${id}`, { reason }),
 
   /**
-   * SB Admin final approval with resolution number
+   * SB Admin final approval with resolution number and optional document
+   * @param {string} id - Application ID
+   * @param {FormData} formData - FormData containing resolutionNumber and optional resolutionDocument
+   * @returns {Promise} Response with finally approved application
+   */
+  approveSBWithDocument: (id, formData) => api.put(`/api/franchise-applications/sb/approve/${id}`, formData, {
+    headers: { 'Content-Type': undefined }
+  }),
+
+  /**
+   * SB Admin final approval with resolution number (legacy - kept for backward compatibility)
    * @param {string} id - Application ID
    * @param {string} resolutionNumber - Resolution number for certificate
    * @returns {Promise} Response with finally approved application
@@ -431,6 +441,22 @@ export const franchiseAPI = {
    * @returns {Promise} Response with applications awaiting SB approval
    */
   getForSBApproval: () => api.get('/api/franchise-applications/sb/approved-websocket'),
+
+  /**
+   * Get current user's franchise applications (all statuses)
+   * @returns {Promise} Response with user's applications array
+   */
+  getMyApplications: () => api.get('/api/franchise-applications/pending'),
+
+  /**
+   * Submit OR document and number after BPLO approval
+   * @param {string} id - Application ID
+   * @param {FormData} formData - FormData containing officialReceiptNumber and oRTreasurerOfficeObj file
+   * @returns {Promise} Response with updated application
+   */
+  submitOR: (id, formData) => api.put(`/api/franchise-applications/approved/${id}/add-receipt`, formData, {
+    headers: { 'Content-Type': undefined }
+  }),
 
   /**
    * Legacy approve method (backward compatibility)
