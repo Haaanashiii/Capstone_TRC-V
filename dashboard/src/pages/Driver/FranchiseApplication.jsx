@@ -103,7 +103,7 @@ export default function FranchiseApplication() {
       photoLicense: "Photocopy of Driver's License",
       photoStencil: "Photocopy of Motor Chassis Stencil",
       photoAffidavit: "Photocopy of Voter's Affidavit",
-      picture: "1x1 Picture",
+      picture: "1x1 Picture of the Driver",
       browseFiles: "Browse Files to upload",
       noFileSelected: "No selected File -",
       digitalSignature: "Digital Signature",
@@ -249,6 +249,7 @@ export default function FranchiseApplication() {
     chassisNumber: "",
     driverName: "",
     driverAddress: "",
+    operatorAddress: "",
     barangay: "",
     hasCoOwner: "",
     motorcyclePicture: null,
@@ -410,7 +411,7 @@ export default function FranchiseApplication() {
     }
 
     // Special mapping to keep older per-field error states for UI
-    if (newErrors.driverAddress || newErrors.driverAddress === '') setAddressError(newErrors.driverAddress || '');
+    if (newErrors.operatorAddress || newErrors.operatorAddress === '') setAddressError(newErrors.operatorAddress || '');
     if (newErrors.barangay) setBarangayError(newErrors.barangay);
     if (newErrors.contact) setContactError(newErrors.contact);
 
@@ -655,11 +656,11 @@ export default function FranchiseApplication() {
           
           <div className="franchise-app-grid-2">
             <TextField
-              label="ADDRESS OF THE DRIVER"
+              label="ADDRESS OF THE OPERATOR"
               size="small"
               className="franchise-app-input"
-              value={fields.driverAddress}
-              onChange={handleChange('driverAddress')}
+              value={fields.operatorAddress}
+              onChange={handleChange('operatorAddress')}
               error={!!addressError}
               helperText={addressError}
             />
@@ -772,6 +773,15 @@ export default function FranchiseApplication() {
           <div className="franchise-app-grid-2">
             <TextField label={t.motorEngineNumber} size="small" className="franchise-app-input" value={fields.motorEngineNumber} onChange={handleChange('motorEngineNumber')} />
             <TextField label={t.chassisNumber} size="small" className="franchise-app-input" value={fields.chassisNumber} onChange={handleChange('chassisNumber')} />
+          </div>
+          <div className="franchise-app-field">
+            <TextField
+              label="ADDRESS OF THE DRIVER"
+              size="small"
+              className="franchise-app-input"
+              value={fields.driverAddress}
+              onChange={handleChange('driverAddress')}
+            />
           </div>
           
           {/* 1x1 Picture Upload for Motorcycle */}
@@ -890,7 +900,7 @@ export default function FranchiseApplication() {
                   onClick={async () => {
                     if (isSubmitting) return; // ignore repeated clicks
                     // Validate address and barangay before building form data
-                    const addr = (fields.driverAddress || '').trim();
+                    const addr = (fields.operatorAddress || '').trim();
                     const bgy = fields.barangay;
                     let hasError = false;
                     if (!addr) {
@@ -922,12 +932,12 @@ export default function FranchiseApplication() {
                       // Personal Information - EXACT field names backend expects
                       formDataToSend.append('operatorName', fields.operatorName || '');
                       formDataToSend.append('operatorContactNumber', fields.contact || '');
-                      formDataToSend.append('operatorAddress', fields.driverAddress || ''); // FIXED: was 'address'
-                      formDataToSend.append('operatorBarangay', fields.barangay || ''); // FIXED: was 'barangay'
-                      formDataToSend.append('operatorBirthPlace', fields.birthPlace || ''); // FIXED: was 'birthPlace'
-                      formDataToSend.append('operatorBirthDate', fields.birthDate ? (fields.birthDate.format ? fields.birthDate.format('YYYY-MM-DD') : fields.birthDate) : ''); // FIXED: was 'birthDate'
-                      formDataToSend.append('operatorCivilStatus', fields.civilStatus || ''); // FIXED: was 'civilStatus'
-                      formDataToSend.append('operatorCitizenship', fields.citizenship || ''); // FIXED: was 'citizenship'
+                      formDataToSend.append('operatorAddress', fields.operatorAddress || '');
+                      formDataToSend.append('operatorBarangay', fields.barangay || '');
+                      formDataToSend.append('operatorBirthPlace', fields.birthPlace || '');
+                      formDataToSend.append('operatorBirthDate', fields.birthDate ? (fields.birthDate.format ? fields.birthDate.format('YYYY-MM-DD') : fields.birthDate) : '');
+                      formDataToSend.append('operatorCivilStatus', fields.civilStatus || '');
+                      formDataToSend.append('operatorCitizenship', fields.citizenship || '');
                       
                       // Email fetched from backend API (NOT from JWT for security)
                       if (userEmail) {
