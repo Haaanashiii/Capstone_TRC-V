@@ -330,16 +330,92 @@ exports.approveFranchiseByBPLO = async (req, res, next) => {
     const application = await franchiseApplicationRepository.getFranchiseApplicationById(id);
     
     if (!application) return res.status(404).json({ error: 'Application not found' });
-    if (application.statusOfBPLO !== 'pending') return res.status(400).json({ error: 'Application already processed' });
+    if (application.statusOfBPLO !== 'pending') {
+      return res.status(400).json({ error: 'Application already processed' });
+    }
     
-    const updated = await franchiseApplicationRepository.updateFranchiseApplication(id, { statusOfBPLO: 'approved', approvedAt: new Date() });
+    const adminUsername = req.user?.username || req.user?.email || 'BPLO Admin';
+    
+    const updated = await franchiseApplicationRepository.updateFranchiseApplication(id, { 
+      statusOfBPLO: 'bplo-approved',
+      bploApprovedBy: adminUsername,
+      bploApprovedAt: new Date(),
+      bploInspectionRequired: true, // Set inspection requirement
+      approvedAt: new Date() // Legacy field
+    });
+    
+    // Send notification to user about BPLO approval and inspection requirement
+    const notificationService = require('../services/notificationService');
+    if (updated.operatorEmail) {
+      await notificationService.sendBPLOApprovalNotification(updated);
+    }
     
     // Emit to WebSocket
     if (req.app.get('io')) {
-      req.app.get('io').to('bplo-admins','super-admin').emit('application-approved', updated);
+      req.app.get('io').to('bplo-admins').emit('application-approved', updated);
+      // Notify user about the approval
+      if (updated.operatorInfo) {
+        req.app.get('io').to(`user-${updated.operatorInfo}`).emit('bplo-approval', {
+          applicationId: updated._id,
+          message: 'Your application has been approved by BPLO. Please proceed to BPLO office for tricycle inspection and then submit your OR number.',
+          status: 'bplo-approved'
+        });
+      }
     }
     
-    res.json({ success: true, data: updated, message: 'Application approved by BPLO' });
+    res.json({ success: true, data: updated, message: 'Application approved by BPLO. Applicant will be notified to proceed with inspection and OR submission.' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// 7b) DISAPPROVE FRANCHISE BY BPLO
+exports.disapproveFranchiseByBPLO = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { reason } = req.body;
+    
+    if (!reason || !reason.trim()) {
+      return res.status(400).json({ error: 'Disapproval reason is required' });
+    }
+    
+    const application = await franchiseApplicationRepository.getFranchiseApplicationById(id);
+    
+    if (!application) return res.status(404).json({ error: 'Application not found' });
+    if (application.statusOfBPLO !== 'pending') {
+      return res.status(400).json({ error: 'Application already processed' });
+    }
+    
+    const adminUsername = req.user?.username || req.user?.email || 'BPLO Admin';
+    
+    const updated = await franchiseApplicationRepository.updateFranchiseApplication(id, { 
+      statusOfBPLO: 'bplo-disapproved',
+      bploApprovedBy: adminUsername,
+      bploApprovedAt: new Date(),
+      bploDisapprovedReason: reason.trim()
+    });
+    
+    // Send notification to user about BPLO disapproval
+    const notificationService = require('../services/notificationService');
+    if (updated.operatorEmail) {
+      await notificationService.sendBPLODisapprovalNotification(updated, reason);
+    }
+    
+    // Emit to WebSocket
+    if (req.app.get('io')) {
+      req.app.get('io').to('bplo-admins').emit('application-disapproved', updated);
+      // Notify user about the disapproval
+      if (updated.operatorInfo) {
+        req.app.get('io').to(`user-${updated.operatorInfo}`).emit('bplo-disapproval', {
+          applicationId: updated._id,
+          message: `Your application has been disapproved by BPLO. Reason: ${reason}`,
+          reason: reason,
+          status: 'bplo-disapproved'
+        });
+      }
+    }
+    
+    res.json({ success: true, data: updated, message: 'Application disapproved by BPLO. Applicant has been notified.' });
   } catch (error) {
     next(error);
   }
@@ -350,7 +426,7 @@ exports.approveFranchiseByBPLO = async (req, res, next) => {
 exports.editApprovedFranchise = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { officialReceiptNumber } = req.body; // Correct: extract from req.body
+    const { officialReceiptNumber } = req.body;
     const { files } = req;
     
     console.log('[editApprovedFranchise] Request:', { id, officialReceiptNumber, hasFiles: !!files });
@@ -360,7 +436,8 @@ exports.editApprovedFranchise = async (req, res, next) => {
       return res.status(404).json({ error: 'Application not found' });
     }
     
-    if (application.statusOfBPLO !== 'approved') {
+    // Allow OR submission only after BPLO approval
+    if (application.statusOfBPLO !== 'bplo-approved' && application.statusOfBPLO !== 'approved') {
       return res.status(400).json({ error: 'Application must be approved by BPLO first' });
     }
     
@@ -376,6 +453,9 @@ exports.editApprovedFranchise = async (req, res, next) => {
     // Update Official Receipt Number if provided
     if (officialReceiptNumber) {
       updateData.officialReceiptNumber = officialReceiptNumber;
+      updateData.orSubmittedAt = new Date();
+      // Move to next stage - awaiting SB approval
+      updateData.statusOfBPLO = 'awaiting-sb';
       console.log('[editApprovedFranchise] Adding OR number:', officialReceiptNumber);
     }
     
@@ -395,7 +475,12 @@ exports.editApprovedFranchise = async (req, res, next) => {
     }
     
     const updated = await franchiseApplicationRepository.updateFranchiseApplication(id, updateData);
-    console.log('[editApprovedFranchise] Application updated successfully');
+    console.log('[editApprovedFranchise] Application updated successfully, now awaiting SB approval');
+    
+    // Notify SB admins via WebSocket
+    if (req.app.get('io') && updateData.statusOfBPLO === 'awaiting-sb') {
+      req.app.get('io').to('sb-admins').emit('new-sb-application', updated);
+    }
     
     res.json({ 
       success: true, 
@@ -411,11 +496,17 @@ exports.editApprovedFranchise = async (req, res, next) => {
 // 9) GET APPROVED ROUTES FOR SB ADMIN (WebSocket)
 exports.getApprovedRoutesForSBAdmin = async (req, res, next) => {
   try {
+    // Get applications awaiting SB approval (have OR submitted)
     const applications = await FranchiseApplication.find({
-      statusOfBPLO: 'approved',
-      officialRecieptNumber: { $exists: true, $ne: null, $ne: '' },
-      'documents.oRTreasurerOfficeObj': { $exists: true, $ne: null, $ne: '' }
-    }).sort({ approvedAt: -1 });
+      $or: [
+        { statusOfBPLO: 'awaiting-sb' },
+        { 
+          statusOfBPLO: 'approved',
+          officialRecieptNumber: { $exists: true, $ne: null, $ne: '' },
+          'documents.oRTreasurerOfficeObj': { $exists: true, $ne: null, $ne: '' }
+        }
+      ]
+    }).sort({ orSubmittedAt: -1, approvedAt: -1 });
     
     // Emit to WebSocket
     if (req.app.get('io')) {
@@ -423,6 +514,69 @@ exports.getApprovedRoutesForSBAdmin = async (req, res, next) => {
     }
     
     res.json({ success: true, data: applications });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// 9b) SB ADMIN FINAL APPROVAL (with resolution number)
+exports.approveFranchiseBySBAdmin = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { resolutionNumber } = req.body;
+    
+    if (!resolutionNumber || !resolutionNumber.trim()) {
+      return res.status(400).json({ error: 'Resolution number is required for final approval' });
+    }
+    
+    const application = await franchiseApplicationRepository.getFranchiseApplicationById(id);
+    
+    if (!application) {
+      return res.status(404).json({ error: 'Application not found' });
+    }
+    
+    // Allow approval for awaiting-sb or legacy 'approved' with OR
+    const canApprove = application.statusOfBPLO === 'awaiting-sb' || 
+                       (application.statusOfBPLO === 'approved' && application.officialReceiptNumber);
+    
+    if (!canApprove) {
+      return res.status(400).json({ error: 'Application must have OR submitted and be awaiting SB approval' });
+    }
+    
+    const adminUsername = req.user?.username || req.user?.email || 'SB Admin';
+    
+    const updated = await franchiseApplicationRepository.updateFranchiseApplication(id, { 
+      statusOfBPLO: 'sb-approved',
+      sbApprovedBy: adminUsername,
+      sbApprovedAt: new Date(),
+      sbResolutionNumber: resolutionNumber.trim()
+    });
+    
+    // Send notification to user about final approval
+    const notificationService = require('../services/notificationService');
+    if (updated.operatorEmail) {
+      await notificationService.sendSBApprovalNotification(updated, resolutionNumber);
+    }
+    
+    // Emit to WebSocket
+    if (req.app.get('io')) {
+      req.app.get('io').to('sb-admins').emit('application-sb-approved', updated);
+      // Notify user about the final approval
+      if (updated.operatorInfo) {
+        req.app.get('io').to(`user-${updated.operatorInfo}`).emit('sb-approval', {
+          applicationId: updated._id,
+          message: 'Your application has been finally approved! You can now claim your certificate of approval.',
+          resolutionNumber: resolutionNumber,
+          status: 'sb-approved'
+        });
+      }
+    }
+    
+    res.json({ 
+      success: true, 
+      data: updated, 
+      message: 'Application finally approved by SB Admin. Applicant can now claim their certificate.' 
+    });
   } catch (error) {
     next(error);
   }

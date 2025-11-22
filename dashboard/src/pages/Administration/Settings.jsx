@@ -347,7 +347,7 @@ function Settings() {
     setLoading(true);
     
     try {
-      // TODO: API call to save permissions
+      // TODO: API call to save permissions when backend is ready
       // await permissionsAPI.update(selectedRole, permissions[selectedRole]);
       
       // Simulate API delay
@@ -364,7 +364,7 @@ function Settings() {
 
   const handleResetPermissions = useCallback(() => {
     if (window.confirm('Reset permissions to default for this role?')) {
-      // TODO: Load default permissions from API
+      // TODO: Load default permissions from API when backend is ready
       showNotification('Permissions reset to default');
       setHasPermissionChanges(false);
     }
@@ -381,6 +381,10 @@ function Settings() {
 
   const permissionStats = useMemo(() => {
     const rolePerms = permissions[selectedRole];
+    if (!rolePerms) {
+      return { granted: 0, total: 0 };
+    }
+    
     const total = Object.values(rolePerms).flat().length;
     const allPossible = Object.values(PERMISSION_CATEGORIES).reduce(
       (sum, cat) => sum + cat.permissions.length,

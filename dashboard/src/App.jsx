@@ -42,15 +42,19 @@ function App() {
         {/* Public QR Code Route - No authentication required */}
         <Route path="/operator/id/:operatorId" element={<QROperatorID />} />
         
-        {/* Protected Driver Routes */}
+        {/* Protected Driver/Operator Routes */}
         <Route 
           path="/operator/franchisee-list" 
-          element={<FranchiseeListOperatorSide />} 
+          element={
+            <ProtectedRoute requiredRole={["user", "operator"]}>
+              <FranchiseeListOperatorSide />
+            </ProtectedRoute>
+          } 
         />
         <Route 
           path="/operator/id" 
           element={
-            <ProtectedRoute requiredRole="operator">
+            <ProtectedRoute requiredRole={["user", "operator"]}>
               <FranchiseeListOperatorSide />
             </ProtectedRoute>
           } 
@@ -58,7 +62,7 @@ function App() {
         <Route 
           path="/operator/franchise" 
           element={
-            <ProtectedRoute requiredRole="operator">
+            <ProtectedRoute requiredRole={["user", "operator"]}>
               <OperatorHomePage />
             </ProtectedRoute>
           } 
@@ -66,102 +70,63 @@ function App() {
         <Route 
           path="/operator/franchise/application" 
           element={
-            <ProtectedRoute requiredRole="operator">
+            <ProtectedRoute requiredRole={["user", "operator"]}>
               <FranchiseApplication />
             </ProtectedRoute>
           } 
         />
         <Route 
           path="/operator/request-amendment"
-          element={<RequestAmendment />}
-        />
-        {/* Temporarily removed ProtectedRoute for UI testing */}
-        {/* 
-        <Route 
-          path="/operator/request-amendment"
           element={
-            <ProtectedRoute requiredRole="operator">
+            <ProtectedRoute requiredRole={["user", "operator"]}>
               <RequestAmendment />
             </ProtectedRoute>
           }
         />
-        */}
         
         {/* Protected Admin Routes */}
         <Route 
-          path="/sb-admin" 
+          path="/dashboard" 
           element={
-            <ProtectedRoute requiredRole={["sb-admin", "super-admin"]}>
+            <ProtectedRoute requiredRole={["bplo-admin", "sb-admin", "super-admin"]}>
               <Dashboard />
             </ProtectedRoute>
           } 
         />
         <Route 
-          path="/bplo-admin" 
+          path="/franchisee-list" 
           element={
-            <ProtectedRoute requiredRole={["bplo-admin", "super-admin"]}>
-              <Dashboard />
+            <ProtectedRoute requiredRole={["bplo-admin", "sb-admin", "super-admin"]}>
+              <FranchiseeList />
             </ProtectedRoute>
           } 
         />
         <Route 
-          path="/admin" 
+          path="/franchise-management" 
           element={
-            <ProtectedRoute requiredRole={["sb-admin", "super-admin"]}>
-              <Dashboard />
+            <ProtectedRoute requiredRole={["bplo-admin", "sb-admin", "super-admin"]}>
+              <FranchiseMgmt />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/reports" 
+          element={
+            <ProtectedRoute requiredRole={["bplo-admin", "sb-admin", "super-admin"]}>
+              <Reports />
             </ProtectedRoute>
           } 
         />
         <Route 
           path="/user-management" 
           element={
-            <ProtectedRoute requiredRole={["sb-admin", "super-admin"]}>
+            <ProtectedRoute requiredRole={["super-admin"]}>
               <UserManagement />
             </ProtectedRoute>
           } 
         />
         <Route 
-          path="/sb-admin/user-management" 
-          element={
-            <ProtectedRoute requiredRole={["sb-admin", "super-admin"]}>
-              <UserManagement />
-            </ProtectedRoute>
-          } 
-        />
-        <Route 
-          path="/sb-admin/franchisee-list" 
-          element={
-            <ProtectedRoute requiredRole={["sb-admin", "super-admin"]}>
-              <FranchiseeList />
-            </ProtectedRoute>
-          } 
-        />
-        <Route 
-          path="/sb-admin/franchise-management" 
-          element={
-            <ProtectedRoute requiredRole={["sb-admin", "super-admin"]}>
-              <FranchiseMgmt />
-            </ProtectedRoute>
-          } 
-        />
-        <Route 
-          path="/sb-admin/dashboard" 
-          element={
-            <ProtectedRoute requiredRole={["sb-admin", "super-admin"]}>
-              <Dashboard />
-            </ProtectedRoute>
-          } 
-        />
-        <Route 
-          path="/sb-admin/reports" 
-          element={
-            <ProtectedRoute requiredRole={["sb-admin", "super-admin"]}>
-              <Reports />
-            </ProtectedRoute>
-          } 
-        />
-        <Route 
-          path="/sb-admin/announcements" 
+          path="/announcements" 
           element={
             <ProtectedRoute requiredRole={["super-admin"]}>
               <Announcement />
@@ -169,15 +134,15 @@ function App() {
           } 
         />
         <Route 
-          path="/sb-admin/analytics" 
+          path="/analytics" 
           element={
-            <ProtectedRoute requiredRole={["sb-admin", "super-admin"]}>
+            <ProtectedRoute requiredRole={["super-admin"]}>
               <Analytics />
             </ProtectedRoute>
           } 
         />
         <Route 
-          path="/sb-admin/audit-trail" 
+          path="/audit-trail" 
           element={
             <ProtectedRoute requiredRole={["super-admin"]}>
               <AuditTrail />
@@ -185,7 +150,7 @@ function App() {
           } 
         />
         <Route 
-          path="/sb-admin/settings" 
+          path="/settings" 
           element={
             <ProtectedRoute requiredRole={["super-admin"]}>
               <Settings />

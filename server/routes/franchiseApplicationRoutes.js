@@ -16,9 +16,11 @@ router.put('/approved/:id/add-receipt', authenticate, authorize(['user']), uploa
 // BPLO ADMIN ROUTES - Review and approve applications
 router.get('/bplo/pending-websocket', authenticate, authorize(['bplo-admin', 'super-admin']), controller.getFranchisesWithWebSocketIO);
 router.put('/bplo/approve/:id', authenticate, authorize(['bplo-admin', 'super-admin']), controller.approveFranchiseByBPLO);
+router.put('/bplo/disapprove/:id', authenticate, authorize(['bplo-admin', 'super-admin']), controller.disapproveFranchiseByBPLO);
 
 // SB ADMIN ROUTES - Final acceptance and franchise creation
 router.get('/sb/approved-websocket', authenticate, authorize(['sb-admin', 'super-admin']), controller.getApprovedRoutesForSBAdmin);
+router.put('/sb/approve/:id', authenticate, authorize(['sb-admin', 'super-admin']), controller.approveFranchiseBySBAdmin);
 router.post('/sb/accept-new/:id', authenticate, authorize(['sb-admin', 'super-admin']), upload.uploadOperatorDocuments, controller.sbAdminAcceptNewFranchise);
 router.post('/sb/accept-renew-amend/:id', authenticate, authorize(['sb-admin', 'super-admin']), upload.uploadOperatorDocuments, controller.sbAdminAcceptRenewOrAmendment);
 

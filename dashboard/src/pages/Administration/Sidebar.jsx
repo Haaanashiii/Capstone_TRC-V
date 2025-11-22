@@ -1,109 +1,67 @@
-import React, { useState, useEffect, useMemo } from 'react'
-import { Link, useLocation, useNavigate } from 'react-router-dom'
-import '../../Styles/Administrator_Css/Sidebar.css'
-import logoImage from '../../assets/TRC-vLogo.png'
-import DashboardIcon from '@mui/icons-material/Dashboard'
-import ListAltIcon from '@mui/icons-material/ListAlt'
-import BusinessIcon from '@mui/icons-material/Business'
-import AssessmentIcon from '@mui/icons-material/Assessment'
-import PeopleAltIcon from '@mui/icons-material/PeopleAlt'
-import AccountCircleIcon from '@mui/icons-material/AccountCircle'
-import LogoutIcon from '@mui/icons-material/Logout'
-import CampaignIcon from '@mui/icons-material/Campaign'
-import AnalyticsIcon from '@mui/icons-material/Analytics'
-import HistoryIcon from '@mui/icons-material/History'
-import SettingsIcon from '@mui/icons-material/Settings'
+import React, { useState, useEffect, useMemo } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
+import '../../Styles/Administrator_Css/Sidebar.css';
+import logoImage from '../../assets/TRC-vLogo.png';
+import DashboardIcon from '@mui/icons-material/Dashboard';
+import ListAltIcon from '@mui/icons-material/ListAlt';
+import BusinessIcon from '@mui/icons-material/Business';
+import AssessmentIcon from '@mui/icons-material/Assessment';
+import PeopleAltIcon from '@mui/icons-material/PeopleAlt';
+import AccountCircleIcon from '@mui/icons-material/AccountCircle';
+import LogoutIcon from '@mui/icons-material/Logout';
+import CampaignIcon from '@mui/icons-material/Campaign';
+import AnalyticsIcon from '@mui/icons-material/Analytics';
+import HistoryIcon from '@mui/icons-material/History';
+import SettingsIcon from '@mui/icons-material/Settings';
+
+// Define all possible menu items with the roles that can access them
+const allMenuItems = [
+  { name: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard', allowedRoles: ['super-admin', 'sb-admin', 'bplo-admin'] },
+  { name: 'Franchisee List', icon: <ListAltIcon />, path: '/franchisee-list', allowedRoles: ['super-admin', 'sb-admin', 'bplo-admin'] },
+  { name: 'Franchise Management', icon: <BusinessIcon />, path: '/franchise-management', allowedRoles: ['super-admin', 'sb-admin', 'bplo-admin'] },
+  { name: 'Reports', icon: <AssessmentIcon />, path: '/reports', allowedRoles: ['super-admin', 'sb-admin', 'bplo-admin'] },
+  { name: 'Analytics', icon: <AnalyticsIcon />, path: '/analytics', allowedRoles: ['super-admin'] },
+  { name: 'Announcements', icon: <CampaignIcon />, path: '/announcements', allowedRoles: ['super-admin'] },
+  { name: 'Audit Trail', icon: <HistoryIcon />, path: '/audit-trail', allowedRoles: ['super-admin'] },
+  { name: 'User Management', icon: <PeopleAltIcon />, path: '/user-management', allowedRoles: ['super-admin'] },
+  { name: 'Settings', icon: <SettingsIcon />, path: '/settings', allowedRoles: ['super-admin'] }
+];
 
 function Sidebar() {
   const location = useLocation();
   const navigate = useNavigate();
+  const { user, logout, loading } = useAuth();
   const [currentTime, setCurrentTime] = useState(new Date());
   const [showLogout, setShowLogout] = useState(false);
-  const [user, setUser] = useState(null);
-  const [tokenChecked, setTokenChecked] = useState(false);
 
   useEffect(() => {
     const timerId = setInterval(() => {
       setCurrentTime(new Date());
     }, 1000);
-
     return () => clearInterval(timerId);
   }, []);
-
-  // Get user info from sessionStorage token (JWT is single source of truth)
-  // Only run once on mount
-  useEffect(() => {
-    if (tokenChecked) return;
-    
-    const token = sessionStorage.getItem('accessToken');
-    
-    if (token) {
-      try {
-        const decoded = JSON.parse(atob(token.split('.')[1]));
-        // JWT now contains: { id, role, name, accountType, hasOperator }
-        setUser(decoded);
-      } catch (error) {
-        console.error('[AdminSidebar] Error decoding token:', error);
-      }
-    }
-    
-    setTokenChecked(true);
-  }, [tokenChecked]);
-
+  
   const handleLogout = async () => {
     console.log('[AdminSidebar] Logout initiated');
-    
-    try {
-      // Call backend to invalidate refresh token
-      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170';
-      const token = sessionStorage.getItem('accessToken');
-      
-      if (token) {
-        await fetch(`${API_BASE_URL}/auth/logout`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
-          credentials: 'include'
-        });
-        console.log('[AdminSidebar] Backend logout successful');
-      }
-    } catch (error) {
-      console.error('[AdminSidebar] Backend logout failed:', error);
-    } finally {
-      // Always clear frontend storage
-      sessionStorage.removeItem('accessToken');
-      sessionStorage.removeItem('userFranchiseInfo');
-      sessionStorage.removeItem('franchiseLinked');
-      sessionStorage.removeItem('franchiseMenuReplaced');
-      sessionStorage.removeItem('franchiseOwnerUserId');
-      console.log('[AdminSidebar] Storage cleared, navigating to login');
-      navigate('/login');
-    }
+    await logout();
+    console.log('[AdminSidebar] Storage cleared, navigating to login');
+    navigate('/login');
   };
 
   const toggleLogout = () => {
     setShowLogout(!showLogout);
   };
 
-  // Memoize first name - only recalculate when user changes (JWT now contains: id, role, name, accountType, hasOperator)
   const firstName = useMemo(() => {
     if (!user) return 'User';
-    
     if (user?.firstName) return user.firstName;
-    if (user?.name) {
-      // If full name is stored, split and get first name
-      return user.name.split(' ')[0];
-    }
-    
+    if (user?.name) return user.name.split(' ')[0];
     return 'Admin';
   }, [user]);
 
-  // Memoize role display - only recalculate when user changes
   const roleDisplay = useMemo(() => {
     if (!user?.role) return 'Employee';
-    
     const roleMap = {
       'super-admin': 'Super Administrator',
       'sb-admin': 'SB Employee',
@@ -112,21 +70,16 @@ function Sidebar() {
       'admin': 'Administrator',
       'driver': 'Driver'
     };
-    
     return roleMap[user.role] || user.role;
   }, [user]);
 
-  const menuItems = [
-    { name: 'Dashboard', icon: <DashboardIcon />, path: '/sb-admin/dashboard' },
-    { name: 'Franchisee List', icon: <ListAltIcon />, path: '/sb-admin/franchisee-list' },
-    { name: 'Franchise Management', icon: <BusinessIcon />, path: '/sb-admin/franchise-management' },
-    { name: 'Reports', icon: <AssessmentIcon />, path: '/sb-admin/reports' },
-    { name: 'Analytics', icon: <AnalyticsIcon />, path: '/sb-admin/analytics' },
-    { name: 'Announcements', icon: <CampaignIcon />, path: '/sb-admin/announcements', requiresSuperAdmin: true },
-    { name: 'Audit Trail', icon: <HistoryIcon />, path: '/sb-admin/audit-trail', requiresSuperAdmin: true },
-    { name: 'User Management', icon: <PeopleAltIcon />, path: '/sb-admin/user-management' },
-    { name: 'Settings', icon: <SettingsIcon />, path: '/sb-admin/settings', requiresSuperAdmin: true }
-  ]
+  // Filter menu items based on the current user's role
+  const visibleMenuItems = useMemo(() => {
+    // Don't filter while loading - wait for user data
+    if (loading) return [];
+    if (!user?.role) return [];
+    return allMenuItems.filter(item => item.allowedRoles.includes(user.role));
+  }, [user, loading]);
 
   return (
     <div className="sidebar">
@@ -144,19 +97,17 @@ function Sidebar() {
 
       <div className="sidebar-items">
         <ul>
-          {menuItems
-            .filter(item => !item.requiresSuperAdmin || user?.role === 'super-admin')
-            .map((item) => (
-              <li
-                key={item.name}
-                className={location.pathname === item.path ? 'active' : ''}
-              >
-                <Link to={item.path}>
-                  <span className="menu-icon">{item.icon}</span>
-                  <span className="menu-text">{item.name}</span>
-                </Link>
-              </li>
-            ))}
+          {visibleMenuItems.map((item) => (
+            <li
+              key={item.name}
+              className={location.pathname === item.path ? 'active' : ''}
+            >
+              <Link to={item.path}>
+                <span className="menu-icon">{item.icon}</span>
+                <span className="menu-text">{item.name}</span>
+              </Link>
+            </li>
+          ))}
         </ul>
       </div>
 
@@ -188,4 +139,4 @@ function Sidebar() {
   )
 }
 
-export default Sidebar
+export default Sidebar;

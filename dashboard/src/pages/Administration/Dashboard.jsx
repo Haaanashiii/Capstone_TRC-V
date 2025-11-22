@@ -271,28 +271,28 @@ function Dashboard() {
                 value={dashboardData.kpiData.totalRegistered}
                 icon={AssessmentIcon}
                 iconColor="#0A356B"
-                route="/sb-admin/franchisee-list"
+                route="/franchisee-list"
               />
               <KpiCard
                 title="Expired Franchise"
                 value={dashboardData.kpiData.expiredFranchise}
                 icon={EventBusyIcon}
                 iconColor="#DC2626"
-                route="/sb-admin/franchisee-list"
+                route="/franchisee-list"
               />
               <KpiCard
                 title="Pending Verifications"
                 value={dashboardData.kpiData.pendingVerifications}
                 icon={PendingActionsIcon}
                 iconColor="#F59E0B"
-                route="/sb-admin/franchise-management"
+                route="/franchise-management"
               />
               <KpiCard
                 title="Pending Reports"
                 value={dashboardData.kpiData.pendingReports}
                 icon={ReportIcon}
                 iconColor="#EF4444"
-                route="/sb-admin/reports"
+                route="/reports"
               />
             </Box>
 

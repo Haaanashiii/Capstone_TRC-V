@@ -5,6 +5,7 @@ import { Visibility, VisibilityOff } from "@mui/icons-material";
 import AccountVerificationModal from '../Services/AccountVerificationModal';
 import { useNavigate } from 'react-router-dom';
 import api, { TokenManager } from '../Services/api';
+import { useAuth } from '../../contexts/AuthContext';
 
 import '../../Styles/LoginCss/Login.css';
 
@@ -32,6 +33,7 @@ const Login = () => {
   const [isLoading, setIsLoading] = React.useState(false);
 
   const navigate = useNavigate();
+  const { login } = useAuth();
   
   // Check for OAuth error in URL params on mount
   React.useEffect(() => {
@@ -126,12 +128,26 @@ const Login = () => {
       return;
     }
     
+    // Update AuthContext with user data
+    if (userData && userData.role) {
+      console.log('[Login] Updating AuthContext with user data');
+      login(token, {
+        id: userData.id,
+        role: userData.role,
+        name: userData.name,
+        firstName: userData.firstName,
+        accountType: userData.accountType,
+        hasFranchise: userData.hasFranchise,
+        hasOperator: userData.hasOperator
+      });
+    }
+    
     // Redirect based on role from JWT
     if (userData && userData.role) {
       console.log('[Login] Role:', userData.role, 'AccountType:', userData.accountType, 'HasFranchise:', userData.hasFranchise);
       console.log('[Login] Attempting navigation to role-based route...');
       
-      if (userData.role === 'operator') {
+      if (userData.role === 'operator' || userData.role === 'user') {
         // Check if operator has franchise - redirect accordingly
         if (userData.hasFranchise === true) {
           console.log('[Login] Operator has franchise, navigating to /operator/id');
@@ -140,12 +156,10 @@ const Login = () => {
           console.log('[Login] Operator has no franchise, navigating to /operator/franchise');
           navigate('/operator/franchise', { replace: true });
         }
-      } else if (userData.role === 'sb-admin') {
-        navigate('/sb-admin', { replace: true });
-      } else if (userData.role === 'bplo-admin') {
-        navigate('/bplo-admin', { replace: true });
-      } else if (userData.role === 'super-admin') {
-        navigate('/sb-admin', { replace: true });
+      } else if (userData.role === 'sb-admin' || userData.role === 'bplo-admin' || userData.role === 'super-admin') {
+        // All admin roles go to /dashboard
+        console.log('[Login] Admin role detected, navigating to /dashboard');
+        navigate('/dashboard', { replace: true });
       } else {
         console.log('[Login] Unknown role, navigating to /dashboard');
         navigate('/dashboard', { replace: true });

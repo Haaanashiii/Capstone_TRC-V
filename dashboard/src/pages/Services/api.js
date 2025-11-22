@@ -404,7 +404,36 @@ export const franchiseAPI = {
   },
 
   /**
-   * Approve franchise application
+   * BPLO approve franchise application
+   * @param {string} id - Application ID
+   * @returns {Promise} Response with approved application
+   */
+  approveBPLO: (id) => api.put(`/api/franchise-applications/bplo/approve/${id}`),
+
+  /**
+   * BPLO disapprove franchise application
+   * @param {string} id - Application ID
+   * @param {string} reason - Disapproval reason
+   * @returns {Promise} Response
+   */
+  disapproveBPLO: (id, reason) => api.put(`/api/franchise-applications/bplo/disapprove/${id}`, { reason }),
+
+  /**
+   * SB Admin final approval with resolution number
+   * @param {string} id - Application ID
+   * @param {string} resolutionNumber - Resolution number for certificate
+   * @returns {Promise} Response with finally approved application
+   */
+  approveSB: (id, resolutionNumber) => api.put(`/api/franchise-applications/sb/approve/${id}`, { resolutionNumber }),
+
+  /**
+   * Get applications for SB approval (awaiting-sb status)
+   * @returns {Promise} Response with applications awaiting SB approval
+   */
+  getForSBApproval: () => api.get('/api/franchise-applications/sb/approved-websocket'),
+
+  /**
+   * Legacy approve method (backward compatibility)
    * @param {string} id - Application ID
    * @returns {Promise} Response with approved application
    */
@@ -414,7 +443,7 @@ export const franchiseAPI = {
   }),
 
   /**
-   * Reject franchise application
+   * Legacy reject method (backward compatibility)
    * @param {string} id - Application ID
    * @param {string} reason - Rejection reason
    * @returns {Promise} Response

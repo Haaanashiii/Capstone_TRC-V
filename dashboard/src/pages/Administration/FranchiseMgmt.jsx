@@ -3,6 +3,7 @@ import '../../Styles/Administrator_Css/FranchiseMgmt.css'
 import Sidebar from './Sidebar'
 import { franchiseAPI, API_BASE_URL } from '../Services/api'
 import websocketService from '../../services/websocket'
+import { useAuth } from '../../contexts/AuthContext'
 import {
   Table,
   TableBody,
@@ -36,12 +37,18 @@ import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf'
 import VisibilityIcon from '@mui/icons-material/Visibility'
 
 function FranchiseMgmt() {
+  const { user } = useAuth() // Get current user for role-based rendering
+  const userRole = user?.role || 'bplo-admin' // Default to bplo-admin for backward compatibility
+  
   const [searchTerm, setSearchTerm] = useState('')
+  const [statusFilter, setStatusFilter] = useState('all') // Filter: all, pending, bplo-approved, awaiting-sb
   const [openAddModal, setOpenAddModal] = useState(false)
   const [openViewModal, setOpenViewModal] = useState(false)
   const [openRejectModal, setOpenRejectModal] = useState(false)
+  const [openSBApprovalModal, setOpenSBApprovalModal] = useState(false)
   const [selectedApplication, setSelectedApplication] = useState(null)
   const [rejectionReason, setRejectionReason] = useState('')
+  const [resolutionNumber, setResolutionNumber] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [notification, setNotification] = useState({ open: false, message: '', type: 'info' })
   
@@ -110,7 +117,10 @@ function FranchiseMgmt() {
     isFetchingRef.current = true
     setIsLoading(true)
     try {
+      // Fetch ALL pending applications regardless of role
+      // The filter will determine what the user sees
       const response = await franchiseAPI.getPending()
+      
       // Backend returns { success, data }, axios unwraps to response.data
       const serverApps = response.data?.data || response.data || []
       
@@ -263,12 +273,29 @@ function FranchiseMgmt() {
 
 
   const filteredApplications = useMemo(() => {
-    return pendingApplications.filter(app => 
+    let filtered = pendingApplications.filter(app => 
       app.name?.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
       app.franchiseNumber?.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
       app.plateNumber?.toLowerCase().includes(debouncedSearchTerm.toLowerCase())
     )
-  }, [pendingApplications, debouncedSearchTerm])
+
+    // Apply status filter
+    if (statusFilter !== 'all') {
+      filtered = filtered.filter(app => {
+        const status = app.statusOfBPLO || 'pending'
+        if (statusFilter === 'pending') {
+          return status === 'pending'
+        } else if (statusFilter === 'bplo-approved') {
+          return status === 'bplo-approved'
+        } else if (statusFilter === 'awaiting-sb') {
+          return status === 'awaiting-sb'
+        }
+        return true
+      })
+    }
+
+    return filtered
+  }, [pendingApplications, debouncedSearchTerm, statusFilter])
 
   
 
@@ -645,8 +672,7 @@ function FranchiseMgmt() {
   }
   
   /**
-   * Approve application
-   * Uses secure franchiseAPI.approve() with automatic token refresh
+   * Approve application (role-based: BPLO or SB)
    */
   const handleApproveApplication = async () => {
     if (!selectedApplication) return
@@ -657,22 +683,30 @@ function FranchiseMgmt() {
       return
     }
     
+    // SB Admin requires resolution number - show modal
+    if (userRole === 'sb-admin') {
+      setOpenViewModal(false)
+      setOpenSBApprovalModal(true)
+      return
+    }
+    
+    // BPLO Admin approval
     setIsLoading(true)
     
     try {
-      console.log('[FranchiseMgmt] Approving application:', selectedApplication.id)
+      console.log('[FranchiseMgmt] BPLO approving application:', selectedApplication.id)
       
-      // Approve via secure API (generates QR code, updates DB)
-      const response = await franchiseAPI.approve(selectedApplication.id)
+      // BPLO approve via secure API
+      const response = await franchiseAPI.approveBPLO(selectedApplication.id)
       
-      console.log('[FranchiseMgmt] Application approved:', response.data)
+      console.log('[FranchiseMgmt] Application approved by BPLO:', response.data)
 
       // Refresh pending applications list
       await fetchAllPending()
 
       setNotification({ 
         open: true, 
-        message: 'Application approved successfully', 
+        message: 'Application approved by BPLO. Applicant will be notified to proceed with inspection and OR submission.', 
         type: 'success' 
       })
       
@@ -680,7 +714,6 @@ function FranchiseMgmt() {
     } catch (error) {
       console.error('[FranchiseMgmt] Error approving application:', error)
       
-      // Handle specific error cases
       const errorMessage = error.response?.data?.error || error.response?.data?.message || 'Failed to approve application'
       const isConflict = error.response?.status === 409
       
@@ -692,7 +725,6 @@ function FranchiseMgmt() {
         type: 'error'
       })
       
-      // If it's a conflict (already approved), refresh the list and close modal
       if (isConflict) {
         await fetchAllPending()
         handleCloseViewModal()
@@ -703,39 +735,89 @@ function FranchiseMgmt() {
   }
   
   /**
-   * Submit rejection
-   * Uses secure franchiseAPI.delete() (or reject if endpoint exists)
+   * SB Admin final approval with resolution number
    */
-  const handleSubmitRejection = async () => {
-    if (!selectedApplication || !rejectionReason.trim()) return
+  const handleSBApproval = async () => {
+    if (!selectedApplication || !resolutionNumber.trim()) {
+      setNotification({
+        open: true,
+        message: 'Resolution number is required',
+        type: 'error'
+      })
+      return
+    }
     
     setIsLoading(true)
     
     try {
-      console.log('[FranchiseMgmt] Rejecting application:', selectedApplication.id)
+      console.log('[FranchiseMgmt] SB approving application:', selectedApplication.id)
       
-      // Delete the pending application using secure API
-      // TODO: If backend has a reject endpoint, use franchiseAPI.reject(id, reason)
-      await franchiseAPI.delete(selectedApplication.id)
+      const response = await franchiseAPI.approveSB(selectedApplication.id, resolutionNumber.trim())
+      
+      console.log('[FranchiseMgmt] Application finally approved by SB:', response.data)
 
-      console.log('[FranchiseMgmt] Application rejected')
+      await fetchAllPending()
+
+      setNotification({ 
+        open: true, 
+        message: 'Application finally approved! Applicant can now claim their certificate.', 
+        type: 'success' 
+      })
+      
+      setOpenSBApprovalModal(false)
+      setResolutionNumber('')
+    } catch (error) {
+      console.error('[FranchiseMgmt] Error in SB approval:', error)
+      
+      setNotification({
+        open: true,
+        message: error.response?.data?.error || 'Failed to approve application',
+        type: 'error'
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+  
+  /**
+   * Submit disapproval/rejection (BPLO only)
+   */
+  const handleSubmitRejection = async () => {
+    if (!selectedApplication || !rejectionReason.trim()) {
+      setNotification({
+        open: true,
+        message: 'Please provide a reason for disapproval',
+        type: 'error'
+      })
+      return
+    }
+    
+    setIsLoading(true)
+    
+    try {
+      console.log('[FranchiseMgmt] BPLO disapproving application:', selectedApplication.id)
+      
+      // BPLO disapprove via secure API
+      await franchiseAPI.disapproveBPLO(selectedApplication.id, rejectionReason.trim())
+
+      console.log('[FranchiseMgmt] Application disapproved by BPLO')
       
       // Refresh pending applications list
       await fetchAllPending()
 
       setNotification({ 
         open: true, 
-        message: 'Application rejected successfully', 
+        message: 'Application disapproved. Applicant has been notified.', 
         type: 'success' 
       })
       
       handleCloseRejectModal()
       setRejectionReason('')
     } catch (error) {
-      console.error('[FranchiseMgmt] Error rejecting application:', error)
+      console.error('[FranchiseMgmt] Error disapproving application:', error)
       setNotification({
         open: true,
-        message: error.response?.data?.error || 'Failed to reject application',
+        message: error.response?.data?.error || 'Failed to disapprove application',
         type: 'error'
       })
     } finally {
@@ -750,11 +832,31 @@ function FranchiseMgmt() {
     setNotification({ open: false, message: '', type: 'info' })
   }, [])
 
+  /**
+   * Get status display information
+   */
+  const getStatusInfo = (statusOfBPLO) => {
+    switch (statusOfBPLO) {
+      case 'pending':
+        return { label: 'For BPLO Verification', color: '#F59E0B', bgColor: '#FEF3C7' }
+      case 'bplo-approved':
+        return { label: 'Approved by BPLO - Awaiting OR', color: '#059669', bgColor: '#D1FAE5' }
+      case 'awaiting-sb':
+        return { label: 'Awaiting SB Resolution', color: '#0A356B', bgColor: '#DBEAFE' }
+      case 'bplo-disapproved':
+        return { label: 'Disapproved by BPLO', color: '#DC2626', bgColor: '#FEE2E2' }
+      default:
+        return { label: 'Unknown Status', color: '#6B7280', bgColor: '#F3F4F6' }
+    }
+  }
+
   return (
     <div className="main">
       <Sidebar />
       <div className="content-container">
-        <h1 className="title">Franchise Management</h1>
+        <h1 className="title">
+          {userRole === 'sb-admin' ? 'SB Final Approval' : 'Franchise Management'}
+        </h1>
         
         {/* Search bar and Add button */}
         <div className="search-bar">
@@ -781,9 +883,32 @@ function FranchiseMgmt() {
           </Button>
         </div>
         
+        {/* Status Filter */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+          <Typography variant="body1" sx={{ fontWeight: 600 }}>
+            Filter by Status:
+          </Typography>
+          <FormControl sx={{ minWidth: 280 }}>
+            <Select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              size="small"
+              displayEmpty
+            >
+              <MenuItem value="all">All Applications</MenuItem>
+              <MenuItem value="pending">For BPLO Verification</MenuItem>
+              <MenuItem value="bplo-approved">Approved by BPLO - Awaiting OR</MenuItem>
+              <MenuItem value="awaiting-sb">Awaiting SB Resolution</MenuItem>
+            </Select>
+          </FormControl>
+          <Typography variant="body2" sx={{ color: '#6B7280', ml: 'auto' }}>
+            Total: {filteredApplications.length} application(s)
+          </Typography>
+        </Box>
+        
         {/* Pending Applications Table */}
         <Typography variant="h6" className="pending-header">
-          PENDING FRANCHISE
+          PENDING FRANCHISE APPLICATIONS
         </Typography>
         
         {isLoading && !pendingApplications.length ? (
@@ -801,38 +926,54 @@ function FranchiseMgmt() {
                   <TableCell className="table-cell-head">Make</TableCell>
                   <TableCell className="table-cell-head">Plate Number</TableCell>
                   <TableCell className="table-cell-head">Application Type</TableCell>
+                  <TableCell className="table-cell-head">Status</TableCell>
                   <TableCell className="table-cell-head">Address</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {filteredApplications.length > 0 ? (
-                  filteredApplications.map((application, index) => (
-                    <TableRow 
-                      key={application.id}
-                      className={`table-row ${index % 2 !== 0 ? 'table-row-odd' : ''}`}
-                      onClick={() => handleOpenViewModal(application)}
-                    >
-                      <TableCell className="table-cell-body">{index + 1}</TableCell>
-                      <TableCell className="table-cell-body">{application.name}</TableCell>
-                      {/* <TableCell className="table-cell-body">{application.franchiseNumber}</TableCell> */}
-                      <TableCell className="table-cell-body">{application.make}</TableCell>
-                      <TableCell className="table-cell-body">{application.plateNumber}</TableCell>
-                      <TableCell className="table-cell-body">
-                        <Chip 
-                          label={application.applicationType}
-                          size="small"
-                          className={
-                            application.applicationType === 'New' ? 'chip-new' : 
-                            application.applicationType === 'Renewal' ? 'chip-renewal' : 'chip-transfer'
-                          }
-                        />
-                      </TableCell>
-                      <TableCell className="table-cell-body">{application.address}</TableCell>
-                    </TableRow>
-                  ))
+                  filteredApplications.map((application, index) => {
+                    const statusInfo = getStatusInfo(application.statusOfBPLO || 'pending')
+                    return (
+                      <TableRow 
+                        key={application.id}
+                        className={`table-row ${index % 2 !== 0 ? 'table-row-odd' : ''}`}
+                        onClick={() => handleOpenViewModal(application)}
+                      >
+                        <TableCell className="table-cell-body">{index + 1}</TableCell>
+                        <TableCell className="table-cell-body">{application.name}</TableCell>
+                        {/* <TableCell className="table-cell-body">{application.franchiseNumber}</TableCell> */}
+                        <TableCell className="table-cell-body">{application.make}</TableCell>
+                        <TableCell className="table-cell-body">{application.plateNumber}</TableCell>
+                        <TableCell className="table-cell-body">
+                          <Chip 
+                            label={application.applicationType}
+                            size="small"
+                            className={
+                              application.applicationType === 'New' ? 'chip-new' : 
+                              application.applicationType === 'Renewal' ? 'chip-renewal' : 'chip-transfer'
+                            }
+                          />
+                        </TableCell>
+                        <TableCell className="table-cell-body">
+                          <Chip 
+                            label={statusInfo.label}
+                            size="small"
+                            sx={{
+                              backgroundColor: statusInfo.bgColor,
+                              color: statusInfo.color,
+                              fontWeight: 600,
+                              fontSize: '0.75rem'
+                            }}
+                          />
+                        </TableCell>
+                        <TableCell className="table-cell-body">{application.address}</TableCell>
+                      </TableRow>
+                    )
+                  })
                 ) : (
                   <TableRow className="table-row">
-                    <TableCell className="table-cell-body table-cell-center" colSpan={7}>
+                    <TableCell className="table-cell-body table-cell-center" colSpan={8}>
                       {isLoading ? 'Loading...' : 'No pending applications found'}
                     </TableCell>
                   </TableRow>
@@ -1186,6 +1327,124 @@ function FranchiseMgmt() {
               </IconButton>
             </div>
             
+            {/* Approval Status Section */}
+            <Box sx={{ 
+              bgcolor: '#f5f5f5', 
+              p: 2, 
+              borderRadius: 1, 
+              mb: 2,
+              border: '1px solid #e0e0e0'
+            }}>
+              <Typography variant="h6" sx={{ mb: 1.5, fontWeight: 600 }}>
+                📋 Approval Status
+              </Typography>
+              <div className="info-grid">
+                <Typography variant="subtitle2" className="label">Current Status:</Typography>
+                <Chip 
+                  label={
+                    selectedApplication.statusOfBPLO === 'pending' ? 'Pending Review' :
+                    selectedApplication.statusOfBPLO === 'bplo-approved' ? 'BPLO Approved - Awaiting OR' :
+                    selectedApplication.statusOfBPLO === 'bplo-disapproved' ? 'BPLO Disapproved' :
+                    selectedApplication.statusOfBPLO === 'awaiting-sb' ? 'Awaiting SB Approval' :
+                    selectedApplication.statusOfBPLO === 'sb-approved' ? 'Finally Approved' :
+                    selectedApplication.statusOfBPLO
+                  }
+                  color={
+                    selectedApplication.statusOfBPLO === 'sb-approved' ? 'success' :
+                    selectedApplication.statusOfBPLO === 'bplo-approved' ? 'info' :
+                    selectedApplication.statusOfBPLO === 'awaiting-sb' ? 'primary' :
+                    selectedApplication.statusOfBPLO === 'bplo-disapproved' ? 'error' :
+                    'default'
+                  }
+                  sx={{ fontWeight: 'bold' }}
+                />
+                
+                {selectedApplication.bploApprovedBy && (
+                  <>
+                    <Typography variant="subtitle2" className="label">BPLO Reviewed By:</Typography>
+                    <Typography>{selectedApplication.bploApprovedBy}</Typography>
+                    
+                    <Typography variant="subtitle2" className="label">BPLO Review Date:</Typography>
+                    <Typography>
+                      {selectedApplication.bploApprovedAt 
+                        ? new Date(selectedApplication.bploApprovedAt).toLocaleString() 
+                        : 'N/A'}
+                    </Typography>
+                  </>
+                )}
+                
+                {selectedApplication.bploDisapprovedReason && (
+                  <>
+                    <Typography variant="subtitle2" className="label" sx={{ color: 'error.main' }}>
+                      Disapproval Reason:
+                    </Typography>
+                    <Typography sx={{ 
+                      bgcolor: '#ffebee', 
+                      p: 1, 
+                      borderRadius: 1,
+                      border: '1px solid #ffcdd2'
+                    }}>
+                      {selectedApplication.bploDisapprovedReason}
+                    </Typography>
+                  </>
+                )}
+                
+                {(selectedApplication.statusOfBPLO === 'bplo-approved' || 
+                  selectedApplication.statusOfBPLO === 'awaiting-sb' ||
+                  selectedApplication.statusOfBPLO === 'sb-approved') && (
+                  <>
+                    <Typography variant="subtitle2" className="label">Inspection Required:</Typography>
+                    <Chip 
+                      label={selectedApplication.bploInspectionRequired ? 'Yes - Visit BPLO' : 'Not Required'} 
+                      color={selectedApplication.bploInspectionRequired ? 'warning' : 'default'}
+                      size="small"
+                    />
+                  </>
+                )}
+                
+                {selectedApplication.officialReceiptNumber && (
+                  <>
+                    <Typography variant="subtitle2" className="label">OR Number:</Typography>
+                    <Typography sx={{ fontWeight: 'bold', color: 'primary.main' }}>
+                      {selectedApplication.officialReceiptNumber}
+                    </Typography>
+                    
+                    {selectedApplication.orSubmittedAt && (
+                      <>
+                        <Typography variant="subtitle2" className="label">OR Submitted:</Typography>
+                        <Typography>
+                          {new Date(selectedApplication.orSubmittedAt).toLocaleString()}
+                        </Typography>
+                      </>
+                    )}
+                  </>
+                )}
+                
+                {selectedApplication.sbApprovedBy && (
+                  <>
+                    <Typography variant="subtitle2" className="label">SB Approved By:</Typography>
+                    <Typography>{selectedApplication.sbApprovedBy}</Typography>
+                    
+                    <Typography variant="subtitle2" className="label">SB Approval Date:</Typography>
+                    <Typography>
+                      {selectedApplication.sbApprovedAt 
+                        ? new Date(selectedApplication.sbApprovedAt).toLocaleString() 
+                        : 'N/A'}
+                    </Typography>
+                    
+                    <Typography variant="subtitle2" className="label">Resolution Number:</Typography>
+                    <Typography sx={{ 
+                      fontWeight: 'bold', 
+                      color: 'success.main',
+                      fontSize: '1.1rem'
+                    }}>
+                      {selectedApplication.sbResolutionNumber}
+                    </Typography>
+                  </>
+                )}
+              </div>
+            </Box>
+            
             <Typography variant="h6" className="section-header">
               PERSONAL INFORMATION
             </Typography>
@@ -1343,21 +1602,60 @@ function FranchiseMgmt() {
               </Link>
             </div>
             
+            {/* Action Buttons - Role Based */}
             <div className="action-buttons">
-              <Button
-                className="button-error"
-                onClick={handleOpenRejectModal}
-                disabled={isLoading}
-              >
-                Disapprove
-              </Button>
-              <Button
-                className="button-success"
-                onClick={handleApproveApplication}
-                disabled={isLoading}
-              >
-                {isLoading ? <CircularProgress className="circular-progress-small circular-progress-inherit" /> : 'Approve'}
-              </Button>
+              {userRole === 'bplo-admin' && selectedApplication.statusOfBPLO === 'pending' && (
+                <>
+                  <Button
+                    className="button-error"
+                    onClick={handleOpenRejectModal}
+                    disabled={isLoading}
+                  >
+                    Disapprove
+                  </Button>
+                  <Button
+                    className="button-success"
+                    onClick={handleApproveApplication}
+                    disabled={isLoading}
+                  >
+                    {isLoading ? <CircularProgress className="circular-progress-small circular-progress-inherit" /> : 'Approve for Inspection'}
+                  </Button>
+                </>
+              )}
+              
+              {userRole === 'sb-admin' && (selectedApplication.statusOfBPLO === 'awaiting-sb' || 
+                (selectedApplication.statusOfBPLO === 'approved' && selectedApplication.officialReceiptNumber)) && (
+                <Button
+                  className="button-success"
+                  onClick={handleApproveApplication}
+                  disabled={isLoading}
+                  fullWidth
+                >
+                  {isLoading ? <CircularProgress className="circular-progress-small circular-progress-inherit" /> : 'Final Approval with Resolution Number'}
+                </Button>
+              )}
+              
+              {(selectedApplication.statusOfBPLO === 'bplo-approved' || 
+                selectedApplication.statusOfBPLO === 'awaiting-sb' ||
+                selectedApplication.statusOfBPLO === 'sb-approved' ||
+                selectedApplication.statusOfBPLO === 'bplo-disapproved') && (
+                <Typography variant="body2" sx={{ 
+                  textAlign: 'center', 
+                  p: 2, 
+                  bgcolor: '#e3f2fd',
+                  borderRadius: 1,
+                  width: '100%'
+                }}>
+                  {selectedApplication.statusOfBPLO === 'bplo-approved' && 
+                    '✓ Approved by BPLO - Waiting for applicant to submit OR number'}
+                  {selectedApplication.statusOfBPLO === 'awaiting-sb' && 
+                    '✓ OR Submitted - Ready for SB final approval'}
+                  {selectedApplication.statusOfBPLO === 'sb-approved' && 
+                    '✅ Finally Approved - Applicant can claim certificate'}
+                  {selectedApplication.statusOfBPLO === 'bplo-disapproved' && 
+                    '⚠ Disapproved by BPLO - Applicant has been notified'}
+                </Typography>
+              )}
             </div>
           </Box>
         </Modal>
@@ -1418,7 +1716,7 @@ function FranchiseMgmt() {
         </Box>
       </Modal>
       
-      {/* Rejection Reason Modal */}
+      {/* BPLO Disapproval Reason Modal */}
       <Modal
         open={openRejectModal}
         onClose={handleCloseRejectModal}
@@ -1427,7 +1725,7 @@ function FranchiseMgmt() {
         <Box className="modal-container rejection-modal">
           <div className="modal-header">
             <Typography variant="h5" component="h2">
-              Rejection Reason
+              Disapproval Reason
             </Typography>
             <IconButton onClick={handleCloseRejectModal}>
               <CloseIcon />
@@ -1435,16 +1733,19 @@ function FranchiseMgmt() {
           </div>
           
           <Typography variant="body1" className="mb-2">
-            Please provide a reason for rejecting this franchise application:
+            Please provide a reason for disapproving this franchise application:
           </Typography>
           
           <TextField
-            label="Reason for Rejection"
+            label="Reason for Disapproval"
             className="textfield-multiline"
+            multiline
+            rows={4}
             value={rejectionReason}
             onChange={(e) => setRejectionReason(e.target.value)}
             fullWidth
             required
+            placeholder="E.g., Documents incomplete, tricycle does not meet safety standards, etc."
           />
           
           <div className="action-buttons">
@@ -1453,7 +1754,80 @@ function FranchiseMgmt() {
               onClick={handleSubmitRejection}
               disabled={!rejectionReason.trim() || isLoading}
             >
-              {isLoading ? <CircularProgress className="circular-progress-small" /> : 'Submit'}
+              {isLoading ? <CircularProgress className="circular-progress-small" /> : 'Submit Disapproval'}
+            </Button>
+          </div>
+        </Box>
+      </Modal>
+      
+      {/* SB Admin Final Approval Modal */}
+      <Modal
+        open={openSBApprovalModal}
+        onClose={() => setOpenSBApprovalModal(false)}
+        aria-labelledby="sb-approval-modal"
+      >
+        <Box className="modal-container rejection-modal">
+          <div className="modal-header">
+            <Typography variant="h5" component="h2">
+              Final Approval - Resolution Number
+            </Typography>
+            <IconButton onClick={() => setOpenSBApprovalModal(false)}>
+              <CloseIcon />
+            </IconButton>
+          </div>
+          
+          <Typography variant="body1" className="mb-2" sx={{ mb: 2 }}>
+            This application has been approved by BPLO and the OR has been submitted. 
+            Please enter the resolution number to complete the final approval.
+          </Typography>
+          
+          {selectedApplication && (
+            <Box sx={{ 
+              bgcolor: '#e3f2fd', 
+              p: 2, 
+              borderRadius: 1, 
+              mb: 2 
+            }}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>
+                Applicant: {selectedApplication.name}
+              </Typography>
+              <Typography variant="body2">
+                OR Number: {selectedApplication.officialReceiptNumber || 'N/A'}
+              </Typography>
+              <Typography variant="body2">
+                Plate Number: {selectedApplication.plateNumber}
+              </Typography>
+            </Box>
+          )}
+          
+          <TextField
+            label="Resolution Number"
+            value={resolutionNumber}
+            onChange={(e) => setResolutionNumber(e.target.value)}
+            fullWidth
+            required
+            placeholder="E.g., Resolution No. 2025-123"
+            helperText="This will appear on the certificate of approval"
+            sx={{ mb: 2 }}
+          />
+          
+          <div className="action-buttons">
+            <Button
+              variant="outlined"
+              onClick={() => {
+                setOpenSBApprovalModal(false)
+                setResolutionNumber('')
+              }}
+              disabled={isLoading}
+            >
+              Cancel
+            </Button>
+            <Button
+              className="button-success"
+              onClick={handleSBApproval}
+              disabled={!resolutionNumber.trim() || isLoading}
+            >
+              {isLoading ? <CircularProgress className="circular-progress-small circular-progress-inherit" /> : 'Approve & Issue Certificate'}
             </Button>
           </div>
         </Box>

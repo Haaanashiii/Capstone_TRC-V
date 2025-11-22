@@ -44,9 +44,39 @@ const franchiseApplicationSchema = new mongoose.Schema({
   motorEngineNo: { type: String, required: true, unique: true },
   chasisNo: { type: String, required: true, unique: true },
 
-  statusOfBPLO: {type: String, enum: ['approved', 'pending' , 'rejected'], required: true ,default: 'pending' },
-  officialRecieptNumber: { type: String, required: false },
-  approvedAt: { type: Date },
+  // Two-stage approval workflow
+  statusOfBPLO: {
+    type: String, 
+    enum: [
+      'pending',              // Initial state - waiting for BPLO review
+      'bplo-approved',        // BPLO approved - awaiting OR submission
+      'bplo-disapproved',     // BPLO disapproved - needs inspection/revision
+      'awaiting-sb',          // OR submitted - ready for SB review
+      'sb-approved',          // Final approval by SB - ready for certificate
+      'rejected'              // Permanently rejected
+    ], 
+    required: true,
+    default: 'pending' 
+  },
+  
+  // BPLO Approval Stage
+  bploApprovedBy: { type: String, required: false },        // Admin username who approved/disapproved
+  bploApprovedAt: { type: Date, required: false },           // Timestamp of BPLO action
+  bploDisapprovedReason: { type: String, required: false },  // Reason for disapproval
+  bploInspectionRequired: { type: Boolean, default: false }, // Flag for inspection requirement
+  
+  // OR Number Stage (submitted by user after BPLO approval)
+  officialReceiptNumber: { type: String, required: false },
+  officialReceiptDocument: { type: String, required: false }, // URL to OR document
+  orSubmittedAt: { type: Date, required: false },
+  
+  // SB Approval Stage (final)
+  sbApprovedBy: { type: String, required: false },           // SB admin username
+  sbApprovedAt: { type: Date, required: false },             // Final approval timestamp
+  sbResolutionNumber: { type: String, required: false },     // Resolution number for certificate
+  
+  // Legacy fields
+  approvedAt: { type: Date },                                // Kept for backward compatibility
   submittedAt: { type: Date, default: Date.now },
 
   documents: DocumentReferenceSchema,
