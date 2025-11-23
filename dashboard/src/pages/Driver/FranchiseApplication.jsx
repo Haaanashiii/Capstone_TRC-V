@@ -18,7 +18,6 @@ export default function FranchiseApplication() {
   // Fetch user email from backend API (not from JWT for security)
   const [userEmail, setUserEmail] = useState('');
   const [userId, setUserId] = useState('');
-  const [isLoadingUserData, setIsLoadingUserData] = useState(true);
   
   useEffect(() => {
     const fetchUserData = async () => {
@@ -26,7 +25,6 @@ export default function FranchiseApplication() {
         const token = TokenManager.getAccessToken();
         if (!token) {
           console.error('[FranchiseApplication] No access token found');
-          setIsLoadingUserData(false);
           return;
         }
         
@@ -60,12 +58,74 @@ export default function FranchiseApplication() {
         }
       } catch (error) {
         console.error('[FranchiseApplication] Error extracting data from token:', error);
-      } finally {
-        setIsLoadingUserData(false);
       }
     };
     
     fetchUserData();
+  }, []);  // Check if we're resubmitting a disapproved application
+  useEffect(() => {
+    const checkResubmission = async () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const appId = urlParams.get('resubmit');
+      
+      if (appId) {
+        console.log('[FranchiseApplication] Resubmission mode - loading application:', appId);
+        setIsResubmission(true);
+        setResubmissionAppId(appId);
+        
+        try {
+          // Fetch the disapproved application data
+          const response = await franchiseAPI.getById(appId);
+          if (response.data && response.data.data) {
+            const app = response.data.data;
+            
+            // Prefill all fields from the disapproved application
+            setFields({
+              date: app.submittedAt ? dayjs(app.submittedAt) : dayjs(),
+              operatorName: app.operatorName || '',
+              contact: app.operatorContactNumber || '',
+              birthPlace: app.operatorBirthPlace || '',
+              birthDate: app.operatorBirthDate ? dayjs(app.operatorBirthDate) : null,
+              civilStatus: app.operatorCivilStatus || '',
+              citizenship: app.operatorCitizenship || '',
+              todaMembership: app.todaMembership || '',
+              unitModel: app.unitModel || '',
+              colorMotor: app.colorMotor || '',
+              colorSidecar: app.sideCarColor || '',
+              mvPlateNo: app.mvPlateNo || '',
+              motorEngineNumber: app.motorEngineNo || '',
+              chassisNumber: app.chasisNo || '',
+              driverName: app.driverName || '',
+              driverAddress: app.driversAddress || '',
+              operatorAddress: app.operatorAddress || '',
+              barangay: app.operatorBarangay || '',
+              hasCoOwner: app.coOwnerName ? 'Yes' : 'No',
+              motorcyclePicture: null,
+            });
+            
+            // Prefill co-owners if they exist
+            if (app.coOwnerName) {
+              setCoOwners([{
+                name: app.coOwnerName,
+                address: app.coOwnerAddress || '',
+                relationship: 'Family'
+              }]);
+            }
+            
+            console.log('[FranchiseApplication] Application data loaded for resubmission');
+          }
+        } catch (error) {
+          console.error('[FranchiseApplication] Error loading application for resubmission:', error);
+          setToast({
+            open: true,
+            message: 'Failed to load application data. Please try again.',
+            severity: 'error'
+          });
+        }
+      }
+    };
+    
+    checkResubmission();
   }, []);
   
   // Translation object
@@ -243,7 +303,7 @@ export default function FranchiseApplication() {
     todaMembership: "",
     unitModel: "",
     colorMotor: "",
-    colorSidecar: "",
+    colorSidecar: "Blue and Yellow", // Default to "Blue and Yellow"
     mvPlateNo: "",
     motorEngineNumber: "",
     chassisNumber: "",
@@ -254,6 +314,10 @@ export default function FranchiseApplication() {
     hasCoOwner: "",
     motorcyclePicture: null,
   });
+
+  // Track if this is a resubmission (editing disapproved application)
+  const [isResubmission, setIsResubmission] = useState(false);
+  const [resubmissionAppId, setResubmissionAppId] = useState(null);
 
   // Co-owner state
   const [coOwners, setCoOwners] = useState([]);
@@ -379,10 +443,12 @@ export default function FranchiseApplication() {
       }
     });
 
-    // Strict validation for sidecar color field
-    if (!fields.colorSidecar.trim()) {
+    // Validation for sidecar color field (required but not strict Blue/Yellow)
+    if (!fields.colorSidecar || !fields.colorSidecar.trim()) {
       newErrors.colorSidecar = 'Sidecar color is required';
       setSidecarColorError('Sidecar color is required');
+    } else {
+      setSidecarColorError('');
     }
 
     // Required documents
@@ -559,8 +625,10 @@ export default function FranchiseApplication() {
                 <DatePicker
                   value={fields.date}
                   onChange={(newValue) => setFields({ ...fields, date: newValue })}
+                  disabled
+                  readOnly
                   disableFuture
-                  slotProps={{ textField: { size: 'small', className: 'franchise-app-input' } }}
+                  slotProps={{ textField: { size: 'small', className: 'franchise-app-input', disabled: true, InputProps: { readOnly: true } } }}
                 />
               </LocalizationProvider>
             </div>
@@ -680,10 +748,6 @@ export default function FranchiseApplication() {
             </FormControl>
           </div>
 
-          <div className="franchise-app-field">
-            <TextField label={t.todaMembership} size="small" className="franchise-app-input" value={fields.todaMembership} onChange={handleChange('todaMembership')} />
-          </div>
-
           {/* Co-Owner Information */}
           {fields.hasCoOwner === 'Yes' && coOwners.length > 0 && (
             <div style={{ marginTop: 24 }}>
@@ -762,11 +826,12 @@ export default function FranchiseApplication() {
               label={t.colorSidecar}
               size="small"
               className="franchise-app-input"
-              value={fields.colorSidecar}
+              value={fields.colorSidecar || "Blue and Yellow"}
               onChange={handleChange('colorSidecar')}
               required
               error={!!sidecarColorError}
-              helperText={sidecarColorError}
+              helperText={sidecarColorError || "Default: Blue and Yellow"}
+              placeholder="Blue and Yellow"
             />
             <TextField label={t.mvPlateNo} size="small" className="franchise-app-input" value={fields.mvPlateNo} onChange={handleChange('mvPlateNo')} />
           </div>
@@ -786,18 +851,24 @@ export default function FranchiseApplication() {
           
           {/* 1x1 Picture Upload for Motorcycle */}
           <div style={{ marginTop: 24 }}>
-            <div style={{ fontWeight: 600, marginBottom: 8 }}>{t.picture}</div>
+            <div style={{ fontWeight: 700, color: '#222', fontSize: 18, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>{t.picture}</div>
             <div
               style={{
+                width: '100%',
                 background: '#eaf1ff',
                 borderRadius: 8,
-                padding: '12px 16px',
+                padding: '12px 0',
                 textAlign: 'center',
                 fontWeight: 500,
                 color: '#222',
                 fontSize: 16,
                 cursor: 'pointer',
-                border: '2px dashed #174D7A',
+                border: 'none',
+                outline: 'none',
+                transition: 'background 0.2s',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap'
               }}
               onClick={() => {
                 const input = document.createElement('input');
@@ -1036,7 +1107,16 @@ export default function FranchiseApplication() {
                       }
                       
                       console.log('[FranchiseApplication] Submitting application...')
-                      const response = await franchiseAPI.create(formDataToSend)
+                      
+                      let response;
+                      if (isResubmission && resubmissionAppId) {
+                        // Update existing disapproved application
+                        console.log('[FranchiseApplication] Resubmitting application:', resubmissionAppId);
+                        response = await franchiseAPI.update(resubmissionAppId, formDataToSend);
+                      } else {
+                        // Create new application
+                        response = await franchiseAPI.create(formDataToSend);
+                      }
                       
           
                       if (!response.data) throw new Error('No response data received')
@@ -1088,10 +1168,10 @@ export default function FranchiseApplication() {
                       
                       try {
                         setTimeout(() => {
-                          navigate('/')
+                          navigate('/operator/home')
                         }, 2000) 
                       } catch {
-                        navigate('/')
+                        navigate('/operator/home')
                       }
                     } catch (err) {
                       console.error('[FranchiseApplication] Failed to submit application:', err)

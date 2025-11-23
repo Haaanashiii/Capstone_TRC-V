@@ -48,24 +48,25 @@ exports.createNewApplication = async (req, res, next) => {
       chasisNo: body.chasisNo,
       applicationType: 'new',
       statusOfBPLO: 'pending',
-      operatorInfo: user?._id || null
+      operatorInfo: userId
     };
     
-    console.log('[createNewApplication] Creating application with data:', applicationData);
+    console.log('[createNewApplication] Creating application with operatorInfo:', userId);
+    console.log('[createNewApplication] Application data:', applicationData);
     const application = await franchiseApplicationRepository.createFranchiseApplication(applicationData);
     console.log('[createNewApplication] Application created:', application._id);
     const appId = String(application._id);
     
     // Link application to user's franchiseApplications array
-    if (user?._id) {
+    if (userId) {
       try {
         const User = require('../models/userAccountModel');
         await User.findByIdAndUpdate(
-          user._id,
+          userId,
           { $addToSet: { franchiseApplications: application._id } },
           { new: true }
         );
-        console.log('[createNewApplication] Application linked to user:', user._id);
+        console.log('[createNewApplication] Application linked to user:', userId);
       } catch (linkError) {
         console.error('[createNewApplication] Failed to link application to user:', linkError);
         // Don't fail the whole operation if linking fails
@@ -144,11 +145,19 @@ exports.createNewApplication = async (req, res, next) => {
 // 2) GET PENDING FRANCHISES (All statuses for user)
 exports.getPendingFranchises = async (req, res, next) => {
   try {
-    const userId = req.user?._id;
+    const userId = req.user?._id?.toString() || req.user?.userId || String(req.user?.id);
+    const userEmail = req.user?.email;
     const { status } = req.query;
     
-    // Build filter based on requested status
-    const filter = { operatorInfo: userId };
+    console.log('[getPendingFranchises] User ID:', userId, 'Email:', userEmail, 'Status filter:', status);
+    
+    // Build filter to match either operatorInfo (preferred) or operatorEmail (fallback for old applications)
+    const filter = {
+      $or: [
+        { operatorInfo: userId },
+        ...(userEmail ? [{ operatorEmail: userEmail }] : [])
+      ]
+    };
     
     if (status) {
       filter.statusOfBPLO = status;
@@ -157,9 +166,12 @@ exports.getPendingFranchises = async (req, res, next) => {
       filter.statusOfBPLO = { $in: ['pending', 'bplo-approved', 'awaiting-sb', 'sb-approved', 'bplo-disapproved'] };
     }
     
+    console.log('[getPendingFranchises] Filter:', JSON.stringify(filter));
     const applications = await FranchiseApplication.find(filter).sort({ submittedAt: -1 });
+    console.log('[getPendingFranchises] Found applications:', applications.length);
     res.json({ success: true, data: applications });
   } catch (error) {
+    console.error('[getPendingFranchises] Error:', error);
     next(error);
   }
 };
@@ -182,23 +194,114 @@ exports.getSpecificPendingFranchise = async (req, res, next) => {
 exports.editPendingFranchise = async (req, res, next) => {
   try {
     const { id } = req.params;
+    const { body, files } = req;
     const application = await franchiseApplicationRepository.getFranchiseApplicationById(id);
     
-    if (!application || application.statusOfBPLO !== 'pending') {
-      return res.status(400).json({ error: 'Can only edit pending applications' });
+    if (!application) {
+      return res.status(404).json({ error: 'Application not found' });
     }
     
-    const updated = await franchiseApplicationRepository.updateFranchiseApplication(id, req.body);
+    // Allow editing for pending OR disapproved applications (for resubmission)
+    if (application.statusOfBPLO !== 'pending' && application.statusOfBPLO !== 'bplo-disapproved') {
+      return res.status(400).json({ error: 'Can only edit pending or disapproved applications' });
+    }
     
-    // Log application edit
+    // Check if user owns this application
+    const userId = req.user?._id?.toString() || req.user?.userId || String(req.user?.id);
+    const appUserId = application.operatorInfo?.toString();
+    if (userId !== appUserId && req.user?.role !== 'admin') {
+      return res.status(403).json({ error: 'You can only edit your own applications' });
+    }
+    
+    // If resubmitting a disapproved application, reset status to pending
+    const updateData = { ...body };
+    if (application.statusOfBPLO === 'bplo-disapproved') {
+      updateData.statusOfBPLO = 'pending';
+      updateData.bploDisapprovedReason = null; // Clear disapproval reason
+      updateData.submittedAt = new Date(); // Update submission timestamp
+      console.log('[editPendingFranchise] Resubmitting disapproved application - resetting to pending');
+    }
+    
+    // Handle file uploads if provided
+    if (files && Object.keys(files).length > 0) {
+      const { uploadFile, validateFile } = require('../services/fileUploadService');
+      
+      const uploadHelper = async (fieldName, category) => {
+        const fileArray = files[fieldName];
+        if (!fileArray?.[0]) return null;
+        
+        validateFile(fileArray[0]);
+        const result = await uploadFile(
+          fileArray[0].buffer,
+          fileArray[0].originalname,
+          fileArray[0].mimetype,
+          { baseFolder: 'franchiseApplications', subFolder: userId, category }
+        );
+        return result.cloudflare;
+      };
+      
+      // Upload all provided documents
+      const [motorReg, barangay, cedula, license, affidavit, stencil, driverPic, operatorPic, orLTO, crLTO] = await Promise.all([
+        uploadHelper('motorRegistrationObj', 'Documentations'),
+        uploadHelper('barangayClearanceObj', 'Documentations'),
+        uploadHelper('cedulaObj', 'Documentations'),
+        uploadHelper('driversLicenseObj', 'Documentations'),
+        uploadHelper('votersAffidavitObj', 'Documentations'),
+        uploadHelper('motorChassisStencilObj', 'Documentations'),
+        uploadHelper('driverPictureObj', 'ProfilePictures'),
+        uploadHelper('operatorPictureObj', 'ProfilePictures'),
+        uploadHelper('oRLTOObj', 'Documentations'),
+        uploadHelper('cRLTOObj', 'Documentations')
+      ]);
+      
+      // Only update documents that were uploaded
+      if (motorReg) updateData['documents.motorRegistrationObj'] = motorReg;
+      if (barangay) updateData['documents.barangayClearanceObj'] = barangay;
+      if (cedula) updateData['documents.cedulaObj'] = cedula;
+      if (license) updateData['documents.driversLicenseObj'] = license;
+      if (affidavit) updateData['documents.votersAffidavitObj'] = affidavit;
+      if (stencil) updateData['documents.motorChassisStencilObj'] = stencil;
+      if (driverPic) updateData['documents.driverPictureObj'] = driverPic;
+      if (operatorPic) updateData['documents.operatorPictureObj'] = operatorPic;
+      if (orLTO) updateData['documents.oRLTOObj'] = orLTO;
+      if (crLTO) updateData['documents.cRLTOObj'] = crLTO;
+    }
+    
+    const updated = await franchiseApplicationRepository.updateFranchiseApplication(id, updateData);
+    
+    // Log application edit/resubmission
     if (req.user) {
       await auditLogService.logApplicationEdit(updated, req.user, req).catch(err =>
         console.error('[editPendingFranchise] Audit log error:', err)
       );
     }
     
-    res.json({ success: true, data: updated });
+    // Notify BPLO admins via WebSocket if application was resubmitted
+    if (application.statusOfBPLO === 'bplo-disapproved' && req.app.get('io')) {
+      try {
+        // Fetch all pending applications to send updated list
+        const FranchiseApplication = require('../models/franchiseApplicationModel');
+        const pendingApplications = await FranchiseApplication.find({
+          statusOfBPLO: 'pending'
+        }).sort({ submittedAt: -1 });
+        
+        // Emit updated list to all BPLO admins
+        req.app.get('io').to('bplo-admins').emit('pending-applications', pendingApplications);
+        console.log(`[editPendingFranchise] Notified BPLO admins: ${pendingApplications.length} applications pending review`);
+      } catch (wsError) {
+        console.error('[editPendingFranchise] WebSocket notification failed:', wsError.message);
+      }
+    }
+    
+    res.json({ 
+      success: true, 
+      data: updated,
+      message: application.statusOfBPLO === 'bplo-disapproved' ? 
+        'Application resubmitted successfully. It will be reviewed by BPLO again.' :
+        'Application updated successfully.'
+    });
   } catch (error) {
+    console.error('[editPendingFranchise] Error:', error);
     next(error);
   }
 };

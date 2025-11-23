@@ -449,6 +449,13 @@ export const franchiseAPI = {
   getMyApplications: () => api.get('/api/franchise-applications/pending'),
 
   /**
+   * Get a specific franchise application by ID
+   * @param {string} id - Application ID
+   * @returns {Promise} Response with application data
+   */
+  getById: (id) => api.get(`/api/franchise-applications/${id}`),
+
+  /**
    * Submit OR document and number after BPLO approval
    * @param {string} id - Application ID
    * @param {FormData} formData - FormData containing officialReceiptNumber and oRTreasurerOfficeObj file
@@ -486,10 +493,17 @@ export const franchiseAPI = {
   /**
    * Update franchise application
    * @param {string} id - Application ID
-   * @param {object} data - Updated application data
+   * @param {object|FormData} data - Updated application data (can be FormData for file uploads)
    * @returns {Promise} Response with updated application
    */
-  update: (id, data) => api.put(`/api/franchise-applications/${id}`, data)
+  update: (id, data) => {
+    // Check if data is FormData (has files)
+    const config = data instanceof FormData ? 
+      { headers: { 'Content-Type': undefined } } : 
+      { headers: { 'Content-Type': 'application/json' } };
+    
+    return api.put(`/api/franchise-applications/pending/${id}`, data, config);
+  }
 };
 
 // ====================================================================

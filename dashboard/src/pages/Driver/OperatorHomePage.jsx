@@ -55,8 +55,8 @@ const OperatorHomePage = () => {
   
   // Use authUser from context instead of fetching separately
   useEffect(() => {
-    if (currentUser) {
-      console.log('[OperatorHomePage] User data:', currentUser);
+    if (authUser) {
+      console.log('[OperatorHomePage] User data:', authUser);
     }
     
     // Use sessionStorage for franchise info (cleared on tab close - more secure)
@@ -84,7 +84,7 @@ const OperatorHomePage = () => {
     } catch {
       console.warn('Error while restoring franchise info from storage')
     }
-  }, [authUser]);
+  }, [authUser]); // Only depend on authUser
 
   // Fetch approved franchises and auto-link if the logged-in operator has one
   useEffect(() => {
@@ -219,12 +219,18 @@ const OperatorHomePage = () => {
   useEffect(() => {
     const fetchApplications = async () => {
       try {
+        console.log('[OperatorHomePage] Fetching applications for user:', currentUser);
         const response = await franchiseAPI.getMyApplications();
+        console.log('[OperatorHomePage] API response:', response.data);
         if (response.data?.success && Array.isArray(response.data.data)) {
+          console.log('[OperatorHomePage] Setting applications:', response.data.data.length, 'items');
           setUserApplications(response.data.data);
+        } else {
+          console.warn('[OperatorHomePage] No applications data or invalid format:', response.data);
         }
       } catch (error) {
-        console.error('Error fetching applications:', error);
+        console.error('[OperatorHomePage] Error fetching applications:', error);
+        console.error('[OperatorHomePage] Error details:', error.response?.data);
       }
     };
     
@@ -415,17 +421,42 @@ const OperatorHomePage = () => {
   const handleApplyNew = () => navigate('/operator/franchise/application');
 
   const handleOpenNoticeModal = (application) => {
-    // Create notice object from application data
+    // If application is disapproved, show alert with reason then navigate to resubmission form
+    if (application.statusOfBPLO === 'bplo-disapproved') {
+      const reason = application.bploDisapprovedReason || 'Your application requires revision.';
+      const confirmed = window.confirm(
+        `YOUR APPLICATION HAS BEEN DISAPPROVED\n\n` +
+        `Reason: ${reason}\n\n` +
+        `You are required to resubmit all information. Click OK to proceed to the application form.`
+      );
+      
+      if (confirmed) {
+        // Navigate to franchise application form with resubmission flag
+        navigate(`/operator/franchise/application?resubmit=${application._id}`);
+      }
+      return;
+    }
+    
+    // For other statuses, show notice modal with appropriate message
     const notice = {
       id: application._id,
       application: application,
-      noticeType: application.statusOfBPLO === 'bplo-disapproved' ? 'BPLO Disapproval' : 
-                  application.statusOfBPLO === 'bplo-approved' ? 'BPLO Approval' : 'Application Status',
-      message: application.statusOfBPLO === 'bplo-disapproved' ? 
-                `Your application requires attention. Reason: ${application.bploDisapprovedReason}` : 
-                application.statusOfBPLO === 'bplo-approved' ?
-                'Your application has been approved by BPLO. Please submit your Official Receipt.' :
-                'Your application is being processed.',
+      noticeType: 
+        application.statusOfBPLO === 'pending' ? 'Application Under Review' :
+        application.statusOfBPLO === 'bplo-approved' ? 'BPLO Approval' : 
+        application.statusOfBPLO === 'awaiting-sb' ? 'Awaiting SB Approval' :
+        application.statusOfBPLO === 'sb-approved' ? 'Finally Approved' :
+        'Application Status',
+      message: 
+        application.statusOfBPLO === 'pending' ? 
+          'Your application is currently under review by BPLO. We will notify you once a decision has been made.' :
+        application.statusOfBPLO === 'bplo-approved' ?
+          'Your application has been approved by BPLO. Please submit your Official Receipt to proceed.' :
+        application.statusOfBPLO === 'awaiting-sb' ?
+          'Your application has been forwarded to the Sangguniang Bayan for final approval.' :
+        application.statusOfBPLO === 'sb-approved' ?
+          'Congratulations! Your application has been finally approved.' :
+          'Your application is being processed.',
       date: application.bploApprovedAt || application.submittedAt,
       status: application.statusOfBPLO
     };
@@ -874,6 +905,24 @@ const OperatorHomePage = () => {
                       </TableCell>
                       <TableCell>{new Date(app.submittedAt).toLocaleDateString()}</TableCell>
                       <TableCell>
+                        {app.statusOfBPLO === 'pending' && (
+                          <Button
+                            variant="outlined"
+                            size="small"
+                            onClick={() => handleOpenNoticeModal(app)}
+                            sx={{
+                              borderColor: '#95a5a6',
+                              color: '#95a5a6',
+                              fontSize: '12px',
+                              '&:hover': {
+                                borderColor: '#7f8c8d',
+                                backgroundColor: 'rgba(149, 165, 166, 0.04)'
+                              }
+                            }}
+                          >
+                            View Status
+                          </Button>
+                        )}
                         {app.statusOfBPLO === 'bplo-approved' && !app.officialReceiptNumber && (
                           <Button
                             variant="contained"
@@ -892,7 +941,25 @@ const OperatorHomePage = () => {
                             Submit OR
                           </Button>
                         )}
-                        {(app.statusOfBPLO === 'bplo-disapproved' || app.statusOfBPLO === 'bplo-approved') && (
+                        {app.statusOfBPLO === 'bplo-disapproved' && (
+                          <Button
+                            variant="contained"
+                            size="small"
+                            onClick={() => handleOpenNoticeModal(app)}
+                            sx={{
+                              backgroundColor: '#e74c3c',
+                              color: '#fff',
+                              fontWeight: 600,
+                              fontSize: '12px',
+                              '&:hover': {
+                                backgroundColor: '#c0392b'
+                              }
+                            }}
+                          >
+                            Resubmit
+                          </Button>
+                        )}
+                        {app.statusOfBPLO === 'bplo-approved' && (
                           <Button
                             variant="outlined"
                             size="small"
