@@ -304,17 +304,12 @@ exports.login = async (req, res, next) => {
     
     if (!user) {
       // Log failed login attempt
-      await auditLogService.logAction({
-        user: { id: identifier, username: identifier, role: 'unknown', accountType: 'user', email: identifier },
-        method: 'POST',
-        route: '/auth/login',
-        action: 'LOGIN',
-        statusCode: 401,
-        ipAddress: getClientIp(req),
-        userAgent: req.headers['user-agent'],
-        resourceType: 'auth',
-        errorMessage: 'Invalid credentials - user not found'
-      }).catch(err => console.error('Audit log error:', err));
+      await auditLogService.logLogin(
+        { id: identifier, userId: identifier, username: identifier, name: identifier, role: 'unknown', accountType: 'user', email: identifier },
+        req,
+        false,
+        'Invalid credentials - user not found'
+      ).catch(err => console.error('Audit log error:', err));
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
@@ -325,32 +320,38 @@ exports.login = async (req, res, next) => {
     } catch (e) {
       console.error('bcrypt.compare error for user', user && user._id, e && e.message ? e.message : e);
       // Log the error
-      await auditLogService.logAction({
-        user: { id: user._id || user.userId, username: user.username || user.email, role: user.role, accountType: isAdmin ? 'admin' : 'user', email: user.email },
-        method: 'POST',
-        route: '/auth/login',
-        action: 'LOGIN',
-        statusCode: 401,
-        ipAddress: getClientIp(req),
-        userAgent: req.headers['user-agent'],
-        resourceType: 'auth',
-        errorMessage: 'Password comparison error'
-      }).catch(err => console.error('Audit log error:', err));
+      await auditLogService.logLogin(
+        { 
+          id: user._id || user.userId, 
+          userId: user.userId,
+          username: user.username || user.email, 
+          name: user.name,
+          role: user.role, 
+          accountType: isAdmin ? 'admin' : 'user', 
+          email: user.email 
+        },
+        req,
+        false,
+        'Password comparison error'
+      ).catch(err => console.error('Audit log error:', err));
       return res.status(401).json({ error: 'Invalid credentials' });
     }
     if (!validPassword) {
       // Log failed password attempt
-      await auditLogService.logAction({
-        user: { id: user._id || user.userId, username: user.username || user.email, role: user.role, accountType: isAdmin ? 'admin' : 'user', email: user.email },
-        method: 'POST',
-        route: '/auth/login',
-        action: 'LOGIN',
-        statusCode: 401,
-        ipAddress: getClientIp(req),
-        userAgent: req.headers['user-agent'],
-        resourceType: 'auth',
-        errorMessage: 'Invalid credentials - incorrect password'
-      }).catch(err => console.error('Audit log error:', err));
+      await auditLogService.logLogin(
+        { 
+          id: user._id || user.userId, 
+          userId: user.userId,
+          username: user.username || user.email, 
+          name: user.name,
+          role: user.role, 
+          accountType: isAdmin ? 'admin' : 'user', 
+          email: user.email 
+        },
+        req,
+        false,
+        'Invalid credentials - incorrect password'
+      ).catch(err => console.error('Audit log error:', err));
       return res.status(401).json({ error: 'Invalid credentials' });
     }
     
@@ -479,11 +480,12 @@ exports.login = async (req, res, next) => {
     }
     
     // Log successful login
-    await auditLogService.logAction({
-      user: {
+    await auditLogService.logLogin(
+      {
         id: user._id || user.userId,
         userId: user.userId,
         username: user.username || user.email,
+        name: user.name,
         email: user.email,
         role: user.role,
         accountType: isAdmin ? 'admin' : 'user',
@@ -491,19 +493,9 @@ exports.login = async (req, res, next) => {
         department: isAdmin ? user.department : null,
         position: isAdmin ? user.position : null
       },
-      method: 'POST',
-      route: '/auth/login',
-      action: 'LOGIN',
-      statusCode: 200,
-      ipAddress: getClientIp(req),
-      userAgent: req.headers['user-agent'],
-      resourceType: 'auth',
-      details: {
-        email: user.email,
-        rememberMe: rememberMe,
-        authProvider: 'local'
-      }
-    }).catch(err => console.error('Audit log error:', err));
+      req,
+      true
+    ).catch(err => console.error('Audit log error:', err));
     
     res.json(responseData);
   } catch (err) {
@@ -593,16 +585,7 @@ exports.logout = async (req, res) => {
 
     // Log successful logout
     if (req.user) {
-      await auditLogService.logAction({
-        user: req.user,
-        method: 'POST',
-        route: '/auth/logout',
-        action: 'LOGOUT',
-        statusCode: 200,
-        ipAddress: getClientIp(req),
-        userAgent: req.headers['user-agent'],
-        resourceType: 'auth'
-      }).catch(err => console.error('Audit log error:', err));
+      await auditLogService.logLogout(req.user, req).catch(err => console.error('Audit log error:', err));
     }
 
     // Clear refresh token cookie with all possible configurations

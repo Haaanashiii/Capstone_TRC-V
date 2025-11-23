@@ -1,4 +1,5 @@
 const announcementRepository = require('../repositories/announcementRepository');
+const { auditLogService } = require('../services/auditLogService');
 
 class AnnouncementController {
   /**
@@ -41,6 +42,13 @@ class AnnouncementController {
       };
 
       const announcement = await announcementRepository.create(announcementData);
+
+      // Log announcement creation
+      if (req.user) {
+        await auditLogService.logAnnouncementCreation(announcement, req.user, req).catch(err =>
+          console.error('[Announcement] Audit log error:', err)
+        );
+      }
 
       res.status(201).json({
         success: true,
@@ -139,6 +147,13 @@ class AnnouncementController {
 
       const announcement = await announcementRepository.update(id, updateData);
 
+      // Log announcement update
+      if (req.user) {
+        await auditLogService.logAnnouncementUpdate(announcement, req.user, req, updateData).catch(err =>
+          console.error('[Announcement] Audit log error:', err)
+        );
+      }
+
       res.status(200).json({
         success: true,
         message: 'Announcement updated successfully',
@@ -161,7 +176,17 @@ class AnnouncementController {
     try {
       const { id } = req.params;
 
+      // Get announcement before deleting for audit log
+      const announcement = await announcementRepository.getById(id);
+
       await announcementRepository.delete(id);
+
+      // Log announcement deletion
+      if (req.user) {
+        await auditLogService.logAnnouncementDeletion(announcement, req.user, req).catch(err =>
+          console.error('[Announcement] Audit log error:', err)
+        );
+      }
 
       res.status(200).json({
         success: true,

@@ -5,6 +5,7 @@ const FranchiseInformation = require('../models/franchiseInformationModel');
 const { uploadFile, validateFile, moveFilesToInformation } = require('../services/fileUploadService');
 const { generateHashedFranchiseNo, generateQRCodeBuffer, handleVersionControl, validateFranchiseStatus } = require('../utils/franchiseHelpers');
 const { moveFranchiseFiles } = require('../services/cloudflareService');
+const { auditLogService } = require('../services/auditLogService');
 
 // 1) CREATE NEW APPLICATION
 exports.createNewApplication = async (req, res, next) => {
@@ -114,7 +115,17 @@ exports.createNewApplication = async (req, res, next) => {
       });
     }
     
-    res.status(201).json({ success: true, data: await franchiseApplicationRepository.getFranchiseApplicationById(appId) });
+    // Fetch updated application with all details for audit logging
+    const finalApplication = await franchiseApplicationRepository.getFranchiseApplicationById(appId);
+    
+    // Log application creation
+    if (user) {
+      await auditLogService.logApplicationCreation(finalApplication, user, req).catch(err => 
+        console.error('[createNewApplication] Audit log error:', err)
+      );
+    }
+    
+    res.status(201).json({ success: true, data: finalApplication });
   } catch (error) {
     console.error('[createNewApplication] Error:', error.message);
     console.error('[createNewApplication] Stack:', error.stack);
@@ -169,6 +180,14 @@ exports.editPendingFranchise = async (req, res, next) => {
     }
     
     const updated = await franchiseApplicationRepository.updateFranchiseApplication(id, req.body);
+    
+    // Log application edit
+    if (req.user) {
+      await auditLogService.logApplicationEdit(updated, req.user, req).catch(err =>
+        console.error('[editPendingFranchise] Audit log error:', err)
+      );
+    }
+    
     res.json({ success: true, data: updated });
   } catch (error) {
     next(error);
@@ -374,6 +393,13 @@ exports.approveFranchiseByBPLO = async (req, res, next) => {
       }
     }
     
+    // Log BPLO approval action
+    if (req.user) {
+      await auditLogService.logBPLOAction(updated, 'approve', req.user, req).catch(err =>
+        console.error('[BPLO Approval] Audit log error:', err)
+      );
+    }
+    
     res.json({ success: true, data: updated, message: 'Application approved by BPLO. Applicant will be notified to proceed with inspection and OR submission.' });
   } catch (error) {
     console.error('[BPLO Approval] Error:', error);
@@ -435,6 +461,13 @@ exports.disapproveFranchiseByBPLO = async (req, res, next) => {
           status: 'bplo-disapproved'
         });
       }
+    }
+    
+    // Log BPLO rejection action
+    if (req.user) {
+      await auditLogService.logBPLOAction(updated, 'reject', req.user, req, reason).catch(err =>
+        console.error('[BPLO Disapproval] Audit log error:', err)
+      );
     }
     
     res.json({ success: true, data: updated, message: 'Application disapproved by BPLO. Applicant has been notified.' });
@@ -499,6 +532,13 @@ exports.editApprovedFranchise = async (req, res, next) => {
     
     const updated = await franchiseApplicationRepository.updateFranchiseApplication(id, updateData);
     console.log('[editApprovedFranchise] Application updated successfully, now awaiting SB approval');
+    
+    // Log operator adding OR
+    if (req.user && updateData.officialReceiptNumber) {
+      await auditLogService.logOperatorAddOR(updated, updateData.officialReceiptNumber, req.user, req).catch(err =>
+        console.error('[editApprovedFranchise] Audit log error:', err)
+      );
+    }
     
     // Notify SB admins via WebSocket
     if (req.app.get('io') && updateData.statusOfBPLO === 'awaiting-sb') {
@@ -599,6 +639,22 @@ exports.approveFranchiseBySBAdmin = async (req, res, next) => {
     }
     
     const updated = await franchiseApplicationRepository.updateFranchiseApplication(id, updateData);
+    
+    // Log SB Admin approval action
+    if (req.user) {
+      // Create a minimal franchise object for logging (since full franchise isn't created yet)
+      const franchiseForLogging = {
+        _id: updated._id,
+        franchiseNumber: resolutionNumber.trim(), // Use resolution number as reference
+        operatorName: updated.operatorName,
+        operatorEmail: updated.operatorEmail,
+        mvPlateNo: updated.mvPlateNo,
+        unitModel: updated.unitModel
+      };
+      await auditLogService.logSBApproval(franchiseForLogging, updated, resolutionNumber.trim(), req.user, req).catch(err =>
+        console.error('[SB Approval] Audit log error:', err)
+      );
+    }
     
     // Send notification to user about final approval
     // Non-blocking: email failures should not prevent approval

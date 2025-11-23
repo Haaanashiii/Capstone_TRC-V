@@ -179,82 +179,78 @@ exports.getFranchiseInformation = async (req, res, next) => {
 exports.getAvailableFranchiseNumbers = async (req, res, next) => {
   try {
     const FranchiseInformation = require('../models/franchiseInformationModel');
-    
-    // Only fetch necessary fields for performance
-    const allCurrentFranchises = await FranchiseInformation.find({ 
-      isCurrentVersion: true 
+
+    // Fetch only what is needed
+    const allCurrentFranchises = await FranchiseInformation.find({
+      isCurrentVersion: true
     })
-    .select('franchiseNumber franchiseStatus expiryDate')
-    .lean() // Use lean() for faster queries (returns plain JS objects)
-    .exec();
-    
+      .select('franchiseNumber franchiseStatus expiryDate') // Only required fields
+      .lean()
+      .exec();
+
     const now = new Date();
     const threeYearsAgo = new Date(now);
     threeYearsAgo.setFullYear(now.getFullYear() - 3);
-    const currentYear = now.getFullYear();
-    
-    // Use Map for O(1) lookup - Key: number, Value: franchise details
+
+    // Store data efficiently
     const franchiseMap = new Map();
     let latestNumber = 0;
     let activeCount = 0;
     let revokedAvailableCount = 0;
     let revokedUnavailableCount = 0;
-    
-    // SINGLE PASS: O(n) - Build map and gather statistics
+
+    // Process data in one loop
     for (const franchise of allCurrentFranchises) {
-      // Extract numeric part (e.g., "F-2024-001" -> 1)
-      const numberMatch = franchise.franchiseNumber.match(/(\d+)$/);
-      if (!numberMatch) continue; // Skip invalid format
-      
+      // Extract only the digits (DB must store values like "0012", "1104"...)
+      const numberMatch = franchise.franchiseNumber.match(/^(\d{1,4})$/); 
+      if (!numberMatch) continue; // Skip invalid formats
+
       const franchiseNum = parseInt(numberMatch[1], 10);
       latestNumber = Math.max(latestNumber, franchiseNum);
-      
-      // Determine availability
+
       const isRevoked = franchise.franchiseStatus === 'revoked';
-      const isExpired3Years = franchise.expiryDate && 
-                              new Date(franchise.expiryDate) <= threeYearsAgo;
+      const isExpired3Years =
+        franchise.expiryDate && new Date(franchise.expiryDate) <= threeYearsAgo;
+
+      // Franchise becomes available for reuse after 3 years of being revoked
       const isAvailable = isRevoked && isExpired3Years;
-      
+
       franchiseMap.set(franchiseNum, {
         fullNumber: franchise.franchiseNumber,
         status: franchise.franchiseStatus,
         available: isAvailable
       });
-      
-      // Update counters
+
+      // Counters
       if (franchise.franchiseStatus === 'active') {
         activeCount++;
       } else if (isRevoked) {
-        if (isAvailable) {
-          revokedAvailableCount++;
-        } else {
-          revokedUnavailableCount++;
-        }
+        if (isAvailable) revokedAvailableCount++;
+        else revokedUnavailableCount++;
       }
     }
-    
-    // EFFICIENT GAP DETECTION: O(n) - Single loop from 1 to latestNumber
+
+    // Find gaps (numbers never used or available for reuse)
     const availableNumbers = [];
     for (let i = 1; i <= latestNumber; i++) {
       const franchise = franchiseMap.get(i);
-      
+
       if (!franchise) {
-        // Gap found - number never used
-        availableNumbers.push(`F-${currentYear}-${String(i).padStart(5, '0')}`);
+        availableNumbers.push(String(i).padStart(4, '0')); // gap
       } else if (franchise.available) {
-        // Revoked and expired 3+ years - reusable
-        availableNumbers.push(franchise.fullNumber);
+        availableNumbers.push(String(i).padStart(4, '0')); // reusable
       }
     }
-    
-    // Generate next number
+
+    // Next available franchise number
     const nextNum = latestNumber + 1;
-    const nextFranchiseNumber = `F-${currentYear}-${String(nextNum).padStart(5, '0')}`;
-    
-    // Quick response - limited to first 100 for UI performance
+    const nextFranchiseNumber = String(nextNum).padStart(4, '0');
+
+    // LIMIT DISPLAY FOR FRONTEND (faster UI)
     const displayLimit = 100;
     const displayedAvailable = availableNumbers.slice(0, displayLimit);
-    
+
+    // Respond
     return res.status(200).json({
       success: true,
       data: {
@@ -262,9 +258,10 @@ exports.getAvailableFranchiseNumbers = async (req, res, next) => {
         hasMore: availableNumbers.length > displayLimit,
         totalAvailable: availableNumbers.length,
         nextNumber: nextFranchiseNumber,
-        recommendation: availableNumbers.length > 0 
-          ? `${availableNumbers.length} available number${availableNumbers.length > 1 ? 's' : ''} (showing first ${Math.min(displayLimit, availableNumbers.length)})`
-          : `Use next number: ${nextFranchiseNumber}`,
+        recommendation:
+          availableNumbers.length > 0
+            ? `${availableNumbers.length} available number${availableNumbers.length > 1 ? 's' : ''} (showing first ${Math.min(displayLimit, availableNumbers.length)})`
+            : `Use next number: ${nextFranchiseNumber}`,
         statistics: {
           totalFranchises: allCurrentFranchises.length,
           totalActive: activeCount,
@@ -277,12 +274,13 @@ exports.getAvailableFranchiseNumbers = async (req, res, next) => {
         }
       }
     });
-    
+
   } catch (error) {
     console.error('[getAvailableFranchiseNumbers] Error:', error);
     return next(error);
   }
 };
+
 
 
 
