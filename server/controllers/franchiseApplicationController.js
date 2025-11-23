@@ -141,14 +141,23 @@ exports.createNewApplication = async (req, res, next) => {
   }
 };
 
-// 2) GET PENDING FRANCHISES
+// 2) GET PENDING FRANCHISES (All statuses for user)
 exports.getPendingFranchises = async (req, res, next) => {
   try {
     const userId = req.user?._id;
-    const applications = await FranchiseApplication.find({ 
-      operatorInfo: userId, 
-      statusOfBPLO: 'pending' 
-    }).sort({ submittedAt: -1 });
+    const { status } = req.query;
+    
+    // Build filter based on requested status
+    const filter = { operatorInfo: userId };
+    
+    if (status) {
+      filter.statusOfBPLO = status;
+    } else {
+      // Return all non-completed applications by default
+      filter.statusOfBPLO = { $in: ['pending', 'bplo-approved', 'awaiting-sb', 'sb-approved', 'bplo-disapproved'] };
+    }
+    
+    const applications = await FranchiseApplication.find(filter).sort({ submittedAt: -1 });
     res.json({ success: true, data: applications });
   } catch (error) {
     next(error);
@@ -329,14 +338,16 @@ exports.createRenewOrAmendment = async (req, res, next) => {
 // 6) GET FRANCHISES WITH WEBSOCKET IO (BPLO Admin)
 exports.getFranchisesWithWebSocketIO = async (req, res, next) => {
   try {
-    const applications = await FranchiseApplication.find({ statusOfBPLO: 'pending' }).sort({ submittedAt: -1 });
+    const applications = await FranchiseApplication.find({ 
+      statusOfBPLO: 'pending' 
+    }).sort({ submittedAt: -1 });
     
     // Emit to WebSocket if available
     if (req.app.get('io')) {
-      req.app.get('io').to('bplo-admins').to('sb-admins').emit('pending-applications', applications);
+      req.app.get('io').to('bplo-admins').emit('pending-applications', applications);
     }
     
-    res.json({ success: true, data: applications });
+    res.json({ success: true, data: applications, message: 'BPLO pending applications retrieved' });
   } catch (error) {
     next(error);
   }
@@ -593,27 +604,23 @@ exports.editApprovedFranchise = async (req, res, next) => {
 // 9) GET APPROVED ROUTES FOR SB ADMIN (WebSocket)
 exports.getApprovedRoutesForSBAdmin = async (req, res, next) => {
   try {
-    // Get applications for SB review - includes both:
-    // 1. Applications with OR submitted (awaiting-sb)
-    // 2. Applications approved by BPLO but OR not yet submitted (bplo-approved)
+    // Get applications ready for SB review
+    // Only show applications where OR has been submitted (awaiting-sb)
     const applications = await FranchiseApplication.find({
-      $or: [
-        { statusOfBPLO: 'bplo-approved' }, // Approved by BPLO, awaiting OR from client
-        { statusOfBPLO: 'awaiting-sb' }, // OR submitted, ready for SB final approval
-        { 
-          statusOfBPLO: 'approved',
-          officialRecieptNumber: { $exists: true, $ne: null, $ne: '' },
-          'documents.oRTreasurerOfficeObj': { $exists: true, $ne: null, $ne: '' }
-        }
-      ]
-    }).sort({ statusOfBPLO: 1, orSubmittedAt: -1, bploApprovedAt: -1 });
+      statusOfBPLO: 'awaiting-sb' // OR submitted, ready for SB final approval
+    }).sort({ orSubmittedAt: -1 });
     
     // Emit to WebSocket
     if (req.app.get('io')) {
       req.app.get('io').to('sb-admins').emit('approved-applications', applications);
     }
     
-    res.json({ success: true, data: applications });
+    res.json({ 
+      success: true, 
+      data: applications,
+      message: 'SB Admin applications retrieved',
+      count: applications.length
+    });
   } catch (error) {
     next(error);
   }
@@ -758,9 +765,19 @@ exports.sbAdminAcceptNewFranchise = async (req, res, next) => {
     const { files } = req;
     
     const application = await franchiseApplicationRepository.getFranchiseApplicationById(id);
-    if (!application || application.statusOfBPLO !== 'approved') {
+    if (!application) {
       await session.abortTransaction();
-      return res.status(400).json({ error: 'Application not approved by BPLO' });
+      return res.status(404).json({ error: 'Application not found' });
+    }
+    
+    // Only accept applications that have been fully approved (sb-approved)
+    if (application.statusOfBPLO !== 'sb-approved') {
+      await session.abortTransaction();
+      return res.status(400).json({ 
+        error: 'Application must be fully approved by SB Admin first',
+        currentStatus: application.statusOfBPLO,
+        requiredStatus: 'sb-approved'
+      });
     }
     
     // Hash franchise number
@@ -851,12 +868,48 @@ exports.sbAdminAcceptNewFranchise = async (req, res, next) => {
     const FranchiseInformationModel = require('../models/franchiseInformationModel');
     const franchise = await FranchiseInformationModel.create([franchiseData], { session });
     
+    // Mark application as completed
+    await franchiseApplicationRepository.updateFranchiseApplication(id, {
+      statusOfBPLO: 'completed',
+      franchiseCreated: true,
+      franchiseCreatedAt: new Date(),
+      relatedFranchiseInfo: franchise[0]._id
+    });
+    
     // Commit transaction
     await session.commitTransaction();
     
+    // Log franchise creation
+    if (req.user) {
+      await auditLogService.logFranchiseCreation(franchise[0], application, req.user, req).catch(err =>
+        console.error('[sbAdminAcceptNewFranchise] Audit log error:', err)
+      );
+    }
+    
+    // Send notification to user
+    if (franchise[0].operatorEmail) {
+      try {
+        const notificationService = require('../services/notificationService');
+        await notificationService.sendFranchiseCreatedNotification(franchise[0]);
+        console.log('[sbAdminAcceptNewFranchise] Email notification sent to:', franchise[0].operatorEmail);
+      } catch (emailError) {
+        console.warn('[sbAdminAcceptNewFranchise] Failed to send email notification:', emailError.message);
+      }
+    }
+    
     // Emit to WebSocket
     if (req.app.get('io')) {
-      req.app.get('io').to('sb-admins').emit('franchise-created', franchise[0]);
+      req.app.get('io').to('sb-admins').to('bplo-admins').emit('franchise-created', franchise[0]);
+      
+      // Notify user
+      if (franchise[0].linkedUser) {
+        req.app.get('io').to(`user-${franchise[0].linkedUser}`).emit('franchise-created', {
+          franchiseId: franchise[0]._id,
+          franchiseNumber: franchise[0].franchiseNumber,
+          message: 'Your franchise has been successfully created! You can now download your certificate.',
+          qrCode: franchise[0].qrCode
+        });
+      }
     }
     
     res.status(201).json({ success: true, data: franchise[0], message: 'Franchise created successfully' });
@@ -878,9 +931,19 @@ exports.sbAdminAcceptRenewOrAmendment = async (req, res, next) => {
     const { files } = req;
     
     const application = await franchiseApplicationRepository.getFranchiseApplicationById(id);
-    if (!application || application.statusOfBPLO !== 'approved') {
+    if (!application) {
       await session.abortTransaction();
-      return res.status(400).json({ error: 'Application not approved' });
+      return res.status(404).json({ error: 'Application not found' });
+    }
+    
+    // Only accept applications that have been fully approved (sb-approved)
+    if (application.statusOfBPLO !== 'sb-approved') {
+      await session.abortTransaction();
+      return res.status(400).json({ 
+        error: 'Application must be fully approved by SB Admin first',
+        currentStatus: application.statusOfBPLO,
+        requiredStatus: 'sb-approved'
+      });
     }
     
     // Get existing franchise
@@ -980,12 +1043,50 @@ exports.sbAdminAcceptRenewOrAmendment = async (req, res, next) => {
     const FranchiseInformationModel = require('../models/franchiseInformationModel');
     const newFranchise = await FranchiseInformationModel.create([newVersionData], { session });
     
+    // Mark application as completed
+    await franchiseApplicationRepository.updateFranchiseApplication(id, {
+      statusOfBPLO: 'completed',
+      franchiseCreated: true,
+      franchiseCreatedAt: new Date(),
+      relatedFranchiseInfo: newFranchise[0]._id
+    });
+    
     // Commit transaction
     await session.commitTransaction();
     
+    // Log franchise update
+    if (req.user) {
+      await auditLogService.logFranchiseUpdate(newFranchise[0], application, application.applicationType, req.user, req).catch(err =>
+        console.error('[sbAdminAcceptRenewOrAmendment] Audit log error:', err)
+      );
+    }
+    
+    // Send notification to user
+    if (newFranchise[0].operatorEmail) {
+      try {
+        const notificationService = require('../services/notificationService');
+        await notificationService.sendFranchiseUpdatedNotification(newFranchise[0], application.applicationType);
+        console.log('[sbAdminAcceptRenewOrAmendment] Email notification sent to:', newFranchise[0].operatorEmail);
+      } catch (emailError) {
+        console.warn('[sbAdminAcceptRenewOrAmendment] Failed to send email notification:', emailError.message);
+      }
+    }
+    
     // Emit to WebSocket
     if (req.app.get('io')) {
-      req.app.get('io').to('sb-admins').emit('franchise-updated', newFranchise[0]);
+      req.app.get('io').to('sb-admins').to('bplo-admins').emit('franchise-updated', newFranchise[0]);
+      
+      // Notify user
+      if (newFranchise[0].linkedUser) {
+        req.app.get('io').to(`user-${newFranchise[0].linkedUser}`).emit('franchise-updated', {
+          franchiseId: newFranchise[0]._id,
+          franchiseNumber: newFranchise[0].franchiseNumber,
+          version: version,
+          changeType: application.applicationType,
+          message: `Your franchise has been successfully updated (${application.applicationType})!`,
+          qrCode: newFranchise[0].qrCode
+        });
+      }
     }
     
     res.status(201).json({ success: true, data: newFranchise[0], message: `${application.applicationType} completed - version ${version} created` });
