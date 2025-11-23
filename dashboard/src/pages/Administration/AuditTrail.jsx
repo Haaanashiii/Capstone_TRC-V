@@ -68,7 +68,11 @@ const StyledTableRow = styled(TableRow)(() => ({
 // Action type color mapping for chips
 const ACTION_COLORS = {
   LOGIN: 'success',
+  USER_LOGIN: 'success',
   LOGOUT: 'default',
+  USER_LOGOUT: 'default',
+  SIGNUP: 'success',
+  USER_SIGNUP: 'success',
   CREATE: 'info',
   UPDATE: 'warning',
   DELETE: 'error',
@@ -82,11 +86,25 @@ const ACTION_COLORS = {
   GET_FRANCHISE_INFO: 'default',
   CREATE_APPLICATION: 'info',
   UPDATE_APPLICATION: 'warning',
+  EDIT_APPLICATION: 'warning',
   APPROVE_APPLICATION: 'success',
+  REJECT_APPLICATION: 'error',
+  BPLO_APPROVE_APPLICATION: 'success',
+  BPLO_REJECT_APPLICATION: 'error',
+  OPERATOR_ADD_OR: 'info',
+  SB_APPROVE_FRANCHISE: 'success',
+  SB_UPDATE_FRANCHISE: 'warning',
+  FRANCHISE_EXPIRED: 'error',
+  FRANCHISE_REVOKED: 'error',
+  DOWNLOAD_APPLICATION_FILE: 'default',
+  QR_CODE_SCAN: 'info',
   QR_SCAN: 'info',
-  SIGNUP: 'success',
   VERIFY_OTP: 'success',
   RESET_PASSWORD: 'warning',
+  CREATE_ANNOUNCEMENT: 'info',
+  UPDATE_ANNOUNCEMENT: 'warning',
+  DELETE_ANNOUNCEMENT: 'error',
+  SEARCH_FRANCHISE_NUMBER: 'default',
 };
 
 // Role color mapping - matches the design system
@@ -469,9 +487,9 @@ function AuditTrail() {
                       <StyledTableCell>Date/Time</StyledTableCell>
                       <StyledTableCell>User</StyledTableCell>
                       <StyledTableCell>Role</StyledTableCell>
+                      <StyledTableCell>Description</StyledTableCell>
                       <StyledTableCell>Action</StyledTableCell>
-                      <StyledTableCell>Method</StyledTableCell>
-                      <StyledTableCell>Route</StyledTableCell>
+                      <StyledTableCell>Browser/Device</StyledTableCell>
                       <StyledTableCell>Status</StyledTableCell>
                       <StyledTableCell>IP Address</StyledTableCell>
                     </TableRow>
@@ -499,7 +517,7 @@ function AuditTrail() {
                           </StyledTableCell>
                           <StyledTableCell>
                             <Typography variant="body2" className="user-name">
-                              {log.username || 'Unknown'}
+                              {log.name || log.username || 'Unknown'}
                             </Typography>
                             <Typography variant="caption" className="email-text">
                               {log.email || 'N/A'}
@@ -514,6 +532,11 @@ function AuditTrail() {
                             />
                           </StyledTableCell>
                           <StyledTableCell>
+                            <Typography variant="body2" className="description-text" sx={{ fontWeight: 500 }}>
+                              {log.description || log.action || 'N/A'}
+                            </Typography>
+                          </StyledTableCell>
+                          <StyledTableCell>
                             <Chip
                               label={log.action || 'N/A'}
                               color={ACTION_COLORS[log.action] || 'default'}
@@ -521,55 +544,36 @@ function AuditTrail() {
                               className="action-chip"
                             />
                           </StyledTableCell>
-                            <StyledTableCell>
+                          <StyledTableCell>
+                            <Typography variant="body2" className="browser-text">
+                              {log.browser || 'Unknown Browser'}
+                            </Typography>
+                            <Typography variant="caption" className="device-text">
+                              {log.device || 'Unknown Device'}
+                            </Typography>
+                          </StyledTableCell>
+                          <StyledTableCell>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                              {log.success ? (
+                                <CheckCircleIcon sx={{ fontSize: 16, color: '#10B981' }} />
+                              ) : (
+                                <ErrorIcon sx={{ fontSize: 16, color: '#EF4444' }} />
+                              )}
                               <Chip
-                                label={log.method || 'N/A'}
+                                label={log.statusCode || 'N/A'}
+                                color={getStatusColor(log.statusCode)}
                                 size="small"
-                                variant="outlined"
-                                className="method-chip"
-                                sx={{
-                                  borderColor: log.method === 'GET' ? '#10B981' :
-                                             log.method === 'POST' ? '#3B82F6' :
-                                             log.method === 'PUT' ? '#F59E0B' :
-                                             log.method === 'DELETE' ? '#EF4444' : '#64748b',
-                                  color: log.method === 'GET' ? '#10B981' :
-                                        log.method === 'POST' ? '#3B82F6' :
-                                        log.method === 'PUT' ? '#F59E0B' :
-                                        log.method === 'DELETE' ? '#EF4444' : '#64748b',
-                                  fontWeight: 600,
-                                }}
+                                className="status-chip"
                               />
-                            </StyledTableCell>
-                            <StyledTableCell>
-                              <Typography variant="body2" className="route-text">
-                                {log.route || 'N/A'}
-                              </Typography>
-                              <Typography variant="caption" className="resource-text">
-                                {log.resourceType || 'N/A'}
-                              </Typography>
-                            </StyledTableCell>
-                            <StyledTableCell>
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                {log.success ? (
-                                  <CheckCircleIcon sx={{ fontSize: 16, color: '#10B981' }} />
-                                ) : (
-                                  <ErrorIcon sx={{ fontSize: 16, color: '#EF4444' }} />
-                                )}
-                                <Chip
-                                  label={log.statusCode || 'N/A'}
-                                  color={getStatusColor(log.statusCode)}
-                                  size="small"
-                                  className="status-chip"
-                                />
-                              </Box>
-                            </StyledTableCell>
-                            <StyledTableCell>
-                              <Typography variant="body2" className="ip-text">
-                                {log.ipAddress || 'N/A'}
-                              </Typography>
-                            </StyledTableCell>
-                          </StyledTableRow>
-                        ))
+                            </Box>
+                          </StyledTableCell>
+                          <StyledTableCell>
+                            <Typography variant="body2" className="ip-text">
+                              {log.ipAddress || 'N/A'}
+                            </Typography>
+                          </StyledTableCell>
+                        </StyledTableRow>
+                      ))
                     )}
                   </TableBody>
                 </Table>

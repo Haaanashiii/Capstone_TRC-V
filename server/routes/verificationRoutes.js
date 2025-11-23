@@ -12,6 +12,7 @@ const { sanitizeRequest } = require('../middlewares/validateRequest');
 const { getClientIp } = require('../utils/ipHelper');
 const { createEphemeralToken, getOperatorDataFromToken } = require('../services/urlMaskingService');
 const { verifyQRCodeSignature } = require('../services/qrCodeService');
+const { auditLogService } = require('../services/auditLogService');
 const Application = require('../models/applicationModel');
 
 // Apply rate limiting to prevent abuse
@@ -112,6 +113,16 @@ router.get('/temp/:token', sanitizeRequest, async (req, res) => {
     const now = new Date();
     const expiryDate = application.expiryDate ? new Date(application.expiryDate) : null;
     const isExpired = expiryDate && now > expiryDate;
+    
+    // Log the QR scan
+    const franchiseForLogging = {
+      _id: application._id,
+      franchiseNumber: application.franchiseId,
+      operatorName: application.driverId?.name || 'Unknown'
+    };
+    await auditLogService.logQRScan(franchiseForLogging, req).catch(err =>
+      console.error('[QR Verification] Audit log error:', err)
+    );
     
     // Only show safe details, not documents
     const operator = application.driverId;

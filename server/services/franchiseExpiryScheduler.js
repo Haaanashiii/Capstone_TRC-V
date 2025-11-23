@@ -1,25 +1,62 @@
 const cron = require('node-cron');
 const FranchiseInformation = require('../models/franchiseInformationModel');
 const { sendFranchiseExpiryEmail } = require('./emailService');
+const { auditLogService } = require('./auditLogService');
 
 /**
  * Franchise Expiry Reminder Scheduler
- * Runs daily at 8:00 AM to check for franchises expiring soon
- * Sends reminder emails to operators at different intervals:
+ * Runs daily at 6:00 AM to check for franchises expiring soon
+ * 
+ * Checks the LATEST VERSION of each franchise number:
  * - 30 days before expiry (urgent renewal notice)
  * - 7 days before expiry (final warning)
  * - On expiry date (franchise expired notice)
+ * - 1 year after expiry without renewal (auto-revoke for franchise number recycling)
  */
 
 // Track sent notifications to avoid duplicate emails
 const sentNotifications = new Map(); // { franchiseId: { 30days: true, 7days: true, expired: true } }
 
 /**
- * Check for franchises expiring within the specified days
- * @param {number} daysBeforeExpiry - Number of days before expiry to check
- * @returns {Promise<Array>} List of franchises expiring
+ * Get the latest version of each franchise number
+ * @returns {Promise<Array>} List of latest franchise versions
  */
-async function getFranchisesExpiringIn(daysBeforeExpiry) {
+async function getLatestFranchiseVersions() {
+  try {
+    // Group by franchiseNumber and get the one with highest version number
+    const latestFranchises = await FranchiseInformation.aggregate([
+      {
+        $match: {
+          franchiseNumber: { $exists: true, $ne: null }
+        }
+      },
+      {
+        $sort: { franchiseNumber: 1, versionNumber: -1 }
+      },
+      {
+        $group: {
+          _id: '$franchiseNumber',
+          latestFranchise: { $first: '$$ROOT' }
+        }
+      },
+      {
+        $replaceRoot: { newRoot: '$latestFranchise' }
+      }
+    ]);
+    
+    return latestFranchises;
+  } catch (error) {
+    console.error('[EXPIRY_CHECK] Error fetching latest franchise versions:', error);
+    return [];
+  }
+}
+
+/**
+ * Check for latest franchises expiring within the specified days
+ * @param {number} daysBeforeExpiry - Number of days before expiry to check
+ * @returns {Promise<Array>} List of latest franchises expiring
+ */
+async function getLatestFranchisesExpiringIn(daysBeforeExpiry) {
   try {
     const today = new Date();
     today.setHours(0, 0, 0, 0); // Start of today
@@ -30,18 +67,20 @@ async function getFranchisesExpiringIn(daysBeforeExpiry) {
     const nextDay = new Date(targetDate);
     nextDay.setDate(nextDay.getDate() + 1);
     
-    // Find active franchises expiring on the target date
-    const franchises = await FranchiseInformation.find({
-      franchiseStatus: 'active',
-      expiryDate: {
-        $gte: targetDate,
-        $lt: nextDay
-      }
-    }).select('operatorId mtopNumber operatorName email contactNumber expiryDate franchiseStatus');
+    // Get all latest franchise versions
+    const latestFranchises = await getLatestFranchiseVersions();
     
-    return franchises;
+    // Filter for active franchises expiring on target date
+    const expiringFranchises = latestFranchises.filter(franchise => {
+      const expiryDate = new Date(franchise.expiryDate);
+      return franchise.franchiseStatus === 'active' &&
+             expiryDate >= targetDate &&
+             expiryDate < nextDay;
+    });
+    
+    return expiringFranchises;
   } catch (error) {
-    console.error(`[EXPIRY_CHECK] Error fetching franchises expiring in ${daysBeforeExpiry} days:`, error);
+    console.error(`[EXPIRY_CHECK] Error fetching latest franchises expiring in ${daysBeforeExpiry} days:`, error);
     return [];
   }
 }
@@ -69,107 +108,107 @@ function markNotificationSent(franchiseId, interval) {
 }
 
 /**
- * Send expiry reminder emails for franchises expiring in 30 days
+ * Send expiry reminder emails for latest franchises expiring in 30 days
  */
 async function sendThirtyDayReminders() {
-  console.log('\n[EXPIRY_SCHEDULER] Checking for franchises expiring in 30 days...');
+  console.log('\n[EXPIRY_SCHEDULER] Checking latest franchise versions expiring in 30 days...');
   
-  const franchises = await getFranchisesExpiringIn(30);
+  const franchises = await getLatestFranchisesExpiringIn(30);
   
   if (franchises.length === 0) {
-    console.log('[EXPIRY_SCHEDULER] No franchises expiring in 30 days');
+    console.log('[EXPIRY_SCHEDULER] No latest franchises expiring in 30 days');
     return;
   }
   
-  console.log(`[EXPIRY_SCHEDULER] Found ${franchises.length} franchise(s) expiring in 30 days`);
+  console.log(`[EXPIRY_SCHEDULER] Found ${franchises.length} latest franchise(s) expiring in 30 days`);
   
   for (const franchise of franchises) {
-    if (!franchise.email) {
-      console.log(`[EXPIRY_SCHEDULER] Skipping ${franchise.mtopNumber} - no email address`);
+    if (!franchise.operatorEmail) {
+      console.log(`[EXPIRY_SCHEDULER] Skipping ${franchise.franchiseNumber} (v${franchise.versionNumber}) - no email address`);
       continue;
     }
     
     // Check if already sent
     if (wasNotificationSent(franchise._id.toString(), '30days')) {
-      console.log(`[EXPIRY_SCHEDULER] Already sent 30-day reminder for ${franchise.mtopNumber}`);
+      console.log(`[EXPIRY_SCHEDULER] Already sent 30-day reminder for ${franchise.franchiseNumber} (v${franchise.versionNumber})`);
       continue;
     }
     
     try {
       await sendFranchiseExpiryEmail(
-        franchise.email,
+        franchise.operatorEmail,
         franchise.operatorName,
-        franchise.mtopNumber,
+        franchise.franchiseNumber,
         franchise.expiryDate,
         30 // days until expiry
       );
       
       markNotificationSent(franchise._id.toString(), '30days');
-      console.log(`[EXPIRY_SCHEDULER] ✅ Sent 30-day reminder to ${franchise.operatorName} (${franchise.email})`);
+      console.log(`[EXPIRY_SCHEDULER] ✅ Sent 30-day reminder for Franchise ${franchise.franchiseNumber} (v${franchise.versionNumber}) to ${franchise.operatorName} (${franchise.operatorEmail})`);
     } catch (error) {
-      console.error(`[EXPIRY_SCHEDULER] ❌ Failed to send email to ${franchise.email}:`, error.message);
+      console.error(`[EXPIRY_SCHEDULER] ❌ Failed to send email to ${franchise.operatorEmail}:`, error.message);
     }
   }
 }
 
 /**
- * Send expiry reminder emails for franchises expiring in 7 days
+ * Send expiry reminder emails for latest franchises expiring in 7 days
  */
 async function sendSevenDayReminders() {
-  console.log('\n[EXPIRY_SCHEDULER] Checking for franchises expiring in 7 days...');
+  console.log('\n[EXPIRY_SCHEDULER] Checking latest franchise versions expiring in 7 days...');
   
-  const franchises = await getFranchisesExpiringIn(7);
+  const franchises = await getLatestFranchisesExpiringIn(7);
   
   if (franchises.length === 0) {
-    console.log('[EXPIRY_SCHEDULER] No franchises expiring in 7 days');
+    console.log('[EXPIRY_SCHEDULER] No latest franchises expiring in 7 days');
     return;
   }
   
-  console.log(`[EXPIRY_SCHEDULER] Found ${franchises.length} franchise(s) expiring in 7 days`);
+  console.log(`[EXPIRY_SCHEDULER] Found ${franchises.length} latest franchise(s) expiring in 7 days`);
   
   for (const franchise of franchises) {
-    if (!franchise.email) {
-      console.log(`[EXPIRY_SCHEDULER] Skipping ${franchise.mtopNumber} - no email address`);
+    if (!franchise.operatorEmail) {
+      console.log(`[EXPIRY_SCHEDULER] Skipping ${franchise.franchiseNumber} (v${franchise.versionNumber}) - no email address`);
       continue;
     }
     
     // Check if already sent
     if (wasNotificationSent(franchise._id.toString(), '7days')) {
-      console.log(`[EXPIRY_SCHEDULER] Already sent 7-day reminder for ${franchise.mtopNumber}`);
+      console.log(`[EXPIRY_SCHEDULER] Already sent 7-day reminder for ${franchise.franchiseNumber} (v${franchise.versionNumber})`);
       continue;
     }
     
     try {
       await sendFranchiseExpiryEmail(
-        franchise.email,
+        franchise.operatorEmail,
         franchise.operatorName,
-        franchise.mtopNumber,
+        franchise.franchiseNumber,
         franchise.expiryDate,
         7 // days until expiry
       );
       
       markNotificationSent(franchise._id.toString(), '7days');
-      console.log(`[EXPIRY_SCHEDULER] ✅ Sent 7-day reminder to ${franchise.operatorName} (${franchise.email})`);
+      console.log(`[EXPIRY_SCHEDULER] ✅ Sent 7-day reminder for Franchise ${franchise.franchiseNumber} (v${franchise.versionNumber}) to ${franchise.operatorName} (${franchise.operatorEmail})`);
     } catch (error) {
-      console.error(`[EXPIRY_SCHEDULER] ❌ Failed to send email to ${franchise.email}:`, error.message);
+      console.error(`[EXPIRY_SCHEDULER] ❌ Failed to send email to ${franchise.operatorEmail}:`, error.message);
     }
   }
 }
 
 /**
- * Mark expired franchises and send expiry notice
+ * Mark expired latest franchises and send expiry notice
  */
 async function handleExpiredFranchises() {
-  console.log('\n[EXPIRY_SCHEDULER] Checking for expired franchises...');
+  console.log('\n[EXPIRY_SCHEDULER] Checking for expired latest franchises...');
   
-  const franchises = await getFranchisesExpiringIn(0); // Expiring today
+  const franchises = await getLatestFranchisesExpiringIn(0); // Expiring today
   
   if (franchises.length === 0) {
-    console.log('[EXPIRY_SCHEDULER] No franchises expiring today');
+    console.log('[EXPIRY_SCHEDULER] No latest franchises expiring today');
     return;
   }
   
-  console.log(`[EXPIRY_SCHEDULER] Found ${franchises.length} franchise(s) expiring today`);
+  console.log(`[EXPIRY_SCHEDULER] Found ${franchises.length} latest franchise(s) expiring today`);
   
   for (const franchise of franchises) {
     try {
@@ -177,35 +216,106 @@ async function handleExpiredFranchises() {
       franchise.franchiseStatus = 'expired';
       await franchise.save();
       
-      console.log(`[EXPIRY_SCHEDULER] Marked franchise ${franchise.mtopNumber} as EXPIRED`);
+      console.log(`[EXPIRY_SCHEDULER] Marked Franchise ${franchise.franchiseNumber} (v${franchise.versionNumber}) as EXPIRED`);
+      
+      // Log franchise expiration in audit trail
+      await auditLogService.logFranchiseExpired(franchise).catch(err =>
+        console.error('[EXPIRY_SCHEDULER] Audit log error:', err)
+      );
       
       // Send expiry notice if email exists
-      if (franchise.email) {
+      if (franchise.operatorEmail) {
         // Check if already sent
         if (wasNotificationSent(franchise._id.toString(), 'expired')) {
-          console.log(`[EXPIRY_SCHEDULER] Already sent expiry notice for ${franchise.mtopNumber}`);
+          console.log(`[EXPIRY_SCHEDULER] Already sent expiry notice for ${franchise.franchiseNumber} (v${franchise.versionNumber})`);
           continue;
         }
         
         await sendFranchiseExpiryEmail(
-          franchise.email,
+          franchise.operatorEmail,
           franchise.operatorName,
-          franchise.mtopNumber,
+          franchise.franchiseNumber,
           franchise.expiryDate,
           0 // expired today
         );
         
         markNotificationSent(franchise._id.toString(), 'expired');
-        console.log(`[EXPIRY_SCHEDULER] ✅ Sent expiry notice to ${franchise.operatorName} (${franchise.email})`);
+        console.log(`[EXPIRY_SCHEDULER] ✅ Sent expiry notice to ${franchise.operatorName} (${franchise.operatorEmail})`);
       }
     } catch (error) {
-      console.error(`[EXPIRY_SCHEDULER] ❌ Failed to handle expired franchise ${franchise.mtopNumber}:`, error.message);
+      console.error(`[EXPIRY_SCHEDULER] ❌ Failed to handle expired franchise ${franchise.franchiseNumber} (v${franchise.versionNumber}):`, error.message);
     }
   }
 }
 
 /**
- * Run all expiry checks (30 days, 7 days, and expired)
+ * Check and revoke latest franchise versions that have been expired for more than 1 year
+ */
+async function revokeExpiredFranchises() {
+  console.log('\n[EXPIRY_SCHEDULER] Checking latest franchise versions expired for more than 1 year...');
+  
+  try {
+    const oneYearAgo = new Date();
+    oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+    
+    // Get all latest franchise versions
+    const latestFranchises = await getLatestFranchiseVersions();
+    
+    // Filter for franchises that are expired and have been expired for more than 1 year
+    const franchisesToRevoke = latestFranchises.filter(franchise => {
+      return franchise.franchiseStatus === 'expired' && 
+             franchise.expiryDate < oneYearAgo;
+    });
+    
+    if (franchisesToRevoke.length === 0) {
+      console.log('[EXPIRY_SCHEDULER] No latest franchise versions to revoke');
+      return;
+    }
+    
+    console.log(`[EXPIRY_SCHEDULER] Found ${franchisesToRevoke.length} latest franchise version(s) expired for over 1 year`);
+    
+    for (const franchise of franchisesToRevoke) {
+      try {
+        // Update franchise status to 'revoked'
+        franchise.franchiseStatus = 'revoked';
+        franchise.revokedAt = new Date();
+        franchise.revokedReason = 'Automatic revocation: Not renewed within 1 year after expiry';
+        await franchise.save();
+        
+        console.log(`[EXPIRY_SCHEDULER] Revoked Franchise ${franchise.franchiseNumber} (v${franchise.versionNumber}) (expired on ${franchise.expiryDate})`);
+        
+        // Log franchise revocation in audit trail
+        await auditLogService.logFranchiseRevoked(
+          franchise,
+          {
+            id: 'SYSTEM',
+            userId: 'SYSTEM',
+            username: 'System',
+            name: 'Automated System',
+            role: 'super-admin',
+            accountType: 'admin'
+          },
+          { 
+            headers: { 'user-agent': 'System Scheduler' },
+            connection: { remoteAddress: '127.0.0.1' }
+          },
+          'Not renewed within 1 year after expiry'
+        ).catch(err =>
+          console.error('[EXPIRY_SCHEDULER] Audit log error:', err)
+        );
+        
+        console.log(`[EXPIRY_SCHEDULER] ✅ Franchise ${franchise.franchiseNumber} (v${franchise.versionNumber}) has been revoked - number available for reassignment`);
+      } catch (error) {
+        console.error(`[EXPIRY_SCHEDULER] ❌ Failed to revoke franchise ${franchise.franchiseNumber} (v${franchise.versionNumber}):`, error.message);
+      }
+    }
+  } catch (error) {
+    console.error('[EXPIRY_SCHEDULER] Error checking expired franchises for revocation:', error);
+  }
+}
+
+/**
+ * Run all expiry checks (30 days, 7 days, expired, and revocation)
  */
 async function runExpiryChecks() {
   console.log('\n========================================');
@@ -217,6 +327,7 @@ async function runExpiryChecks() {
     await sendThirtyDayReminders();
     await sendSevenDayReminders();
     await handleExpiredFranchises();
+    await revokeExpiredFranchises(); // Check and revoke franchises expired for over 1 year
     
     console.log('\n========================================');
     console.log('[EXPIRY_SCHEDULER] ✅ Daily checks completed');
