@@ -60,10 +60,45 @@ io.on('connection', (socket) => {
   console.log(`[SOCKET.IO] Client connected: ${socket.id}`);
   
   // Allow clients to join specific rooms based on their role
-  socket.on('join-room', (room) => {
-    if (['bplo-admins', 'sb-admins', 'users'].includes(room)) {
-      socket.join(room);
-      console.log(`[SOCKET.IO] Client ${socket.id} joined room: ${room}`);
+  socket.on('join-room', async (room) => {
+    if (!['bplo-admins', 'sb-admins', 'users'].includes(room)) {
+      console.warn(`[SOCKET.IO] Invalid room requested: ${room}`);
+      return;
+    }
+    
+    socket.join(room);
+    console.log(`[SOCKET.IO] Client ${socket.id} joined room: ${room}`);
+    
+    // Emit current state when joining room (prevents stale data)
+    try {
+      const FranchiseApplication = require('./models/franchiseApplicationModel');
+      
+      if (room === 'sb-admins') {
+        // SB admins see applications that are awaiting SB approval
+        const applications = await FranchiseApplication.find({
+          statusOfBPLO: 'awaiting-sb'
+        }).sort({ submittedAt: -1 });
+        socket.emit('approved-applications', applications);
+        console.log(`[SOCKET.IO] Sent ${applications.length} awaiting-sb applications to SB admin`);
+      } else if (room === 'bplo-admins') {
+        // BPLO admins see pending applications
+        const applications = await FranchiseApplication.find({
+          statusOfBPLO: 'pending'
+        }).sort({ submittedAt: -1 });
+        socket.emit('pending-applications', applications);
+        console.log(`[SOCKET.IO] Sent ${applications.length} pending applications to BPLO admin`);
+      }
+    } catch (error) {
+      console.error(`[SOCKET.IO] Error fetching initial data for ${room}:`, error.message);
+    }
+  });
+  
+  // Handle user-specific room joins
+  socket.on('join', (data) => {
+    if (data?.userId) {
+      const userRoom = `user-${data.userId}`;
+      socket.join(userRoom);
+      console.log(`[SOCKET.IO] User ${data.userId} joined personal room: ${userRoom}`);
     }
   });
   

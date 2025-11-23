@@ -4,6 +4,7 @@ import UnifiedNavbar from "../../components/UnifiedNavbar";
 import { useAuth } from "../../contexts/AuthContext";
 import "../../Styles/Operator's_CSS/OperatorHomePage.css";
 import { Link2, PlusCircle } from 'lucide-react';
+import io from 'socket.io-client';
 import {
   Table,
   TableBody,
@@ -20,7 +21,9 @@ import {
   Button,
   Dialog,
   DialogContent,
-  TextField
+  TextField,
+  Snackbar,
+  Alert
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
@@ -209,6 +212,7 @@ const OperatorHomePage = () => {
   const [orNumberInput, setOrNumberInput] = useState('');
   const [orFileInput, setOrFileInput] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [notificationAlert, setNotificationAlert] = useState({ open: false, message: '', type: 'info' });
   const navigate = useNavigate();
 
   // Fetch user's franchise applications
@@ -227,6 +231,90 @@ const OperatorHomePage = () => {
     if (currentUser) {
       fetchApplications();
     }
+  }, [currentUser]);
+
+  // Setup WebSocket listeners for BPLO notifications
+  useEffect(() => {
+    const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170';
+    const socket = io(API_BASE_URL);
+
+    socket.on('connect', () => {
+      console.log('[OperatorHomePage] Connected to WebSocket');
+      // Join user-specific room if we have user ID
+      if (currentUser?.id) {
+        socket.emit('join', { userId: currentUser.id, userType: 'operator' });
+      }
+    });
+
+    // Listen for BPLO disapproval notifications
+    socket.on('bplo-disapproval', (data) => {
+      console.log('[OperatorHomePage] Received BPLO disapproval:', data);
+      setNotificationAlert({
+        open: true,
+        message: `Your application has been disapproved. Reason: ${data.reason}`,
+        type: 'error'
+      });
+      // Refresh applications list
+      const fetchApplications = async () => {
+        try {
+          const response = await franchiseAPI.getMyApplications();
+          if (response.data?.success && Array.isArray(response.data.data)) {
+            setUserApplications(response.data.data);
+          }
+        } catch (error) {
+          console.error('Error fetching applications:', error);
+        }
+      };
+      fetchApplications();
+    });
+
+    // Listen for BPLO approval notifications
+    socket.on('bplo-approval', (data) => {
+      console.log('[OperatorHomePage] Received BPLO approval:', data);
+      setNotificationAlert({
+        open: true,
+        message: 'Your application has been approved by BPLO. Please submit your Official Receipt.',
+        type: 'success'
+      });
+      // Refresh applications list
+      const fetchApplications = async () => {
+        try {
+          const response = await franchiseAPI.getMyApplications();
+          if (response.data?.success && Array.isArray(response.data.data)) {
+            setUserApplications(response.data.data);
+          }
+        } catch (error) {
+          console.error('Error fetching applications:', error);
+        }
+      };
+      fetchApplications();
+    });
+
+    // Listen for SB approval notifications
+    socket.on('sb-approval', (data) => {
+      console.log('[OperatorHomePage] Received SB approval:', data);
+      setNotificationAlert({
+        open: true,
+        message: 'Congratulations! Your application has been finally approved. You can now claim your certificate.',
+        type: 'success'
+      });
+      // Refresh applications list
+      const fetchApplications = async () => {
+        try {
+          const response = await franchiseAPI.getMyApplications();
+          if (response.data?.success && Array.isArray(response.data.data)) {
+            setUserApplications(response.data.data);
+          }
+        } catch (error) {
+          console.error('Error fetching applications:', error);
+        }
+      };
+      fetchApplications();
+    });
+
+    return () => {
+      socket.disconnect();
+    };
   }, [currentUser]);
 
   // Update time every second
@@ -1390,6 +1478,22 @@ const OperatorHomePage = () => {
           </Box>
         </Box>
       </Modal>
+
+      {/* Notification Snackbar */}
+      <Snackbar
+        open={notificationAlert.open}
+        autoHideDuration={6000}
+        onClose={() => setNotificationAlert({ ...notificationAlert, open: false })}
+        anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+      >
+        <Alert
+          onClose={() => setNotificationAlert({ ...notificationAlert, open: false })}
+          severity={notificationAlert.type}
+          sx={{ width: '100%' }}
+        >
+          {notificationAlert.message}
+        </Alert>
+      </Snackbar>
     </div>
   );
 };

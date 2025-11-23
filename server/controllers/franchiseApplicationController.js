@@ -361,14 +361,26 @@ exports.approveFranchiseByBPLO = async (req, res, next) => {
     
     // Emit to WebSocket
     if (req.app.get('io')) {
-      // Emit to both BPLO and SB admins - SB admins can now see applications awaiting OR
+      // Notify BPLO admins that application was approved
       req.app.get('io').to('bplo-admins').emit('application-approved', updated);
-      req.app.get('io').to('sb-admins').emit('new-sb-application', updated);
+      
+      // Update SB admins list (they don't see it yet until OR is submitted)
+      // But we emit to keep their connection active and notify them of system activity
+      try {
+        const FranchiseApplication = require('../models/franchiseApplicationModel');
+        const awaitingSBApplications = await FranchiseApplication.find({
+          statusOfBPLO: 'awaiting-sb'
+        }).sort({ submittedAt: -1 });
+        req.app.get('io').to('sb-admins').emit('approved-applications', awaitingSBApplications);
+      } catch (error) {
+        console.error('[BPLO Approval] Failed to fetch SB applications:', error.message);
+      }
+      
       // Notify user about the approval
       if (updated.operatorInfo) {
         req.app.get('io').to(`user-${updated.operatorInfo}`).emit('bplo-approval', {
           applicationId: updated._id,
-          message: 'Your application has been approved by BPLO. Please proceed to BPLO office for tricycle inspection and then submit your OR number.',
+          message: 'Your application has been approved by BPLO. Please proceed to BPLO office for inspection, then submit your Official Receipt (OR) number and document through your account.',
           status: 'bplo-approved'
         });
       }
@@ -424,8 +436,18 @@ exports.disapproveFranchiseByBPLO = async (req, res, next) => {
     
     // Emit to WebSocket
     if (req.app.get('io')) {
-      // Only emit to BPLO admins - SB admins don't need disapproval notifications
-      req.app.get('io').to('bplo-admins').emit('application-disapproved', updated);
+      // Update BPLO admins with refreshed pending list
+      try {
+        const FranchiseApplication = require('../models/franchiseApplicationModel');
+        const pendingApplications = await FranchiseApplication.find({
+          statusOfBPLO: 'pending'
+        }).sort({ submittedAt: -1 });
+        req.app.get('io').to('bplo-admins').emit('pending-applications', pendingApplications);
+        console.log(`[BPLO Disapproval] Updated BPLO admins: ${pendingApplications.length} pending applications`);
+      } catch (error) {
+        console.error('[BPLO Disapproval] Failed to fetch pending applications:', error.message);
+      }
+      
       // Notify user about the disapproval
       if (updated.operatorInfo) {
         req.app.get('io').to(`user-${updated.operatorInfo}`).emit('bplo-disapproval', {
@@ -500,9 +522,21 @@ exports.editApprovedFranchise = async (req, res, next) => {
     const updated = await franchiseApplicationRepository.updateFranchiseApplication(id, updateData);
     console.log('[editApprovedFranchise] Application updated successfully, now awaiting SB approval');
     
-    // Notify SB admins via WebSocket
+    // Notify SB admins via WebSocket with updated application list
     if (req.app.get('io') && updateData.statusOfBPLO === 'awaiting-sb') {
-      req.app.get('io').to('sb-admins').emit('new-sb-application', updated);
+      try {
+        // Fetch all applications awaiting SB to send complete list
+        const FranchiseApplication = require('../models/franchiseApplicationModel');
+        const awaitingSBApplications = await FranchiseApplication.find({
+          statusOfBPLO: 'awaiting-sb'
+        }).sort({ submittedAt: -1 });
+        
+        // Emit updated list to all SB admins
+        req.app.get('io').to('sb-admins').emit('approved-applications', awaitingSBApplications);
+        console.log(`[editApprovedFranchise] Notified SB admins: ${awaitingSBApplications.length} applications awaiting SB approval`);
+      } catch (wsError) {
+        console.error('[editApprovedFranchise] WebSocket notification failed:', wsError.message);
+      }
     }
     
     res.json({ 
@@ -617,7 +651,23 @@ exports.approveFranchiseBySBAdmin = async (req, res, next) => {
     
     // Emit to WebSocket
     if (req.app.get('io')) {
-      req.app.get('io').to('sb-admins').to('bplo-admins').emit('application-sb-approved', updated);
+      // Update both SB and BPLO admins with refreshed lists
+      try {
+        const FranchiseApplication = require('../models/franchiseApplicationModel');
+        
+        // Update SB admins list (remove approved item)
+        const awaitingSBApplications = await FranchiseApplication.find({
+          statusOfBPLO: 'awaiting-sb'
+        }).sort({ submittedAt: -1 });
+        req.app.get('io').to('sb-admins').emit('approved-applications', awaitingSBApplications);
+        console.log(`[SB Approval] Updated SB admins: ${awaitingSBApplications.length} awaiting SB approval`);
+        
+        // Update BPLO admins about the final approval
+        req.app.get('io').to('bplo-admins').emit('application-sb-approved', updated);
+      } catch (error) {
+        console.error('[SB Approval] Failed to fetch application lists:', error.message);
+      }
+      
       // Notify user about the final approval
       if (updated.operatorInfo) {
         req.app.get('io').to(`user-${updated.operatorInfo}`).emit('sb-approval', {

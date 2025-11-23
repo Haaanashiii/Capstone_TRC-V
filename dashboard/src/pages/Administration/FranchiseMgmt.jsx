@@ -35,6 +35,9 @@ import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFile'
 import ImageIcon from '@mui/icons-material/Image'
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf'
 import VisibilityIcon from '@mui/icons-material/Visibility'
+import DownloadIcon from '@mui/icons-material/Download'
+import GetAppIcon from '@mui/icons-material/GetApp'
+import { previewFilledPDF, downloadFilledPDF, getPdfFieldNames } from '../../utils/pdfFiller'
 
 function FranchiseMgmt() {
   const { user } = useAuth() // Get current user for role-based rendering
@@ -60,6 +63,8 @@ function FranchiseMgmt() {
   const qrBlobUrlRef = useRef(null)
   const [qrBlobUrl, setQrBlobUrl] = useState(null)
   const isUpdatingRef = useRef(false) // Prevent duplicate WebSocket updates
+  const [pdfPreviewUrl, setPdfPreviewUrl] = useState(null)
+  const [openPdfPreview, setOpenPdfPreview] = useState(false)
   
   const [pendingApplications, setPendingApplications] = useState([])
 
@@ -957,6 +962,96 @@ function FranchiseMgmt() {
   }, [])
 
   /**
+   * Handle PDF Preview
+   */
+  const handlePdfPreview = async () => {
+    if (!selectedApplication) return
+    
+    setIsLoading(true)
+    try {
+      const url = await previewFilledPDF(selectedApplication)
+      setPdfPreviewUrl(url)
+      setOpenPdfPreview(true)
+      
+      setNotification({
+        open: true,
+        message: 'PDF preview generated successfully',
+        type: 'success'
+      })
+    } catch (error) {
+      console.error('[FranchiseMgmt] Error previewing PDF:', error)
+      setNotification({
+        open: true,
+        message: 'Failed to generate PDF preview',
+        type: 'error'
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  /**
+   * Handle PDF Download
+      */
+  const handlePdfDownload = async () => {
+    if (!selectedApplication) return
+    
+    setIsLoading(true)
+    try {
+      const filename = `franchise-application-${selectedApplication.name?.replace(/\s+/g, '-') || selectedApplication.id}.pdf`
+      await downloadFilledPDF(selectedApplication, filename)
+      
+      setNotification({
+        open: true,
+        message: 'PDF downloaded successfully',
+        type: 'success'
+      })
+    } catch (error) {
+      console.error('[FranchiseMgmt] Error downloading PDF:', error)
+      setNotification({
+        open: true,
+        message: 'Failed to download PDF',
+        type: 'error'
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  /**
+   * Close PDF preview modal
+   */
+  const handleClosePdfPreview = () => {
+    setOpenPdfPreview(false)
+    if (pdfPreviewUrl) {
+      URL.revokeObjectURL(pdfPreviewUrl)
+      setPdfPreviewUrl(null)
+    }
+  }
+
+  /**
+   * Debug: Show PDF field names
+   */
+  const handleShowPdfFields = async () => {
+    try {
+      const fields = await getPdfFieldNames()
+      console.log('[FranchiseMgmt] PDF Fields:', fields)
+      setNotification({
+        open: true,
+        message: `Found ${fields.length} fields in PDF. Check console for details.`,
+        type: 'info'
+      })
+    } catch (error) {
+      console.error('[FranchiseMgmt] Error getting PDF fields:', error)
+      setNotification({
+        open: true,
+        message: 'Failed to read PDF fields',
+        type: 'error'
+      })
+    }
+  }
+
+  /**
    * Get status display information
    */
   const getStatusInfo = (statusOfBPLO, hasOR) => {
@@ -1786,6 +1881,46 @@ function FranchiseMgmt() {
               </Link>
             </div>
             
+            {/* PDF Preview and Download Section - Available for BPLO */}
+            {userRole === 'bplo-admin' && (
+              <Box sx={{ mb: 2, p: 2, bgcolor: '#f9fafb', borderRadius: 1, border: '1px solid #e5e7eb' }}>
+                <Typography variant="h6" sx={{ mb: 1.5, fontWeight: 600, fontSize: '0.95rem' }}>
+                  📄 Application Form Preview
+                </Typography>
+                <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
+                  <Button
+                    variant="outlined"
+                    startIcon={<VisibilityIcon />}
+                    onClick={handlePdfPreview}
+                    disabled={isLoading}
+                    sx={{ flex: '1 1 auto', minWidth: '150px' }}
+                  >
+                    Preview PDF
+                  </Button>
+                  <Button
+                    variant="contained"
+                    startIcon={<DownloadIcon />}
+                    onClick={handlePdfDownload}
+                    disabled={isLoading}
+                    sx={{ flex: '1 1 auto', minWidth: '150px' }}
+                  >
+                    Download PDF
+                  </Button>
+                  <Button
+                    variant="text"
+                    size="small"
+                    onClick={handleShowPdfFields}
+                    sx={{ fontSize: '0.75rem' }}
+                  >
+                    🔍 Debug Fields
+                  </Button>
+                </Box>
+                <Typography variant="caption" sx={{ display: 'block', mt: 1, color: '#6b7280' }}>
+                  View or download the filled application form with all submitted details
+                </Typography>
+              </Box>
+            )}
+
             {/* Action Buttons - Role Based */}
             <div className="action-buttons">
               {userRole === 'bplo-admin' && selectedApplication.statusOfBPLO === 'pending' && (
@@ -2078,6 +2213,89 @@ function FranchiseMgmt() {
               {isLoading ? <CircularProgress className="circular-progress-small circular-progress-inherit" /> : 'Approve & Issue Certificate'}
             </Button>
           </div>
+        </Box>
+      </Modal>
+      
+      {/* PDF Preview Modal */}
+      <Modal
+        open={openPdfPreview}
+        onClose={handleClosePdfPreview}
+        aria-labelledby="pdf-preview-modal"
+        slotProps={{
+          backdrop: {
+            sx: {
+              backgroundColor: 'rgba(0, 0, 0, 0.5)',
+              backdropFilter: 'blur(3px)',
+            },
+          },
+        }}
+      >
+        <Box 
+          sx={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            width: '90%',
+            maxWidth: '900px',
+            height: '90vh',
+            bgcolor: 'background.paper',
+            borderRadius: 2,
+            boxShadow: 24,
+            display: 'flex',
+            flexDirection: 'column',
+          }}
+        >
+          <div className="modal-header">
+            <Typography variant="h6">
+              📄 Franchise Application Form Preview
+            </Typography>
+            <IconButton onClick={handleClosePdfPreview}>
+              <CloseIcon />
+            </IconButton>
+          </div>
+          
+          <Box sx={{ 
+            flex: 1, 
+            overflow: 'hidden',
+            p: 0,
+            bgcolor: '#525659'
+          }}>
+            {pdfPreviewUrl && (
+              <iframe
+                src={pdfPreviewUrl}
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  border: 'none',
+                }}
+                title="PDF Preview"
+              />
+            )}
+          </Box>
+          
+          <Box sx={{ 
+            p: 2, 
+            borderTop: '1px solid #e0e0e0',
+            display: 'flex',
+            justifyContent: 'flex-end',
+            gap: 2
+          }}>
+            <Button
+              variant="outlined"
+              onClick={handleClosePdfPreview}
+            >
+              Close
+            </Button>
+            <Button
+              variant="contained"
+              startIcon={<DownloadIcon />}
+              onClick={handlePdfDownload}
+              disabled={isLoading}
+            >
+              Download PDF
+            </Button>
+          </Box>
         </Box>
       </Modal>
       

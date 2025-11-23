@@ -21,20 +21,17 @@ function getGmailOAuth2Client() {
   return oAuth2Client;
 }
 
-function getGmailOAuth2Client() {
-  const client_id = process.env.GMAIL_API_CLIENT_ID;
-  const client_secret = process.env.GMAIL_API_CLIENT_SECRET;
-  const redirect_uri = process.env.GMAIL_API_REDIRECT_URI;
-  const refresh_token = process.env.GMAIL_API_REFRESH_TOKEN;
-  if (!client_id || !client_secret || !refresh_token) return null;
-  const oAuth2Client = new google.auth.OAuth2(client_id, client_secret, redirect_uri);
-  oAuth2Client.setCredentials({ refresh_token });
-  return oAuth2Client;
-}
-
 async function sendViaGmailApi({ from, to, subject, text, html, attachments }) {
+  // Validate inputs
+  if (!to || !subject || !text || !html) {
+    throw new Error('Missing required email parameters: to, subject, text, or html');
+  }
+  
   const oAuth2Client = getGmailOAuth2Client();
-  if (!oAuth2Client) throw new Error('Gmail API credentials not configured');
+  if (!oAuth2Client) {
+    throw new Error('Gmail API credentials not configured. Please set GMAIL_API_CLIENT_ID, GMAIL_API_CLIENT_SECRET, and GMAIL_API_REFRESH_TOKEN');
+  }
+  
   const gmail = google.gmail({ version: 'v1', auth: oAuth2Client });
   const boundary = '----=_Part_' + Date.now();
   
@@ -75,11 +72,20 @@ async function sendViaGmailApi({ from, to, subject, text, html, attachments }) {
   }
   messageParts.push(`--${boundary}--`);
   const rawMessage = Buffer.from(messageParts.join('\r\n')).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-  await gmail.users.messages.send({
-    userId: 'me',
-    requestBody: { raw: rawMessage }
-  });
-  return { messageId: 'gmail-api' };
+  
+  try {
+    const response = await gmail.users.messages.send({
+      userId: 'me',
+      requestBody: { raw: rawMessage }
+    });
+    return { messageId: response.data.id || 'gmail-api' };
+  } catch (error) {
+    console.error('[EmailService] Gmail API send failed:', error.message);
+    if (error.code === 401 || error.code === 403) {
+      throw new Error('Gmail API authentication failed. Please check your refresh token.');
+    }
+    throw new Error(`Failed to send email via Gmail API: ${error.message}`);
+  }
 }
 
 async function sendOTPEmail(to, otp) {
@@ -408,4 +414,4 @@ async function sendFranchiseExpiryEmail(to, operatorName, mtopNumber, expiryDate
   }
 }
 
-module.exports = { sendOTPEmail, sendFranchiseExpiryEmail };
+module.exports = { sendOTPEmail, sendFranchiseExpiryEmail, sendViaGmailApi };
