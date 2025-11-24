@@ -7,6 +7,7 @@ const cookieParser = require('cookie-parser');
 const helmet = require('helmet');
 const http = require('http');
 const { Server } = require('socket.io');
+const jwt = require('jsonwebtoken');
 const errorHandler = require('./middlewares/errorHandler');
 const { apiLimiter, authLimiter, qrVerificationLimiter } = require('./middlewares/rateLimiter');
 const { sanitizeRequest } = require('./middlewares/validateRequest');
@@ -64,49 +65,150 @@ io.on('error', (error) => {
   console.error('[SOCKET.IO] Server error:', error);
 });
 
-// Socket.IO connection handling
+// JWT VALIDATION MIDDLEWARE - Extract user info from token on connection (optional for announcements)
+io.use((socket, next) => {
+  const token = socket.handshake.auth.token;
+  
+  // Token is optional - announcements work for everyone
+  if (!token) {
+    // No token = unauthenticated user (can still see announcements)
+    socket.userId = 'anonymous-' + Math.random().toString(36).substr(2, 9);
+    socket.userEmail = null;
+    socket.userRole = null;
+    socket.isAuthenticated = false;
+    
+    console.log(`[SOCKET.IO] Anonymous connection: ${socket.userId}`);
+    return next();
+  }
+  
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    
+    // Store user info on socket object for later use
+    // Token has either 'userId' (operators), 'id', '_id', or 'adminId'
+    socket.userId = decoded.userId || decoded.id || decoded._id || decoded.adminId;
+    socket.userEmail = decoded.email;
+    socket.userRole = decoded.role; // 'super-admin', 'sb-admin', 'bplo-admin', 'operator'
+    socket.isAuthenticated = true;
+    
+    console.log(`[SOCKET.IO] Authenticated: ${socket.userId} (${decoded.role})`);
+    next();
+  } catch (err) {
+    console.error('[SOCKET.IO] Token verification failed:', err.message);
+    // If token is invalid but provided, reject
+    next(new Error('Invalid or expired token'));
+  }
+});
+
+  // Socket.IO connection handling
 io.on('connection', (socket) => {
-  console.log(`[SOCKET.IO] Client connected: ${socket.id}`);
+  console.log(`[SOCKET.IO] Client connected: ${socket.id} - User: ${socket.userId} - Auth: ${socket.isAuthenticated}`);
   console.log(`[SOCKET.IO] Available transports: websocket, polling`);
   console.log(`[SOCKET.IO] Connection handshake:', { id: socket.id, connected: socket.connected }`);
+  
+  // Auto-join announcements room (everyone can see announcements, authenticated or not)
+  socket.join('announcements');
+  console.log(`[SOCKET.IO] User ${socket.userId} auto-joined announcements room`);
   
   // Handle connection errors
   socket.on('error', (error) => {
     console.error(`[SOCKET.IO] Socket error for ${socket.id}:`, error);
   });
   
-  // Allow clients to join specific rooms based on their role
+  // ROOM ACCESS CONTROL - Validate user role before joining rooms
   socket.on('join-room', async (room) => {
-    if (!['bplo-admins', 'sb-admins', 'users', 'general'].includes(room)) {
-      console.warn(`[SOCKET.IO] Invalid room requested: ${room}`);
+    // Unauthenticated users can only join announcements room
+    if (!socket.isAuthenticated) {
+      if (room === 'announcements') {
+        socket.join(room);
+        console.log(`[SOCKET.IO] Anonymous user ${socket.userId} joined announcements room`);
+        return;
+      }
+      socket.emit('error', { message: 'Authentication required for this room' });
       return;
     }
     
-    console.log(`[SOCKET.IO] Client ${socket.id} attempting to join room: ${room}`);
-    socket.join(room);
-    console.log(`[SOCKET.IO] Client ${socket.id} successfully joined room: ${room}`);
+    const isPersonalRoom = room.startsWith('user-');
+    const requestedUserId = isPersonalRoom ? room.replace('user-', '') : null;
     
-    // Emit current state when joining room (prevents stale data)
+    // Define which roles can access which rooms
+    const canAccessRoom = () => {
+      // All authenticated users can join 'general' room for dashboard updates
+      if (room === 'general') {
+        return true;
+      }
+      
+      // All authenticated users can join 'announcements'
+      if (room === 'announcements') {
+        return true;
+      }
+      
+      // Super admin can access everything
+      if (socket.userRole === 'super-admin') {
+        if (isPersonalRoom) {
+          // Super admin can only access their own personal room
+          return socket.userId === requestedUserId;
+        }
+        return true; // Super admin can join admin rooms
+      }
+      
+      // BPLO admin - can join bplo-admins and their personal room
+      if (socket.userRole === 'bplo-admin') {
+        if (room === 'bplo-admins') return true;
+        if (isPersonalRoom) return socket.userId === requestedUserId;
+        return false;
+      }
+      
+      // SB admin - can join sb-admins and their personal room
+      if (socket.userRole === 'sb-admin') {
+        if (room === 'sb-admins') return true;
+        if (isPersonalRoom) return socket.userId === requestedUserId;
+        return false;
+      }
+      
+      // Operator - can join operators-room and their personal room only
+      if (socket.userRole === 'operator') {
+        if (room === 'operators-room') return true;
+        if (isPersonalRoom) return socket.userId === requestedUserId;
+        return false;
+      }
+      
+      return false;
+    };
+    
+    // Check if user is authorized
+    if (!canAccessRoom()) {
+      console.warn(`[SOCKET.IO] UNAUTHORIZED: User ${socket.userId} (${socket.userRole}) tried to join ${room}`);
+      socket.emit('error', { message: `Not authorized to join room: ${room}` });
+      return;
+    }
+    
+    // User is authorized - join the room
+    socket.join(room);
+    console.log(`[SOCKET.IO] ✅ User ${socket.userId} (${socket.userRole}) joined room: ${room}`);
+    
+    // Send initial state based on room
     try {
       const FranchiseApplication = require('./models/franchiseApplicationModel');
+      const AdminAccount = require('./models/adminAccountModel');
       
       if (room === 'sb-admins') {
-        // SB admins see applications that are awaiting SB approval
         const applications = await FranchiseApplication.find({
           statusOfBPLO: 'awaiting-sb'
         }).sort({ submittedAt: -1 });
         socket.emit('approved-applications', applications);
         console.log(`[SOCKET.IO] Sent ${applications.length} awaiting-sb applications to SB admin`);
       } else if (room === 'bplo-admins') {
-        // BPLO admins see pending applications
         const applications = await FranchiseApplication.find({
           statusOfBPLO: 'pending'
         }).sort({ submittedAt: -1 });
         socket.emit('pending-applications', applications);
         console.log(`[SOCKET.IO] Sent ${applications.length} pending applications to BPLO admin`);
-      } else if (room === 'general') {
-        // General room for dashboard pages - no initial state needed
-        console.log(`[SOCKET.IO] Client ${socket.id} joined general room for dashboard updates`);
+      } else if (room.startsWith('user-')) {
+        // Personal room - no initial state needed
+        console.log(`[SOCKET.IO] User ${socket.userId} joined personal room`);
+      } else if (room === 'operators-room') {
+        console.log(`[SOCKET.IO] Operator ${socket.userId} joined operators-room`);
       }
     } catch (error) {
       console.error(`[SOCKET.IO] Error fetching initial data for ${room}:`, error.message);
@@ -208,7 +310,7 @@ app.use('/uploads', express.static('uploads', {
 
 // Audit logging (before rate limiting to log all attempts)
 app.use(auditLogService.createAuditMiddleware({
-  excludePaths: ['/health', '/api/verify'],
+  excludePaths: ['/health', '/api/verify', '/announcements'],
   logBody: false
 }));
 

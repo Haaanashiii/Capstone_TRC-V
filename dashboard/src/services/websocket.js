@@ -36,11 +36,13 @@ class WebSocketService {
     
     console.log('[WebSocket] Attempting to connect to:', API_BASE_URL);
     console.log('[WebSocket] Token available:', !!token);
+    console.log('[WebSocket] Connection type:', token ? 'Authenticated' : 'Anonymous (announcements only)');
     
+    // Connect with token if available, otherwise connect without (for announcements)
     this.socket = io(API_BASE_URL, {
       transports: ['websocket', 'polling'],
       auth: {
-        token: token || ''
+        token: token || null  // Send null instead of empty string to indicate no auth
       },
       reconnection: true,
       reconnectionDelay: this.reconnectDelay,

@@ -11,6 +11,13 @@ body, html {
   padding: 0;
   background-color: #ffffff;
   overflow-x: hidden;
+  width: 100%;
+  max-width: 100vw;
+}
+
+/* Global box-sizing for all elements */
+*, *::before, *::after {
+  box-sizing: border-box;
 }
 
 /* removed commented :root and color-scheme blocks to avoid hidden color variables */
@@ -23,4 +30,64 @@ html, body, #root, .franchise-bg, .franchise-header-bar, .unified-sidebar-contai
   background-image: none !important;
   box-shadow: none !important;
   border: none !important;
+}
+
+/* Global Mobile Responsive Enhancements */
+@media (max-width: 768px) {
+  /* Ensure all images are responsive */
+  img {
+    max-width: 100%;
+    height: auto;
+  }
+
+  /* Make all buttons touch-friendly */
+  button, .MuiButton-root, .MuiIconButton-root {
+    min-height: 44px !important;
+    min-width: 44px !important;
+  }
+
+  /* Ensure form inputs are touch-friendly */
+  input, textarea, select, .MuiTextField-root, .MuiFormControl-root {
+    min-height: 44px !important;
+  }
+
+  /* Prevent text from overflowing containers */
+  h1, h2, h3, h4, h5, h6, p, span, div {
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+  }
+
+  /* Ensure dialogs/modals fit on screen */
+  .MuiDialog-paper {
+    margin: 16px !important;
+    max-width: calc(100vw - 32px) !important;
+  }
+
+  /* Make cards and papers responsive */
+  .MuiPaper-root, .MuiCard-root {
+    max-width: 100% !important;
+  }
+}
+
+@media (max-width: 480px) {
+  /* Extra small screens - ensure even tighter spacing */
+  .MuiDialog-paper {
+    margin: 12px !important;
+    max-width: calc(100vw - 24px) !important;
+  }
+
+  /* Increase font sizes slightly for better readability */
+  body {
+    font-size: 14px !important;
+  }
+
+  /* Stack buttons vertically on very small screens */
+  .MuiDialogActions-root {
+    flex-direction: column-reverse !important;
+    gap: 8px !important;
+  }
+
+  .MuiDialogActions-root button {
+    width: 100% !important;
+  }
 }

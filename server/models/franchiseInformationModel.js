@@ -16,6 +16,7 @@ const DocumentReferenceSchema = new mongoose.Schema({
 
   //added of sb
   individualSessionReportObj: { type: String, required: false },
+  resolutionDocumentObj: { type: String, required: false },
 });
 
 const franchiseInformationSchema = new mongoose.Schema({

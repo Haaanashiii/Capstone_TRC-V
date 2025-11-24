@@ -873,38 +873,105 @@ function FranchiseeListOperatorSide() {
           Active Franchises
         </DialogTitle>
         <DialogContent sx={{ mt: 2 }}>
-          <TableContainer component={Paper} elevation={0}>
-            <Table>
-              <TableHead>
-                <TableRow sx={{ bgcolor: '#f5f7fa' }}>
-                  <TableCell sx={{ fontWeight: 700 }}>Franchise Number</TableCell>
-                  <TableCell sx={{ fontWeight: 700 }}>OR Number</TableCell>
-                  <TableCell sx={{ fontWeight: 700 }}>Status</TableCell>
-                  <TableCell sx={{ fontWeight: 700 }}>Date Approved</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {franchiseList.map((franchise) => (
-                  <TableRow key={franchise.id} hover>
-                    <TableCell>{franchise.franchiseNumber}</TableCell>
-                    <TableCell>{franchise.orNumber}</TableCell>
-                    <TableCell>
-                      <span style={{ 
-                        color: '#2ecc71', 
-                        fontWeight: 600,
-                        padding: '4px 12px',
-                        borderRadius: 4,
-                        backgroundColor: '#e8f8f0'
-                      }}>
-                        {franchise.status}
-                      </span>
-                    </TableCell>
-                    <TableCell>{franchise.dateApproved}</TableCell>
+          {/* Desktop Table View */}
+          <Box sx={{ display: { xs: 'none', md: 'block' } }}>
+            <TableContainer component={Paper} elevation={0}>
+              <Table>
+                <TableHead>
+                  <TableRow sx={{ bgcolor: '#f5f7fa' }}>
+                    <TableCell sx={{ fontWeight: 700 }}>Franchise Number</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>OR Number</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>Status</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>Date Approved</TableCell>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
+                </TableHead>
+                <TableBody>
+                  {franchiseList.map((franchise) => (
+                    <TableRow key={franchise.id} hover sx={{ cursor: 'pointer' }}>
+                      <TableCell>{franchise.franchiseNumber}</TableCell>
+                      <TableCell>{franchise.orNumber}</TableCell>
+                      <TableCell>
+                        <span style={{ 
+                          color: '#2ecc71', 
+                          fontWeight: 600,
+                          padding: '4px 12px',
+                          borderRadius: 4,
+                          backgroundColor: '#e8f8f0'
+                        }}>
+                          {franchise.status}
+                        </span>
+                      </TableCell>
+                      <TableCell>{franchise.dateApproved}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </Box>
+
+          {/* Mobile Card View */}
+          <Box sx={{ display: { xs: 'block', md: 'none' } }}>
+            {franchiseList.map((franchise) => (
+              <Paper
+                key={franchise.id}
+                elevation={2}
+                sx={{
+                  p: 2,
+                  mb: 2,
+                  borderRadius: 2,
+                  cursor: 'pointer',
+                  '&:hover': {
+                    bgcolor: '#f5f7fa',
+                    boxShadow: 3
+                  }
+                }}
+              >
+                <Box sx={{ mb: 1.5 }}>
+                  <Typography sx={{ fontSize: 12, color: '#666', mb: 0.5 }}>
+                    Franchise Number
+                  </Typography>
+                  <Typography sx={{ fontSize: 16, fontWeight: 700, color: '#083d77' }}>
+                    {franchise.franchiseNumber}
+                  </Typography>
+                </Box>
+                <Box sx={{ mb: 1.5 }}>
+                  <Typography sx={{ fontSize: 12, color: '#666', mb: 0.5 }}>
+                    OR Number
+                  </Typography>
+                  <Typography sx={{ fontSize: 14, fontWeight: 600 }}>
+                    {franchise.orNumber}
+                  </Typography>
+                </Box>
+                <Box sx={{ mb: 1.5 }}>
+                  <Typography sx={{ fontSize: 12, color: '#666', mb: 0.5 }}>
+                    Status
+                  </Typography>
+                  <Box
+                    component="span"
+                    sx={{
+                      display: 'inline-block',
+                      color: '#2ecc71',
+                      fontWeight: 600,
+                      padding: '6px 16px',
+                      borderRadius: 1,
+                      backgroundColor: '#e8f8f0',
+                      fontSize: 14
+                    }}
+                  >
+                    {franchise.status}
+                  </Box>
+                </Box>
+                <Box>
+                  <Typography sx={{ fontSize: 12, color: '#666', mb: 0.5 }}>
+                    Date Approved
+                  </Typography>
+                  <Typography sx={{ fontSize: 14, fontWeight: 600 }}>
+                    {franchise.dateApproved}
+                  </Typography>
+                </Box>
+              </Paper>
+            ))}
+          </Box>
         </DialogContent>
         <DialogActions sx={{ p: 2 }}>
           <Button 

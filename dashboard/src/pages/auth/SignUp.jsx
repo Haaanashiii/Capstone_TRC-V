@@ -24,7 +24,8 @@ const SignUp = () => {
     username: "",
     email: "",
     password: "",
-    confirmPassword: ""
+    confirmPassword: "",
+    phoneNumber: ""
   });
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -140,13 +141,14 @@ const SignUp = () => {
           name: form.fullName,
           username: form.username,
           email: form.email,
-          password: form.password
+          password: form.password,
+          phoneNumber: form.phoneNumber || undefined
         });
         
         const data = response.data;
         if (data) {
           setSuccess('Account created and verified! You can now log in.');
-          setForm({ fullName: '', username: '', email: '', password: '', confirmPassword: '' });
+          setForm({ fullName: '', username: '', email: '', password: '', confirmPassword: '', phoneNumber: '' });
           setPasswordError('');
           setConfirmPasswordError('');
           
@@ -215,6 +217,18 @@ const SignUp = () => {
             fullWidth 
             margin="normal" 
             className="signup-input" 
+            InputLabelProps={{ style: { fontFamily: 'Poppins, sans-serif' } }} 
+          />
+          <TextField 
+            label="Phone Number" 
+            name="phoneNumber"
+            value={form.phoneNumber}
+            onChange={handleChange}
+            variant="outlined" 
+            fullWidth 
+            margin="normal" 
+            className="signup-input" 
+            placeholder="+63"
             InputLabelProps={{ style: { fontFamily: 'Poppins, sans-serif' } }} 
           />
           <TextField

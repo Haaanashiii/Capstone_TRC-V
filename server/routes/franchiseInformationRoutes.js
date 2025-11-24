@@ -67,6 +67,57 @@ router.get(
 );
 
 /**
+ * GET /franchise-information/history/:franchiseNumber
+ * Get FULL HISTORY of a specific franchise number (ALL OWNERS)
+ * PROTECTED - Admin only
+ * 
+ * Returns:
+ * - All versions of the franchise number (all owners who had it)
+ * - Grouped by franchiseChainId (shows ownership changes)
+ * - Includes revoked franchises (important when number was recycled)
+ * - Sorted chronologically (oldest to newest)
+ * 
+ * CRITICAL: Shows ALL owners of a franchise number, including:
+ * - Original owner's versions (current or revoked)
+ * - New owner's versions (if number was recycled)
+ * 
+ * Example:
+ * - /franchise-information/history/0001 → All owners of franchise #0001
+ */
+router.get(
+  '/history/:franchiseNumber',
+  authenticate,
+  authorize(['sb-admin', 'bplo-admin', 'super-admin']),
+  franchiseInformationController.getFranchiseHistory
+);
+
+/**
+ * GET /franchise-information/chain/:franchiseChainId
+ * Get FULL HISTORY of a specific FRANCHISE CHAIN (ONE OWNER ONLY)
+ * PROTECTED - Admin only
+ * 
+ * Returns:
+ * - All versions of this specific franchise chain
+ * - Tied to ONE user/operator (never shared, never recycled)
+ * - Includes revoked franchises (shows complete lifecycle)
+ * - Sorted by version (oldest to newest)
+ * 
+ * CRITICAL: Each franchiseChainId belongs to ONE user forever
+ * - When franchise is revoked after 3+ years, chain stays with user
+ * - When franchise number is recycled to new user, they get NEW chain
+ * 
+ * Example:
+ * - /franchise-information/chain/user-123-1609459200
+ * - Shows User 123's franchise: creation → renewals → amendments → expiry → revoke
+ */
+router.get(
+  '/chain/:franchiseChainId',
+  authenticate,
+  authorize(['sb-admin', 'bplo-admin', 'super-admin']),
+  franchiseInformationController.getFranchiseChainHistory
+);
+
+/**
  * GET /franchise-information/available-numbers
  * Get available franchise numbers for new applications
  * PROTECTED - Admin only

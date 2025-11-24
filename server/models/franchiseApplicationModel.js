@@ -111,7 +111,10 @@ const franchiseApplicationSchema = new mongoose.Schema({
     required: false,
     default: null
   }
-}, { collection: 'Franchise Applications' });
+}, { 
+  collection: 'Franchise Applications',
+  timestamps: true  // Enables createdAt and updatedAt timestamps
+});
 
 // Indexes for performance optimization
 franchiseApplicationSchema.index({ statusOfBPLO: 1 });

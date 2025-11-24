@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import '../../Styles/Administrator_Css/AuditTrail.css';
 import Sidebar from './Sidebar';
 import websocketService from '../../services/websocket';
@@ -136,6 +137,7 @@ const getStatusColor = (statusCode) => {
 };
 
 function AuditTrail() {
+  const navigate = useNavigate();
   const [auditLogs, setAuditLogs] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterAction, setFilterAction] = useState('all');
@@ -146,11 +148,43 @@ function AuditTrail() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [totalCount, setTotalCount] = useState(0);
+  const [isAuthorized, setIsAuthorized] = useState(true);
 
   // Get auth token from storage
   const getAuthToken = useCallback(() => {
     return sessionStorage.getItem('accessToken') || localStorage.getItem('accessToken');
   }, []);
+
+  // Verify admin access on component mount
+  useEffect(() => {
+    try {
+      const token = getAuthToken();
+      if (!token) {
+        setIsAuthorized(false);
+        navigate('/login');
+        return;
+      }
+
+      // Decode token to check account type and role
+      const decoded = JSON.parse(atob(token.split('.')[1]));
+      
+      // Only admins (with admin roles) can access audit trail
+      const adminRoles = ['sb-admin', 'bplo-admin', 'super-admin'];
+      if (decoded.accountType !== 'admin' && !adminRoles.includes(decoded.role)) {
+        setIsAuthorized(false);
+        setError('You do not have permission to access the audit trail. Admin access only.');
+        setTimeout(() => navigate('/'), 2000);
+        return;
+      }
+
+      setIsAuthorized(true);
+    } catch (err) {
+      console.error('[AuditTrail] Authorization check failed:', err);
+      setIsAuthorized(false);
+      setError('Authorization verification failed. Please log in again.');
+      setTimeout(() => navigate('/login'), 2000);
+    }
+  }, [getAuthToken, navigate]);
 
   // Fetch audit logs from API
   const fetchAuditLogs = useCallback(async () => {
@@ -380,6 +414,34 @@ function AuditTrail() {
       second: '2-digit',
     });
   };
+
+  // Authorization guard
+  if (!isAuthorized) {
+    return (
+      <div className="audit-trail-container">
+        <Sidebar />
+        <div className="content-container">
+          <Box
+            sx={{
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'center',
+              alignItems: 'center',
+              minHeight: '400px',
+              gap: 2,
+            }}
+          >
+            <Typography variant="h6" sx={{ color: '#EF4444', fontWeight: 700 }}>
+              Access Denied
+            </Typography>
+            <Typography sx={{ color: '#6B7280', textAlign: 'center' }}>
+              {error || 'You do not have permission to access the audit trail.'}
+            </Typography>
+          </Box>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="audit-trail-container">

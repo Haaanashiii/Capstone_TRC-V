@@ -6,12 +6,12 @@ const authorize = require('../middlewares/authorize');
 const upload = require('../middlewares/upload');
 
 // USER ROUTES - Franchise application submission and management
-router.post('/new-application', authenticate, authorize(['user', 'operator']), upload.uploadOperatorDocuments, controller.createNewApplication);
-router.get('/pending', authenticate, authorize(['user', 'operator']), controller.getPendingFranchises);
-router.get('/pending/:id', authenticate, authorize(['user', 'operator']), controller.getSpecificPendingFranchise);
-router.put('/pending/:id', authenticate, authorize(['user', 'operator']), upload.uploadOperatorDocuments, controller.editPendingFranchise);
-router.post('/renew-amend', authenticate, authorize(['user', 'operator']), upload.uploadOperatorDocuments, controller.createRenewOrAmendment);
-router.put('/approved/:id/add-receipt', authenticate, authorize(['user', 'operator']), upload.uploadOperatorDocuments, controller.editApprovedFranchise);
+router.post('/new-application', authenticate, authorize(['operator']), upload.uploadOperatorDocuments, controller.createNewApplication);
+router.get('/pending', authenticate, authorize(['operator']), controller.getPendingFranchises);
+router.get('/pending/:id', authenticate, authorize(['operator']), controller.getSpecificPendingFranchise);
+router.put('/pending/:id', authenticate, authorize(['operator']), upload.uploadOperatorDocuments, controller.editPendingFranchise);
+router.post('/renew-amend', authenticate, authorize(['operator']), upload.uploadOperatorDocuments, controller.createRenewOrAmendment);
+router.put('/approved/:id/add-receipt', authenticate, authorize(['operator']), upload.uploadOperatorDocuments, controller.editApprovedFranchise);
 
 // BPLO ADMIN ROUTES - Review and approve applications
 router.get('/bplo/pending-websocket', authenticate, authorize(['bplo-admin', 'sb-admin', 'super-admin']), controller.getFranchisesWithWebSocketIO);

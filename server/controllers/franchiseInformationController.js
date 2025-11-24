@@ -12,26 +12,54 @@ const { generateHashedFranchiseNo } = require('../utils/franchiseHelpers');
 
 /**
  * GET /franchise-information
- * Get all CURRENT VERSION franchises with WebSocket notification
+ * Get all franchises grouped by franchiseChainId, showing only the LATEST version per chain
  * 
  * Features:
- * - Returns only isCurrentVersion = true franchises
- * - Emits to WebSocket room 'franchise-admins' for real-time updates
+ * - Returns the most recent version of each franchise chain (highest version number)
+ * - Groups by franchiseChainId to ensure one franchise per chain
+ * - Emits to WebSocket rooms 'bplo-admins' and 'sb-admins' for real-time updates
  * - Populated with linked user and previous version info
+ * - Sorted by franchiseNumber for consistent ordering
  * 
  * Used by: Admin dashboards, franchise management pages
  */
 exports.getAllFranchiseInformation = async (req, res, next) => {
   try {
     const FranchiseInformation = require('../models/franchiseInformationModel');
-    const franchises = await FranchiseInformation.find({ isCurrentVersion: true })
+    
+    // Get all franchises sorted by franchiseChainId and version (descending)
+    // This allows us to group by chain and take the first (latest) version
+    const allFranchises = await FranchiseInformation.find()
       .populate('linkedUser', 'username email')
       .populate('previousVersion', 'version changeType changedAt')
-      .sort({ franchiseNumber: 1 });
+      .sort({ franchiseChainId: 1, version: -1 });
     
-    // Emit to WebSocket for real-time updates
+    // Group by franchiseChainId and keep only the latest version per chain
+    const franchiseMap = new Map();
+    for (const franchise of allFranchises) {
+      const chainId = franchise.franchiseChainId;
+      
+      // Only add if we haven't seen this chain yet (first one is the latest due to sorting)
+      if (!franchiseMap.has(chainId)) {
+        franchiseMap.set(chainId, franchise);
+      }
+    }
+    
+    // Convert map to array and sort by franchiseNumber
+    const franchises = Array.from(franchiseMap.values())
+      .sort((a, b) => {
+        const numA = parseInt(a.franchiseNumber.match(/\d+/)?.[0] || 0);
+        const numB = parseInt(b.franchiseNumber.match(/\d+/)?.[0] || 0);
+        return numA - numB;
+      });
+    
+    // Emit to WebSocket for real-time updates to admin dashboards
     if (req.app.get('io')) {
-      req.app.get('io').to('franchise-admins').emit('franchises-list-updated', {
+      req.app.get('io').to('bplo-admins').emit('franchises-list-updated', {
+        count: franchises.length,
+        timestamp: new Date().toISOString()
+      });
+      req.app.get('io').to('sb-admins').emit('franchises-list-updated', {
         count: franchises.length,
         timestamp: new Date().toISOString()
       });
@@ -49,18 +77,26 @@ exports.getAllFranchiseInformation = async (req, res, next) => {
 
 /**
  * GET /franchise-information/search?q=...
- * Search franchises by name OR franchise number (all versions)
+ * Search franchises by name, franchise number, OR franchise chain ID
  * 
  * Smart Search Logic:
  * - Pure letters (A-Z, spaces) → Search by operator name (case-insensitive)
- * - Contains numbers → Search by franchise number (includes all versions)
+ *   Returns: ALL VERSIONS of matching franchises (including revoked/previous)
+ * - Contains numbers (4-digit) → Search by franchise number (all matching numbers)
+ *   Returns: ALL VERSIONS of each matching franchise number (all owners)
+ * - Contains "user-" prefix → Search by franchiseChainId (specific owner)
+ *   Returns: ALL VERSIONS of that specific chain (revoked or active)
+ * 
+ * CRITICAL DIFFERENCE:
+ * - Franchise Number: Can be reused when revoked + 3 years expired
+ *   Example: #0001 (User A, revoked) → #0001 (User B, active)
+ * - Franchise Chain: Tied to ONE user forever, never reused
+ *   Example: "user-123-1609459200" = User 123's franchise chain
  * 
  * Examples:
- * - "Juan Dela Cruz" → Searches operatorName
- * - "F-2024-001" → Searches franchiseNumber (all versions)
- * - "2024" → Searches franchiseNumber containing "2024"
- * 
- * Returns: All matching franchises (current and previous versions)
+ * - /search?q=Juan → All versions of Juan's franchises (current and past)
+ * - /search?q=0001 → All versions of franchise #0001 (all owners who had it)
+ * - /search?q=user-123-1609459200 → All versions of User 123's franchise chain
  */
 exports.searchFranchiseInformation = async (req, res, next) => {
   try {
@@ -77,38 +113,50 @@ exports.searchFranchiseInformation = async (req, res, next) => {
     const FranchiseInformation = require('../models/franchiseInformationModel');
     
     // Determine search type based on query content
+    const isChainId = searchTerm.startsWith('user-');
     const hasNumbers = /\d/.test(searchTerm);
     const isPureLetters = /^[a-zA-Z\s]+$/.test(searchTerm);
     
     let franchises = [];
     let searchType = '';
     
-    if (isPureLetters) {
+    if (isChainId) {
+      // Search by FRANCHISE CHAIN ID (specific owner)
+      // Returns ALL versions (active, revoked, everything)
+      searchType = 'chainId';
+      franchises = await FranchiseInformation.find({
+        franchiseChainId: searchTerm
+      })
+      .populate('linkedUser', 'username email _id')
+      .populate('previousVersion', 'version changeType changedAt franchiseStatus')
+      .sort({ version: 1 }); // Chronological order
+      
+    } else if (isPureLetters) {
       // Search by OPERATOR NAME (case-insensitive, partial match)
-      // Sort by: franchiseChainId (descending - newest chain first), then changedAt (latest first within chain)
+      // Returns ALL versions (including revoked/previous franchises)
       searchType = 'name';
       franchises = await FranchiseInformation.find({
         operatorName: { $regex: searchTerm, $options: 'i' }
       })
-      .populate('linkedUser', 'username email')
-      .populate('previousVersion', 'version changeType')
-      .sort({ franchiseChainId: -1, changedAt: -1 });
+      .populate('linkedUser', 'username email _id')
+      .populate('previousVersion', 'version changeType changedAt franchiseStatus')
+      .sort({ franchiseNumber: 1, version: -1 }); // Sort by number, then by version (latest first)
       
     } else if (hasNumbers) {
-      // Search by FRANCHISE NUMBER (exact or partial match, all versions)
-      // Sort by: franchiseNumber, franchiseChainId (descending - newest chain first), then changedAt (latest first within chain)
+      // Search by FRANCHISE NUMBER (exact or partial match)
+      // Returns ALL versions (including revoked/recycled numbers with different owners)
       searchType = 'franchiseNumber';
       franchises = await FranchiseInformation.find({
         franchiseNumber: { $regex: searchTerm, $options: 'i' }
       })
-      .populate('linkedUser', 'username email')
-      .populate('previousVersion', 'version changeType')
-      .sort({ franchiseNumber: 1, franchiseChainId: -1, changedAt: -1 });
+      .populate('linkedUser', 'username email _id')
+      .populate('previousVersion', 'version changeType changedAt franchiseStatus')
+      .sort({ franchiseNumber: 1, franchiseChainId: 1, version: -1 }); // Sort by number, chain, version
       
     } else {
       return res.status(400).json({
         error: 'Invalid search query',
-        message: 'Search must contain letters (for name) or numbers (for franchise number)'
+        message: 'Search by: name (letters), franchise number (digits), or chain ID (user-xxx-xxx)'
       });
     }
     
@@ -117,9 +165,153 @@ exports.searchFranchiseInformation = async (req, res, next) => {
       searchType: searchType,
       query: searchTerm,
       count: franchises.length,
+      note: searchType === 'chainId' 
+        ? 'Returns ALL versions of this franchise chain (revoked or active). Chain belongs to ONE user only.'
+        : searchType === 'franchiseNumber'
+        ? 'Returns ALL versions of this franchise number (may include different owners if number was recycled).'
+        : 'Returns ALL versions (current and previous) of matching franchises.',
       data: franchises
     });
     
+  } catch (error) {
+    return next(error);
+  }
+};
+
+/**
+ * GET /franchise-information/history/:franchiseNumber
+ * Get FULL HISTORY of a specific franchise number (ALL OWNERS)
+ * 
+ * Purpose: View all versions of a franchise number across all owners
+ * Shows complete lineage when franchise number was reused
+ * Params: franchiseNumber (4-digit number like "0001", "1234", etc.)
+ * 
+ * Returns:
+ * - All versions of this franchise number (current and previous owners)
+ * - Sorted chronologically (oldest to newest)
+ * - Includes revoked franchises (important when number was recycled to new owner)
+ * 
+ * Example:
+ * - Franchise #0001 had 3 versions under User A (now revoked)
+ * - Then #0001 was recycled to User B (1 version, active)
+ * - This endpoint returns ALL 4 versions grouped by owner
+ */
+exports.getFranchiseHistory = async (req, res, next) => {
+  try {
+    const { franchiseNumber } = req.params;
+    
+    if (!franchiseNumber || franchiseNumber.trim().length === 0) {
+      return res.status(400).json({ 
+        error: 'franchiseNumber param is required',
+        message: 'Provide a 4-digit franchise number (e.g., 0001, 1234)' 
+      });
+    }
+    
+    const FranchiseInformation = require('../models/franchiseInformationModel');
+    
+    // Fetch ALL versions of this franchise number (all owners, all statuses)
+    const franchiseHistory = await FranchiseInformation.find({
+      franchiseNumber: franchiseNumber.trim()
+    })
+      .populate('linkedUser', 'username email _id')
+      .populate('previousVersion', 'version changeType changedAt franchiseStatus')
+      .sort({ changedAt: 1 }); // Chronological order (oldest first)
+    
+    if (!franchiseHistory || franchiseHistory.length === 0) {
+      return res.status(404).json({ 
+        error: 'Franchise not found',
+        message: `No franchise found with number: ${franchiseNumber}` 
+      });
+    }
+    
+    // Group by franchiseChainId to show ownership changes
+    const chainMap = new Map();
+    for (const franchise of franchiseHistory) {
+      if (!chainMap.has(franchise.franchiseChainId)) {
+        chainMap.set(franchise.franchiseChainId, []);
+      }
+      chainMap.get(franchise.franchiseChainId).push(franchise);
+    }
+    
+    return res.status(200).json({ 
+      success: true,
+      franchiseNumber: franchiseNumber.trim(),
+      totalVersions: franchiseHistory.length,
+      uniqueOwners: chainMap.size,
+      ownershipHistory: Array.from(chainMap.entries()).map(([chainId, franchises]) => ({
+        franchiseChainId: chainId,
+        owner: franchises[0].linkedUser,
+        versions: franchises.length,
+        currentStatus: franchises[franchises.length - 1].franchiseStatus,
+        franchises: franchises
+      })),
+      allVersions: franchiseHistory 
+    });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+/**
+ * GET /franchise-information/chain/:franchiseChainId
+ * Get all versions of a SPECIFIC FRANCHISE CHAIN (ONE OWNER)
+ * 
+ * Purpose: View complete lifecycle of one operator's franchise
+ * Tied to specific user/operator (not recyclable like franchise number)
+ * Shows ALL versions: active, renewed, amended, and if revoked
+ * Params: franchiseChainId (format: "user-${userId}-${timestamp}")
+ * 
+ * Returns:
+ * - All versions of this specific franchise chain
+ * - Sorted chronologically (oldest to newest)
+ * - Includes revoked franchises (shows full lifecycle)
+ * - CRITICAL: Each chain belongs to ONE user only
+ * 
+ * Example:
+ * - User A's franchise chain: "user-507f1f77bcf86cd799439011-1609459200"
+ * - Shows all versions from creation → renewals → amendments → expiry → revoke
+ */
+exports.getFranchiseChainHistory = async (req, res, next) => {
+  try {
+    const { franchiseChainId } = req.params;
+    
+    if (!franchiseChainId || franchiseChainId.trim().length === 0) {
+      return res.status(400).json({ 
+        error: 'franchiseChainId param is required',
+        message: 'Provide a franchise chain ID (e.g., user-507f1f77bcf86cd799439011-1609459200)' 
+      });
+    }
+    
+    const FranchiseInformation = require('../models/franchiseInformationModel');
+    
+    // Fetch all versions of this franchise chain (ONE user only)
+    const chainHistory = await FranchiseInformation.find({
+      franchiseChainId: franchiseChainId.trim()
+    })
+      .populate('linkedUser', 'username email _id')
+      .populate('previousVersion', 'version changeType changedAt franchiseStatus')
+      .sort({ version: 1 }); // Chronological by version
+    
+    if (!chainHistory || chainHistory.length === 0) {
+      return res.status(404).json({ 
+        error: 'Franchise chain not found',
+        message: `No franchise chain found with ID: ${franchiseChainId}. This chain may have been revoked.` 
+      });
+    }
+    
+    const latestVersion = chainHistory[chainHistory.length - 1];
+    
+    return res.status(200).json({ 
+      success: true,
+      franchiseChainId: franchiseChainId.trim(),
+      linkedUser: latestVersion.linkedUser,
+      franchiseNumber: latestVersion.franchiseNumber,
+      currentStatus: latestVersion.franchiseStatus,
+      totalVersions: chainHistory.length,
+      isActive: latestVersion.franchiseStatus === 'Active',
+      isRevoked: latestVersion.franchiseStatus === 'Revoked',
+      data: chainHistory 
+    });
   } catch (error) {
     return next(error);
   }
@@ -175,6 +367,7 @@ exports.getFranchiseInformation = async (req, res, next) => {
  * 
  * Optimization:
  * - Uses Map for O(1) lookup instead of nested loops
+ * - Groups by franchiseChainId to ensure one franchise per chain
  * - Single pass through franchises O(n)
  * - Gap detection in O(n) instead of O(n²)
  */
@@ -182,13 +375,25 @@ exports.getAvailableFranchiseNumbers = async (req, res, next) => {
   try {
     const FranchiseInformation = require('../models/franchiseInformationModel');
 
-    // Fetch only what is needed
-    const allCurrentFranchises = await FranchiseInformation.find({
+    // Fetch all franchises sorted to get latest version per chain
+    const allFranchises = await FranchiseInformation.find({
       isCurrentVersion: true
     })
-      .select('franchiseNumber franchiseStatus expiryDate') // Only required fields
+      .select('franchiseChainId franchiseNumber franchiseStatus expiryDate') // Required fields
       .lean()
+      .sort({ franchiseChainId: 1, version: -1 }) // Group by chain, latest first
       .exec();
+
+    // Group by franchiseChainId and keep only the latest version per chain
+    const chainMap = new Map();
+    for (const franchise of allFranchises) {
+      if (!chainMap.has(franchise.franchiseChainId)) {
+        chainMap.set(franchise.franchiseChainId, franchise);
+      }
+    }
+
+    // Now process only the latest versions
+    const allCurrentFranchises = Array.from(chainMap.values());
 
     const now = new Date();
     const threeYearsAgo = new Date(now);
@@ -292,6 +497,21 @@ exports.getAvailableFranchiseNumbers = async (req, res, next) => {
 // ========================================
 
 
+/**
+ * GET /franchise-information/qr/hash/:hashedMTOP
+ * QR code verification endpoint - returns DRIVER details from LATEST franchise version
+ * 
+ * Purpose: Verify tricycle via QR code scan
+ * PUBLIC - Rate limited, returns driver info for verification
+ * 
+ * Logic:
+ * 1. Hash is computed from franchiseNumber (4-digit: "0001", "1234", etc.)
+ * 2. Finds franchise matching the hash
+ * 3. Returns LATEST VERSION of that franchise chain
+ * 4. Shows driver info + franchise status
+ * 
+ * Returns: Driver name, picture, address, TODA membership, franchise status
+ */
 exports.franchiseQRLookupByHash = async (req, res, next) => {
   try {
     const { hashedMTOP } = req.params;
@@ -304,7 +524,8 @@ exports.franchiseQRLookupByHash = async (req, res, next) => {
     const FranchiseInformation = require('../models/franchiseInformationModel');
     const allCurrentFranchises = await FranchiseInformation.find({ 
       isCurrentVersion: true 
-    });
+    })
+    .sort({ franchiseChainId: 1, version: -1 }); // Group by chain, latest first
     
     // Find the franchise whose hashed franchise number matches
     let franchiseInformation = null;
@@ -325,7 +546,7 @@ exports.franchiseQRLookupByHash = async (req, res, next) => {
     
     // Log QR scan for audit trail
     const ipAddress = getClientIp(req);
-    console.log(`[QR SCAN] Hashed: ${hashedMTOP}, Franchise#: ${franchiseInformation.franchiseNumber}, Driver: ${franchiseInformation.driverName}, Status: ${franchiseInformation.franchiseStatus}, IP: ${ipAddress}, Time: ${new Date().toISOString()}`);
+    console.log(`[QR SCAN] Hashed: ${hashedMTOP}, Franchise#: ${franchiseInformation.franchiseNumber}, Driver: ${franchiseInformation.driverName}, Status: ${franchiseInformation.franchiseStatus}, ChainID: ${franchiseInformation.franchiseChainId}, Version: ${franchiseInformation.version}, IP: ${ipAddress}, Time: ${new Date().toISOString()}`);
     
     // Get driver picture URL (with proxy for CORS bypass)
     let driverPictureUrl = null;
@@ -336,6 +557,12 @@ exports.franchiseQRLookupByHash = async (req, res, next) => {
     
     // Return DRIVER-focused public information for QR code verification
     const publicData = {
+      // Franchise Identification (for verification)
+      franchiseNumber: franchiseInformation.franchiseNumber,
+      franchiseChainId: franchiseInformation.franchiseChainId,
+      franchiseVersion: franchiseInformation.version,
+      franchiseStatus: franchiseInformation.franchiseStatus,
+      
       // Driver Information (PRIMARY)
       driversID: franchiseInformation.driversID,
       driverName: franchiseInformation.driverName,
@@ -343,7 +570,12 @@ exports.franchiseQRLookupByHash = async (req, res, next) => {
       driverPicture: driverPictureUrl,
       driverPictureObj: franchiseInformation.documents?.driverPictureObj || null,
       
-      todaMembership: franchiseInformation.todaMembership
+      // Membership & Registration
+      todaMembership: franchiseInformation.todaMembership,
+      
+      // Activity Status
+      isCurrentVersion: franchiseInformation.isCurrentVersion,
+      expiryDate: franchiseInformation.expiryDate
     };
     
     return res.status(200).json({ 

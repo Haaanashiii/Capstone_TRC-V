@@ -689,6 +689,8 @@ const OperatorHomePage = () => {
               ACTIVE FRANCHISES
             </Typography>
             
+            {/* Desktop Table View */}
+            <Box sx={{ display: { xs: 'none', md: 'block' } }}>
             <TableContainer component={Paper} sx={{ 
               marginBottom: '32px',
               boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
@@ -767,6 +769,88 @@ const OperatorHomePage = () => {
           </TableContainer>
           </Box>
 
+          {/* Mobile Card View */}
+          <Box sx={{ display: { xs: 'block', md: 'none' }, mb: 4 }}>
+            {franchiseLinked && userFranchiseInfo ? (
+              <Paper
+                elevation={3}
+                sx={{
+                  p: 2.5,
+                  borderRadius: 2,
+                  bgcolor: '#fff'
+                }}
+              >
+                <Box sx={{ mb: 2 }}>
+                  <Typography sx={{ fontSize: 12, color: '#666', mb: 0.5 }}>
+                    Franchise Number
+                  </Typography>
+                  <Typography sx={{ fontSize: 16, fontWeight: 700, color: '#174D7A' }}>
+                    {userFranchiseInfo.franchiseNumber || userFranchiseInfo.orNumber || 'N/A'}
+                  </Typography>
+                </Box>
+                <Box sx={{ mb: 2 }}>
+                  <Typography sx={{ fontSize: 12, color: '#666', mb: 0.5 }}>
+                    Make
+                  </Typography>
+                  <Typography sx={{ fontSize: 14, fontWeight: 600 }}>
+                    {userFranchiseInfo.make || 'N/A'}
+                  </Typography>
+                </Box>
+                <Box sx={{ mb: 2 }}>
+                  <Typography sx={{ fontSize: 12, color: '#666', mb: 0.5 }}>
+                    Plate Number
+                  </Typography>
+                  <Typography sx={{ fontSize: 14, fontWeight: 600 }}>
+                    {userFranchiseInfo.plateNumber || 'N/A'}
+                  </Typography>
+                </Box>
+                <Box sx={{ mb: 2 }}>
+                  <Typography sx={{ fontSize: 12, color: '#666', mb: 0.5 }}>
+                    Sidecar Number
+                  </Typography>
+                  <Typography sx={{ fontSize: 14, fontWeight: 600 }}>
+                    {userFranchiseInfo.sidecarNumber || 'N/A'}
+                  </Typography>
+                </Box>
+                <Box sx={{ mb: 2 }}>
+                  <Typography sx={{ fontSize: 12, color: '#666', mb: 0.5 }}>
+                    Status
+                  </Typography>
+                  <Chip 
+                    label={userFranchiseInfo.status}
+                    size="small"
+                    sx={{
+                      backgroundColor: '#2ecc71',
+                      color: '#fff',
+                      fontWeight: 600,
+                      mt: 0.5
+                    }}
+                  />
+                </Box>
+                <Box>
+                  <Typography sx={{ fontSize: 12, color: '#666', mb: 0.5 }}>
+                    Expiry Date
+                  </Typography>
+                  <Typography sx={{ fontSize: 14, fontWeight: 600 }}>
+                    {userFranchiseInfo.expiryDate ? new Date(userFranchiseInfo.expiryDate).toLocaleDateString() : 'N/A'}
+                  </Typography>
+                </Box>
+              </Paper>
+            ) : (
+              <Paper
+                elevation={2}
+                sx={{
+                  p: 3,
+                  textAlign: 'center',
+                  color: '#666'
+                }}
+              >
+                <Typography>No active franchise</Typography>
+              </Paper>
+            )}
+          </Box>
+          </Box>
+
           {/* Franchise Information Table */}
           {franchiseLinked && userFranchiseInfo && (
             <Box sx={{ width: '100%', maxWidth: '900px' }}>
@@ -781,6 +865,8 @@ const OperatorHomePage = () => {
                 MY FRANCHISE INFORMATION
               </Typography>
               
+              {/* Desktop Table View */}
+              <Box sx={{ display: { xs: 'none', md: 'block' } }}>
               <TableContainer component={Paper} sx={{ 
                 marginBottom: '32px',
                 boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
@@ -848,6 +934,75 @@ const OperatorHomePage = () => {
                 </Table>
               </TableContainer>
             </Box>
+
+            {/* Mobile Card View */}
+            <Box sx={{ display: { xs: 'block', md: 'none' }, mb: 4 }}>
+              <Paper
+                elevation={3}
+                sx={{
+                  p: 2.5,
+                  borderRadius: 2,
+                  bgcolor: '#fff'
+                }}
+              >
+                <Box sx={{ mb: 2 }}>
+                  <Typography sx={{ fontSize: 12, color: '#666', mb: 0.5 }}>
+                    Franchise Number
+                  </Typography>
+                  <Typography sx={{ fontSize: 16, fontWeight: 700, color: '#174D7A' }}>
+                    {userFranchiseInfo.franchiseNumber || userFranchiseInfo.orNumber || 'N/A'}
+                  </Typography>
+                </Box>
+                <Box sx={{ mb: 2 }}>
+                  <Typography sx={{ fontSize: 12, color: '#666', mb: 0.5 }}>
+                    Make
+                  </Typography>
+                  <Typography sx={{ fontSize: 14, fontWeight: 600 }}>
+                    {userFranchiseInfo.make || 'N/A'}
+                  </Typography>
+                </Box>
+                <Box sx={{ mb: 2 }}>
+                  <Typography sx={{ fontSize: 12, color: '#666', mb: 0.5 }}>
+                    Plate Number
+                  </Typography>
+                  <Typography sx={{ fontSize: 14, fontWeight: 600 }}>
+                    {userFranchiseInfo.plateNumber || 'N/A'}
+                  </Typography>
+                </Box>
+                <Box sx={{ mb: 2 }}>
+                  <Typography sx={{ fontSize: 12, color: '#666', mb: 0.5 }}>
+                    Sidecar Number
+                  </Typography>
+                  <Typography sx={{ fontSize: 14, fontWeight: 600 }}>
+                    {userFranchiseInfo.sidecarNumber || 'N/A'}
+                  </Typography>
+                </Box>
+                <Box sx={{ mb: 2 }}>
+                  <Typography sx={{ fontSize: 12, color: '#666', mb: 0.5 }}>
+                    Status
+                  </Typography>
+                  <Chip 
+                    label={userFranchiseInfo.status}
+                    size="small"
+                    sx={{
+                      backgroundColor: '#2ecc71',
+                      color: '#fff',
+                      fontWeight: 600,
+                      mt: 0.5
+                    }}
+                  />
+                </Box>
+                <Box>
+                  <Typography sx={{ fontSize: 12, color: '#666', mb: 0.5 }}>
+                    Expiry Date
+                  </Typography>
+                  <Typography sx={{ fontSize: 14, fontWeight: 600 }}>
+                    {userFranchiseInfo.expiryDate ? new Date(userFranchiseInfo.expiryDate).toLocaleDateString() : 'N/A'}
+                  </Typography>
+                </Box>
+              </Paper>
+            </Box>
+            </Box>
           )}
 
           {/* Pending Applications Section */}
@@ -864,6 +1019,9 @@ const OperatorHomePage = () => {
           </Typography>
 
           {userApplications.length > 0 ? (
+            <>
+            {/* Desktop Table View */}
+            <Box sx={{ display: { xs: 'none', md: 'block' } }}>
             <TableContainer component={Paper} sx={{ 
               boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
               overflowX: 'auto',
@@ -989,13 +1147,31 @@ const OperatorHomePage = () => {
                             Resubmit
                           </Button>
                         )}
-                        {app.statusOfBPLO === 'bplo-approved' && (
+                        {(app.statusOfBPLO === 'awaiting-sb' || app.statusOfBPLO === 'sb-approved') && (
                           <Button
                             variant="outlined"
                             size="small"
                             onClick={() => handleOpenNoticeModal(app)}
                             sx={{
-                              ml: app.statusOfBPLO === 'bplo-approved' && !app.officialReceiptNumber ? 1 : 0,
+                              borderColor: '#3498db',
+                              color: '#3498db',
+                              fontSize: '12px',
+                              '&:hover': {
+                                borderColor: '#2980b9',
+                                backgroundColor: 'rgba(52, 152, 219, 0.04)'
+                              }
+                            }}
+                          >
+                            View Details
+                          </Button>
+                        )}
+                        {app.statusOfBPLO === 'bplo-approved' && app.officialReceiptNumber && (
+                          <Button
+                            variant="outlined"
+                            size="small"
+                            onClick={() => handleOpenNoticeModal(app)}
+                            sx={{
+                              ml: 1,
                               borderColor: '#174D7A',
                               color: '#174D7A',
                               fontSize: '12px',
@@ -1014,6 +1190,168 @@ const OperatorHomePage = () => {
                 </TableBody>
               </Table>
             </TableContainer>
+            </Box>
+
+            {/* Mobile Card View */}
+            <Box sx={{ display: { xs: 'block', md: 'none' } }}>
+              {userApplications.map((app, index) => (
+                <Paper
+                  key={app._id}
+                  elevation={3}
+                  sx={{
+                    p: 2.5,
+                    mb: 2,
+                    borderRadius: 2,
+                    cursor: 'pointer',
+                    '&:hover': {
+                      boxShadow: 4
+                    }
+                  }}
+                >
+                  <Box sx={{ mb: 2, pb: 2, borderBottom: '1px solid #e0e0e0' }}>
+                    <Typography sx={{ fontSize: 12, color: '#666', mb: 0.5 }}>
+                      Application #{index + 1}
+                    </Typography>
+                    <Typography sx={{ fontSize: 18, fontWeight: 700, color: '#174D7A' }}>
+                      {app.mvPlateNo}
+                    </Typography>
+                  </Box>
+                  
+                  <Box sx={{ mb: 2 }}>
+                    <Typography sx={{ fontSize: 12, color: '#666', mb: 1 }}>
+                      Status
+                    </Typography>
+                    <Chip 
+                      label={
+                        app.statusOfBPLO === 'pending' ? 'Pending Review' :
+                        app.statusOfBPLO === 'bplo-approved' ? 'BPLO Approved - Submit OR' :
+                        app.statusOfBPLO === 'bplo-disapproved' ? 'Disapproved' :
+                        app.statusOfBPLO === 'awaiting-sb' ? 'Awaiting SB Approval' :
+                        app.statusOfBPLO === 'sb-approved' ? 'Finally Approved' :
+                        app.statusOfBPLO
+                      }
+                      sx={{
+                        backgroundColor: 
+                          app.statusOfBPLO === 'bplo-disapproved' ? '#e74c3c' :
+                          app.statusOfBPLO === 'bplo-approved' ? '#f39c12' :
+                          app.statusOfBPLO === 'awaiting-sb' ? '#3498db' :
+                          app.statusOfBPLO === 'sb-approved' ? '#2ecc71' :
+                          '#95a5a6',
+                        color: '#fff',
+                        fontWeight: 600,
+                        height: '32px'
+                      }}
+                    />
+                  </Box>
+
+                  <Box sx={{ mb: 2 }}>
+                    <Typography sx={{ fontSize: 12, color: '#666', mb: 0.5 }}>
+                      Submitted Date
+                    </Typography>
+                    <Typography sx={{ fontSize: 14, fontWeight: 600 }}>
+                      {new Date(app.submittedAt).toLocaleDateString()}
+                    </Typography>
+                  </Box>
+
+                  <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 2 }}>
+                    {app.statusOfBPLO === 'pending' && (
+                      <Button
+                        variant="outlined"
+                        size="medium"
+                        fullWidth
+                        onClick={() => handleOpenNoticeModal(app)}
+                        sx={{
+                          borderColor: '#95a5a6',
+                          color: '#95a5a6',
+                          fontWeight: 600,
+                          '&:hover': {
+                            borderColor: '#7f8c8d',
+                            backgroundColor: 'rgba(149, 165, 166, 0.04)'
+                          }
+                        }}
+                      >
+                        View Status
+                      </Button>
+                    )}
+                    {app.statusOfBPLO === 'bplo-approved' && !app.officialReceiptNumber && (
+                      <Button
+                        variant="contained"
+                        size="medium"
+                        fullWidth
+                        onClick={() => handleOpenORModal(app)}
+                        sx={{
+                          backgroundColor: '#FEDE05',
+                          color: '#174D7A',
+                          fontWeight: 600,
+                          '&:hover': {
+                            backgroundColor: '#e5c900'
+                          }
+                        }}
+                      >
+                        Submit OR
+                      </Button>
+                    )}
+                    {app.statusOfBPLO === 'bplo-disapproved' && (
+                      <Button
+                        variant="contained"
+                        size="medium"
+                        fullWidth
+                        onClick={() => handleOpenNoticeModal(app)}
+                        sx={{
+                          backgroundColor: '#e74c3c',
+                          color: '#fff',
+                          fontWeight: 600,
+                          '&:hover': {
+                            backgroundColor: '#c0392b'
+                          }
+                        }}
+                      >
+                        Resubmit
+                      </Button>
+                    )}
+                    {(app.statusOfBPLO === 'awaiting-sb' || app.statusOfBPLO === 'sb-approved') && (
+                      <Button
+                        variant="outlined"
+                        size="medium"
+                        fullWidth
+                        onClick={() => handleOpenNoticeModal(app)}
+                        sx={{
+                          borderColor: '#3498db',
+                          color: '#3498db',
+                          fontWeight: 600,
+                          '&:hover': {
+                            borderColor: '#2980b9',
+                            backgroundColor: 'rgba(52, 152, 219, 0.04)'
+                          }
+                        }}
+                      >
+                        View Details
+                      </Button>
+                    )}
+                    {app.statusOfBPLO === 'bplo-approved' && app.officialReceiptNumber && (
+                      <Button
+                        variant="outlined"
+                        size="medium"
+                        fullWidth
+                        onClick={() => handleOpenNoticeModal(app)}
+                        sx={{
+                          borderColor: '#174D7A',
+                          color: '#174D7A',
+                          fontWeight: 600,
+                          '&:hover': {
+                            borderColor: '#0f3a5f',
+                            backgroundColor: 'rgba(23, 77, 122, 0.04)'
+                          }
+                        }}
+                      >
+                        View Details
+                      </Button>
+                    )}
+                  </Box>
+                </Paper>
+              ))}
+            </Box>
+            </>
           ) : (
             <Box sx={{ 
               background: '#fff', 
@@ -1254,16 +1592,18 @@ const OperatorHomePage = () => {
           top: '50%',
           left: '50%',
           transform: 'translate(-50%, -50%)',
-          width: 550,
+          width: { xs: 'calc(100vw - 32px)', sm: 500, md: 550 },
+          maxWidth: '550px',
+          maxHeight: { xs: 'calc(100vh - 64px)', sm: '90vh' },
+          overflow: 'auto',
           bgcolor: 'background.paper',
           borderRadius: '16px',
-          boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
-          overflow: 'hidden'
+          boxShadow: '0 8px 32px rgba(0,0,0,0.2)'
         }}>
           {/* Modal Header */}
           <Box sx={{ 
             background: '#174D7A', 
-            padding: '24px 32px',
+            padding: { xs: '16px 20px', sm: '24px 32px' },
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center'
@@ -1271,7 +1611,8 @@ const OperatorHomePage = () => {
             <Typography id="notice-modal-title" variant="h5" component="h2" sx={{ 
               color: '#fff', 
               fontWeight: 700,
-              fontFamily: 'Poppins, sans-serif'
+              fontFamily: 'Poppins, sans-serif',
+              fontSize: { xs: '1.25rem', sm: '1.5rem' }
             }}>
               {selectedNotice?.noticeType || 'BPLO Notice'}
             </Typography>
@@ -1289,16 +1630,16 @@ const OperatorHomePage = () => {
           </Box>
           
           {/* Modal Body */}
-          <Box sx={{ padding: '32px' }}>
+          <Box sx={{ padding: { xs: '20px', sm: '32px' } }}>
             <Box sx={{
               backgroundColor: '#FEDE05',
               borderRadius: '12px',
-              padding: '20px',
-              marginBottom: '24px'
+              padding: { xs: '16px', sm: '20px' },
+              marginBottom: { xs: '20px', sm: '24px' }
             }}>
               <Typography sx={{ 
                 color: '#174D7A',
-                fontSize: '16px',
+                fontSize: { xs: '14px', sm: '16px' },
                 fontWeight: 600,
                 fontFamily: 'Poppins, sans-serif',
                 lineHeight: 1.6
@@ -1426,16 +1767,18 @@ const OperatorHomePage = () => {
           top: '50%',
           left: '50%',
           transform: 'translate(-50%, -50%)',
-          width: 550,
+          width: { xs: 'calc(100vw - 32px)', sm: 500, md: 550 },
+          maxWidth: '550px',
+          maxHeight: { xs: 'calc(100vh - 64px)', sm: '90vh' },
+          overflow: 'auto',
           bgcolor: 'background.paper',
           borderRadius: '16px',
-          boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
-          overflow: 'hidden'
+          boxShadow: '0 8px 32px rgba(0,0,0,0.2)'
         }}>
           {/* Modal Header */}
           <Box sx={{ 
             background: '#174D7A', 
-            padding: '24px 32px',
+            padding: { xs: '16px 20px', sm: '24px 32px' },
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center'
@@ -1443,7 +1786,8 @@ const OperatorHomePage = () => {
             <Typography id="or-modal-title" variant="h5" component="h2" sx={{ 
               color: '#fff', 
               fontWeight: 700,
-              fontFamily: 'Poppins, sans-serif'
+              fontFamily: 'Poppins, sans-serif',
+              fontSize: { xs: '1.25rem', sm: '1.5rem' }
             }}>
               Submit Official Receipt
             </Typography>
@@ -1461,7 +1805,7 @@ const OperatorHomePage = () => {
           </Box>
           
           {/* Modal Body */}
-          <Box sx={{ padding: '32px' }}>
+          <Box sx={{ padding: { xs: '20px', sm: '32px' } }}>
             {selectedAppForOR && (
               <Box sx={{ 
                 bgcolor: '#e3f2fd', 
@@ -1530,7 +1874,12 @@ const OperatorHomePage = () => {
             </Box>
             
             {/* Action Buttons */}
-            <Box sx={{ display: 'flex', gap: '12px', marginTop: '24px' }}>
+            <Box sx={{ 
+              display: 'flex', 
+              flexDirection: { xs: 'column', sm: 'row' },
+              gap: '12px', 
+              marginTop: '24px' 
+            }}>
               <Button
                 onClick={handleCloseORModal}
                 disabled={isSubmitting}
@@ -1543,6 +1892,7 @@ const OperatorHomePage = () => {
                   fontWeight: 600,
                   fontFamily: 'Poppins, sans-serif',
                   textTransform: 'none',
+                  minHeight: '48px',
                   '&:hover': {
                     backgroundColor: '#d0d0d0'
                   }
@@ -1562,6 +1912,7 @@ const OperatorHomePage = () => {
                   fontWeight: 600,
                   fontFamily: 'Poppins, sans-serif',
                   textTransform: 'none',
+                  minHeight: '48px',
                   '&:hover': {
                     backgroundColor: '#e5c900'
                   },

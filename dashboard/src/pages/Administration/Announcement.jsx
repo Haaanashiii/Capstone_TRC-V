@@ -112,24 +112,38 @@ function Announcement() {
   useEffect(() => {
     fetchAnnouncements();
 
-    // Connect to WebSocket for real-time updates
+    // Connect to WebSocket announcements room for real-time updates
     if (!websocketService.isConnected()) {
       console.log('[Announcement] Connecting to WebSocket');
-      websocketService.connect('general')
+      websocketService.connect();  // Auto-joins 'announcements' room
     }
 
     // Subscribe to announcement updates
-    const handleAnnouncementUpdates = () => {
-      console.log('[Announcement] WebSocket update - announcements');
-      fetchAnnouncements();
+    const handleAnnouncementCreated = (newAnnouncement) => {
+      console.log('[Announcement] WebSocket event - announcement-created', newAnnouncement);
+      setAnnouncements(prev => [newAnnouncement, ...prev]);
     };
 
-    websocketService.on('announcements', handleAnnouncementUpdates);
-    websocketService.on('announcement-updated', handleAnnouncementUpdates);
+    const handleAnnouncementUpdated = (updatedAnnouncement) => {
+      console.log('[Announcement] WebSocket event - announcement-updated', updatedAnnouncement);
+      setAnnouncements(prev =>
+        prev.map(a => a._id === updatedAnnouncement._id ? updatedAnnouncement : a)
+      );
+    };
+
+    const handleAnnouncementDeleted = (data) => {
+      console.log('[Announcement] WebSocket event - announcement-deleted', data);
+      setAnnouncements(prev => prev.filter(a => a._id !== data._id));
+    };
+
+    websocketService.on('announcement-created', handleAnnouncementCreated);
+    websocketService.on('announcement-updated', handleAnnouncementUpdated);
+    websocketService.on('announcement-deleted', handleAnnouncementDeleted);
 
     return () => {
-      websocketService.off('announcements', handleAnnouncementUpdates);
-      websocketService.off('announcement-updated', handleAnnouncementUpdates);
+      websocketService.off('announcement-created', handleAnnouncementCreated);
+      websocketService.off('announcement-updated', handleAnnouncementUpdated);
+      websocketService.off('announcement-deleted', handleAnnouncementDeleted);
     };
   }, [fetchAnnouncements]);
 
