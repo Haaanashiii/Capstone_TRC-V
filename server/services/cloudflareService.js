@@ -156,6 +156,7 @@ async function compressPDF(buffer) {
  * @param {Object} options - Upload options
  * @param {string} options.baseFolder - Base folder (franchiseApplications/franchiseInformations)
  * @param {string} options.subFolder - Sub folder (userId or franchiseNo)
+ * @param {string} options.applicationId - Application ID (for franchiseApplications - required for new structure)
  * @param {string} options.category - Category (Documentations/ProfilePictures/QRCode)
  * @param {string} options.customKey - Optional custom key to override default path
  * @returns {Promise<string>} Public URL of uploaded file
@@ -164,6 +165,7 @@ async function uploadToR2(buffer, originalName, mimetype, options = {}) {
   const {
     baseFolder = 'franchiseApplications',
     subFolder = 'pending',
+    applicationId = null,
     category = 'Documentations',
     customKey = null
   } = options;
@@ -194,8 +196,16 @@ async function uploadToR2(buffer, originalName, mimetype, options = {}) {
       
       const fileName = `${baseName}-${randomHash}${fileExt}`;
       
-      // Structure: TRC-V/{baseFolder}/{subFolder}/{category}/{filename}
-      key = `TRC-V/${baseFolder}/${subFolder}/${category}/${fileName}`;
+      // Structure for franchise applications with applicationId:
+      // TRC-V/franchiseApplications/{userId}/{applicationId}/{category}/{filename}
+      // Structure for franchise informations:
+      // TRC-V/franchiseInformations/{franchiseNo}/{category}/{filename}
+      if (baseFolder === 'franchiseApplications' && applicationId) {
+        key = `TRC-V/${baseFolder}/${subFolder}/${applicationId}/${category}/${fileName}`;
+      } else {
+        // Fallback for legacy or special cases
+        key = `TRC-V/${baseFolder}/${subFolder}/${category}/${fileName}`;
+      }
     }
 
     // Upload to R2
@@ -260,11 +270,12 @@ async function uploadFranchiseDocuments(files, applicationId = 'pending') {
 /**
  * Move files from franchise-applications folder to franchise-information folder
  * Called after application approval to reorganize files with hashed MTOP
- * @param {string} applicationId - Original application ID
- * @param {string} hashedMTOP - Hashed MTOP number for new folder structure
+ * @param {string} userId - User ID (source folder)
+ * @param {string} applicationId - Application ID (source folder)
+ * @param {string} franchiseNo - Franchise number (destination folder)
  * @returns {Promise<Object>} Mapping of old URLs to new URLs
  */
-async function moveFranchiseFiles(applicationId, hashedMTOP) {
+async function moveFranchiseFiles(userId, applicationId, franchiseNo) {
   try {
     const client = getR2Client();
     const bucketName = process.env.CLOUDFLARE_R2_BUCKET_NAME;
@@ -272,8 +283,8 @@ async function moveFranchiseFiles(applicationId, hashedMTOP) {
       throw new Error('CLOUDFLARE_R2_BUCKET_NAME is not defined');
     }
 
-    const sourcePrefix = `TRC-V/franchise-applications/${applicationId}/`;
-    const destPrefix = `TRC-V/franchise-information/${hashedMTOP}/`;
+    const sourcePrefix = `TRC-V/franchiseApplications/${userId}/${applicationId}/`;
+    const destPrefix = `TRC-V/franchiseInformations/${franchiseNo}/`;
 
     console.log(`[CLOUDFLARE] Moving files from ${sourcePrefix} to ${destPrefix}`);
 
