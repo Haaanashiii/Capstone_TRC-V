@@ -114,7 +114,11 @@ const uploadOperatorDocuments = multer({
   { name: 'operatorPictureObj', maxCount: 1 },
   { name: 'oRLTOObj', maxCount: 1 },
   { name: 'cRLTOObj', maxCount: 1 },
-  { name: 'oRTreasurerOfficeObj', maxCount: 1 }
+  { name: 'oRTreasurerOfficeObj', maxCount: 1 },
+  // SB Admin documents
+  { name: 'resolutionDocument', maxCount: 1 },
+  { name: 'scannedSignedRegistrationObj', maxCount: 1 },
+  { name: 'individualSessionReportObj', maxCount: 1 }
 ]);
 
 // Combined upload for operator creation (profile + documents)

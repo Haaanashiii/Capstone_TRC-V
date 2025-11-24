@@ -713,9 +713,11 @@ function UserManagement() {
           maxWidth="sm"
           fullWidth
         >
-          <DialogTitle sx={{ bgcolor: '#0A356B', color: 'white', fontWeight: 'bold' }}>
-            <SecurityIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
-            Manage Permissions: {selectedUserForPermissions?.name}
+          <DialogTitle className="modal-header">
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <SecurityIcon />
+              <span>Manage Permissions: {selectedUserForPermissions?.name}</span>
+            </Box>
           </DialogTitle>
           <DialogContent sx={{ pt: 3 }}>
             {selectedUserForPermissions && (

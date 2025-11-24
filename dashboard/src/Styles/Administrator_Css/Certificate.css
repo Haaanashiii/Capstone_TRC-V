@@ -2,7 +2,7 @@
   font-family: 'Poppins', sans-serif !important;
 }
 
-.reports-container {
+.certificate-container {
   display: flex;
   min-height: 100vh;
   background-color: #f5f7fa;
@@ -16,14 +16,14 @@
   width: calc(100% - 240px);
 }
 
-.header-container {
+.certificate-container .header-container {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 24px;
 }
 
-.page-title {
+.certificate-container .page-title {
   font-size: 36px;
   font-weight: 700;
   color: #0A356B;
@@ -32,7 +32,7 @@
 }
 
 /* Controls Section */
-.controls-section {
+.certificate-container .controls-section {
   background-color: #ffffff;
   border-radius: 12px !important;
   box-shadow: 0 4px 16px rgba(10, 53, 107, 0.1) !important;
@@ -116,14 +116,30 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 8px;
+  background-color: #ffffff !important;
+  color: #0A356B !important;
+  font-weight: bold !important;
+  border-bottom: 2px solid #0A356B !important;
+  padding: 20px 24px !important;
+  margin-bottom: 0 !important;
 }
 
 .modal-header h2 {
   margin: 0;
   color: #0A356B;
-  font-size: 24px;
+  font-size: 20px;
   font-weight: 700;
+  letter-spacing: -0.3px;
+}
+
+.modal-header .MuiIconButton-root {
+  color: #5f6368 !important;
+  transition: all 0.2s ease;
+}
+
+.modal-header .MuiIconButton-root:hover {
+  background-color: rgba(10, 53, 107, 0.08) !important;
+  color: #0A356B !important;
 }
 
 .modal-content {

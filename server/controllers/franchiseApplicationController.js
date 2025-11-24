@@ -1014,7 +1014,7 @@ exports.approveFranchiseBySBAdmin = async (req, res, next) => {
       if (updated.operatorInfo) {
         req.app.get('io').to(`user-${updated.operatorInfo}`).emit('sb-approval', {
           applicationId: updated._id,
-          message: 'Your application has been finally approved! You can now claim your certificate of approval.',
+          message: 'Your franchise application has been approved by the Sangguniang Bayan.',
           resolutionNumber: resolutionNumber,
           status: 'sb-approved'
         });
@@ -1024,7 +1024,7 @@ exports.approveFranchiseBySBAdmin = async (req, res, next) => {
     res.json({ 
       success: true, 
       data: updated, 
-      message: 'Application finally approved by SB Admin. Applicant has been notified via SMS and email to claim their certificate.' 
+      message: 'Application approved successfully by SB Admin. Applicant has been notified via SMS and email.' 
     });
   } catch (error) {
     console.error('[SB Approval] Error:', error);
@@ -1068,8 +1068,21 @@ exports.sbAdminAcceptNewFranchise = async (req, res, next) => {
     const franchiseNo = application.franchiseNumber;
     if (!franchiseNo) {
       await session.abortTransaction();
-      return res.status(400).json({ error: 'Franchise number not assigned. Please contact BPLO admin.' });
+      console.error('[sbAdminAcceptNewFranchise] Franchise number not found for application:', id);
+      return res.status(400).json({ 
+        error: 'Franchise number not assigned by BPLO',
+        message: 'The application must be approved by BPLO first to receive a franchise number. Please ensure BPLO has processed this application.',
+        applicationId: id,
+        currentStatus: application.statusOfBPLO
+      });
     }
+    
+    console.log('[sbAdminAcceptNewFranchise] Processing franchise creation:', {
+      applicationId: id,
+      franchiseNumber: franchiseNo,
+      operatorName: application.operatorName,
+      sessionNumber: sessionNumber.trim()
+    });
     
     // Check if this franchise number was used before (recycled number)
     // If yes, reuse the previous QR code; if no, generate a new one
@@ -1176,6 +1189,22 @@ exports.sbAdminAcceptNewFranchise = async (req, res, next) => {
     const FranchiseInformationModel = require('../models/franchiseInformationModel');
     const franchise = await FranchiseInformationModel.create([franchiseData], { session });
     
+    // Link franchise to user's franchiseInformation array
+    if (application.operatorInfo) {
+      try {
+        const User = require('../models/userAccountModel');
+        await User.findByIdAndUpdate(
+          application.operatorInfo,
+          { $addToSet: { franchiseInformation: franchise[0]._id } },
+          { session }
+        );
+        console.log('[sbAdminAcceptNewFranchise] Franchise linked to user:', application.operatorInfo);
+      } catch (linkError) {
+        console.error('[sbAdminAcceptNewFranchise] Failed to link franchise to user:', linkError);
+        throw linkError; // Fail transaction if linking fails
+      }
+    }
+    
     // Mark application as completed
     await franchiseApplicationRepository.updateFranchiseApplication(id, {
       statusOfBPLO: 'completed',
@@ -1215,13 +1244,17 @@ exports.sbAdminAcceptNewFranchise = async (req, res, next) => {
           franchiseId: franchise[0]._id,
           franchiseNumber: franchise[0].franchiseNumber,
           sessionNumber: franchise[0].sessionNumber,
-          message: 'Your franchise has been successfully created! You can now download your certificate.',
+          message: 'Your franchise has been successfully registered and is now active in the system.',
           qrCode: franchise[0].qrCode
         });
       }
     }
     
-    res.status(201).json({ success: true, data: franchise[0], message: 'Franchise created successfully' });
+    res.status(201).json({ 
+      success: true, 
+      data: franchise[0], 
+      message: `Franchise record created successfully. Franchise number: ${franchiseNo}` 
+    });
   } catch (error) {
     await session.abortTransaction();
     next(error);
@@ -1364,6 +1397,22 @@ exports.sbAdminAcceptRenewOrAmendment = async (req, res, next) => {
     
     const FranchiseInformationModel = require('../models/franchiseInformationModel');
     const newFranchise = await FranchiseInformationModel.create([newVersionData], { session });
+    
+    // Link franchise to user's franchiseInformation array (for ownership updates)
+    if (application.applicationType === 'update_ownership' && application.operatorInfo) {
+      try {
+        const User = require('../models/userAccountModel');
+        await User.findByIdAndUpdate(
+          application.operatorInfo,
+          { $addToSet: { franchiseInformation: newFranchise[0]._id } },
+          { session }
+        );
+        console.log('[sbAdminAcceptRenewOrAmendment] Franchise linked to new owner:', application.operatorInfo);
+      } catch (linkError) {
+        console.error('[sbAdminAcceptRenewOrAmendment] Failed to link franchise to user:', linkError);
+        throw linkError; // Fail transaction if linking fails
+      }
+    }
     
     // Mark application as completed
     await franchiseApplicationRepository.updateFranchiseApplication(id, {

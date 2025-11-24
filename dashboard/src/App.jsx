@@ -17,7 +17,7 @@ import ReportDriver from './pages/Reporting/reportDriver';
 import FranchiseeList from './pages/Administration/FranchiseeList';
 import FranchiseMgmt from './pages/Administration/FranchiseMgmt';
 import Dashboard from './pages/Administration/Dashboard';
-import Reports from './pages/Administration/Reports';
+import Certificate from './pages/Administration/Certificate';
 import FareReports from './pages/Administration/FareReports';
 import Announcement from './pages/Administration/Announcement';
 import Analytics from './pages/Administration/Analytics';
@@ -111,10 +111,10 @@ function App() {
           } 
         />
         <Route 
-          path="/reports" 
+          path="/certificate" 
           element={
             <ProtectedRoute requiredRole={["bplo-admin", "sb-admin", "super-admin"]}>
-              <Reports />
+              <Certificate />
             </ProtectedRoute>
           } 
         />

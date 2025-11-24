@@ -534,3 +534,12 @@
     padding: 8px;
   }
 }
+
+/* Modal Header Styling */
+.modal-header {
+  background-color: #ffffff !important;
+  color: #0A356B !important;
+  font-weight: bold !important;
+  border-bottom: 2px solid #0A356B !important;
+  padding: 20px 24px !important;
+}

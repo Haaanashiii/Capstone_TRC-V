@@ -27,6 +27,8 @@ import {
   Alert,
   Link,
   Snackbar,
+  Fade,
+  Backdrop,
 } from '@mui/material';
 import { styled } from "@mui/material/styles";
 import SearchIcon from '@mui/icons-material/Search';
@@ -75,7 +77,6 @@ const modalStyle = {
   transform: 'translate(-50%, -50%)',
   width: { xs: '90%', sm: '85%', md: '900px' },
   maxHeight: '90vh',
-  bgcolor: 'background.paper',
   boxShadow: 24,
   borderRadius: 2,
   overflow: 'hidden',
@@ -92,248 +93,251 @@ const FranchiseeDetailsModal = ({ open, onClose, franchisee, isEditing, onEdit, 
       open={open}
       onClose={onClose}
       aria-labelledby="franchisee-details-modal"
+      closeAfterTransition
+      BackdropProps={{
+        timeout: 500,
+      }}
     >
-      <Box className="modal-container">
-        <div className="modal-header">
-          <Typography variant="h5" component="h2">
-            FRANCHISEE DETAILS
-          </Typography>
-          <IconButton onClick={onClose}>
-            <CloseIcon />
-          </IconButton>
-        </div>
-        
-        <Typography variant="h6" className="section-header">
-          PERSONAL INFORMATION
-        </Typography>
-        
-        <div className="info-grid">
-          <Typography variant="subtitle2" className="label">Franchise Number:</Typography>
-          <Typography>{franchisee.franchiseNumber}</Typography>
+      <Fade in={open}>
+        <Box className="modal-container">
+          <div className="modal-header">
+            <Typography variant="h5" component="h2">
+              FRANCHISEE DETAILS
+            </Typography>
+            <IconButton onClick={onClose}>
+              <CloseIcon />
+            </IconButton>
+          </div>
           
-          <Typography variant="subtitle2" className="label">Name:</Typography>
-          <Typography>{franchisee.franchiseeName}</Typography>
-          
-          <Typography variant="subtitle2" className="label">Session Number:</Typography>
-          <Typography>{franchisee.sessionNumber || 'N/A'}</Typography>
-          
-          <Typography variant="subtitle2" className="label">Contact Number:</Typography>
-          <Typography>{franchisee.contactNumber || 'N/A'}</Typography>
-          
-          <Typography variant="subtitle2" className="label">Email:</Typography>
-          <Typography>{franchisee.email || 'N/A'}</Typography>
-          
-          <Typography variant="subtitle2" className="label">Barangay:</Typography>
-          <Typography>{franchisee.barangay || 'N/A'}</Typography>
-          
-          <Typography variant="subtitle2" className="label">Birth Place:</Typography>
-          <Typography>{franchisee.birthPlace || 'N/A'}</Typography>
-          
-          <Typography variant="subtitle2" className="label">Birth Date:</Typography>
-          <Typography>{franchisee.birthDate || 'N/A'}</Typography>
-          
-          <Typography variant="subtitle2" className="label">Civil Status:</Typography>
-          <Typography>{franchisee.civilStatus || 'N/A'}</Typography>
-          
-          <Typography variant="subtitle2" className="label">Citizenship:</Typography>
-          <Typography>{franchisee.citizenship || 'N/A'}</Typography>
-          
-          <Typography variant="subtitle2" className="label">TODA Membership:</Typography>
-          <Typography>{franchisee.todaMembership || 'N/A'}</Typography>
-          
-          <Typography variant="subtitle2" className="label">Address:</Typography>
-          <Typography>{franchisee.address}</Typography>
-          
-          {(franchisee.coOwnerName || franchisee.coOwnerAddress) && (
-            <>
-              <Typography variant="subtitle2" className="label">Co-Owner Name:</Typography>
-              <Typography>{franchisee.coOwnerName || 'N/A'}</Typography>
+          <div className="modal-body">
+            <Typography variant="h6" className="section-header">
+              PERSONAL INFORMATION
+            </Typography>
+            
+            <div className="info-grid">
+              <Typography variant="subtitle2" className="label">Franchise Number:</Typography>
+              <Typography>{franchisee.franchiseNumber}</Typography>
               
-              <Typography variant="subtitle2" className="label">Co-Owner Address:</Typography>
-              <Typography>{franchisee.coOwnerAddress || 'N/A'}</Typography>
-            </>
-          )}
-        </div>
-        
-        <Typography variant="h6" className="section-header">
-          DRIVER INFORMATION
-        </Typography>
-        
-        <div className="info-grid">
-          <Typography variant="subtitle2" className="label">Driver's ID:</Typography>
-          <Typography>{franchisee.driversID || 'N/A'}</Typography>
-          
-          <Typography variant="subtitle2" className="label">Driver Name:</Typography>
-          <Typography>{franchisee.driverName || 'N/A'}</Typography>
-          
-          <Typography variant="subtitle2" className="label">Driver Address:</Typography>
-          <Typography>{franchisee.driversAddress || 'N/A'}</Typography>
-        </div>
-        
-        <Typography variant="h6" className="section-header">
-          FRANCHISE STATUS
-        </Typography>
-        
-        <div className="info-grid">
-          <Typography variant="subtitle2" className="label">Status:</Typography>
-          <Typography>{franchisee.franchiseStatus || 'N/A'}</Typography>
-          
-          <Typography variant="subtitle2" className="label">Rate:</Typography>
-          <Typography>{franchisee.rate || 'N/A'}</Typography>
-          
-          <Typography variant="subtitle2" className="label">Approved Date:</Typography>
-          <Typography>{franchisee.approvedAt || 'N/A'}</Typography>
-          
-          <Typography variant="subtitle2" className="label">Expiry Date:</Typography>
-          <Typography>{franchisee.expiryDate || 'N/A'}</Typography>
-        </div>
-        
-        <Typography variant="h6" className="section-header">
-          MOTORCYCLE INFORMATION
-        </Typography>
-        
-        <div className="info-grid">
-          <Typography variant="subtitle2" className="label">Unit Model:</Typography>
-          <Typography>{franchisee.unitModel || 'N/A'}</Typography>
-          
-          <Typography variant="subtitle2" className="label">Color (Motor):</Typography>
-          <Typography>{franchisee.colorMotor || 'N/A'}</Typography>
-          
-          <Typography variant="subtitle2" className="label">Color (Sidecar):</Typography>
-          <Typography>{franchisee.colorSidecar || 'N/A'}</Typography>
-          
-          <Typography variant="subtitle2" className="label">MV Plate:</Typography>
-          <Typography>{franchisee.mvPlate || 'N/A'}</Typography>
-          
-          <Typography variant="subtitle2" className="label">Motor/Engine Number:</Typography>
-          <Typography>{franchisee.motorEngineNumber || 'N/A'}</Typography>
-          
-          <Typography variant="subtitle2" className="label">Chassis Number:</Typography>
-          <Typography>{franchisee.chassisNumber || 'N/A'}</Typography>
-          
-          <Typography variant="subtitle2" className="label">Sidecar Plate Number:</Typography>
-          <Typography>{franchisee.sidecarPlateNumber || 'N/A'}</Typography>
-          
-          <Typography variant="subtitle2" className="label">Make:</Typography>
-          <Typography>{franchisee.make}</Typography>
-          
-          <Typography variant="subtitle2" className="label">Plate Number:</Typography>
-          <Typography>{franchisee.plateNumber}</Typography>
-        </div>
-
-        <Typography variant="h6" className="section-header">
-          QR CODE
-        </Typography>
-        
-        <div className="qr-code-container">
-          {qrBlobUrl ? (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px' }}>
-              <img 
-                src={qrBlobUrl} 
-                alt="Franchisee QR Code" 
-                className="qr-code-image"
-                onError={(e) => {
-                  console.error('QR Code image failed to load');
-                  e.target.style.display = 'none';
-                }}
-              />
-              <Button
-                variant="contained"
-                href={qrBlobUrl}
-                download={`QR-${franchisee.franchiseNumber}.png`}
-                sx={{
-                  bgcolor: '#0a3161',
-                  '&:hover': { bgcolor: '#082648' },
-                  textTransform: 'none',
-                  fontWeight: 600
-                }}
-              >
-                Download QR Code
-              </Button>
+              <Typography variant="subtitle2" className="label">Name:</Typography>
+              <Typography>{franchisee.franchiseeName}</Typography>
+              
+              <Typography variant="subtitle2" className="label">Session Number:</Typography>
+              <Typography>{franchisee.sessionNumber || 'N/A'}</Typography>
+              
+              <Typography variant="subtitle2" className="label">Contact Number:</Typography>
+              <Typography>{franchisee.contactNumber || 'N/A'}</Typography>
+              
+              <Typography variant="subtitle2" className="label">Email:</Typography>
+              <Typography>{franchisee.email || 'N/A'}</Typography>
+              
+              <Typography variant="subtitle2" className="label">Barangay:</Typography>
+              <Typography>{franchisee.barangay || 'N/A'}</Typography>
+              
+              <Typography variant="subtitle2" className="label">Birth Place:</Typography>
+              <Typography>{franchisee.birthPlace || 'N/A'}</Typography>
+              
+              <Typography variant="subtitle2" className="label">Birth Date:</Typography>
+              <Typography>{franchisee.birthDate || 'N/A'}</Typography>
+              
+              <Typography variant="subtitle2" className="label">Civil Status:</Typography>
+              <Typography>{franchisee.civilStatus || 'N/A'}</Typography>
+              
+              <Typography variant="subtitle2" className="label">Citizenship:</Typography>
+              <Typography>{franchisee.citizenship || 'N/A'}</Typography>
+              
+              <Typography variant="subtitle2" className="label">TODA Membership:</Typography>
+              <Typography>{franchisee.todaMembership || 'N/A'}</Typography>
+              
+              <Typography variant="subtitle2" className="label">Address:</Typography>
+              <Typography>{franchisee.address}</Typography>
+              
+              {(franchisee.coOwnerName || franchisee.coOwnerAddress) && (
+                <>
+                  <Typography variant="subtitle2" className="label">Co-Owner Name:</Typography>
+                  <Typography>{franchisee.coOwnerName || 'N/A'}</Typography>
+                  
+                  <Typography variant="subtitle2" className="label">Co-Owner Address:</Typography>
+                  <Typography>{franchisee.coOwnerAddress || 'N/A'}</Typography>
+                </>
+              )}
             </div>
-          ) : franchisee.qrCode ? (
-            <Typography variant="body2" color="text.secondary">
-              Loading QR code...
+            
+            <Typography variant="h6" className="section-header">
+              DRIVER INFORMATION
             </Typography>
-          ) : (
-            <Typography variant="body2" color="text.secondary">
-              No QR code available
+            
+            <div className="info-grid">
+              <Typography variant="subtitle2" className="label">Driver's ID:</Typography>
+              <Typography>{franchisee.driversID || 'N/A'}</Typography>
+              
+              <Typography variant="subtitle2" className="label">Driver Name:</Typography>
+              <Typography>{franchisee.driverName || 'N/A'}</Typography>
+              
+              <Typography variant="subtitle2" className="label">Driver Address:</Typography>
+              <Typography>{franchisee.driversAddress || 'N/A'}</Typography>
+            </div>
+            
+            <Typography variant="h6" className="section-header">
+              FRANCHISE STATUS
             </Typography>
-          )}
-        </div>
-        
-        <Typography variant="h6" className="section-header">
-          DOCUMENTS
-        </Typography>
-        
-        <div className="info-grid">
-          <Typography variant="subtitle2" className="label">Registration:</Typography>
-          <Link className="document-link" onClick={() => onFilePreview(franchisee.documentRegistration)}>
-            {getFileIcon(franchisee.documentRegistration?.type)}
-            <span>{franchisee.documentRegistration?.name || 'No file'}</span>
-          </Link>
-          
-          <Typography variant="subtitle2" className="label">Barangay Clearance:</Typography>
-          <Link className="document-link" onClick={() => onFilePreview(franchisee.documentBarangayClearance)}>
-            {getFileIcon(franchisee.documentBarangayClearance?.type)}
-            <span>{franchisee.documentBarangayClearance?.name || 'No file'}</span>
-          </Link>
-          
-          <Typography variant="subtitle2" className="label">Cedula:</Typography>
-          <Link className="document-link" onClick={() => onFilePreview(franchisee.documentCedula)}>
-            {getFileIcon(franchisee.documentCedula?.type)}
-            <span>{franchisee.documentCedula?.name || 'No file'}</span>
-          </Link>
-          
-          <Typography variant="subtitle2" className="label">Driver's License:</Typography>
-          <Link className="document-link" onClick={() => onFilePreview(franchisee.documentDriversLicense)}>
-            {getFileIcon(franchisee.documentDriversLicense?.type)}
-            <span>{franchisee.documentDriversLicense?.name || 'No file'}</span>
-          </Link>
-          
-          <Typography variant="subtitle2" className="label">Voter's Affidavit:</Typography>
-          <Link className="document-link" onClick={() => onFilePreview(franchisee.documentVotersAffidavit)}>
-            {getFileIcon(franchisee.documentVotersAffidavit?.type)}
-            <span>{franchisee.documentVotersAffidavit?.name || 'No file'}</span>
-          </Link>
-          
-          <Typography variant="subtitle2" className="label">Chassis Stencil:</Typography>
-          <Link className="document-link" onClick={() => onFilePreview(franchisee.documentChassisStencil)}>
-            {getFileIcon(franchisee.documentChassisStencil?.type)}
-            <span>{franchisee.documentChassisStencil?.name || 'No file'}</span>
-          </Link>
-          
-          <Typography variant="subtitle2" className="label">Driver Picture:</Typography>
-          <Link className="document-link" onClick={() => onFilePreview(franchisee.documentPicture)}>
-            {getFileIcon(franchisee.documentPicture?.type)}
-            <span>{franchisee.documentPicture?.name || 'No file'}</span>
-          </Link>
-          
-          <Typography variant="subtitle2" className="label">OR LTO:</Typography>
-          <Link className="document-link" onClick={() => onFilePreview(franchisee.documentORLTO)}>
-            {getFileIcon(franchisee.documentORLTO?.type)}
-            <span>{franchisee.documentORLTO?.name || 'No file'}</span>
-          </Link>
-          
-          <Typography variant="subtitle2" className="label">CR LTO:</Typography>
-          <Link className="document-link" onClick={() => onFilePreview(franchisee.documentCRLTO)}>
-            {getFileIcon(franchisee.documentCRLTO?.type)}
-            <span>{franchisee.documentCRLTO?.name || 'No file'}</span>
-          </Link>
-          
-          <Typography variant="subtitle2" className="label">OR Treasurer:</Typography>
-          <Link className="document-link" onClick={() => onFilePreview(franchisee.documentTreasurerOR)}>
-            {getFileIcon(franchisee.documentTreasurerOR?.type)}
-            <span>{franchisee.documentTreasurerOR?.name || 'No file'}</span>
-          </Link>
-          
-          <Typography variant="subtitle2" className="label">Session Report:</Typography>
-          <Link className="document-link" onClick={() => onFilePreview(franchisee.documentSessionReport)}>
-            {getFileIcon(franchisee.documentSessionReport?.type)}
-            <span>{franchisee.documentSessionReport?.name || 'No file'}</span>
-          </Link>
-        </div>
-      </Box>
+            
+            <div className="info-grid">
+              <Typography variant="subtitle2" className="label">Status:</Typography>
+              <Typography>{franchisee.franchiseStatus || 'N/A'}</Typography>
+              
+              <Typography variant="subtitle2" className="label">Rate:</Typography>
+              <Typography>{franchisee.rate || 'N/A'}</Typography>
+              
+              <Typography variant="subtitle2" className="label">Approved Date:</Typography>
+              <Typography>{franchisee.approvedAt || 'N/A'}</Typography>
+              
+              <Typography variant="subtitle2" className="label">Expiry Date:</Typography>
+              <Typography>{franchisee.expiryDate || 'N/A'}</Typography>
+            </div>
+            
+            <Typography variant="h6" className="section-header">
+              MOTORCYCLE INFORMATION
+            </Typography>
+            
+            <div className="info-grid">
+              <Typography variant="subtitle2" className="label">Unit Model:</Typography>
+              <Typography>{franchisee.unitModel || 'N/A'}</Typography>
+              
+              <Typography variant="subtitle2" className="label">Color (Motor):</Typography>
+              <Typography>{franchisee.colorMotor || 'N/A'}</Typography>
+              
+              <Typography variant="subtitle2" className="label">Color (Sidecar):</Typography>
+              <Typography>{franchisee.colorSidecar || 'N/A'}</Typography>
+              
+              <Typography variant="subtitle2" className="label">MV Plate:</Typography>
+              <Typography>{franchisee.mvPlate || 'N/A'}</Typography>
+              
+              <Typography variant="subtitle2" className="label">Motor/Engine Number:</Typography>
+              <Typography>{franchisee.motorEngineNumber || 'N/A'}</Typography>
+              
+              <Typography variant="subtitle2" className="label">Chassis Number:</Typography>
+              <Typography>{franchisee.chassisNumber || 'N/A'}</Typography>
+              
+              <Typography variant="subtitle2" className="label">Sidecar Plate Number:</Typography>
+              <Typography>{franchisee.sidecarPlateNumber || 'N/A'}</Typography>
+              
+              <Typography variant="subtitle2" className="label">Make:</Typography>
+              <Typography>{franchisee.make}</Typography>
+              
+              <Typography variant="subtitle2" className="label">Plate Number:</Typography>
+              <Typography>{franchisee.plateNumber}</Typography>
+            </div>
+
+            <Typography variant="h6" className="section-header">
+              QR CODE
+            </Typography>
+            
+            <div className="qr-code-container">
+              {qrBlobUrl ? (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px' }}>
+                  <img 
+                    src={qrBlobUrl} 
+                    alt="Franchisee QR Code" 
+                    className="qr-code-image"
+                    onError={(e) => {
+                      console.error('QR Code image failed to load');
+                      e.target.style.display = 'none';
+                    }}
+                  />
+                  <Button
+                    variant="contained"
+                    href={qrBlobUrl}
+                    download={`QR-${franchisee.franchiseNumber}.png`}
+                    className="button-primary"
+                  >
+                    Download QR Code
+                  </Button>
+                </div>
+              ) : franchisee.qrCode ? (
+                <Typography variant="body2" color="text.secondary">
+                  Loading QR code...
+                </Typography>
+              ) : (
+                <Typography variant="body2" color="text.secondary">
+                  No QR code available
+                </Typography>
+              )}
+            </div>
+            
+            <Typography variant="h6" className="section-header">
+              DOCUMENTS
+            </Typography>
+            
+            <div className="info-grid">
+              <Typography variant="subtitle2" className="label">Registration:</Typography>
+              <Link className="document-link" onClick={() => onFilePreview(franchisee.documentRegistration)}>
+                {getFileIcon(franchisee.documentRegistration?.type)}
+                <span>{franchisee.documentRegistration?.name || 'No file'}</span>
+              </Link>
+              
+              <Typography variant="subtitle2" className="label">Barangay Clearance:</Typography>
+              <Link className="document-link" onClick={() => onFilePreview(franchisee.documentBarangayClearance)}>
+                {getFileIcon(franchisee.documentBarangayClearance?.type)}
+                <span>{franchisee.documentBarangayClearance?.name || 'No file'}</span>
+              </Link>
+              
+              <Typography variant="subtitle2" className="label">Cedula:</Typography>
+              <Link className="document-link" onClick={() => onFilePreview(franchisee.documentCedula)}>
+                {getFileIcon(franchisee.documentCedula?.type)}
+                <span>{franchisee.documentCedula?.name || 'No file'}</span>
+              </Link>
+              
+              <Typography variant="subtitle2" className="label">Driver's License:</Typography>
+              <Link className="document-link" onClick={() => onFilePreview(franchisee.documentDriversLicense)}>
+                {getFileIcon(franchisee.documentDriversLicense?.type)}
+                <span>{franchisee.documentDriversLicense?.name || 'No file'}</span>
+              </Link>
+              
+              <Typography variant="subtitle2" className="label">Voter's Affidavit:</Typography>
+              <Link className="document-link" onClick={() => onFilePreview(franchisee.documentVotersAffidavit)}>
+                {getFileIcon(franchisee.documentVotersAffidavit?.type)}
+                <span>{franchisee.documentVotersAffidavit?.name || 'No file'}</span>
+              </Link>
+              
+              <Typography variant="subtitle2" className="label">Chassis Stencil:</Typography>
+              <Link className="document-link" onClick={() => onFilePreview(franchisee.documentChassisStencil)}>
+                {getFileIcon(franchisee.documentChassisStencil?.type)}
+                <span>{franchisee.documentChassisStencil?.name || 'No file'}</span>
+              </Link>
+              
+              <Typography variant="subtitle2" className="label">Driver Picture:</Typography>
+              <Link className="document-link" onClick={() => onFilePreview(franchisee.documentPicture)}>
+                {getFileIcon(franchisee.documentPicture?.type)}
+                <span>{franchisee.documentPicture?.name || 'No file'}</span>
+              </Link>
+              
+              <Typography variant="subtitle2" className="label">OR LTO:</Typography>
+              <Link className="document-link" onClick={() => onFilePreview(franchisee.documentORLTO)}>
+                {getFileIcon(franchisee.documentORLTO?.type)}
+                <span>{franchisee.documentORLTO?.name || 'No file'}</span>
+              </Link>
+              
+              <Typography variant="subtitle2" className="label">CR LTO:</Typography>
+              <Link className="document-link" onClick={() => onFilePreview(franchisee.documentCRLTO)}>
+                {getFileIcon(franchisee.documentCRLTO?.type)}
+                <span>{franchisee.documentCRLTO?.name || 'No file'}</span>
+              </Link>
+              
+              <Typography variant="subtitle2" className="label">OR Treasurer:</Typography>
+              <Link className="document-link" onClick={() => onFilePreview(franchisee.documentTreasurerOR)}>
+                {getFileIcon(franchisee.documentTreasurerOR?.type)}
+                <span>{franchisee.documentTreasurerOR?.name || 'No file'}</span>
+              </Link>
+              
+              <Typography variant="subtitle2" className="label">Session Report:</Typography>
+              <Link className="document-link" onClick={() => onFilePreview(franchisee.documentSessionReport)}>
+                {getFileIcon(franchisee.documentSessionReport?.type)}
+                <span>{franchisee.documentSessionReport?.name || 'No file'}</span>
+              </Link>
+            </div>
+          </div>
+        </Box>
+      </Fade>
     </Modal>
   );
 };
@@ -915,10 +919,9 @@ function FranchiseeList() {
                       <Chip 
                         label={row.applicationType} 
                         size="small"
+                        className="chip-application-type"
                         sx={{ 
-                          bgcolor: getApplicationTypeColor(row.applicationType),
-                          color: 'white',
-                          fontWeight: 'bold'
+                          bgcolor: getApplicationTypeColor(row.applicationType)
                         }}
                       />
                     </StyledTableCell>

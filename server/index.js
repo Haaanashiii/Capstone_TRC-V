@@ -332,7 +332,7 @@ app.use('/admins', apiLimiter, adminRoutes);
 app.use('/api/pending-apps', apiLimiter, pendingAppsRoutes);
 app.use('/api/franchise-applications', apiLimiter, franchiseApplicationRoutes);
 app.use('/api/dashboard', apiLimiter, dashboardRoutes);
-app.use('/reports', apiLimiter, reportsRoutes);
+app.use('/api/reports', apiLimiter, reportsRoutes);
 app.use('/announcements', apiLimiter, announcementRoutes);
 app.use('/api/franchise-information', apiLimiter, franchiseInformationRoutes);
 app.use('/qr', qrVerificationLimiter, qrCodeRoutes);

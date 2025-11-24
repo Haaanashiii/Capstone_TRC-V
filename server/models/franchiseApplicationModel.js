@@ -53,6 +53,7 @@ const franchiseApplicationSchema = new mongoose.Schema({
       'bplo-disapproved',     // BPLO disapproved - needs inspection/revision
       'awaiting-sb',          // OR submitted - ready for SB review
       'sb-approved',          // Final approval by SB - ready for certificate
+      'completed',            // Franchise created - application completed
       'rejected'              // Permanently rejected
     ], 
     required: true,
@@ -75,6 +76,15 @@ const franchiseApplicationSchema = new mongoose.Schema({
   sbApprovedAt: { type: Date, required: false },             // Final approval timestamp
   sbResolutionNumber: { type: String, required: false },     // Resolution number for certificate
   sbResolutionDocument: { type: String, required: false },   // URL to resolution document uploaded by SB admin
+  
+  // Franchise Creation Stage (after SB acceptance)
+  franchiseCreated: { type: Boolean, default: false },       // Flag indicating franchise record created
+  franchiseCreatedAt: { type: Date, required: false },       // Timestamp of franchise creation
+  relatedFranchiseInfo: {                                    // Link to created FranchiseInformation record
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Franchise Information',
+    required: false
+  },
   
   // Legacy fields
   approvedAt: { type: Date },                                // Kept for backward compatibility

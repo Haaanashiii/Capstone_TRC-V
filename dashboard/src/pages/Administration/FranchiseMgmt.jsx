@@ -158,7 +158,7 @@ function FranchiseMgmt() {
         coOwnerAddress: it.coOwnerAddress || '',
         sidecarPlateNumber: it.sideCarPlateNumber || '',
         birthPlace: it.operatorBirthPlace || '',
-        birthDate: it.operatorBirthDate ? new Date(it.operatorBirthDate).toLocaleDateString() : '',
+        birthDate: it.operatorBirthDate ? new Date(it.operatorBirthDate).toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' }) : '',
         civilStatus: it.operatorCivilStatus || '',
         citizenship: it.operatorCitizenship || '',
         todaMembership: it.todaMembership || '',
@@ -184,16 +184,56 @@ function FranchiseMgmt() {
         sbApprovedAt: it.sbApprovedAt || '',
         sbResolutionNumber: it.sbResolutionNumber || '',
         // Documents - backend returns URLs as strings, convert to {name, path, type} format
-        documentRegistration: it.documents?.motorRegistrationObj ? { name: it.documents.motorRegistrationObj.split('/').pop(), path: it.documents.motorRegistrationObj, type: getFileTypeFromUrl(it.documents.motorRegistrationObj) } : null,
-        documentBarangayClearance: it.documents?.barangayClearanceObj ? { name: it.documents.barangayClearanceObj.split('/').pop(), path: it.documents.barangayClearanceObj, type: getFileTypeFromUrl(it.documents.barangayClearanceObj) } : null,
-        documentCedula: it.documents?.cedulaObj ? { name: it.documents.cedulaObj.split('/').pop(), path: it.documents.cedulaObj, type: getFileTypeFromUrl(it.documents.cedulaObj) } : null,
-        documentDriversLicense: it.documents?.driversLicenseObj ? { name: it.documents.driversLicenseObj.split('/').pop(), path: it.documents.driversLicenseObj, type: getFileTypeFromUrl(it.documents.driversLicenseObj) } : null,
-        documentVotersAffidavit: it.documents?.votersAffidavitObj ? { name: it.documents.votersAffidavitObj.split('/').pop(), path: it.documents.votersAffidavitObj, type: getFileTypeFromUrl(it.documents.votersAffidavitObj) } : null,
-        documentChassisStencil: it.documents?.motorChassisStencilObj ? { name: it.documents.motorChassisStencilObj.split('/').pop(), path: it.documents.motorChassisStencilObj, type: getFileTypeFromUrl(it.documents.motorChassisStencilObj) } : null,
-        documentPicture: it.documents?.driverPictureObj ? { name: it.documents.driverPictureObj.split('/').pop(), path: it.documents.driverPictureObj, type: getFileTypeFromUrl(it.documents.driverPictureObj) } : null,
-        documentOperatorPicture: it.documents?.operatorPictureObj ? { name: it.documents.operatorPictureObj.split('/').pop(), path: it.documents.operatorPictureObj, type: getFileTypeFromUrl(it.documents.operatorPictureObj) } : null,
-        documentORLTO: it.documents?.oRLTOObj ? { name: it.documents.oRLTOObj.split('/').pop(), path: it.documents.oRLTOObj, type: getFileTypeFromUrl(it.documents.oRLTOObj) } : null,
-        documentCRLTO: it.documents?.cRLTOObj ? { name: it.documents.cRLTOObj.split('/').pop(), path: it.documents.cRLTOObj, type: getFileTypeFromUrl(it.documents.cRLTOObj) } : null,
+        documentRegistration: it.documents?.motorRegistrationObj ? { 
+          name: it.documents.motorRegistrationObj.split('/').pop().split('?')[0] || 'Motor Registration', 
+          path: it.documents.motorRegistrationObj, 
+          type: getFileTypeFromUrl(it.documents.motorRegistrationObj) 
+        } : null,
+        documentBarangayClearance: it.documents?.barangayClearanceObj ? { 
+          name: it.documents.barangayClearanceObj.split('/').pop().split('?')[0] || 'Barangay Clearance', 
+          path: it.documents.barangayClearanceObj, 
+          type: getFileTypeFromUrl(it.documents.barangayClearanceObj) 
+        } : null,
+        documentCedula: it.documents?.cedulaObj ? { 
+          name: it.documents.cedulaObj.split('/').pop().split('?')[0] || 'Cedula', 
+          path: it.documents.cedulaObj, 
+          type: getFileTypeFromUrl(it.documents.cedulaObj) 
+        } : null,
+        documentDriversLicense: it.documents?.driversLicenseObj ? { 
+          name: it.documents.driversLicenseObj.split('/').pop().split('?')[0] || 'Driver\'s License', 
+          path: it.documents.driversLicenseObj, 
+          type: getFileTypeFromUrl(it.documents.driversLicenseObj) 
+        } : null,
+        documentVotersAffidavit: it.documents?.votersAffidavitObj ? { 
+          name: it.documents.votersAffidavitObj.split('/').pop().split('?')[0] || 'Voter\'s Affidavit', 
+          path: it.documents.votersAffidavitObj, 
+          type: getFileTypeFromUrl(it.documents.votersAffidavitObj) 
+        } : null,
+        documentChassisStencil: it.documents?.motorChassisStencilObj ? { 
+          name: it.documents.motorChassisStencilObj.split('/').pop().split('?')[0] || 'Chassis Stencil', 
+          path: it.documents.motorChassisStencilObj, 
+          type: getFileTypeFromUrl(it.documents.motorChassisStencilObj) 
+        } : null,
+        documentPicture: it.documents?.driverPictureObj ? { 
+          name: it.documents.driverPictureObj.split('/').pop().split('?')[0] || 'Driver Picture', 
+          path: it.documents.driverPictureObj, 
+          type: getFileTypeFromUrl(it.documents.driverPictureObj) 
+        } : null,
+        documentOperatorPicture: it.documents?.operatorPictureObj ? { 
+          name: it.documents.operatorPictureObj.split('/').pop().split('?')[0] || 'Operator Picture', 
+          path: it.documents.operatorPictureObj, 
+          type: getFileTypeFromUrl(it.documents.operatorPictureObj) 
+        } : null,
+        documentORLTO: it.documents?.oRLTOObj ? { 
+          name: it.documents.oRLTOObj.split('/').pop().split('?')[0] || 'OR LTO', 
+          path: it.documents.oRLTOObj, 
+          type: getFileTypeFromUrl(it.documents.oRLTOObj) 
+        } : null,
+        documentCRLTO: it.documents?.cRLTOObj ? { 
+          name: it.documents.cRLTOObj.split('/').pop().split('?')[0] || 'CR LTO', 
+          path: it.documents.cRLTOObj, 
+          type: getFileTypeFromUrl(it.documents.cRLTOObj) 
+        } : null,
         qrCode: it.qrCode || null,
       })) : []
 
@@ -892,7 +932,7 @@ function FranchiseMgmt() {
 
       setNotification({ 
         open: true, 
-        message: 'Application finally approved! Now you can accept it to create the franchise record.', 
+        message: 'Application approved successfully. You may now proceed to create the franchise record.', 
         type: 'success' 
       })
       
@@ -956,7 +996,7 @@ function FranchiseMgmt() {
 
       setNotification({ 
         open: true, 
-        message: 'Franchise successfully created! It will now appear in the franchise list.', 
+        message: 'Franchise record created successfully. The franchise is now active in the system.', 
         type: 'success' 
       })
       
@@ -1145,9 +1185,9 @@ function FranchiseMgmt() {
   }
 
   return (
-    <div className="main">
+    <div className="franchise-mgmt-container">
       <Sidebar />
-      <div className="content-container">
+      <div className="franchise-mgmt-content">
         <h1 className="title">
           {userRole === 'sb-admin' ? 'SB Final Approval' : 'Franchise Management'}
         </h1>
@@ -1295,18 +1335,19 @@ function FranchiseMgmt() {
       >
         <Box className="modal-container">
           <div className="modal-header">
-            <Typography variant="h5" component="h2">
+            <Typography variant="h5" component="h2" sx={{ fontWeight: 700, color: '#0A356B' }}>
               FRANCHISE APPLICATION
             </Typography>
-            <IconButton onClick={handleCloseAddModal}>
+            <IconButton onClick={handleCloseAddModal} sx={{ color: '#666' }}>
               <CloseIcon />
             </IconButton>
           </div>
           
-          <form onSubmit={handleSubmitApplication}>
-            <Typography variant="h6" className="section-header">
-              PERSONAL INFORMATION
-            </Typography>
+          <div className="modal-body">
+            <form onSubmit={handleSubmitApplication} id="franchise-form">
+              <Typography variant="h6" className="section-header">
+                PERSONAL INFORMATION
+              </Typography>
             
             <div className="form-row">
               <TextField
@@ -1599,17 +1640,20 @@ function FranchiseMgmt() {
                 }}
               />
             </div>
-            
-            <div className="action-buttons">
-              <Button
-                type="submit"
-                className="button-primary"
-                disabled={isLoading}
-              >
-                {isLoading ? <CircularProgress className="circular-progress-small" /> : 'Submit Application'}
-              </Button>
-            </div>
-          </form>
+            </form>
+          </div>
+          
+          <div className="modal-footer">
+            <Button
+              type="submit"
+              form="franchise-form"
+              className="button-primary"
+              disabled={isLoading}
+              startIcon={isLoading && <CircularProgress size={20} sx={{ color: 'white' }} />}
+            >
+              {isLoading ? 'Submitting...' : 'Submit Application'}
+            </Button>
+          </div>
         </Box>
       </Modal>
       
@@ -1630,24 +1674,19 @@ function FranchiseMgmt() {
         >
           <Box className="modal-container">
             <div className="modal-header">
-              <Typography variant="h5" component="h2">
+              <Typography variant="h5" component="h2" sx={{ fontWeight: 700, color: '#0A356B' }}>
                 FRANCHISE APPLICATION DETAILS
               </Typography>
-              <IconButton onClick={handleCloseViewModal}>
+              <IconButton onClick={handleCloseViewModal} sx={{ color: '#666' }}>
                 <CloseIcon />
               </IconButton>
             </div>
             
+            <div className="modal-body">
             {/* Approval Status Section */}
-            <Box sx={{ 
-              bgcolor: '#f5f5f5', 
-              p: 2, 
-              borderRadius: 1, 
-              mb: 2,
-              border: '1px solid #e0e0e0'
-            }}>
-              <Typography variant="h6" sx={{ mb: 1.5, fontWeight: 600 }}>
-                📋 Approval Status
+            <Box className="info-box" sx={{ mb: 2 }}>
+              <Typography variant="h6" sx={{ mb: 1.5, fontWeight: 600, color: 'text.primary' }}>
+                Approval Status
               </Typography>
               <div className="info-grid">
                 <Typography variant="subtitle2" className="label">Current Status:</Typography>
@@ -1658,9 +1697,11 @@ function FranchiseMgmt() {
                     selectedApplication.statusOfBPLO === 'bplo-disapproved' ? 'BPLO Disapproved' :
                     selectedApplication.statusOfBPLO === 'awaiting-sb' ? 'Awaiting SB Approval' :
                     selectedApplication.statusOfBPLO === 'sb-approved' ? 'Finally Approved' :
+                    selectedApplication.statusOfBPLO === 'completed' ? 'Completed - Franchise Created' :
                     selectedApplication.statusOfBPLO
                   }
                   color={
+                    selectedApplication.statusOfBPLO === 'completed' ? 'success' :
                     selectedApplication.statusOfBPLO === 'sb-approved' ? 'success' :
                     selectedApplication.statusOfBPLO === 'bplo-approved' ? 'info' :
                     selectedApplication.statusOfBPLO === 'awaiting-sb' ? 'primary' :
@@ -1689,12 +1730,7 @@ function FranchiseMgmt() {
                     <Typography variant="subtitle2" className="label" sx={{ color: 'error.main' }}>
                       Disapproval Reason:
                     </Typography>
-                    <Typography sx={{ 
-                      bgcolor: '#ffebee', 
-                      p: 1, 
-                      borderRadius: 1,
-                      border: '1px solid #ffcdd2'
-                    }}>
+                    <Typography className="error-box">
                       {selectedApplication.bploDisapprovedReason}
                     </Typography>
                   </>
@@ -1954,9 +1990,9 @@ function FranchiseMgmt() {
             
             {/* PDF Preview and Download Section - Available for BPLO */}
             {userRole === 'bplo-admin' && (
-              <Box sx={{ mb: 2, p: 2, bgcolor: '#f9fafb', borderRadius: 1, border: '1px solid #e5e7eb' }}>
-                <Typography variant="h6" sx={{ mb: 1.5, fontWeight: 600, fontSize: '0.95rem' }}>
-                  📄 Application Form Preview
+              <Box className="info-box" sx={{ mb: 2 }}>
+                <Typography variant="h6" sx={{ mb: 1.5, fontWeight: 600, fontSize: '0.95rem', color: 'text.primary' }}>
+                  Application Form Preview
                 </Typography>
                 <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
                   <Button
@@ -1977,14 +2013,6 @@ function FranchiseMgmt() {
                   >
                     Download PDF
                   </Button>
-                  <Button
-                    variant="text"
-                    size="small"
-                    onClick={handleShowPdfFields}
-                    sx={{ fontSize: '0.75rem' }}
-                  >
-                    🔍 Debug Fields
-                  </Button>
                 </Box>
                 <Typography variant="caption" sx={{ display: 'block', mt: 1, color: '#6b7280' }}>
                   View or download the filled application form with all submitted details
@@ -1992,8 +2020,10 @@ function FranchiseMgmt() {
               </Box>
             )}
 
+            </div>
+            
             {/* Action Buttons - Role Based */}
-            <div className="action-buttons">
+            <div className="modal-footer">
               {userRole === 'bplo-admin' && selectedApplication.statusOfBPLO === 'pending' && (
                 <>
                   <Button
@@ -2020,17 +2050,8 @@ function FranchiseMgmt() {
               ) && (
                 <>
                   {selectedApplication.statusOfBPLO === 'bplo-approved' && !selectedApplication.officialReceiptNumber && (
-                    <Typography variant="body2" sx={{ 
-                      textAlign: 'center', 
-                      p: 1.5, 
-                      mb: 2,
-                      bgcolor: '#FFF4E6',
-                      borderRadius: 1,
-                      color: '#DC8C09',
-                      fontWeight: 600,
-                      border: '1px solid #FBBF24'
-                    }}>
-                      ⚠️ Note: Client has not submitted OR document yet. You can proceed with approval, but it's recommended to wait for OR submission.
+                    <Typography variant="body2" className="warning-box" sx={{ textAlign: 'center', mb: 2 }}>
+                      Note: Official Receipt has not been submitted yet. You may proceed with approval or wait for OR submission.
                     </Typography>
                   )}
                   <Button
@@ -2046,17 +2067,8 @@ function FranchiseMgmt() {
               
               {userRole === 'sb-admin' && selectedApplication.statusOfBPLO === 'sb-approved' && (
                 <>
-                  <Typography variant="body2" sx={{ 
-                    textAlign: 'center', 
-                    p: 1.5, 
-                    mb: 2,
-                    bgcolor: '#e8f5e9',
-                    borderRadius: 1,
-                    color: '#2e7d32',
-                    fontWeight: 600,
-                    border: '1px solid #4caf50'
-                  }}>
-                    ✅ Finally Approved - Click below to accept and create franchise record
+                  <Typography variant="body2" className="success-box" sx={{ textAlign: 'center', mb: 2 }}>
+                    Application approved. Click below to accept and create the official franchise record.
                   </Typography>
                   <Button
                     className="button-success"
@@ -2073,21 +2085,15 @@ function FranchiseMgmt() {
                 selectedApplication.statusOfBPLO === 'awaiting-sb' ||
                 selectedApplication.statusOfBPLO === 'sb-approved' ||
                 selectedApplication.statusOfBPLO === 'bplo-disapproved') && userRole !== 'sb-admin' && (
-                <Typography variant="body2" sx={{ 
-                  textAlign: 'center', 
-                  p: 2, 
-                  bgcolor: '#e3f2fd',
-                  borderRadius: 1,
-                  width: '100%'
-                }}>
+                <Typography variant="body2" className="info-message-box" sx={{ textAlign: 'center', width: '100%' }}>
                   {selectedApplication.statusOfBPLO === 'bplo-approved' && 
-                    '✓ Approved by BPLO - Waiting for applicant to submit OR number'}
+                    'Approved by BPLO. Waiting for applicant to submit Official Receipt.'}
                   {selectedApplication.statusOfBPLO === 'awaiting-sb' && 
-                    '✓ OR Submitted - Ready for SB final approval'}
+                    'Official Receipt submitted. Ready for SB final approval.'}
                   {selectedApplication.statusOfBPLO === 'sb-approved' && 
-                    '✅ Finally Approved - Applicant can claim certificate'}
+                    'Finally approved by SB. Awaiting franchise record creation.'}
                   {selectedApplication.statusOfBPLO === 'bplo-disapproved' && 
-                    '⚠ Disapproved by BPLO - Applicant has been notified'}
+                    'Disapproved by BPLO. Applicant has been notified.'}
                 </Typography>
               )}
             </div>
@@ -2234,26 +2240,23 @@ function FranchiseMgmt() {
             </IconButton>
           </div>
           
-          <Typography variant="body1" className="mb-2" sx={{ mb: 2 }}>
-            This application has been approved by BPLO and the OR has been submitted. 
-            Please enter the resolution number to complete the final approval.
+          <Typography variant="body1" sx={{ mb: 2, color: 'text.secondary' }}>
+            Enter the Sangguniang Bayan resolution number to finalize approval of this franchise application.
           </Typography>
           
           {selectedApplication && (
-            <Box sx={{ 
-              bgcolor: '#e3f2fd', 
-              p: 2, 
-              borderRadius: 1, 
-              mb: 2 
-            }}>
-              <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>
-                Applicant: {selectedApplication.name}
+            <Box className="info-box" sx={{ mb: 3 }}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1, color: 'text.primary' }}>
+                Application Details
               </Typography>
-              <Typography variant="body2">
-                OR Number: {selectedApplication.officialReceiptNumber || 'N/A'}
+              <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                Applicant: <strong>{selectedApplication.name}</strong>
               </Typography>
-              <Typography variant="body2">
-                Plate Number: {selectedApplication.plateNumber}
+              <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                OR Number: <strong>{selectedApplication.officialReceiptNumber || 'Not submitted'}</strong>
+              </Typography>
+              <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                Plate Number: <strong>{selectedApplication.plateNumber}</strong>
               </Typography>
             </Box>
           )}
@@ -2284,7 +2287,7 @@ function FranchiseMgmt() {
             />
             {resolutionFile && (
               <Typography variant="caption" sx={{ mt: 1, display: 'block', color: 'success.main' }}>
-                ✓ Selected: {resolutionFile.name}
+                Selected: {resolutionFile.name}
               </Typography>
             )}
           </Box>
@@ -2346,29 +2349,26 @@ function FranchiseMgmt() {
             </IconButton>
           </div>
           
-          <Typography variant="body1" className="mb-2" sx={{ mb: 2 }}>
-            This will create the official franchise record and move it to the franchise list.
-            The applicant will be able to download their certificate after this step.
+          <Typography variant="body1" sx={{ mb: 2, color: 'text.secondary' }}>
+            Create the official franchise record in the system. This action will finalize the franchise registration process.
           </Typography>
           
           {selectedApplication && (
-            <Box sx={{ 
-              bgcolor: '#e8f5e9', 
-              p: 2, 
-              borderRadius: 1, 
-              mb: 2 
-            }}>
-              <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>
-                Applicant: {selectedApplication.name}
+            <Box className="info-box" sx={{ mb: 3 }}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1, color: 'text.primary' }}>
+                Franchise Information
               </Typography>
-              <Typography variant="body2">
-                Franchise Number: {selectedApplication.franchiseNumber || 'Will be auto-assigned'}
+              <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                Applicant: <strong>{selectedApplication.name}</strong>
               </Typography>
-              <Typography variant="body2">
-                Resolution Number: {selectedApplication.sbResolutionNumber || 'N/A'}
+              <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                Franchise Number: <strong>{selectedApplication.franchiseNumber || 'Assigned by BPLO'}</strong>
               </Typography>
-              <Typography variant="body2">
-                Application Type: {selectedApplication.applicationType || 'new'}
+              <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                Resolution Number: <strong>{selectedApplication.sbResolutionNumber || 'Not set'}</strong>
+              </Typography>
+              <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                Application Type: <strong>{selectedApplication.applicationType?.replace('_', ' ') || 'New'}</strong>
               </Typography>
             </Box>
           )}
@@ -2399,7 +2399,7 @@ function FranchiseMgmt() {
             />
             {scannedRegistrationFile && (
               <Typography variant="caption" sx={{ mt: 1, display: 'block', color: 'success.main' }}>
-                ✓ Selected: {scannedRegistrationFile.name}
+                Selected: {scannedRegistrationFile.name}
               </Typography>
             )}
           </Box>
@@ -2419,7 +2419,7 @@ function FranchiseMgmt() {
             />
             {sessionReportFile && (
               <Typography variant="caption" sx={{ mt: 1, display: 'block', color: 'success.main' }}>
-                ✓ Selected: {sessionReportFile.name}
+                Selected: {sessionReportFile.name}
               </Typography>
             )}
           </Box>
@@ -2441,7 +2441,7 @@ function FranchiseMgmt() {
               onClick={handleAcceptFranchise}
               disabled={!sessionNumber.trim() || isLoading}
             >
-              {isLoading ? <CircularProgress className="circular-progress-small circular-progress-inherit" /> : 'Accept & Create Franchise'}
+              {isLoading ? <CircularProgress className="circular-progress-small circular-progress-inherit" /> : 'Create Franchise Record'}
             </Button>
           </div>
         </Box>
@@ -2479,7 +2479,7 @@ function FranchiseMgmt() {
         >
           <div className="modal-header">
             <Typography variant="h6">
-              📄 Franchise Application Form Preview
+              Franchise Application Form Preview
             </Typography>
             <IconButton onClick={handleClosePdfPreview}>
               <CloseIcon />
@@ -2490,7 +2490,7 @@ function FranchiseMgmt() {
             flex: 1, 
             overflow: 'hidden',
             p: 0,
-            bgcolor: '#525659'
+            bgcolor: 'grey.800'
           }}>
             {pdfPreviewUrl && (
               <iframe
