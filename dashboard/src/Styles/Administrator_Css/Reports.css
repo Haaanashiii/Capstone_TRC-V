@@ -266,3 +266,271 @@
 .MuiPickersDay-root:hover {
   background-color: rgba(10, 53, 107, 0.1) !important;
 }
+
+/* Certificate Generation Styles */
+.certificate-preview {
+  padding: 32px;
+  background: white;
+  border: 2px solid #0A356B;
+  border-radius: 8px;
+  margin: 16px 0;
+  min-height: 400px;
+}
+
+.certificate-header {
+  text-align: center;
+  margin-bottom: 32px;
+  border-bottom: 3px double #0A356B;
+  padding-bottom: 16px;
+}
+
+.certificate-title {
+  font-size: 28px;
+  font-weight: 700;
+  color: #0A356B;
+  margin: 8px 0;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.certificate-municipality {
+  font-size: 20px;
+  font-weight: 600;
+  color: #333;
+  margin: 4px 0;
+}
+
+.certificate-body {
+  padding: 24px;
+  line-height: 1.8;
+}
+
+.certificate-field {
+  margin: 12px 0;
+  padding: 8px 12px;
+  background: #f9f9f9;
+  border-left: 4px solid #0A356B;
+  border-radius: 4px;
+}
+
+.certificate-field-label {
+  font-weight: 600;
+  color: #0A356B;
+  margin-right: 8px;
+  text-transform: uppercase;
+  font-size: 12px;
+  letter-spacing: 0.5px;
+}
+
+.certificate-field-value {
+  color: #333;
+  font-size: 14px;
+}
+
+.certificate-footer {
+  margin-top: 48px;
+  text-align: center;
+  border-top: 2px solid #0A356B;
+  padding-top: 24px;
+}
+
+.certificate-signature-line {
+  margin: 32px auto 8px;
+  width: 300px;
+  border-top: 2px solid #333;
+  padding-top: 8px;
+}
+
+/* MTOF Report Specific Styles */
+.mtof-section {
+  margin: 24px 0;
+  page-break-inside: avoid;
+}
+
+.mtof-section-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #0A356B;
+  text-transform: uppercase;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid #0A356B;
+}
+
+.mtof-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 16px 0;
+}
+
+.mtof-table th {
+  background-color: #0A356B;
+  color: white;
+  padding: 12px;
+  text-align: left;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.mtof-table td {
+  padding: 10px 12px;
+  border: 1px solid #ddd;
+  font-size: 13px;
+}
+
+.mtof-table tr:nth-child(even) {
+  background-color: #f9f9f9;
+}
+
+.mtof-summary-text {
+  text-align: justify;
+  text-indent: 48px;
+  line-height: 2;
+  font-size: 15px;
+  color: #333;
+  padding: 24px;
+  background: #f9f9f9;
+  border-radius: 8px;
+  border-left: 4px solid #0A356B;
+}
+
+/* Certificate Type Selection */
+.cert-type-card {
+  transition: all 0.3s ease;
+  cursor: pointer;
+  border: 2px solid transparent;
+}
+
+.cert-type-card:hover {
+  border-color: #0A356B;
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(10, 53, 107, 0.15);
+}
+
+.cert-type-icon {
+  font-size: 48px;
+  color: #0A356B;
+  margin-bottom: 12px;
+}
+
+.cert-type-name {
+  font-size: 18px;
+  font-weight: 600;
+  color: #0A356B;
+  margin-bottom: 8px;
+}
+
+.cert-type-description {
+  font-size: 13px;
+  color: #666;
+  line-height: 1.5;
+}
+
+/* Print Styles */
+@media print {
+  .modal-header,
+  .MuiButton-root,
+  .MuiAlert-root,
+  .MuiDivider-root {
+    display: none !important;
+  }
+
+  .certificate-preview {
+    border: none;
+    padding: 0;
+    margin: 0;
+  }
+
+  .modal-container {
+    box-shadow: none;
+    padding: 0;
+    max-width: 100%;
+    position: static;
+    transform: none;
+  }
+
+  body {
+    background: white;
+  }
+
+  @page {
+    margin: 1.5cm;
+    size: letter;
+  }
+}
+
+/* Editable Fields Highlight */
+.editable-field {
+  background: #fff9e6;
+  border: 1px dashed #ffc107;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.editable-field:hover {
+  background: #fff3cd;
+  border-color: #ff9800;
+}
+
+.editable-field:focus {
+  outline: 2px solid #0A356B;
+  outline-offset: 2px;
+}
+
+/* Certificate Menu Styles */
+.cert-menu-item {
+  padding: 12px 16px;
+  transition: all 0.2s ease;
+}
+
+.cert-menu-item:hover {
+  background-color: rgba(10, 53, 107, 0.05);
+}
+
+.cert-menu-icon {
+  margin-right: 12px;
+  color: #0A356B;
+}
+
+.cert-menu-badge {
+  margin-left: auto;
+  font-size: 11px;
+  padding: 2px 8px;
+  background: #0A356B;
+  color: white;
+  border-radius: 12px;
+}
+
+/* Loading Overlay */
+.loading-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 16px;
+  z-index: 10;
+}
+
+/* Success Animation */
+@keyframes successPulse {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.success-icon {
+  animation: successPulse 0.6s ease-in-out;
+}
+

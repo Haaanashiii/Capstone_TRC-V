@@ -1,7 +1,57 @@
+/**
+ * Reports Component - Certificate Generation System
+ * 
+ * This component provides comprehensive certificate generation capabilities for franchise management:
+ * 
+ * CERTIFICATE TYPES SUPPORTED:
+ * 1. C.001 - Certificate of Approval (Fillable PDF)
+ *    - Issued when a franchise is approved by SB
+ *    - Pre-filled with franchise and operator details
+ * 
+ * 2. C.001 - Certificate of Cancellation (Fillable PDF)
+ *    - Issued when a franchise is cancelled
+ *    - Includes cancellation reason and date
+ * 
+ * 3. F.008 - Application for Provisional Authority (Fillable PDF)
+ *    - For temporary operating permits
+ *    - Includes provisional terms and conditions
+ * 
+ * 4. F.008 - MTOF Date Report (Word Document)
+ *    - Motorized Tricycle-for-Hire report grouped by date
+ *    - Tables organized by application type (new, renewal, amendment)
+ *    - Includes: Name, Franchise Number, Address
+ * 
+ * 5. F.008 - MTOF Summary Report (Word Document)
+ *    - Summary certification statement
+ *    - Statistics: new applicants, renewals, provisional authorities
+ *    - Editable template text
+ * 
+ * FEATURES:
+ * - Real-time data from franchise information database
+ * - Preview and edit capability before generating
+ * - Print preview functionality
+ * - Current user information automatically included
+ * - Professional formatting matching municipal standards
+ * - Date range filtering for bulk reports
+ * - Search and filter capabilities
+ * 
+ * WORKFLOW:
+ * 1. Select franchise(s) from the table
+ * 2. Click "Generate Certificate" button
+ * 3. Choose certificate type from menu
+ * 4. Review and edit pre-filled data in preview modal
+ * 5. Print or download as PDF/Word document
+ * 
+ * @component
+ * @requires useAuth - For current administrator information
+ * @requires websocketService - For real-time franchise updates
+ */
+
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import '../../Styles/Administrator_Css/Reports.css';
 import Sidebar from './Sidebar';
 import websocketService from '../../services/websocket';
+import { useAuth } from '../../contexts/AuthContext';
 import {
   Typography,
   TextField,
@@ -22,7 +72,15 @@ import {
   Chip,
   Alert,
   tableCellClasses,
-  Divider
+  Divider,
+  Menu,
+  MenuItem,
+  Select,
+  FormControl,
+  InputLabel,
+  Grid,
+  Checkbox,
+  FormControlLabel
 } from '@mui/material';
 import { styled } from '@mui/material/styles';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
@@ -35,6 +93,12 @@ import CloseIcon from '@mui/icons-material/Close';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
 import GroupsIcon from '@mui/icons-material/Groups';
+import PrintIcon from '@mui/icons-material/Print';
+import EditIcon from '@mui/icons-material/Edit';
+import DescriptionIcon from '@mui/icons-material/Description';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import CancelIcon from '@mui/icons-material/Cancel';
+import ArticleIcon from '@mui/icons-material/Article';
 
 // Styled components for table
 const StyledTableCell = styled(TableCell)(({ theme }) => ({
@@ -66,7 +130,57 @@ const StyledTableRow = styled(TableRow)(({ theme }) => ({
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170';
 
+// Certificate types configuration
+const CERTIFICATE_TYPES = {
+  APPROVAL: {
+    id: 'C.001-APPROVAL',
+    name: 'Certificate of Approval',
+    code: 'C.001',
+    description: 'Certificate of Approval for Franchise',
+    icon: CheckCircleIcon,
+    fileType: 'pdf',
+    fillable: true
+  },
+  CANCELLATION: {
+    id: 'C.001-CANCELLATION',
+    name: 'Certificate of Cancellation',
+    code: 'C.001',
+    description: 'Certificate of Cancellation for Franchise',
+    icon: CancelIcon,
+    fileType: 'pdf',
+    fillable: true
+  },
+  PROVISIONAL: {
+    id: 'F.008-PROVISIONAL',
+    name: 'Provisional Authority',
+    code: 'F.008',
+    description: 'Application for Provisional Authority',
+    icon: ArticleIcon,
+    fileType: 'pdf',
+    fillable: true
+  },
+  MTOF_DATE: {
+    id: 'F.008-MTOF-DATE',
+    name: 'MTOF Date Report',
+    code: 'F.008',
+    description: 'Motorized Tricycle-for-Hire Date Report (Word)',
+    icon: DescriptionIcon,
+    fileType: 'docx',
+    fillable: false
+  },
+  MTOF_SUMMARY: {
+    id: 'F.008-MTOF-SUMMARY',
+    name: 'MTOF Summary Report',
+    code: 'F.008',
+    description: 'Motorized Tricycle-for-Hire Summary (Word)',
+    icon: DescriptionIcon,
+    fileType: 'docx',
+    fillable: false
+  }
+};
+
 function Reports() {
+  const { user } = useAuth(); // Get current user for certificate generation
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedFranchise, setSelectedFranchise] = useState(null);
   const [openViewModal, setOpenViewModal] = useState(false);
@@ -81,6 +195,16 @@ function Reports() {
   const [endDate, setEndDate] = useState(null);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [bulkDownloading, setBulkDownloading] = useState(false);
+  
+  // Certificate generation states
+  const [selectedCertType, setSelectedCertType] = useState('');
+  const [openCertModal, setOpenCertModal] = useState(false);
+  const [openPreviewModal, setOpenPreviewModal] = useState(false);
+  const [certificateData, setCertificateData] = useState(null);
+  const [editableData, setEditableData] = useState({});
+  const [generating, setGenerating] = useState(false);
+  const [anchorEl, setAnchorEl] = useState(null);
+  const [selectedFranchisesForCert, setSelectedFranchisesForCert] = useState([]);
 
   // Get auth token
   const getAuthToken = () => {
@@ -271,6 +395,184 @@ function Reports() {
     });
   };
 
+  // Format user role for display
+  const formatUserRole = (role) => {
+    const roleMap = {
+      'sb-admin': 'Sangguniang Bayan Administrator',
+      'bplo-admin': 'BPLO Administrator',
+      'super-admin': 'System Administrator'
+    };
+    return roleMap[role] || role;
+  };
+
+  // Handle certificate type selection menu
+  const handleCertMenuClick = (event) => {
+    setAnchorEl(event.currentTarget);
+  };
+
+  const handleCertMenuClose = () => {
+    setAnchorEl(null);
+  };
+
+  // Handle certificate type selection
+  const handleSelectCertType = (certType) => {
+    setSelectedCertType(certType);
+    setAnchorEl(null);
+    
+    if (certType === CERTIFICATE_TYPES.MTOF_DATE.id || certType === CERTIFICATE_TYPES.MTOF_SUMMARY.id) {
+      // For MTOF reports, use all filtered franchises
+      setSelectedFranchisesForCert(filteredFranchises);
+      prepareAndOpenCertModal(certType, filteredFranchises);
+    } else {
+      // For individual certificates, open selection modal
+      setOpenCertModal(true);
+    }
+  };
+
+  // Prepare certificate data and open modal
+  const prepareAndOpenCertModal = (certType, franchises) => {
+    const certConfig = Object.values(CERTIFICATE_TYPES).find(c => c.id === certType);
+    
+    if (!certConfig) return;
+
+    // Prepare data based on certificate type
+    let preparedData = {
+      certificateType: certConfig,
+      generatedBy: user?.name || 'Administrator',
+      generatedByRole: formatUserRole(user?.role || ''),
+      generatedById: user?.id || '',
+      dateGenerated: new Date().toLocaleDateString('en-US', { 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      }),
+      timeGenerated: new Date().toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true
+      }),
+      municipalityName: 'Municipality of Solano, Nueva Vizcaya',
+    };
+
+    if (certType === CERTIFICATE_TYPES.MTOF_DATE.id) {
+      // Group franchises by application type
+      const grouped = {
+        new: franchises.filter(f => f.applicationType === 'new'),
+        renewal: franchises.filter(f => f.applicationType === 'renewal'),
+        amendment: franchises.filter(f => f.applicationType === 'amendment' || f.applicationType === 'transfer')
+      };
+      
+      preparedData.franchises = franchises;
+      preparedData.grouped = grouped;
+      preparedData.reportTitle = 'Motorized Tricycle-for-Hire Date Report';
+    } else if (certType === CERTIFICATE_TYPES.MTOF_SUMMARY.id) {
+      // Summary statistics
+      const stats = {
+        newCount: franchises.filter(f => f.applicationType === 'new').length,
+        renewalCount: franchises.filter(f => f.applicationType === 'renewal').length,
+        provisionalCount: franchises.filter(f => f.status === 'provisional').length,
+        totalCount: franchises.length
+      };
+      
+      preparedData.stats = stats;
+      preparedData.reportTitle = 'Motorized Tricycle-for-Hire Summary Report';
+      preparedData.summaryText = `THIS IS TO CERTIFY that there are ${stats.newCount} (${numberToWords(stats.newCount)}) new applicants, ${stats.renewalCount} (${numberToWords(stats.renewalCount)}) applications for renewal and ${stats.provisionalCount} (${numberToWords(stats.provisionalCount)}) units for provisional authority to operate motorized-tricycle-for-hire within Solano, Nueva Vizcaya.`;
+    } else {
+      // Individual certificate (Approval, Cancellation, Provisional)
+      preparedData.franchise = selectedFranchise;
+    }
+
+    setCertificateData(preparedData);
+    setEditableData(preparedData);
+    setOpenPreviewModal(true);
+  };
+
+  // Convert number to words helper
+  const numberToWords = (num) => {
+    const words = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten',
+                   'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen'];
+    const tens = ['', '', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety'];
+    
+    if (num < 20) return words[num];
+    if (num < 100) return tens[Math.floor(num / 10)] + (num % 10 ? '-' + words[num % 10] : '');
+    if (num < 1000) return words[Math.floor(num / 100)] + ' hundred' + (num % 100 ? ' ' + numberToWords(num % 100) : '');
+    return num.toString();
+  };
+
+  // Handle certificate generation for individual franchise
+  const handleGenerateCertificate = (franchise, certType) => {
+    setSelectedFranchise(franchise);
+    setSelectedCertType(certType);
+    setOpenCertModal(false);
+    prepareAndOpenCertModal(certType, [franchise]);
+  };
+
+  // Handle final certificate generation and download
+  const handleFinalGenerate = async () => {
+    setGenerating(true);
+    try {
+      const token = getAuthToken();
+      const certConfig = Object.values(CERTIFICATE_TYPES).find(c => c.id === selectedCertType);
+      
+      if (!certConfig) {
+        throw new Error('Invalid certificate type');
+      }
+
+      // Prepare request payload
+      const payload = {
+        certificateType: selectedCertType,
+        data: editableData,
+        format: certConfig.fileType
+      };
+
+      const response = await fetch(`${API_BASE_URL}/api/reports/generate-certificate`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      // Download the file
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${certConfig.code}_${editableData.franchise?.franchiseNumber || 'Report'}_${Date.now()}.${certConfig.fileType}`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      setOpenPreviewModal(false);
+      setError('');
+      alert('Certificate generated successfully!');
+    } catch (err) {
+      console.error('Error generating certificate:', err);
+      setError('Failed to generate certificate. Please try again.');
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  // Handle print certificate
+  const handlePrintCertificate = () => {
+    window.print();
+  };
+
+  // Handle edit field change
+  const handleEditFieldChange = (field, value) => {
+    setEditableData(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
   return (
     <div className="reports-container">
       <Sidebar />
@@ -366,6 +668,73 @@ function Reports() {
             >
               Bulk Report ({filteredFranchises.length})
             </Button>
+
+            {/* Generate Certificate Button */}
+            <Button
+              variant="contained"
+              startIcon={<ArticleIcon />}
+              onClick={handleCertMenuClick}
+              disabled={filteredFranchises.length === 0}
+              sx={{
+                bgcolor: '#2e7d32',
+                '&:hover': { bgcolor: '#1b5e20' },
+                textTransform: 'none',
+                fontWeight: 600,
+                px: 3,
+              }}
+            >
+              Generate Certificate
+            </Button>
+
+            {/* Certificate Type Menu */}
+            <Menu
+              anchorEl={anchorEl}
+              open={Boolean(anchorEl)}
+              onClose={handleCertMenuClose}
+              PaperProps={{
+                sx: {
+                  mt: 1,
+                  minWidth: '320px',
+                  boxShadow: '0 4px 20px rgba(0,0,0,0.15)'
+                }
+              }}
+            >
+              <MenuItem disabled sx={{ opacity: 1, fontWeight: 600, color: '#0A356B' }}>
+                Select Certificate Type
+              </MenuItem>
+              <Divider sx={{ my: 1 }} />
+              {Object.values(CERTIFICATE_TYPES).map((cert) => {
+                const Icon = cert.icon;
+                return (
+                  <MenuItem
+                    key={cert.id}
+                    onClick={() => handleSelectCertType(cert.id)}
+                    sx={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'flex-start',
+                      py: 1.5,
+                      '&:hover': { bgcolor: 'rgba(10, 53, 107, 0.08)' }
+                    }}
+                  >
+                    <Box sx={{ display: 'flex', alignItems: 'center', width: '100%', mb: 0.5 }}>
+                      <Icon sx={{ mr: 1, color: '#0A356B', fontSize: 20 }} />
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                        {cert.name}
+                      </Typography>
+                      <Chip 
+                        label={cert.fileType.toUpperCase()} 
+                        size="small" 
+                        sx={{ ml: 'auto', height: 20, fontSize: '0.7rem' }}
+                      />
+                    </Box>
+                    <Typography variant="caption" sx={{ color: 'text.secondary', ml: 3.5 }}>
+                      {cert.description}
+                    </Typography>
+                  </MenuItem>
+                );
+              })}
+            </Menu>
           </div>
 
           {/* Summary Info */}
@@ -445,6 +814,18 @@ function Reports() {
                             title="View Details"
                           >
                             <VisibilityIcon />
+                          </IconButton>
+                          <IconButton
+                            size="small"
+                            sx={{ color: '#2e7d32', mr: 1 }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedFranchise(franchise);
+                              setOpenCertModal(true);
+                            }}
+                            title="Generate Certificate"
+                          >
+                            <ArticleIcon />
                           </IconButton>
                           <IconButton
                             size="small"
@@ -712,6 +1093,439 @@ function Reports() {
                 Generate & Download PDF
               </Button>
             </Box>
+          </Box>
+        </Modal>
+
+        {/* Certificate Type Selection Modal */}
+        <Modal open={openCertModal} onClose={() => setOpenCertModal(false)}>
+          <Box className="modal-container">
+            <div className="modal-header">
+              <Typography variant="h5" component="h2" sx={{ fontWeight: 700, color: '#0A356B' }}>
+                Select Certificate Type
+              </Typography>
+              <IconButton onClick={() => setOpenCertModal(false)}>
+                <CloseIcon />
+              </IconButton>
+            </div>
+
+            <Divider sx={{ my: 2 }} />
+
+            {selectedFranchise && (
+              <Box sx={{ mb: 3, p: 2, bgcolor: '#f5f5f5', borderRadius: 1 }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
+                  Selected Franchise:
+                </Typography>
+                <Typography variant="body2">
+                  <strong>Franchise #:</strong> {selectedFranchise.franchiseNumber}
+                </Typography>
+                <Typography variant="body2">
+                  <strong>Operator:</strong> {selectedFranchise.operatorName}
+                </Typography>
+                <Typography variant="body2">
+                  <strong>Plate #:</strong> {selectedFranchise.mvPlateNo}
+                </Typography>
+              </Box>
+            )}
+
+            <Grid container spacing={2}>
+              {Object.values(CERTIFICATE_TYPES).filter(cert => 
+                cert.id !== CERTIFICATE_TYPES.MTOF_DATE.id && 
+                cert.id !== CERTIFICATE_TYPES.MTOF_SUMMARY.id
+              ).map((cert) => {
+                const Icon = cert.icon;
+                return (
+                  <Grid item xs={12} key={cert.id}>
+                    <Paper
+                      elevation={2}
+                      sx={{
+                        p: 2,
+                        cursor: 'pointer',
+                        transition: 'all 0.2s',
+                        border: '2px solid transparent',
+                        '&:hover': {
+                          borderColor: '#0A356B',
+                          transform: 'translateY(-2px)',
+                          boxShadow: '0 4px 12px rgba(10, 53, 107, 0.2)'
+                        }
+                      }}
+                      onClick={() => handleGenerateCertificate(selectedFranchise, cert.id)}
+                    >
+                      <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                        <Icon sx={{ mr: 2, color: '#0A356B', fontSize: 32 }} />
+                        <Box sx={{ flex: 1 }}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5 }}>
+                            <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                              {cert.name}
+                            </Typography>
+                            <Chip 
+                              label={cert.code} 
+                              size="small" 
+                              sx={{ ml: 1, bgcolor: '#0A356B', color: 'white' }}
+                            />
+                            <Chip 
+                              label={cert.fillable ? 'Fillable' : 'Template'} 
+                              size="small" 
+                              sx={{ ml: 1 }}
+                            />
+                          </Box>
+                          <Typography variant="body2" color="text.secondary">
+                            {cert.description}
+                          </Typography>
+                        </Box>
+                        <Chip 
+                          label={cert.fileType.toUpperCase()} 
+                          color="primary" 
+                          size="small"
+                        />
+                      </Box>
+                    </Paper>
+                  </Grid>
+                );
+              })}
+            </Grid>
+
+            <Divider sx={{ my: 2 }} />
+
+            <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <Button
+                variant="outlined"
+                onClick={() => setOpenCertModal(false)}
+                sx={{ textTransform: 'none' }}
+              >
+                Cancel
+              </Button>
+            </Box>
+          </Box>
+        </Modal>
+
+        {/* Certificate Preview and Edit Modal */}
+        <Modal 
+          open={openPreviewModal} 
+          onClose={() => setOpenPreviewModal(false)}
+          sx={{ overflow: 'auto' }}
+        >
+          <Box 
+            className="modal-container" 
+            sx={{ 
+              maxWidth: '900px', 
+              maxHeight: '90vh', 
+              overflow: 'auto',
+              my: 2 
+            }}
+          >
+            <div className="modal-header">
+              <Typography variant="h5" component="h2" sx={{ fontWeight: 700, color: '#0A356B' }}>
+                Certificate Preview & Edit
+              </Typography>
+              <IconButton onClick={() => setOpenPreviewModal(false)}>
+                <CloseIcon />
+              </IconButton>
+            </div>
+
+            <Divider sx={{ my: 2 }} />
+
+            {certificateData && (
+              <>
+                {/* Certificate Type Info */}
+                <Alert severity="info" sx={{ mb: 3 }}>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                    {certificateData.certificateType?.name} ({certificateData.certificateType?.code})
+                  </Typography>
+                  <Typography variant="caption">
+                    {certificateData.certificateType?.description}
+                  </Typography>
+                </Alert>
+
+                {/* Editable Fields Section */}
+                <Paper elevation={0} sx={{ p: 3, bgcolor: '#f9f9f9', mb: 3 }}>
+                  <Typography variant="h6" sx={{ mb: 2, fontWeight: 600, color: '#0A356B' }}>
+                    <EditIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
+                    Editable Certificate Data
+                  </Typography>
+
+                  <Grid container spacing={2}>
+                    {/* Generator Information */}
+                    <Grid item xs={12} md={6}>
+                      <TextField
+                        fullWidth
+                        label="Generated By"
+                        value={editableData.generatedBy || ''}
+                        onChange={(e) => handleEditFieldChange('generatedBy', e.target.value)}
+                        size="small"
+                      />
+                    </Grid>
+                    <Grid item xs={12} md={6}>
+                      <TextField
+                        fullWidth
+                        label="Position/Role"
+                        value={editableData.generatedByRole || ''}
+                        onChange={(e) => handleEditFieldChange('generatedByRole', e.target.value)}
+                        size="small"
+                      />
+                    </Grid>
+
+                    {/* Date and Time */}
+                    <Grid item xs={12} md={6}>
+                      <TextField
+                        fullWidth
+                        label="Date Generated"
+                        value={editableData.dateGenerated || ''}
+                        onChange={(e) => handleEditFieldChange('dateGenerated', e.target.value)}
+                        size="small"
+                      />
+                    </Grid>
+                    <Grid item xs={12} md={6}>
+                      <TextField
+                        fullWidth
+                        label="Time Generated"
+                        value={editableData.timeGenerated || ''}
+                        onChange={(e) => handleEditFieldChange('timeGenerated', e.target.value)}
+                        size="small"
+                      />
+                    </Grid>
+
+                    {/* Municipality Name */}
+                    <Grid item xs={12}>
+                      <TextField
+                        fullWidth
+                        label="Municipality"
+                        value={editableData.municipalityName || ''}
+                        onChange={(e) => handleEditFieldChange('municipalityName', e.target.value)}
+                        size="small"
+                      />
+                    </Grid>
+
+                    {/* Franchise-specific fields for individual certificates */}
+                    {editableData.franchise && (
+                      <>
+                        <Grid item xs={12}>
+                          <Divider sx={{ my: 1 }}>
+                            <Chip label="Franchise Details" size="small" />
+                          </Divider>
+                        </Grid>
+                        <Grid item xs={12} md={6}>
+                          <TextField
+                            fullWidth
+                            label="Franchise Number"
+                            value={editableData.franchise?.franchiseNumber || ''}
+                            size="small"
+                            disabled
+                          />
+                        </Grid>
+                        <Grid item xs={12} md={6}>
+                          <TextField
+                            fullWidth
+                            label="Resolution Number"
+                            value={editableData.franchise?.sbResolutionNumber || ''}
+                            size="small"
+                            disabled
+                          />
+                        </Grid>
+                        <Grid item xs={12}>
+                          <TextField
+                            fullWidth
+                            label="Operator Name"
+                            value={editableData.franchise?.operatorName || ''}
+                            size="small"
+                            disabled
+                          />
+                        </Grid>
+                        <Grid item xs={12}>
+                          <TextField
+                            fullWidth
+                            label="Address"
+                            value={editableData.franchise?.operatorAddress || ''}
+                            size="small"
+                            disabled
+                          />
+                        </Grid>
+                      </>
+                    )}
+
+                    {/* MTOF Summary Text */}
+                    {selectedCertType === CERTIFICATE_TYPES.MTOF_SUMMARY.id && (
+                      <Grid item xs={12}>
+                        <TextField
+                          fullWidth
+                          multiline
+                          rows={4}
+                          label="Summary Statement"
+                          value={editableData.summaryText || ''}
+                          onChange={(e) => handleEditFieldChange('summaryText', e.target.value)}
+                          helperText="Edit the certification text as needed"
+                        />
+                      </Grid>
+                    )}
+                  </Grid>
+                </Paper>
+
+                {/* Preview Section */}
+                <Paper elevation={2} sx={{ p: 3, mb: 3, border: '2px solid #0A356B' }}>
+                  <Typography variant="h6" sx={{ mb: 2, fontWeight: 600, color: '#0A356B', textAlign: 'center' }}>
+                    Preview
+                  </Typography>
+
+                  {/* MTOF Date Report Preview */}
+                  {selectedCertType === CERTIFICATE_TYPES.MTOF_DATE.id && editableData.grouped && (
+                    <Box>
+                      <Typography variant="h5" sx={{ textAlign: 'center', mb: 3, fontWeight: 700 }}>
+                        {editableData.municipalityName}
+                      </Typography>
+                      <Typography variant="h6" sx={{ textAlign: 'center', mb: 3 }}>
+                        Motorized Tricycle-for-Hire Report
+                      </Typography>
+                      <Typography variant="body2" sx={{ textAlign: 'right', mb: 3 }}>
+                        Date: {editableData.dateGenerated}
+                      </Typography>
+
+                      {['new', 'renewal', 'amendment'].map((type) => (
+                        editableData.grouped[type]?.length > 0 && (
+                          <Box key={type} sx={{ mb: 4 }}>
+                            <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 2, textTransform: 'uppercase' }}>
+                              {type === 'amendment' ? 'Transfer/Amendment' : type} Applications ({editableData.grouped[type].length})
+                            </Typography>
+                            <TableContainer component={Paper} variant="outlined">
+                              <Table size="small">
+                                <TableHead>
+                                  <TableRow>
+                                    <StyledTableCell>Name</StyledTableCell>
+                                    <StyledTableCell>Franchise Number</StyledTableCell>
+                                    <StyledTableCell>Address</StyledTableCell>
+                                  </TableRow>
+                                </TableHead>
+                                <TableBody>
+                                  {editableData.grouped[type].map((franchise, idx) => (
+                                    <TableRow key={idx}>
+                                      <TableCell>{franchise.operatorName}</TableCell>
+                                      <TableCell>{franchise.franchiseNumber}</TableCell>
+                                      <TableCell>{franchise.operatorAddress}</TableCell>
+                                    </TableRow>
+                                  ))}
+                                </TableBody>
+                              </Table>
+                            </TableContainer>
+                          </Box>
+                        )
+                      ))}
+
+                      <Box sx={{ mt: 4, textAlign: 'center' }}>
+                        <Typography variant="body2">
+                          Prepared by: {editableData.generatedBy}
+                        </Typography>
+                        <Typography variant="body2">
+                          {editableData.generatedByRole}
+                        </Typography>
+                      </Box>
+                    </Box>
+                  )}
+
+                  {/* MTOF Summary Preview */}
+                  {selectedCertType === CERTIFICATE_TYPES.MTOF_SUMMARY.id && (
+                    <Box sx={{ textAlign: 'center' }}>
+                      <Typography variant="h5" sx={{ mb: 3, fontWeight: 700 }}>
+                        {editableData.municipalityName}
+                      </Typography>
+                      <Typography variant="h6" sx={{ mb: 3 }}>
+                        Certificate of Summary
+                      </Typography>
+                      <Typography variant="body1" sx={{ mb: 4, textAlign: 'justify', px: 4 }}>
+                        {editableData.summaryText}
+                      </Typography>
+                      <Box sx={{ mt: 6 }}>
+                        <Typography variant="body2">
+                          Prepared by: {editableData.generatedBy}
+                        </Typography>
+                        <Typography variant="body2">
+                          {editableData.generatedByRole}
+                        </Typography>
+                        <Typography variant="body2" sx={{ mt: 2 }}>
+                          Date: {editableData.dateGenerated}
+                        </Typography>
+                      </Box>
+                    </Box>
+                  )}
+
+                  {/* Individual Certificate Preview */}
+                  {editableData.franchise && (
+                    <Box>
+                      <Typography variant="h5" sx={{ textAlign: 'center', mb: 3, fontWeight: 700 }}>
+                        {editableData.municipalityName}
+                      </Typography>
+                      <Typography variant="h6" sx={{ textAlign: 'center', mb: 3 }}>
+                        {certificateData.certificateType?.name}
+                      </Typography>
+                      
+                      <Box sx={{ mb: 3 }}>
+                        <Typography variant="body1" sx={{ mb: 1 }}>
+                          <strong>Franchise Number:</strong> {editableData.franchise.franchiseNumber}
+                        </Typography>
+                        <Typography variant="body1" sx={{ mb: 1 }}>
+                          <strong>Resolution Number:</strong> {editableData.franchise.sbResolutionNumber}
+                        </Typography>
+                        <Typography variant="body1" sx={{ mb: 1 }}>
+                          <strong>Operator Name:</strong> {editableData.franchise.operatorName}
+                        </Typography>
+                        <Typography variant="body1" sx={{ mb: 1 }}>
+                          <strong>Address:</strong> {editableData.franchise.operatorAddress}
+                        </Typography>
+                        <Typography variant="body1" sx={{ mb: 1 }}>
+                          <strong>Plate Number:</strong> {editableData.franchise.mvPlateNo}
+                        </Typography>
+                        <Typography variant="body1" sx={{ mb: 1 }}>
+                          <strong>Unit Model:</strong> {editableData.franchise.unitModel}
+                        </Typography>
+                      </Box>
+
+                      <Box sx={{ mt: 6, textAlign: 'center' }}>
+                        <Typography variant="body2">
+                          Issued by: {editableData.generatedBy}
+                        </Typography>
+                        <Typography variant="body2">
+                          {editableData.generatedByRole}
+                        </Typography>
+                        <Typography variant="body2" sx={{ mt: 2 }}>
+                          Date Issued: {editableData.dateGenerated}
+                        </Typography>
+                      </Box>
+                    </Box>
+                  )}
+                </Paper>
+
+                {/* Action Buttons */}
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2, mt: 3 }}>
+                  <Button
+                    variant="outlined"
+                    onClick={() => setOpenPreviewModal(false)}
+                    sx={{ textTransform: 'none' }}
+                  >
+                    Cancel
+                  </Button>
+                  <Box sx={{ display: 'flex', gap: 2 }}>
+                    <Button
+                      variant="outlined"
+                      startIcon={<PrintIcon />}
+                      onClick={handlePrintCertificate}
+                      sx={{ textTransform: 'none' }}
+                    >
+                      Print
+                    </Button>
+                    <Button
+                      variant="contained"
+                      startIcon={generating ? <CircularProgress size={20} /> : <DownloadIcon />}
+                      onClick={handleFinalGenerate}
+                      disabled={generating}
+                      sx={{
+                        bgcolor: '#2e7d32',
+                        '&:hover': { bgcolor: '#1b5e20' },
+                        textTransform: 'none',
+                      }}
+                    >
+                      {generating ? 'Generating...' : `Generate ${certificateData.certificateType?.fileType.toUpperCase()}`}
+                    </Button>
+                  </Box>
+                </Box>
+              </>
+            )}
           </Box>
         </Modal>
       </div>

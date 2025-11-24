@@ -503,7 +503,27 @@ export const franchiseAPI = {
       { headers: { 'Content-Type': 'application/json' } };
     
     return api.put(`/api/franchise-applications/pending/${id}`, data, config);
-  }
+  },
+
+  /**
+   * SB Admin accept new franchise application (creates FranchiseInformation record)
+   * @param {string} id - Application ID (must have statusOfBPLO = 'sb-approved')
+   * @param {FormData} formData - FormData containing sessionNumber and optional documents
+   * @returns {Promise} Response with created franchise information
+   */
+  acceptNewFranchise: (id, formData) => api.post(`/api/franchise-applications/sb/accept-new/${id}`, formData, {
+    headers: { 'Content-Type': undefined }
+  }),
+
+  /**
+   * SB Admin accept renewal/amendment application (creates new version of FranchiseInformation)
+   * @param {string} id - Application ID (must have statusOfBPLO = 'sb-approved')
+   * @param {FormData} formData - FormData containing optional documents
+   * @returns {Promise} Response with updated franchise information
+   */
+  acceptRenewAmend: (id, formData) => api.post(`/api/franchise-applications/sb/accept-renew-amend/${id}`, formData, {
+    headers: { 'Content-Type': undefined }
+  })
 };
 
 // ====================================================================

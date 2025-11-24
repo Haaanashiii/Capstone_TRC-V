@@ -49,10 +49,14 @@ function FranchiseMgmt() {
   const [openViewModal, setOpenViewModal] = useState(false)
   const [openRejectModal, setOpenRejectModal] = useState(false)
   const [openSBApprovalModal, setOpenSBApprovalModal] = useState(false)
+  const [openAcceptFranchiseModal, setOpenAcceptFranchiseModal] = useState(false)
   const [selectedApplication, setSelectedApplication] = useState(null)
   const [rejectionReason, setRejectionReason] = useState('')
   const [resolutionNumber, setResolutionNumber] = useState('')
   const [resolutionFile, setResolutionFile] = useState(null)
+  const [sessionNumber, setSessionNumber] = useState('')
+  const [sessionReportFile, setSessionReportFile] = useState(null)
+  const [scannedRegistrationFile, setScannedRegistrationFile] = useState(null)
   const [isLoading, setIsLoading] = useState(false)
   const [notification, setNotification] = useState({ open: false, message: '', type: 'info' })
   
@@ -888,19 +892,86 @@ function FranchiseMgmt() {
 
       setNotification({ 
         open: true, 
-        message: 'Application finally approved! Applicant can now claim their certificate.', 
+        message: 'Application finally approved! Now you can accept it to create the franchise record.', 
         type: 'success' 
       })
       
       setOpenSBApprovalModal(false)
       setResolutionNumber('')
       setResolutionFile(null)
+      // Don't close view modal - user needs to accept franchise next
     } catch (error) {
       console.error('[FranchiseMgmt] Error in SB approval:', error)
       
       setNotification({
         open: true,
         message: error.response?.data?.error || 'Failed to approve application',
+        type: 'error'
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+  
+  /**
+   * SB Admin accept franchise - creates FranchiseInformation record
+   * This is the final step after SB approval that moves the application to the franchise list
+   */
+  const handleAcceptFranchise = async () => {
+    if (!selectedApplication || !sessionNumber.trim()) {
+      setNotification({
+        open: true,
+        message: 'Session number is required',
+        type: 'error'
+      })
+      return
+    }
+    
+    setIsLoading(true)
+    
+    try {
+      console.log('[FranchiseMgmt] Accepting franchise for application:', selectedApplication.id)
+      
+      // Create FormData for multipart upload
+      const formData = new FormData()
+      formData.append('sessionNumber', sessionNumber.trim())
+      
+      if (scannedRegistrationFile) {
+        formData.append('scannedSignedRegistrationObj', scannedRegistrationFile)
+      }
+      
+      if (sessionReportFile) {
+        formData.append('individualSessionReportObj', sessionReportFile)
+      }
+      
+      // Determine which endpoint to call based on application type
+      const isNew = selectedApplication.applicationType === 'new'
+      const response = isNew 
+        ? await franchiseAPI.acceptNewFranchise(selectedApplication.id, formData)
+        : await franchiseAPI.acceptRenewAmend(selectedApplication.id, formData)
+      
+      console.log('[FranchiseMgmt] Franchise created/updated successfully:', response.data)
+
+      await fetchAllPending()
+
+      setNotification({ 
+        open: true, 
+        message: 'Franchise successfully created! It will now appear in the franchise list.', 
+        type: 'success' 
+      })
+      
+      setOpenAcceptFranchiseModal(false)
+      setSessionNumber('')
+      setSessionReportFile(null)
+      setScannedRegistrationFile(null)
+      handleCloseViewModal()
+    } catch (error) {
+      console.error('[FranchiseMgmt] Error accepting franchise:', error)
+      
+      const errorMessage = error.response?.data?.error || error.message || 'Failed to accept franchise'
+      setNotification({
+        open: true,
+        message: errorMessage,
         type: 'error'
       })
     } finally {
@@ -1973,6 +2044,31 @@ function FranchiseMgmt() {
                 </>
               )}
               
+              {userRole === 'sb-admin' && selectedApplication.statusOfBPLO === 'sb-approved' && (
+                <>
+                  <Typography variant="body2" sx={{ 
+                    textAlign: 'center', 
+                    p: 1.5, 
+                    mb: 2,
+                    bgcolor: '#e8f5e9',
+                    borderRadius: 1,
+                    color: '#2e7d32',
+                    fontWeight: 600,
+                    border: '1px solid #4caf50'
+                  }}>
+                    ✅ Finally Approved - Click below to accept and create franchise record
+                  </Typography>
+                  <Button
+                    className="button-success"
+                    onClick={() => setOpenAcceptFranchiseModal(true)}
+                    disabled={isLoading}
+                    fullWidth
+                  >
+                    {isLoading ? <CircularProgress className="circular-progress-small circular-progress-inherit" /> : 'Accept Franchise & Create Record'}
+                  </Button>
+                </>
+              )}
+              
               {(selectedApplication.statusOfBPLO === 'bplo-approved' || 
                 selectedApplication.statusOfBPLO === 'awaiting-sb' ||
                 selectedApplication.statusOfBPLO === 'sb-approved' ||
@@ -2211,6 +2307,141 @@ function FranchiseMgmt() {
               disabled={!resolutionNumber.trim() || isLoading}
             >
               {isLoading ? <CircularProgress className="circular-progress-small circular-progress-inherit" /> : 'Approve & Issue Certificate'}
+            </Button>
+          </div>
+        </Box>
+      </Modal>
+      
+      {/* Accept Franchise Modal - SB Admin final step to create franchise record */}
+      <Modal
+        open={openAcceptFranchiseModal}
+        onClose={() => {
+          setOpenAcceptFranchiseModal(false)
+          setSessionNumber('')
+          setSessionReportFile(null)
+          setScannedRegistrationFile(null)
+        }}
+        aria-labelledby="accept-franchise-modal"
+        slotProps={{
+          backdrop: {
+            sx: {
+              backgroundColor: 'rgba(0, 0, 0, 0.5)',
+              backdropFilter: 'blur(3px)',
+            },
+          },
+        }}
+      >
+        <Box className="modal-container rejection-modal">
+          <div className="modal-header">
+            <Typography variant="h5" component="h2">
+              Accept Franchise - Create Franchise Record
+            </Typography>
+            <IconButton onClick={() => {
+              setOpenAcceptFranchiseModal(false)
+              setSessionNumber('')
+              setSessionReportFile(null)
+              setScannedRegistrationFile(null)
+            }}>
+              <CloseIcon />
+            </IconButton>
+          </div>
+          
+          <Typography variant="body1" className="mb-2" sx={{ mb: 2 }}>
+            This will create the official franchise record and move it to the franchise list.
+            The applicant will be able to download their certificate after this step.
+          </Typography>
+          
+          {selectedApplication && (
+            <Box sx={{ 
+              bgcolor: '#e8f5e9', 
+              p: 2, 
+              borderRadius: 1, 
+              mb: 2 
+            }}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>
+                Applicant: {selectedApplication.name}
+              </Typography>
+              <Typography variant="body2">
+                Franchise Number: {selectedApplication.franchiseNumber || 'Will be auto-assigned'}
+              </Typography>
+              <Typography variant="body2">
+                Resolution Number: {selectedApplication.sbResolutionNumber || 'N/A'}
+              </Typography>
+              <Typography variant="body2">
+                Application Type: {selectedApplication.applicationType || 'new'}
+              </Typography>
+            </Box>
+          )}
+          
+          <TextField
+            label="Session Number"
+            value={sessionNumber}
+            onChange={(e) => setSessionNumber(e.target.value)}
+            fullWidth
+            required
+            placeholder="E.g., Session 2025-01"
+            helperText="Enter the session number for this franchise acceptance"
+            sx={{ mb: 2 }}
+          />
+          
+          <Box sx={{ mb: 2 }}>
+            <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
+              Scanned Signed Registration (Optional)
+            </Typography>
+            <TextField
+              type="file"
+              fullWidth
+              onChange={(e) => setScannedRegistrationFile(e.target.files[0])}
+              inputProps={{ 
+                accept: "application/pdf,image/jpeg,image/png"
+              }}
+              helperText="Upload the scanned signed registration document (PDF, JPG, or PNG)"
+            />
+            {scannedRegistrationFile && (
+              <Typography variant="caption" sx={{ mt: 1, display: 'block', color: 'success.main' }}>
+                ✓ Selected: {scannedRegistrationFile.name}
+              </Typography>
+            )}
+          </Box>
+          
+          <Box sx={{ mb: 2 }}>
+            <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
+              Individual Session Report (Optional)
+            </Typography>
+            <TextField
+              type="file"
+              fullWidth
+              onChange={(e) => setSessionReportFile(e.target.files[0])}
+              inputProps={{ 
+                accept: "application/pdf,image/jpeg,image/png"
+              }}
+              helperText="Upload the individual session report document (PDF, JPG, or PNG)"
+            />
+            {sessionReportFile && (
+              <Typography variant="caption" sx={{ mt: 1, display: 'block', color: 'success.main' }}>
+                ✓ Selected: {sessionReportFile.name}
+              </Typography>
+            )}
+          </Box>
+          
+          <div className="action-buttons">
+            <Button
+              variant="outlined"
+              onClick={() => {
+                setOpenAcceptFranchiseModal(false)
+                setSessionNumber('')
+                setSessionReportFile(null)
+                setScannedRegistrationFile(null)
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              className="button-success"
+              onClick={handleAcceptFranchise}
+              disabled={!sessionNumber.trim() || isLoading}
+            >
+              {isLoading ? <CircularProgress className="circular-progress-small circular-progress-inherit" /> : 'Accept & Create Franchise'}
             </Button>
           </div>
         </Box>

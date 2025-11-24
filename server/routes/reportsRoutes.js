@@ -22,6 +22,9 @@ router.get('/monthly', authenticate, authorize(['sb-admin', 'bplo-admin', 'super
 // Date range reports with CSV export (admin only)
 router.get('/date-range', authenticate, authorize(['sb-admin', 'bplo-admin', 'super-admin']), reportsController.getReportsByDateRange);
 
+// Certificate generation endpoint (admin only)
+router.post('/generate-certificate', authenticate, authorize(['sb-admin', 'bplo-admin', 'super-admin']), reportsController.generateCertificate);
+
 // Individual report operations
 router.get('/:id', authenticate, reportsController.getReportById);
 router.put('/:id', authenticate, authorize(['sb-admin', 'bplo-admin', 'super-admin']), reportsController.updateReport);
