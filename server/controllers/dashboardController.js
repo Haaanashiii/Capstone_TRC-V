@@ -40,19 +40,37 @@ exports.getDashboardStatistics = async (req, res, next) => {
       // Pending Reports (Reports with pending status)
       Report.countDocuments({ status: 'pending' }),
 
-      // Monthly Trend Data - Registered franchises by month (current year)
-      FranchiseInformation.aggregate([
+      // Monthly Trend Data - Applications processed by month (current year)
+      FranchiseApplication.aggregate([
         {
           $match: {
-            createdAt: {
-              $gte: new Date(currentYear, 0, 1), // Start of current year
-              $lte: new Date(currentYear, 11, 31, 23, 59, 59) // End of current year
-            }
+            $or: [
+              {
+                createdAt: {
+                  $gte: new Date(currentYear, 0, 1), // Start of current year
+                  $lte: new Date(currentYear, 11, 31, 23, 59, 59) // End of current year
+                }
+              },
+              {
+                submittedAt: {
+                  $gte: new Date(currentYear, 0, 1), // Fallback to submittedAt for existing records
+                  $lte: new Date(currentYear, 11, 31, 23, 59, 59)
+                }
+              }
+            ]
           }
         },
         {
           $group: {
-            _id: { $month: '$createdAt' },
+            _id: { 
+              $month: { 
+                $cond: [
+                  { $ifNull: ['$createdAt', null] },
+                  '$createdAt',
+                  '$submittedAt'
+                ]
+              }
+            },
             count: { $sum: 1 }
           }
         },
@@ -78,26 +96,46 @@ exports.getDashboardStatistics = async (req, res, next) => {
       ? ((totalRegisteredResult / totalApplications) * 100).toFixed(1)
       : 0;
 
-    // Get current month statistics for comparison (from FranchiseInformation)
+    // Get current month statistics for comparison (from FranchiseApplication)
     const currentMonthStart = new Date(currentYear, currentMonth, 1);
     const currentMonthEnd = new Date(currentYear, currentMonth + 1, 0, 23, 59, 59);
     
-    const currentMonthApplications = await FranchiseInformation.countDocuments({
-      createdAt: {
-        $gte: currentMonthStart,
-        $lte: currentMonthEnd
-      }
+    const currentMonthApplications = await FranchiseApplication.countDocuments({
+      $or: [
+        {
+          createdAt: {
+            $gte: currentMonthStart,
+            $lte: currentMonthEnd
+          }
+        },
+        {
+          submittedAt: {
+            $gte: currentMonthStart,
+            $lte: currentMonthEnd
+          }
+        }
+      ]
     });
 
     // Previous month for trend calculation
     const prevMonthStart = new Date(currentYear, currentMonth - 1, 1);
     const prevMonthEnd = new Date(currentYear, currentMonth, 0, 23, 59, 59);
     
-    const prevMonthApplications = await FranchiseInformation.countDocuments({
-      createdAt: {
-        $gte: prevMonthStart,
-        $lte: prevMonthEnd
-      }
+    const prevMonthApplications = await FranchiseApplication.countDocuments({
+      $or: [
+        {
+          createdAt: {
+            $gte: prevMonthStart,
+            $lte: prevMonthEnd
+          }
+        },
+        {
+          submittedAt: {
+            $gte: prevMonthStart,
+            $lte: prevMonthEnd
+          }
+        }
+      ]
     });
 
     const monthlyTrendPercentage = prevMonthApplications > 0

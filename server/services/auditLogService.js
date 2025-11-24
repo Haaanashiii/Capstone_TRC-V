@@ -631,12 +631,11 @@ class AuditLogService {
       res.once('finish', async () => {
         try {
           if (!req.user) {
-            // Skip logging unauthenticated requests (or log differently)
+            // Skip logging unauthenticated requests
             return;
           }
 
-          // Skip logging GET requests (read-only operations) to avoid cluttering logs
-          // Only log data-changing operations (POST, PUT, PATCH, DELETE)
+          // Skip logging GET requests (read-only operations)
           if (req.method === 'GET') {
             return;
           }
@@ -645,12 +644,11 @@ class AuditLogService {
           const routesWithDedicatedLogging = [
             '/auth/login',
             '/auth/logout',
-            '/announcements',
-            '/api/franchise-applications',
-            '/qr/verify'
+            '/announcements'
           ];
           
-          if (routesWithDedicatedLogging.some(route => req.path.includes(route))) {
+          const pathWithoutQuery = req.path.split('?')[0];
+          if (routesWithDedicatedLogging.some(route => pathWithoutQuery.startsWith(route))) {
             return;
           }
 

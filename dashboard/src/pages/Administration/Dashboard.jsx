@@ -39,6 +39,7 @@ function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [retryCount, setRetryCount] = useState(0);
+  const [isAuthorized, setIsAuthorized] = useState(true);
 
   // Memoized user info and greeting
   const { userName, greeting } = useMemo(() => {
@@ -66,7 +67,36 @@ function Dashboard() {
     return { userName: name, greeting: greetingText };
   }, []); // Only calculate once on mount
 
-  // Optimized data fetching with single API call
+  // Verify admin access on component mount
+  useEffect(() => {
+    try {
+      const token = sessionStorage.getItem('accessToken');
+      if (!token) {
+        setIsAuthorized(false);
+        navigate('/login');
+        return;
+      }
+
+      // Decode token to check account type and role
+      const decoded = JSON.parse(atob(token.split('.')[1]));
+      
+      // Only admins (with admin roles) can access dashboard
+      const adminRoles = ['sb-admin', 'bplo-admin', 'super-admin'];
+      if (decoded.accountType !== 'admin' && !adminRoles.includes(decoded.role)) {
+        setIsAuthorized(false);
+        setError('You do not have permission to access the admin dashboard. Admin access only.');
+        setTimeout(() => navigate('/'), 2000);
+        return;
+      }
+
+      setIsAuthorized(true);
+    } catch (err) {
+      console.error('[Dashboard] Authorization check failed:', err);
+      setIsAuthorized(false);
+      setError('Authorization verification failed. Please log in again.');
+      setTimeout(() => navigate('/login'), 2000);
+    }
+  }, [navigate]);
   const fetchDashboardData = useCallback(async () => {
     try {
       setLoading(true);
@@ -80,6 +110,12 @@ function Dashboard() {
       if (response?.data?.success && response.data.data) {
         const { kpis, trends } = response.data.data;
         
+        console.log('[Dashboard] Raw API Response:', {
+          kpis,
+          trends,
+          timestamp: response.data.data.timestamp
+        });
+        
         setDashboardData({
           kpiData: {
             totalRegistered: kpis.totalRegistered || 0,
@@ -89,8 +125,8 @@ function Dashboard() {
             totalApplications: kpis.totalApplications || 0,
             approvalRate: kpis.approvalRate || 0,
           },
-          trendData: trends.monthly || [],
-          currentMonthInfo: trends.currentMonth || null,
+          trendData: trends?.monthly || [],
+          currentMonthInfo: trends?.currentMonth || null,
           timestamp: response.data.data.timestamp,
         });
 
@@ -98,6 +134,8 @@ function Dashboard() {
           totalRegistered: kpis.totalRegistered,
           pendingVerifications: kpis.pendingVerifications,
           expiredFranchise: kpis.expiredFranchise,
+          trendDataLength: trends?.monthly?.length || 0,
+          trendData: trends?.monthly || []
         });
         
         setRetryCount(0); // Reset retry count on success
@@ -171,6 +209,34 @@ function Dashboard() {
     setRetryCount(prev => prev + 1);
     fetchDashboardData();
   }, [fetchDashboardData]);
+
+  // Authorization guard
+  if (!isAuthorized) {
+    return (
+      <div className="dashboard-container">
+        <Sidebar />
+        <div className="content-container">
+          <Box
+            sx={{
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'center',
+              alignItems: 'center',
+              minHeight: '400px',
+              gap: 2,
+            }}
+          >
+            <Typography variant="h6" sx={{ color: '#EF4444', fontWeight: 700 }}>
+              Access Denied
+            </Typography>
+            <Typography sx={{ color: '#6B7280', textAlign: 'center' }}>
+              {error || 'You do not have permission to access the admin dashboard.'}
+            </Typography>
+          </Box>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="dashboard-container">
@@ -417,12 +483,17 @@ function Dashboard() {
                   sx={{
                     height: 400,
                     display: 'flex',
+                    flexDirection: 'column',
                     justifyContent: 'center',
                     alignItems: 'center',
                     color: '#6B7280',
+                    gap: 1,
                   }}
                 >
                   <Typography>No trend data available for this year</Typography>
+                  <Typography variant="caption" sx={{ fontSize: '0.75rem', opacity: 0.7 }}>
+                    Trend data will appear once franchises are registered
+                  </Typography>
                 </Box>
               )}
             </Paper>

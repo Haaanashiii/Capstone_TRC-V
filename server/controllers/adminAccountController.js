@@ -1,6 +1,29 @@
 const adminAccountRepository = require('../repositories/adminAccountRepository');
 
 /**
+ * Helper function to broadcast admin updates via WebSocket
+ */
+const broadcastAdminUpdate = (io, admin, eventType = 'admin-updated') => {
+  if (!io) return;
+  
+  const adminResponse = admin.toObject?.() || admin;
+  delete adminResponse.password;
+  
+  // Broadcast to super-admin-room (permission changes only visible to super admins)
+  io.to('super-admin-room').emit(eventType, {
+    adminId: adminResponse.adminId,
+    name: adminResponse.name,
+    email: adminResponse.email,
+    role: adminResponse.role,
+    permissions: adminResponse.permissions,
+    isActive: adminResponse.isActive,
+    updatedAt: adminResponse.updatedAt
+  });
+  
+  console.log(`[AdminController] Broadcast ${eventType} for admin ${adminResponse.adminId} to super-admin-room`);
+};
+
+/**
  * Get all admin accounts
  */
 exports.getAllAdmins = async (req, res, next) => {
@@ -200,6 +223,10 @@ exports.addPermission = async (req, res, next) => {
     const adminResponse = admin.toObject();
     delete adminResponse.password;
     
+    // Get io instance from req (set by server)
+    const io = req.app.get('io');
+    broadcastAdminUpdate(io, admin, 'admin-permission-added');
+    
     res.status(200).json({
       message: 'Permission added successfully',
       admin: adminResponse
@@ -228,6 +255,10 @@ exports.removePermission = async (req, res, next) => {
     
     const adminResponse = admin.toObject();
     delete adminResponse.password;
+    
+    // Get io instance from req (set by server)
+    const io = req.app.get('io');
+    broadcastAdminUpdate(io, admin, 'admin-permission-removed');
     
     res.status(200).json({
       message: 'Permission removed successfully',

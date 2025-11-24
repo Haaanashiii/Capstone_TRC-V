@@ -131,7 +131,7 @@ exports.createNewApplication = async (req, res, next) => {
     try {
       const io = req.app.get('io');
       if (io) {
-        io.to('bplo-admins').emit('pending-applications', [finalApplication]);
+        io.to('bplo-admin').emit('pending-applications', [finalApplication]);
         io.to('general').emit('application-updated', finalApplication);
         console.log('[createNewApplication] Broadcasted new application to bplo-admins and general rooms');
       }
@@ -1169,7 +1169,8 @@ exports.sbAdminAcceptNewFranchise = async (req, res, next) => {
       previousVersion,
       changeType: 'new',
       changedBy: req.user?.username || 'SB Admin',
-      linkedUser: application.operatorInfo
+      linkedUser: application.operatorInfo,
+      relatedApplicationId: application._id
     };
     
     const FranchiseInformationModel = require('../models/franchiseInformationModel');
@@ -1302,9 +1303,11 @@ exports.sbAdminAcceptRenewOrAmendment = async (req, res, next) => {
     }
     
     // Create new version based on application type
+    // Preserve the original franchiseChainId from the existing franchise
     const newVersionData = {
       ...existingFranchise.toObject(),
       _id: undefined,
+      franchiseChainId: existingFranchise.franchiseChainId, // Maintain the same chain ID for this franchise
       version,
       isCurrentVersion: true,
       previousVersion,
@@ -1329,7 +1332,8 @@ exports.sbAdminAcceptRenewOrAmendment = async (req, res, next) => {
         oRTreasurerOfficeObj: application.documents?.oRTreasurerOfficeObj || existingFranchise.documents?.oRTreasurerOfficeObj,
         scannedSignedRegistrationObj: scannedReg || existingFranchise.documents?.scannedSignedRegistrationObj,
         individualSessionReportObj: sessionReport || existingFranchise.documents?.individualSessionReportObj
-      }
+      },
+      relatedApplicationId: application._id
     };
     
     // Update specific sections based on type

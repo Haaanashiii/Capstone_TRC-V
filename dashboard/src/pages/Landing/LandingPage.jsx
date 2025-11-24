@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from 'react-router-dom';
 import '../../Styles/LandingCss/LandingPage.css';
 import { useAuth } from '../../contexts/AuthContext';
+import websocketService from '../../services/websocket';
 import UnifiedNavbar from '../../components/UnifiedNavbar';
 import { Button, Typography, Box, useMediaQuery, useTheme, MobileStepper, Accordion, AccordionSummary, AccordionDetails } from '@mui/material';
 import SwipeableViews from 'react-swipeable-views';
@@ -111,6 +112,53 @@ const LandingPage = () => {
     };
 
     fetchPublishedAnnouncements();
+
+    // Connect to WebSocket for real-time announcement updates
+    if (!websocketService.isConnected()) {
+      console.log('[LandingPage] Connecting to WebSocket');
+      websocketService.connect();  // Auto-joins 'announcements' room
+    }
+
+    // Subscribe to announcement updates
+    const handleAnnouncementCreated = (newAnnouncement) => {
+      if (newAnnouncement.published) {
+        console.log('[LandingPage] WebSocket event - announcement-created', newAnnouncement);
+        setAnnouncements(prev => [newAnnouncement, ...prev]);
+      }
+    };
+
+    const handleAnnouncementUpdated = (updatedAnnouncement) => {
+      console.log('[LandingPage] WebSocket event - announcement-updated', updatedAnnouncement);
+      if (updatedAnnouncement.published) {
+        // If it's now published, add/update it
+        setAnnouncements(prev => {
+          const exists = prev.some(a => a._id === updatedAnnouncement._id);
+          if (exists) {
+            return prev.map(a => a._id === updatedAnnouncement._id ? updatedAnnouncement : a);
+          } else {
+            return [updatedAnnouncement, ...prev];
+          }
+        });
+      } else {
+        // If it's unpublished, remove it
+        setAnnouncements(prev => prev.filter(a => a._id !== updatedAnnouncement._id));
+      }
+    };
+
+    const handleAnnouncementDeleted = (data) => {
+      console.log('[LandingPage] WebSocket event - announcement-deleted', data);
+      setAnnouncements(prev => prev.filter(a => a._id !== data._id));
+    };
+
+    websocketService.on('announcement-created', handleAnnouncementCreated);
+    websocketService.on('announcement-updated', handleAnnouncementUpdated);
+    websocketService.on('announcement-deleted', handleAnnouncementDeleted);
+
+    return () => {
+      websocketService.off('announcement-created', handleAnnouncementCreated);
+      websocketService.off('announcement-updated', handleAnnouncementUpdated);
+      websocketService.off('announcement-deleted', handleAnnouncementDeleted);
+    };
   }, []);
 
   useEffect(() => {

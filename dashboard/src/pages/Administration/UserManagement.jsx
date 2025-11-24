@@ -27,7 +27,15 @@ import {
   tableCellClasses,
   IconButton,
   CircularProgress,
-  Alert
+  Alert,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Checkbox,
+  FormGroup,
+  FormControlLabel,
+  Chip
 } from '@mui/material';
 
 import { styled } from "@mui/material/styles";
@@ -35,6 +43,8 @@ import SearchIcon from '@mui/icons-material/Search';
 import PersonAddIcon from '@mui/icons-material/PersonAdd';
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
+import LockIcon from "@mui/icons-material/Lock";
+import SecurityIcon from "@mui/icons-material/Security";
 
 // Styled components for table
 const StyledTableCell = styled(TableCell)(() => ({
@@ -90,6 +100,8 @@ function UserManagement() {
   const [success, setSuccess] = useState('');
   const [showVerificationModal, setShowVerificationModal] = useState(false);
   const [pendingUserData, setPendingUserData] = useState(null);
+  const [permissionsModalOpen, setPermissionsModalOpen] = useState(false);
+  const [selectedUserForPermissions, setSelectedUserForPermissions] = useState(null);
   
   const rowsPerPage = 5;
 
@@ -127,21 +139,51 @@ function UserManagement() {
     // Connect to WebSocket for real-time updates
     if (!websocketService.isConnected()) {
       console.log('[UserManagement] Connecting to WebSocket');
-      websocketService.connect('general')
+      websocketService.connect('super-admin-room');
+    } else {
+      websocketService.joinRoom('super-admin-room');
     }
 
-    // Subscribe to admin account updates
+    // Subscribe to admin account updates and permission changes
     const handleUserUpdates = () => {
       console.log('[UserManagement] WebSocket update - admin-accounts');
       fetchUsers();
     };
 
+    const handlePermissionAdded = (updatedAdmin) => {
+      console.log('[UserManagement] WebSocket event - admin-permission-added', updatedAdmin);
+      setUsers(prevUsers => 
+        prevUsers.map(u => 
+          (u.adminId === updatedAdmin.adminId || u._id === updatedAdmin.adminId) 
+            ? { ...u, permissions: updatedAdmin.permissions, updatedAt: updatedAdmin.updatedAt }
+            : u
+        )
+      );
+      setSuccess('Permission updated in real-time');
+    };
+
+    const handlePermissionRemoved = (updatedAdmin) => {
+      console.log('[UserManagement] WebSocket event - admin-permission-removed', updatedAdmin);
+      setUsers(prevUsers => 
+        prevUsers.map(u => 
+          (u.adminId === updatedAdmin.adminId || u._id === updatedAdmin.adminId) 
+            ? { ...u, permissions: updatedAdmin.permissions, updatedAt: updatedAdmin.updatedAt }
+            : u
+        )
+      );
+      setSuccess('Permission updated in real-time');
+    };
+
     websocketService.on('admin-accounts', handleUserUpdates);
     websocketService.on('admin-updated', handleUserUpdates);
+    websocketService.on('admin-permission-added', handlePermissionAdded);
+    websocketService.on('admin-permission-removed', handlePermissionRemoved);
 
     return () => {
       websocketService.off('admin-accounts', handleUserUpdates);
       websocketService.off('admin-updated', handleUserUpdates);
+      websocketService.off('admin-permission-added', handlePermissionAdded);
+      websocketService.off('admin-permission-removed', handlePermissionRemoved);
     };
   }, [fetchUsers]);
 
@@ -391,6 +433,48 @@ function UserManagement() {
     setNewUser(prev => ({ ...prev, [field]: value }));
   }, []);
 
+  /**
+   * Handle permission toggle for a user
+   * Uses secure adminAPI to add/remove permissions
+   */
+  const handlePermissionToggle = useCallback(async (user, permission) => {
+    try {
+      setLoading(true);
+      
+      // Find if user has this permission
+      const hasPermission = user.permissions?.includes(permission);
+      
+      if (hasPermission) {
+        // Remove permission
+        await adminAPI.removePermission(user.adminId || user._id, permission);
+        console.log('[UserManagement] Permission removed:', permission, 'from', user.adminId);
+      } else {
+        // Add permission
+        await adminAPI.addPermission(user.adminId || user._id, permission);
+        console.log('[UserManagement] Permission added:', permission, 'to', user.adminId);
+      }
+      
+      // Note: WebSocket will handle real-time update
+      setSuccess(`Permission ${hasPermission ? 'removed' : 'added'} successfully`);
+      setError('');
+    } catch (err) {
+      console.error('[UserManagement] Error toggling permission:', err);
+      setError(err.response?.data?.error || 'Failed to update permissions');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const AVAILABLE_PERMISSIONS = [
+    { value: 'manage-users', label: 'Manage Users' },
+    { value: 'manage-operators', label: 'Manage Operators' },
+    { value: 'manage-franchises', label: 'Manage Franchises' },
+    { value: 'view-reports', label: 'View Reports' },
+    { value: 'approve-franchise-applications', label: 'Approve Applications' },
+    { value: 'manage-announcements', label: 'Manage Announcements' },
+    { value: 'system-settings', label: 'System Settings' }
+  ];
+
   return (
     <div className="user-management-container">
       <Sidebar />
@@ -466,6 +550,18 @@ function UserManagement() {
                       <StyledTableCell>{user.email}</StyledTableCell>
                       <StyledTableCell>{getRoleLabel(user.role)}</StyledTableCell>
                       <StyledTableCell align="center">
+                        <IconButton 
+                          size="small"
+                          onClick={() => {
+                            setSelectedUserForPermissions(user);
+                            setPermissionsModalOpen(true);
+                          }}
+                          title="Manage Permissions"
+                          sx={{ mr: 1 }}
+                          disabled={loading}
+                        >
+                          <SecurityIcon fontSize="small" />
+                        </IconButton>
                         <IconButton 
                           size="small"
                           onClick={() => handleOpenModal(user)}
@@ -606,6 +702,108 @@ function UserManagement() {
           onVerificationSuccess={handleVerificationSuccess}
           buttonText="Add User"
         />
+
+        {/* Permissions Management Dialog */}
+        <Dialog 
+          open={permissionsModalOpen} 
+          onClose={() => {
+            setPermissionsModalOpen(false);
+            setSelectedUserForPermissions(null);
+          }}
+          maxWidth="sm"
+          fullWidth
+        >
+          <DialogTitle sx={{ bgcolor: '#0A356B', color: 'white', fontWeight: 'bold' }}>
+            <SecurityIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
+            Manage Permissions: {selectedUserForPermissions?.name}
+          </DialogTitle>
+          <DialogContent sx={{ pt: 3 }}>
+            {selectedUserForPermissions && (
+              <Box>
+                <Typography variant="body2" sx={{ mb: 2, color: '#666' }}>
+                  <strong>Role:</strong> {getRoleLabel(selectedUserForPermissions.role)}
+                </Typography>
+                
+                <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 'bold' }}>
+                  Select Permissions:
+                </Typography>
+                
+                <FormGroup>
+                  {AVAILABLE_PERMISSIONS.map((permission) => {
+                    const hasPermission = selectedUserForPermissions.permissions?.includes(permission.value);
+                    return (
+                      <FormControlLabel
+                        key={permission.value}
+                        control={
+                          <Checkbox
+                            checked={hasPermission}
+                            onChange={async () => {
+                              await handlePermissionToggle(selectedUserForPermissions, permission.value);
+                              // Update local state
+                              setSelectedUserForPermissions(prev => ({
+                                ...prev,
+                                permissions: hasPermission 
+                                  ? prev.permissions.filter(p => p !== permission.value)
+                                  : [...(prev.permissions || []), permission.value]
+                              }));
+                            }}
+                            disabled={loading}
+                            color="primary"
+                          />
+                        }
+                        label={permission.label}
+                      />
+                    );
+                  })}
+                </FormGroup>
+
+                {selectedUserForPermissions.permissions && selectedUserForPermissions.permissions.length > 0 && (
+                  <Box sx={{ mt: 3 }}>
+                    <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 'bold' }}>
+                      Active Permissions:
+                    </Typography>
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                      {selectedUserForPermissions.permissions.map(perm => {
+                        const label = AVAILABLE_PERMISSIONS.find(p => p.value === perm)?.label || perm;
+                        return (
+                          <Chip 
+                            key={perm}
+                            label={label}
+                            size="small"
+                            color="primary"
+                            variant="outlined"
+                          />
+                        );
+                      })}
+                    </Box>
+                  </Box>
+                )}
+              </Box>
+            )}
+          </DialogContent>
+          <DialogActions sx={{ p: 2 }}>
+            <Button 
+              onClick={() => {
+                setPermissionsModalOpen(false);
+                setSelectedUserForPermissions(null);
+              }}
+              disabled={loading}
+            >
+              Close
+            </Button>
+            <Button 
+              onClick={() => {
+                setPermissionsModalOpen(false);
+                setSelectedUserForPermissions(null);
+                setSuccess('Permissions updated successfully');
+              }}
+              variant="contained"
+              disabled={loading}
+            >
+              Done
+            </Button>
+          </DialogActions>
+        </Dialog>
       </div>
     </div>
   );

@@ -47,7 +47,11 @@ const adminAccountSchema = new mongoose.Schema({
       'manage-announcements',
       'system-settings'
     ]
-  }]
+  }],
+  isActive: {
+    type: Boolean,
+    default: true
+  }
 }, { timestamps: true });
 
 module.exports = mongoose.model('AdminAccount', adminAccountSchema);

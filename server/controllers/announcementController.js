@@ -50,6 +50,13 @@ class AnnouncementController {
         );
       }
 
+      // Broadcast to all connected clients (announcement room)
+      const io = req.app.get('io');
+      if (io) {
+        io.to('announcements').emit('announcement-created', announcement);
+        console.log(`[AnnouncementController] Broadcast announcement-created to all users`);
+      }
+
       res.status(201).json({
         success: true,
         message: 'Announcement created successfully',
@@ -154,6 +161,13 @@ class AnnouncementController {
         );
       }
 
+      // Broadcast update to all connected clients (announcement room)
+      const io = req.app.get('io');
+      if (io) {
+        io.to('announcements').emit('announcement-updated', announcement);
+        console.log(`[AnnouncementController] Broadcast announcement-updated to all users`);
+      }
+
       res.status(200).json({
         success: true,
         message: 'Announcement updated successfully',
@@ -186,6 +200,13 @@ class AnnouncementController {
         await auditLogService.logAnnouncementDeletion(announcement, req.user, req).catch(err =>
           console.error('[Announcement] Audit log error:', err)
         );
+      }
+
+      // Broadcast deletion to all connected clients (announcement room)
+      const io = req.app.get('io');
+      if (io) {
+        io.to('announcements').emit('announcement-deleted', { _id: id });
+        console.log(`[AnnouncementController] Broadcast announcement-deleted to all users`);
       }
 
       res.status(200).json({
