@@ -99,6 +99,62 @@
   margin-bottom: clamp(24px, 4vw, 32px);
 }
 
+/* Mobile Responsive Enhancements */
+@media (max-width: 768px) {
+  .operator-home-container {
+    padding: clamp(12px, 3vw, 16px);
+  }
+
+  .greeting-card {
+    padding: clamp(16px, 4vw, 20px);
+  }
+
+  .greeting-text {
+    font-size: clamp(20px, 5vw, 28px);
+    text-align: center;
+  }
+
+  .datetime-subtext {
+    text-align: center;
+  }
+
+  .options-container {
+    flex-direction: column;
+    gap: clamp(12px, 3vw, 16px);
+  }
+
+  .option-card {
+    min-width: 100%;
+    max-width: 100%;
+    padding: clamp(16px, 4vw, 24px);
+  }
+
+  .time-date-display {
+    width: 100%;
+    text-align: center;
+    margin-bottom: clamp(16px, 3vw, 20px);
+  }
+
+  .time-date-display span {
+    display: block;
+    margin: clamp(4px, 1vw, 6px) 0;
+  }
+}
+
+@media (max-width: 480px) {
+  .operator-home-container {
+    padding: clamp(10px, 2.5vw, 12px);
+  }
+
+  .greeting-card {
+    padding: clamp(14px, 3.5vw, 18px);
+  }
+
+  .options-card {
+    padding: clamp(16px, 3.5vw, 20px);
+  }
+}
+
 .no-data-message {
   text-align: center;
   padding: clamp(24px, 4vw, 32px);

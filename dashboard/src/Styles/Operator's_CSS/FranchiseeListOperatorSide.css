@@ -117,7 +117,17 @@
 }
 @media (max-width: 768px){
   .driver-id-card{flex-direction:column;width:100%;max-width:500px}
-  .id-right{width:100%;padding:clamp(16px, 3vw, 18px)}
+  .id-right{width:100%;padding:clamp(16px, 3vw, 18px);min-height:clamp(120px, 15vh, 150px)}
   .id-left{padding:clamp(16px, 3vw, 20px)}
   .fields-grid{grid-template-columns:1fr;gap:clamp(8px, 2vw, 12px)}
+  .field-group.wide{grid-column:1}
+}
+
+@media (max-width: 480px){
+  .driver-id-wrapper{padding:clamp(10px, 2.5vw, 12px);margin-top:clamp(70px, 10vh, 90px)}
+  .id-left{padding:clamp(14px, 3.5vw, 18px)}
+  .id-right{padding:clamp(16px, 3.5vw, 20px);min-height:clamp(100px, 12vh, 130px)}
+  .id-title{font-size:clamp(13px, 2.8vw, 15px);text-align:center}
+  .driver-id-badge{padding:clamp(7px, 1.5vw, 9px) clamp(12px, 2.5vw, 16px);font-size:clamp(10px, 1.8vw, 12px)}
+  .value{padding:clamp(6px, 1.2vw, 8px) clamp(9px, 1.8vw, 12px);font-size:clamp(10px, 1.6vw, 11px)}
 }

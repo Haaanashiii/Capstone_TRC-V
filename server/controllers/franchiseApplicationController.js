@@ -194,9 +194,23 @@ exports.getSpecificPendingFranchise = async (req, res, next) => {
   try {
     const { id } = req.params;
     const application = await franchiseApplicationRepository.getFranchiseApplicationById(id);
-    if (!application || application.statusOfBPLO !== 'pending') {
-      return res.status(404).json({ error: 'Pending application not found' });
+    if (!application) {
+      return res.status(404).json({ error: 'Application not found' });
     }
+    
+    // Allow viewing various application statuses for users
+    const allowedStatuses = ['pending', 'bplo-disapproved', 'bplo-approved', 'awaiting-sb'];
+    if (!allowedStatuses.includes(application.statusOfBPLO)) {
+      return res.status(403).json({ error: 'Cannot access this application' });
+    }
+    
+    // Check if user owns this application
+    const userId = req.user?._id?.toString() || req.user?.userId || String(req.user?.id);
+    const appUserId = application.operatorInfo?.toString();
+    if (userId !== appUserId && !['bplo-admin', 'sb-admin', 'super-admin'].includes(req.user?.role)) {
+      return res.status(403).json({ error: 'You can only view your own applications' });
+    }
+    
     res.json({ success: true, data: application });
   } catch (error) {
     next(error);
