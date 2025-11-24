@@ -498,6 +498,28 @@ function FranchiseeList() {
   // Load franchisees on component mount
   useEffect(() => {
     fetchFranchisees();
+
+    // Connect to WebSocket for real-time updates
+    if (!websocketService.isConnected()) {
+      console.log('[FranchiseeList] Connecting to WebSocket');
+      websocketService.connect('general')
+    }
+
+    // Subscribe to franchisee updates
+    const handleFranchiseeUpdates = (franchisees) => {
+      console.log('[FranchiseeList] WebSocket update - franchisees:', franchisees?.length || 0);
+      if (Array.isArray(franchisees) && franchisees.length > 0) {
+        fetchFranchisees();
+      }
+    };
+
+    websocketService.on('franchisees', handleFranchiseeUpdates);
+    websocketService.on('franchisee-updated', handleFranchiseeUpdates);
+
+    return () => {
+      websocketService.off('franchisees', handleFranchiseeUpdates);
+      websocketService.off('franchisee-updated', handleFranchiseeUpdates);
+    };
   }, [fetchFranchisees]);
 
   // Filtered franchisees based on search term

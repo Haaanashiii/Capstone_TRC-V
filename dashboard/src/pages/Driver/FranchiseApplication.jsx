@@ -1133,13 +1133,13 @@ export default function FranchiseApplication() {
                       }
                       
                       if (uploads.orLTO) {
-                        formDataToSend.append('orLTOObj', uploads.orLTO);
+                        formDataToSend.append('oRLTOObj', uploads.orLTO);
                       } else if (isResubmission && existingDocuments?.orLTO) {
                         formDataToSend.append('existingOrLTO', existingDocuments.orLTO);
                       }
                       
                       if (uploads.cr) {
-                        formDataToSend.append('crObj', uploads.cr);
+                        formDataToSend.append('cRLTOObj', uploads.cr);
                       } else if (isResubmission && existingDocuments?.cr) {
                         formDataToSend.append('existingCR', existingDocuments.cr);
                       }

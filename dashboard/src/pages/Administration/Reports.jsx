@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import '../../Styles/Administrator_Css/Reports.css';
 import Sidebar from './Sidebar';
+import websocketService from '../../services/websocket';
 import {
   Typography,
   TextField,
@@ -87,63 +88,84 @@ function Reports() {
   };
 
   // Load approved franchises
-  useEffect(() => {
-    const loadFranchises = async () => {
-      setLoading(true);
-      setError('');
+  const loadFranchises = useCallback(async () => {
+    setLoading(true);
+    setError('');
 
-      try {
-        const token = getAuthToken();
-        if (!token) {
-          setError('Authentication required');
-          return;
-        }
-
-        // Build query params
-        const queryParams = new URLSearchParams({
-          page: page + 1,
-          limit: rowsPerPage,
-          search: searchTerm,
-        });
-
-        if (startDate) {
-          queryParams.append('startDate', startDate.toISOString());
-        }
-        if (endDate) {
-          queryParams.append('endDate', endDate.toISOString());
-        }
-
-        const response = await fetch(`${API_BASE_URL}/api/franchise-information?${queryParams}`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        });
-
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const result = await response.json();
-        const franchiseData = result.data || [];
-        
-        // Filter only SB approved franchises
-        const approvedFranchises = franchiseData.filter(f => 
-          f.status === 'active' || f.sbApprovedAt
-        );
-
-        setFranchises(approvedFranchises);
-        setTotalFranchises(approvedFranchises.length);
-      } catch (err) {
-        console.error('Error fetching franchises:', err);
-        setError('Failed to fetch franchises. Please try again.');
-      } finally {
-        setLoading(false);
+    try {
+      const token = getAuthToken();
+      if (!token) {
+        setError('Authentication required');
+        return;
       }
+
+      // Build query params
+      const queryParams = new URLSearchParams({
+        page: page + 1,
+        limit: rowsPerPage,
+        search: searchTerm,
+      });
+
+      if (startDate) {
+        queryParams.append('startDate', startDate.toISOString());
+      }
+      if (endDate) {
+        queryParams.append('endDate', endDate.toISOString());
+      }
+
+      const response = await fetch(`${API_BASE_URL}/api/franchise-information?${queryParams}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      const franchiseData = result.data || [];
+      
+      // Filter only SB approved franchises
+      const approvedFranchises = franchiseData.filter(f => 
+        f.status === 'active' || f.sbApprovedAt
+      );
+
+      setFranchises(approvedFranchises);
+      setTotalFranchises(approvedFranchises.length);
+    } catch (err) {
+      console.error('Error fetching franchises:', err);
+      setError('Failed to fetch franchises. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  }, [page, rowsPerPage, searchTerm, startDate, endDate]);
+
+  // Setup WebSocket real-time updates
+  useEffect(() => {
+    loadFranchises();
+
+    // Connect to WebSocket for real-time updates
+    if (!websocketService.isConnected()) {
+      console.log('[Reports] Connecting to WebSocket');
+      websocketService.connect('general')
+    }
+
+    // Subscribe to franchise updates
+    const handleFranchiseUpdates = () => {
+      console.log('[Reports] WebSocket update - approved-franchises');
+      loadFranchises();
     };
 
-    loadFranchises();
-  }, [page, rowsPerPage, searchTerm, startDate, endDate]);
+    websocketService.on('approved-franchises', handleFranchiseUpdates);
+    websocketService.on('franchise-approved', handleFranchiseUpdates);
+
+    return () => {
+      websocketService.off('approved-franchises', handleFranchiseUpdates);
+      websocketService.off('franchise-approved', handleFranchiseUpdates);
+    };
+  }, [loadFranchises]);
 
   // Filtered franchises based on search and date range
   const filteredFranchises = useMemo(() => {

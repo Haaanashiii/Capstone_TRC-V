@@ -29,6 +29,7 @@ import '../../Styles/Administrator_Css/Dashboard.css';
 import Sidebar from './Sidebar';
 import KpiCard from '../../components/KpiCard';
 import { dashboardAPI } from '../Services/api';
+import websocketService from '../../services/websocket';
 
 function Dashboard() {
   const navigate = useNavigate();
@@ -138,9 +139,31 @@ function Dashboard() {
     }
   }, [navigate]);
 
-  // Fetch data on component mount
+  // Fetch data on component mount and setup WebSocket
   useEffect(() => {
     fetchDashboardData();
+
+    // Connect to WebSocket for real-time updates
+    if (!websocketService.isConnected()) {
+      console.log('[Dashboard] Connecting to WebSocket');
+      websocketService.connect('general')
+    }
+
+    // Subscribe to dashboard statistics updates
+    const handleDashboardUpdates = () => {
+      console.log('[Dashboard] WebSocket update - dashboard-statistics');
+      fetchDashboardData();
+    };
+
+    websocketService.on('dashboard-statistics', handleDashboardUpdates);
+    websocketService.on('franchise-updated', handleDashboardUpdates);
+    websocketService.on('application-updated', handleDashboardUpdates);
+
+    return () => {
+      websocketService.off('dashboard-statistics', handleDashboardUpdates);
+      websocketService.off('franchise-updated', handleDashboardUpdates);
+      websocketService.off('application-updated', handleDashboardUpdates);
+    };
   }, [fetchDashboardData]);
 
   // Manual retry handler

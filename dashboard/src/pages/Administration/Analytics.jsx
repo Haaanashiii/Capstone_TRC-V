@@ -24,6 +24,7 @@ import {
   Cancel,
   HourglassEmpty,
 } from '@mui/icons-material';
+import websocketService from '../../services/websocket';
 
 // API Configuration
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170';
@@ -98,6 +99,28 @@ function Analytics() {
 
   useEffect(() => {
     fetchAnalyticsData();
+
+    // Connect to WebSocket for real-time updates
+    if (!websocketService.isConnected()) {
+      console.log('[Analytics] Connecting to WebSocket');
+      websocketService.connect('general')
+    }
+
+    // Subscribe to analytics updates
+    const handleAnalyticsUpdates = () => {
+      console.log('[Analytics] WebSocket update - analytics-data');
+      fetchAnalyticsData();
+    };
+
+    websocketService.on('analytics-data', handleAnalyticsUpdates);
+    websocketService.on('franchise-updated', handleAnalyticsUpdates);
+    websocketService.on('franchisee-updated', handleAnalyticsUpdates);
+
+    return () => {
+      websocketService.off('analytics-data', handleAnalyticsUpdates);
+      websocketService.off('franchise-updated', handleAnalyticsUpdates);
+      websocketService.off('franchisee-updated', handleAnalyticsUpdates);
+    };
   }, [fetchAnalyticsData]);
 
   const handleChangePage = (event, newPage) => {

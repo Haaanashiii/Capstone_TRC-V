@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import '../../Styles/Administrator_Css/AuditTrail.css';
 import Sidebar from './Sidebar';
+import websocketService from '../../services/websocket';
 import {
   Typography,
   Paper,
@@ -219,9 +220,29 @@ function AuditTrail() {
     }
   }, [page, rowsPerPage, filterAction, filterRole, filterStatus, getAuthToken]);
 
-  // Fetch logs on component mount and when filters/pagination change
+  // Fetch logs on component mount, setup WebSocket, and when filters/pagination change
   useEffect(() => {
     fetchAuditLogs();
+
+    // Connect to WebSocket for real-time updates
+    if (!websocketService.isConnected()) {
+      console.log('[AuditTrail] Connecting to WebSocket');
+      websocketService.connect('general')
+    }
+
+    // Subscribe to audit log updates
+    const handleAuditLogUpdates = () => {
+      console.log('[AuditTrail] WebSocket update - audit-logs');
+      fetchAuditLogs();
+    };
+
+    websocketService.on('audit-logs', handleAuditLogUpdates);
+    websocketService.on('audit-log-created', handleAuditLogUpdates);
+
+    return () => {
+      websocketService.off('audit-logs', handleAuditLogUpdates);
+      websocketService.off('audit-log-created', handleAuditLogUpdates);
+    };
   }, [fetchAuditLogs]);
 
   // Apply client-side search filter (for loaded data)

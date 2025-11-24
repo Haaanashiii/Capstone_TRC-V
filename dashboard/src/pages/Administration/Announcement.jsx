@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import '../../Styles/Administrator_Css/Announcement.css';
 import Sidebar from './Sidebar';
+import websocketService from '../../services/websocket';
 import {
   Box,
   Typography,
@@ -107,9 +108,29 @@ function Announcement() {
     }
   }, []);
 
-  // Load announcements on component mount
+  // Load announcements on component mount and setup WebSocket
   useEffect(() => {
     fetchAnnouncements();
+
+    // Connect to WebSocket for real-time updates
+    if (!websocketService.isConnected()) {
+      console.log('[Announcement] Connecting to WebSocket');
+      websocketService.connect('general')
+    }
+
+    // Subscribe to announcement updates
+    const handleAnnouncementUpdates = () => {
+      console.log('[Announcement] WebSocket update - announcements');
+      fetchAnnouncements();
+    };
+
+    websocketService.on('announcements', handleAnnouncementUpdates);
+    websocketService.on('announcement-updated', handleAnnouncementUpdates);
+
+    return () => {
+      websocketService.off('announcements', handleAnnouncementUpdates);
+      websocketService.off('announcement-updated', handleAnnouncementUpdates);
+    };
   }, [fetchAnnouncements]);
 
   // Memoized filtered announcements

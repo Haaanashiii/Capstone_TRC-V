@@ -3,6 +3,7 @@ import '../../Styles/Administrator_Css/UserManagement.css';
 import Sidebar from './Sidebar';
 import AccountVerificationModal from '../Services/AccountVerificationModal';
 import { authAPI, adminAPI } from '../Services/api';
+import websocketService from '../../services/websocket';
 import {
   Box, 
   Typography, 
@@ -119,9 +120,29 @@ function UserManagement() {
     }
   }, []);
 
-  // Load users on component mount
+  // Load users on component mount and setup WebSocket
   useEffect(() => {
     fetchUsers();
+
+    // Connect to WebSocket for real-time updates
+    if (!websocketService.isConnected()) {
+      console.log('[UserManagement] Connecting to WebSocket');
+      websocketService.connect('general')
+    }
+
+    // Subscribe to admin account updates
+    const handleUserUpdates = () => {
+      console.log('[UserManagement] WebSocket update - admin-accounts');
+      fetchUsers();
+    };
+
+    websocketService.on('admin-accounts', handleUserUpdates);
+    websocketService.on('admin-updated', handleUserUpdates);
+
+    return () => {
+      websocketService.off('admin-accounts', handleUserUpdates);
+      websocketService.off('admin-updated', handleUserUpdates);
+    };
   }, [fetchUsers]);
 
   // Memoized filtered users

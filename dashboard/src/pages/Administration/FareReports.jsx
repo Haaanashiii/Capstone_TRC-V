@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import '../../Styles/Administrator_Css/FareReports.css';
 import Sidebar from './Sidebar';
+import websocketService from '../../services/websocket';
 import { 
   Typography, 
   TextField, 
@@ -141,6 +142,26 @@ function Reports() {
     };
 
     loadReports();
+
+    // Connect to WebSocket for real-time updates
+    if (!websocketService.isConnected()) {
+      console.log('[FareReports] Connecting to WebSocket');
+      websocketService.connect('general')
+    }
+
+    // Subscribe to fare report updates
+    const handleFareReportUpdates = () => {
+      console.log('[FareReports] WebSocket update - fare-reports');
+      loadReports();
+    };
+
+    websocketService.on('fare-reports', handleFareReportUpdates);
+    websocketService.on('report-updated', handleFareReportUpdates);
+
+    return () => {
+      websocketService.off('fare-reports', handleFareReportUpdates);
+      websocketService.off('report-updated', handleFareReportUpdates);
+    };
   }, [page, rowsPerPage, searchTerm, statusFilter, sortBy, sortOrder]);
 
   // Export monthly reports as CSV
