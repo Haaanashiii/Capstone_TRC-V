@@ -41,14 +41,22 @@ function generateSecureFilename(originalname) {
  * Upload file to local directory with TRC-V-DIR structure
  * @param {Buffer} buffer - File buffer
  * @param {string} originalname - Original filename
- * @param {Object} metadata - { baseFolder, subFolder, category }
+ * @param {Object} metadata - { baseFolder, subFolder, applicationId, category }
  * @returns {Promise<string>} Local file path
  */
 async function uploadToLocalDir(buffer, originalname, metadata) {
-  const { baseFolder, subFolder, category } = metadata;
+  const { baseFolder, subFolder, applicationId, category } = metadata;
   
-  // Structure: TRC-V-DIR/baseFolder/subFolder/category/
-  const uploadDir = path.join(LOCAL_BASE_PATH, baseFolder, subFolder, category);
+  // Structure for franchise applications with applicationId:
+  // TRC-V-DIR/franchiseApplications/{userId}/{applicationId}/{category}/
+  // Structure for franchise informations:
+  // TRC-V-DIR/franchiseInformations/{franchiseNo}/{category}/
+  let uploadDir;
+  if (baseFolder === 'franchiseApplications' && applicationId) {
+    uploadDir = path.join(LOCAL_BASE_PATH, baseFolder, subFolder, applicationId, category);
+  } else {
+    uploadDir = path.join(LOCAL_BASE_PATH, baseFolder, subFolder, category);
+  }
   
   // Lazy directory creation - only create when actually uploading a file
   // This prevents empty directory creation on server start
@@ -72,7 +80,7 @@ async function uploadToLocalDir(buffer, originalname, metadata) {
  * @param {Buffer} buffer - File buffer
  * @param {string} originalname - Original filename
  * @param {string} mimetype - File MIME type
- * @param {Object} metadata - { baseFolder, subFolder, category }
+ * @param {Object} metadata - { baseFolder, subFolder, applicationId, category }
  * @returns {Promise<Object>} Upload result with cloudflare and local paths
  */
 async function uploadFile(buffer, originalname, mimetype, metadata) {
@@ -114,17 +122,18 @@ async function uploadFile(buffer, originalname, mimetype, metadata) {
  * Move files from franchiseApplications to franchiseInformations
  * Used when SB admin accepts application
  * @param {string} userId - User ID (source folder)
+ * @param {string} applicationId - Application ID (source folder)
  * @param {string} franchiseNo - Franchise number (destination folder)
  * @param {number} version - Version number
  * @returns {Promise<void>}
  */
-async function moveFilesToInformation(userId, franchiseNo, version) {
+async function moveFilesToInformation(userId, applicationId, franchiseNo, version) {
   if (!UPLOAD_TO_LOCAL) {
     console.log('[MOVE_FILES] Local storage disabled, skipping file move');
     return;
   }
 
-  const sourcePath = path.join(LOCAL_BASE_PATH, 'franchiseApplications', userId);
+  const sourcePath = path.join(LOCAL_BASE_PATH, 'franchiseApplications', userId, applicationId);
   const destPath = path.join(LOCAL_BASE_PATH, 'franchiseInformations', franchiseNo, `version-${version}`);
 
   try {

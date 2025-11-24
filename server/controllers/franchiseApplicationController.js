@@ -73,7 +73,7 @@ exports.createNewApplication = async (req, res, next) => {
       }
     }
     
-    // Upload documents if provided
+    // Upload documents if provided - application ID is automatically the application._id
     if (files && Object.keys(files).length > 0) {
       const uploadHelper = async (fieldName, category) => {
         const fileArray = files[fieldName];
@@ -84,7 +84,7 @@ exports.createNewApplication = async (req, res, next) => {
           fileArray[0].buffer,
           fileArray[0].originalname,
           fileArray[0].mimetype,
-          { baseFolder: 'franchiseApplications', subFolder: userId, category }
+          { baseFolder: 'franchiseApplications', subFolder: userId, applicationId: appId, category }
         );
         return result.cloudflare;
       };
@@ -235,7 +235,7 @@ exports.editPendingFranchise = async (req, res, next) => {
           fileArray[0].buffer,
           fileArray[0].originalname,
           fileArray[0].mimetype,
-          { baseFolder: 'franchiseApplications', subFolder: userId, category }
+          { baseFolder: 'franchiseApplications', subFolder: userId, applicationId: id, category }
         );
         return result.cloudflare;
       };
@@ -411,7 +411,7 @@ exports.createRenewOrAmendment = async (req, res, next) => {
         if (!fileArray?.[0]) return null;
         validateFile(fileArray[0]);
         const result = await uploadFile(fileArray[0].buffer, fileArray[0].originalname, fileArray[0].mimetype, 
-          { baseFolder: 'franchiseApplications', subFolder: userId, category });
+          { baseFolder: 'franchiseApplications', subFolder: userId, applicationId: String(application._id), category });
         return result.cloudflare;
       };
       
@@ -667,7 +667,7 @@ exports.editApprovedFranchise = async (req, res, next) => {
       const file = files.oRTreasurerOfficeObj[0];
       validateFile(file);
       const result = await uploadFile(file.buffer, file.originalname, file.mimetype, 
-        { baseFolder: 'franchiseApplications', subFolder: application.operatorInfo || 'pending', category: 'Documentations' });
+        { baseFolder: 'franchiseApplications', subFolder: application.operatorInfo || 'pending', applicationId: id, category: 'Documentations' });
       updateData['documents.oRTreasurerOfficeObj'] = result.cloudflare;
       console.log('[editApprovedFranchise] OR document uploaded:', result.cloudflare);
     }
@@ -788,7 +788,7 @@ exports.approveFranchiseBySBAdmin = async (req, res, next) => {
         file.buffer, 
         file.originalname, 
         file.mimetype, 
-        { baseFolder: 'franchiseApplications', subFolder: 'resolutions', category: 'Documentations' }
+        { baseFolder: 'franchiseApplications', subFolder: 'resolutions', applicationId: id, category: 'Documentations' }
       );
       updateData.sbResolutionDocument = result.cloudflare;
       console.log('[SB Approval] Resolution document uploaded:', result.cloudflare);
@@ -928,8 +928,9 @@ exports.sbAdminAcceptNewFranchise = async (req, res, next) => {
     
     // Move files from applications → information (both local and cloud)
     const userId = application.operatorInfo || 'pending';
-    await moveFilesToInformation(userId, franchiseNo, version); // Local
-    const urlMapping = await moveFranchiseFiles(userId, franchiseNo); // Cloud
+    const appId = String(application._id);
+    await moveFilesToInformation(userId, appId, franchiseNo, version); // Local
+    const urlMapping = await moveFranchiseFiles(userId, appId, franchiseNo); // Cloud
     
     // Create FranchiseInformation record within transaction
     const franchiseData = {
