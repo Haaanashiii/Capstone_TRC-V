@@ -497,14 +497,15 @@ exports.approveFranchiseByBPLO = async (req, res, next) => {
       // Notify BPLO admins that application was approved
       req.app.get('io').to('bplo-admins').emit('application-approved', updated);
       
-      // Update SB admins list (they don't see it yet until OR is submitted)
-      // But we emit to keep their connection active and notify them of system activity
+      // Update SB admins list - show applications with OR or without OR
+      // SB should see both 'bplo-approved' and 'awaiting-sb' statuses
       try {
         const FranchiseApplication = require('../models/franchiseApplicationModel');
-        const awaitingSBApplications = await FranchiseApplication.find({
-          statusOfBPLO: 'awaiting-sb'
-        }).sort({ submittedAt: -1 });
-        req.app.get('io').to('sb-admins').emit('approved-applications', awaitingSBApplications);
+        const sbApplications = await FranchiseApplication.find({
+          statusOfBPLO: { $in: ['bplo-approved', 'awaiting-sb'] }
+        }).sort({ bploApprovedAt: -1, orSubmittedAt: -1 });
+        req.app.get('io').to('sb-admins').emit('approved-applications', sbApplications);
+        console.log(`[BPLO Approval] Updated SB admins with ${sbApplications.length} applications`);
       } catch (error) {
         console.error('[BPLO Approval] Failed to fetch SB applications:', error.message);
       }
@@ -679,15 +680,15 @@ exports.editApprovedFranchise = async (req, res, next) => {
     // Notify SB admins via WebSocket with updated application list
     if (req.app.get('io') && updateData.statusOfBPLO === 'awaiting-sb') {
       try {
-        // Fetch all applications awaiting SB to send complete list
+        // Fetch all applications awaiting SB review (includes both with and without OR)
         const FranchiseApplication = require('../models/franchiseApplicationModel');
-        const awaitingSBApplications = await FranchiseApplication.find({
-          statusOfBPLO: 'awaiting-sb'
-        }).sort({ submittedAt: -1 });
+        const sbApplications = await FranchiseApplication.find({
+          statusOfBPLO: { $in: ['bplo-approved', 'awaiting-sb'] }
+        }).sort({ bploApprovedAt: -1, orSubmittedAt: -1 });
         
         // Emit updated list to all SB admins
-        req.app.get('io').to('sb-admins').emit('approved-applications', awaitingSBApplications);
-        console.log(`[editApprovedFranchise] Notified SB admins: ${awaitingSBApplications.length} applications awaiting SB approval`);
+        req.app.get('io').to('sb-admins').emit('approved-applications', sbApplications);
+        console.log(`[editApprovedFranchise] Notified SB admins: ${sbApplications.length} applications for SB review (${sbApplications.filter(a => a.officialReceiptNumber).length} with OR)`);
       } catch (wsError) {
         console.error('[editApprovedFranchise] WebSocket notification failed:', wsError.message);
       }
@@ -708,10 +709,11 @@ exports.editApprovedFranchise = async (req, res, next) => {
 exports.getApprovedRoutesForSBAdmin = async (req, res, next) => {
   try {
     // Get applications ready for SB review
-    // Only show applications where OR has been submitted (awaiting-sb)
+    // Show applications with 'bplo-approved' (OR not yet submitted) AND 'awaiting-sb' (OR submitted)
+    // This ensures SB can see and approve applications regardless of whether the operator has submitted OR
     const applications = await FranchiseApplication.find({
-      statusOfBPLO: 'awaiting-sb' // OR submitted, ready for SB final approval
-    }).sort({ orSubmittedAt: -1 });
+      statusOfBPLO: { $in: ['bplo-approved', 'awaiting-sb'] }
+    }).sort({ bploApprovedAt: -1, orSubmittedAt: -1 });
     
     // Emit to WebSocket
     if (req.app.get('io')) {
@@ -821,12 +823,13 @@ exports.approveFranchiseBySBAdmin = async (req, res, next) => {
       try {
         const FranchiseApplication = require('../models/franchiseApplicationModel');
         
-        // Update SB admins list (remove approved item)
-        const awaitingSBApplications = await FranchiseApplication.find({
-          statusOfBPLO: 'awaiting-sb'
-        }).sort({ submittedAt: -1 });
-        req.app.get('io').to('sb-admins').emit('approved-applications', awaitingSBApplications);
-        console.log(`[SB Approval] Updated SB admins: ${awaitingSBApplications.length} awaiting SB approval`);
+        // Update SB admins list (remove the application that was just approved)
+        // Continue showing both 'bplo-approved' and 'awaiting-sb' statuses
+        const sbApplications = await FranchiseApplication.find({
+          statusOfBPLO: { $in: ['bplo-approved', 'awaiting-sb'] }
+        }).sort({ bploApprovedAt: -1, orSubmittedAt: -1 });
+        req.app.get('io').to('sb-admins').emit('approved-applications', sbApplications);
+        console.log(`[SB Approval] Updated SB admins: ${sbApplications.length} applications pending SB review (approved app removed)`);
         
         // Update BPLO admins about the final approval
         req.app.get('io').to('bplo-admins').emit('application-sb-approved', updated);

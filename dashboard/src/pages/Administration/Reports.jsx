@@ -1,42 +1,39 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import '../../Styles/Administrator_Css/Reports.css';
 import Sidebar from './Sidebar';
-import { 
-  Typography, 
-  TextField, 
-  Button, 
-  Paper, 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableContainer, 
-  TableHead, 
+import {
+  Typography,
+  TextField,
+  Button,
+  Paper,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
   TableRow,
   TablePagination,
   Modal,
   Box,
-  Divider,
-  Grid,
-  Alert,
   CircularProgress,
-  Chip,
-  MenuItem,
-  Select,
-  FormControl,
-  InputLabel,
-  tableCellClasses,
   IconButton,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  Snackbar
+  InputAdornment,
+  Chip,
+  Alert,
+  tableCellClasses,
+  Divider
 } from '@mui/material';
-import { styled } from "@mui/material/styles";
+import { styled } from '@mui/material/styles';
+import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
+import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
+import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import SearchIcon from '@mui/icons-material/Search';
-import DownloadIcon from '@mui/icons-material/Download';
 import VisibilityIcon from '@mui/icons-material/Visibility';
+import DownloadIcon from '@mui/icons-material/Download';
 import CloseIcon from '@mui/icons-material/Close';
+import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
+import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
+import GroupsIcon from '@mui/icons-material/Groups';
 
 // Styled components for table
 const StyledTableCell = styled(TableCell)(({ theme }) => ({
@@ -70,38 +67,31 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170
 
 function Reports() {
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedReport, setSelectedReport] = useState(null);
-  const [open, setOpen] = useState(false);
-  const [filterOpen, setFilterOpen] = useState(false);
+  const [selectedFranchise, setSelectedFranchise] = useState(null);
+  const [openViewModal, setOpenViewModal] = useState(false);
+  const [openBulkModal, setOpenBulkModal] = useState(false);
   const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(5);
-  const [reports, setReports] = useState([]);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [franchises, setFranchises] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [totalReports, setTotalReports] = useState(0);
-  const [statusFilter, setStatusFilter] = useState('');
-  const [sortBy, setSortBy] = useState('dateReported');
-  const [sortOrder, setSortOrder] = useState('desc');
-  const [tempFilters, setTempFilters] = useState({
-    status: '',
-    sortBy: 'dateReported',
-    sortOrder: 'desc'
-  });
-  const [updatingStatus, setUpdatingStatus] = useState(false);
-  const [newStatus, setNewStatus] = useState('');
-  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'info' });
+  const [totalFranchises, setTotalFranchises] = useState(0);
+  const [startDate, setStartDate] = useState(null);
+  const [endDate, setEndDate] = useState(null);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
+  const [bulkDownloading, setBulkDownloading] = useState(false);
 
   // Get auth token
   const getAuthToken = () => {
     return sessionStorage.getItem('accessToken') || localStorage.getItem('accessToken');
   };
 
-  // Load reports on component mount and when filters change
+  // Load approved franchises
   useEffect(() => {
-    const loadReports = async () => {
+    const loadFranchises = async () => {
       setLoading(true);
       setError('');
-      
+
       try {
         const token = getAuthToken();
         if (!token) {
@@ -109,16 +99,21 @@ function Reports() {
           return;
         }
 
+        // Build query params
         const queryParams = new URLSearchParams({
           page: page + 1,
           limit: rowsPerPage,
           search: searchTerm,
-          status: statusFilter,
-          sortBy,
-          sortOrder
         });
 
-        const response = await fetch(`${API_BASE_URL}/reports?${queryParams}`, {
+        if (startDate) {
+          queryParams.append('startDate', startDate.toISOString());
+        }
+        if (endDate) {
+          queryParams.append('endDate', endDate.toISOString());
+        }
+
+        const response = await fetch(`${API_BASE_URL}/api/franchise-information?${queryParams}`, {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
@@ -129,117 +124,109 @@ function Reports() {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
 
-        const data = await response.json();
-        setReports(data.reports || []);
-        setTotalReports(data.pagination?.total || 0);
+        const result = await response.json();
+        const franchiseData = result.data || [];
+        
+        // Filter only SB approved franchises
+        const approvedFranchises = franchiseData.filter(f => 
+          f.status === 'active' || f.sbApprovedAt
+        );
+
+        setFranchises(approvedFranchises);
+        setTotalFranchises(approvedFranchises.length);
       } catch (err) {
-        console.error('Error fetching reports:', err);
-        setError('Failed to fetch reports. Please try again.');
+        console.error('Error fetching franchises:', err);
+        setError('Failed to fetch franchises. Please try again.');
       } finally {
         setLoading(false);
       }
     };
 
-    loadReports();
-  }, [page, rowsPerPage, searchTerm, statusFilter, sortBy, sortOrder]);
+    loadFranchises();
+  }, [page, rowsPerPage, searchTerm, startDate, endDate]);
 
-  // Export monthly reports as CSV
-  const exportMonthlyReports = async () => {
-    try {
-      const token = getAuthToken();
-      if (!token) {
-        setError('Authentication required');
-        return;
-      }
+  // Filtered franchises based on search and date range
+  const filteredFranchises = useMemo(() => {
+    let filtered = [...franchises];
 
-      const currentDate = new Date();
-      const month = currentDate.getMonth() + 1;
-      const year = currentDate.getFullYear();
-
-      const response = await fetch(`${API_BASE_URL}/reports/monthly?month=${month}&year=${year}&format=csv`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to export reports');
-      }
-
-      // Create download
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `reports_${year}_${month.toString().padStart(2, '0')}.csv`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-    } catch (err) {
-      console.error('Error exporting reports:', err);
-      setError('Failed to export reports. Please try again.');
+    // Filter by search term
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      filtered = filtered.filter(
+        f =>
+          f.operatorName?.toLowerCase().includes(term) ||
+          f.franchiseNumber?.toLowerCase().includes(term) ||
+          f.mvPlateNo?.toLowerCase().includes(term)
+      );
     }
-  };
 
-  // Status color mapping
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'pending': return '#ff9800';
-      case 'investigating': return '#2196f3';
-      case 'resolved': return '#4caf50';
-      case 'dismissed': return '#757575';
-      default: return '#757575';
-    }
-  };
+    return filtered;
+  }, [franchises, searchTerm]);
 
-  const handleOpen = useCallback((report) => {
-    setSelectedReport(report);
-    setNewStatus(report.status);
-    setOpen(true);
+  // Handle view franchise details
+  const handleViewFranchise = useCallback((franchise) => {
+    setSelectedFranchise(franchise);
+    setOpenViewModal(true);
   }, []);
 
-  const handleClose = useCallback(() => {
-    setOpen(false);
-    setNewStatus('');
+  const handleCloseViewModal = useCallback(() => {
+    setOpenViewModal(false);
+    setSelectedFranchise(null);
   }, []);
 
-  const handleUpdateStatus = async () => {
-    if (!selectedReport || !newStatus) return;
-    
-    setUpdatingStatus(true);
+  // Handle download individual certificate
+  const handleDownloadCertificate = async (franchise) => {
+    setDownloadingPdf(true);
     try {
       const token = getAuthToken();
-      if (!token) {
-        setSnackbar({ open: true, message: 'Authentication required', severity: 'error' });
-        return;
-      }
-
-      const response = await fetch(`${API_BASE_URL}/reports/${selectedReport._id}`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ status: newStatus })
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to update report status');
-      }
-
-      // Update local state
-      setReports(prev => prev.map(r => 
-        r._id === selectedReport._id ? { ...r, status: newStatus } : r
-      ));
+      // TODO: Connect to PDF generation endpoint
+      // const response = await fetch(`${API_BASE_URL}/api/certificates/${franchise._id}`, {
+      //   headers: { 'Authorization': `Bearer ${token}` }
+      // });
       
-      setSnackbar({ open: true, message: 'Report status updated successfully', severity: 'success' });
-      handleClose();
+      console.log('Download certificate for:', franchise.franchiseNumber);
+      alert('PDF generation will be connected later');
     } catch (err) {
-      console.error('Error updating report status:', err);
-      setSnackbar({ open: true, message: 'Failed to update report status', severity: 'error' });
+      console.error('Error downloading certificate:', err);
+      setError('Failed to download certificate');
     } finally {
-      setUpdatingStatus(false);
+      setDownloadingPdf(false);
+    }
+  };
+
+  // Handle bulk preview
+  const handleBulkPreview = useCallback(() => {
+    setOpenBulkModal(true);
+  }, []);
+
+  const handleCloseBulkModal = useCallback(() => {
+    setOpenBulkModal(false);
+  }, []);
+
+  // Handle bulk download
+  const handleBulkDownload = async () => {
+    setBulkDownloading(true);
+    try {
+      const token = getAuthToken();
+      const franchiseIds = filteredFranchises.map(f => f._id);
+      
+      // TODO: Connect to bulk PDF generation endpoint
+      // const response = await fetch(`${API_BASE_URL}/api/certificates/bulk`, {
+      //   method: 'POST',
+      //   headers: {
+      //     'Authorization': `Bearer ${token}`,
+      //     'Content-Type': 'application/json'
+      //   },
+      //   body: JSON.stringify({ franchiseIds, startDate, endDate })
+      // });
+      
+      console.log('Bulk download for', filteredFranchises.length, 'franchises');
+      alert('Bulk PDF generation will be connected later');
+    } catch (err) {
+      console.error('Error downloading bulk certificates:', err);
+      setError('Failed to download bulk certificates');
+    } finally {
+      setBulkDownloading(false);
     }
   };
 
@@ -252,55 +239,14 @@ function Reports() {
     setPage(0);
   }, []);
 
-  const handleSearch = useCallback(() => {
-    setPage(0);
-    // The useEffect will automatically trigger when searchTerm changes
-  }, []);
-
-  // Format date for display
   const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
     const date = new Date(dateString);
-    return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
-  };
-
-  // Filter dialog handlers
-  const handleCloseFilter = useCallback(() => {
-    setFilterOpen(false);
-    // Reset temp filters to current filters
-    setTempFilters({
-      status: statusFilter,
-      sortBy: sortBy,
-      sortOrder: sortOrder
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
     });
-  }, [statusFilter, sortBy, sortOrder]);
-
-  const handleTempFilterChange = useCallback((field, value) => {
-    setTempFilters(prev => ({ ...prev, [field]: value }));
-  }, []);
-
-  const handleApplyFilters = useCallback(() => {
-    setStatusFilter(tempFilters.status);
-    setSortBy(tempFilters.sortBy);
-    setSortOrder(tempFilters.sortOrder);
-    setPage(0);
-    setFilterOpen(false);
-  }, [tempFilters]);
-
-  const handleClearFilters = useCallback(() => {
-    const defaultFilters = {
-      status: '',
-      sortBy: 'dateReported',
-      sortOrder: 'desc'
-    };
-    setTempFilters(defaultFilters);
-    setStatusFilter('');
-    setSortBy('dateReported');
-    setSortOrder('desc');
-    setPage(0);
-  }, []);
-
-  const handleCloseSnackbar = () => {
-    setSnackbar({ ...snackbar, open: false });
   };
 
   return (
@@ -309,361 +255,443 @@ function Reports() {
       <div className="content-container">
         <div className="header-container">
           <div className="page-title">
-            Reports
+            Certificate of Approval Reports
           </div>
         </div>
-        
+
         {/* Error Alert */}
         {error && (
-          <Alert severity="error" sx={{ mb: 2 }}>
+          <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>
             {error}
           </Alert>
         )}
-        
-        {/* Controls Row */}
-        <div style={{ display: 'flex', gap: '16px', marginBottom: '16px', alignItems: 'center' }}>
-          {/* Search Bar */}
-          <div className="search-container" style={{ flex: 1 }}>
+
+        {/* Controls Section */}
+        <Paper className="controls-section" elevation={2}>
+          <div className="controls-row">
+            {/* Search Bar */}
             <TextField
-              placeholder="Search Reports"
+              placeholder="Search by Name, Franchise #, or Plate #"
               variant="outlined"
-              fullWidth
+              size="medium"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="search-field"
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon sx={{ color: '#0A356B' }} />
+                  </InputAdornment>
+                ),
+              }}
+              sx={{ flex: 1, minWidth: '300px' }}
             />
-            <Button 
-              className="search-button"
-              onClick={handleSearch}
+
+            {/* Date Range Picker */}
+            <LocalizationProvider dateAdapter={AdapterDateFns}>
+              <DatePicker
+                label="Start Date"
+                value={startDate}
+                onChange={(newValue) => setStartDate(newValue)}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    size="medium"
+                    sx={{ minWidth: '180px' }}
+                  />
+                )}
+                slotProps={{
+                  textField: {
+                    size: 'medium',
+                    sx: { minWidth: '180px' }
+                  }
+                }}
+              />
+              <DatePicker
+                label="End Date"
+                value={endDate}
+                onChange={(newValue) => setEndDate(newValue)}
+                minDate={startDate}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    size="medium"
+                    sx={{ minWidth: '180px' }}
+                  />
+                )}
+                slotProps={{
+                  textField: {
+                    size: 'medium',
+                    sx: { minWidth: '180px' }
+                  }
+                }}
+              />
+            </LocalizationProvider>
+
+            {/* Bulk Actions Button */}
+            <Button
+              variant="contained"
+              startIcon={<GroupsIcon />}
+              onClick={handleBulkPreview}
+              disabled={filteredFranchises.length === 0}
+              sx={{
+                bgcolor: '#0A356B',
+                '&:hover': { bgcolor: '#083057' },
+                textTransform: 'none',
+                fontWeight: 600,
+                px: 3,
+              }}
             >
-              <SearchIcon />
+              Bulk Report ({filteredFranchises.length})
             </Button>
           </div>
-          
-          {/* Status Filter */}
-          <FormControl sx={{ minWidth: 120 }}>
-            <InputLabel>Status</InputLabel>
-            <Select
-              value={statusFilter}
-              label="Status"
-              onChange={(e) => setStatusFilter(e.target.value)}
-            >
-              <MenuItem value="">All</MenuItem>
-              <MenuItem value="pending">Pending</MenuItem>
-              <MenuItem value="investigating">Investigating</MenuItem>
-              <MenuItem value="resolved">Resolved</MenuItem>
-              <MenuItem value="dismissed">Dismissed</MenuItem>
-            </Select>
-          </FormControl>
-          
-          {/* Sort By Filter */}
-          <FormControl sx={{ minWidth: 140 }}>
-            <InputLabel>Sort By</InputLabel>
-            <Select
-              value={sortBy}
-              label="Sort By"
-              onChange={(e) => setSortBy(e.target.value)}
-            >
-              <MenuItem value="reportID">Report ID</MenuItem>
-              <MenuItem value="dateReported">Date Reported</MenuItem>
-              <MenuItem value="status">Status</MenuItem>
-              <MenuItem value="franchiseeName">Franchisee</MenuItem>
-            </Select>
-          </FormControl>
-          
-          {/* Sort Order Filter */}
-          <FormControl sx={{ minWidth: 100 }}>
-            <InputLabel>Order</InputLabel>
-            <Select
-              value={sortOrder}
-              label="Order"
-              onChange={(e) => setSortOrder(e.target.value)}
-            >
-              <MenuItem value="asc">Ascending</MenuItem>
-              <MenuItem value="desc">Descending</MenuItem>
-            </Select>
-          </FormControl>
-          
-          {/* Export Button */}
-          <Button
-            variant="outlined"
-            startIcon={<DownloadIcon />}
-            onClick={exportMonthlyReports}
-          >
-            Export CSV
-          </Button>
-        </div>
-        
-        {/* Reports Table */}
+
+          {/* Summary Info */}
+          <div className="summary-info">
+            <Chip
+              icon={<CalendarTodayIcon />}
+              label={`Total Franchises: ${filteredFranchises.length}`}
+              sx={{
+                bgcolor: '#e3f2fd',
+                color: '#0A356B',
+                fontWeight: 600,
+              }}
+            />
+            {(startDate || endDate) && (
+              <Chip
+                label={`Date Range: ${startDate ? formatDate(startDate) : 'All'} - ${endDate ? formatDate(endDate) : 'All'}`}
+                onDelete={() => {
+                  setStartDate(null);
+                  setEndDate(null);
+                }}
+                sx={{
+                  bgcolor: '#fff3e0',
+                  color: '#e65100',
+                  fontWeight: 600,
+                }}
+              />
+            )}
+          </div>
+        </Paper>
+
+        {/* Franchises Table */}
         <Paper className="table-container" elevation={2}>
           {loading && (
-            <Box display="flex" justifyContent="center" p={2}>
+            <Box display="flex" justifyContent="center" p={3}>
               <CircularProgress />
             </Box>
           )}
-          
-          <TableContainer sx={{ maxHeight: 500 }}>
-            <Table stickyHeader aria-label="reports table">
+
+          <TableContainer sx={{ maxHeight: 600 }}>
+            <Table stickyHeader aria-label="approved franchises table">
               <TableHead>
                 <TableRow>
-                  <StyledTableCell>Report ID</StyledTableCell>
-                  <StyledTableCell>Franchisee Name</StyledTableCell>
-                  <StyledTableCell>Date and Time Reported</StyledTableCell>
-                  <StyledTableCell>Status</StyledTableCell>
-                  <StyledTableCell>Action</StyledTableCell>
+                  <StyledTableCell>Franchise Number</StyledTableCell>
+                  <StyledTableCell>Operator Name</StyledTableCell>
+                  <StyledTableCell>Plate Number</StyledTableCell>
+                  <StyledTableCell>Date Approved</StyledTableCell>
+                  <StyledTableCell>Resolution Number</StyledTableCell>
+                  <StyledTableCell>Actions</StyledTableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
-                {!loading && reports.length > 0 ? (
-                  reports.map((report) => (
-                    <StyledTableRow 
-                      key={report.reportID}
-                      onClick={() => handleOpen(report)}
-                    >
-                      <StyledTableCell>{report.reportID}</StyledTableCell>
-                      <StyledTableCell>{report.franchiseeName}</StyledTableCell>
-                      <StyledTableCell>{formatDate(report.dateReported)}</StyledTableCell>
-                      <StyledTableCell>
-                        <Chip 
-                          label={report.status} 
-                          size="small"
-                          sx={{ 
-                            bgcolor: getStatusColor(report.status),
-                            color: 'white',
-                            fontWeight: 'bold'
-                          }}
-                        />
-                      </StyledTableCell>
-                      <StyledTableCell>
-                        <IconButton 
-                          size="small"
-                          sx={{ color: '#0a3161' }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleOpen(report);
-                          }}
-                        >
-                          <VisibilityIcon />
-                        </IconButton>
-                      </StyledTableCell>
-                    </StyledTableRow>
-                  ))
+                {!loading && filteredFranchises.length > 0 ? (
+                  filteredFranchises
+                    .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
+                    .map((franchise) => (
+                      <StyledTableRow
+                        key={franchise._id}
+                        onClick={() => handleViewFranchise(franchise)}
+                      >
+                        <StyledTableCell sx={{ fontWeight: 600, color: '#0A356B' }}>
+                          {franchise.franchiseNumber}
+                        </StyledTableCell>
+                        <StyledTableCell>{franchise.operatorName}</StyledTableCell>
+                        <StyledTableCell>{franchise.mvPlateNo}</StyledTableCell>
+                        <StyledTableCell>{formatDate(franchise.sbApprovedAt || franchise.createdAt)}</StyledTableCell>
+                        <StyledTableCell>
+                          {franchise.sbResolutionNumber || 'N/A'}
+                        </StyledTableCell>
+                        <StyledTableCell>
+                          <IconButton
+                            size="small"
+                            sx={{ color: '#0A356B', mr: 1 }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleViewFranchise(franchise);
+                            }}
+                            title="View Details"
+                          >
+                            <VisibilityIcon />
+                          </IconButton>
+                          <IconButton
+                            size="small"
+                            sx={{ color: '#d32f2f' }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDownloadCertificate(franchise);
+                            }}
+                            disabled={downloadingPdf}
+                            title="Download Certificate"
+                          >
+                            <PictureAsPdfIcon />
+                          </IconButton>
+                        </StyledTableCell>
+                      </StyledTableRow>
+                    ))
                 ) : (
                   <StyledTableRow>
-                    <StyledTableCell colSpan={5} align="center">
-                      {loading ? 'Loading...' : 'No reports found'}
+                    <StyledTableCell colSpan={6} align="center">
+                      {loading ? 'Loading...' : 'No approved franchises found'}
                     </StyledTableCell>
                   </StyledTableRow>
                 )}
               </TableBody>
             </Table>
           </TableContainer>
-          
+
           <TablePagination
-            rowsPerPageOptions={[5, 10, 25]}
+            rowsPerPageOptions={[10, 25, 50, 100]}
             component="div"
-            count={totalReports}
+            count={filteredFranchises.length}
             rowsPerPage={rowsPerPage}
             page={page}
             onPageChange={handleChangePage}
             onRowsPerPageChange={handleChangeRowsPerPage}
           />
         </Paper>
-        
-        {/* Filter Dialog */}
-        <Dialog 
-          open={filterOpen} 
-          onClose={handleCloseFilter}
-          maxWidth="sm"
-          fullWidth
-          className="filter-dialog"
-          PaperProps={{
-            className: "filter-dialog-paper"
-          }}
-        >
-          <DialogTitle className="filter-dialog-title">
-            Filter Reports
-            <IconButton
-              onClick={handleCloseFilter}
-              className="filter-close-button"
-            >
-              <CloseIcon />
-            </IconButton>
-          </DialogTitle>
-          
-          <DialogContent className="filter-dialog-content">
-            <Grid container spacing={3}>
-              {/* Status Filter */}
-              <Grid item xs={12}>
-                <FormControl fullWidth className="filter-form-control">
-                  <InputLabel id="status-filter-label">Status</InputLabel>
-                  <Select
-                    labelId="status-filter-label"
-                    value={tempFilters.status}
-                    label="Status"
-                    onChange={(e) => handleTempFilterChange('status', e.target.value)}
-                    className="filter-select"
-                  >
-                    <MenuItem value="">All</MenuItem>
-                    <MenuItem value="pending">Pending</MenuItem>
-                    <MenuItem value="investigating">Investigating</MenuItem>
-                    <MenuItem value="resolved">Resolved</MenuItem>
-                    <MenuItem value="dismissed">Dismissed</MenuItem>
-                  </Select>
-                </FormControl>
-              </Grid>
-              
-              {/* Sort By Filter */}
-              <Grid item xs={12}>
-                <FormControl fullWidth className="filter-form-control">
-                  <InputLabel id="sort-by-filter-label">Sort By</InputLabel>
-                  <Select
-                    labelId="sort-by-filter-label"
-                    value={tempFilters.sortBy}
-                    label="Sort By"
-                    onChange={(e) => handleTempFilterChange('sortBy', e.target.value)}
-                    className="filter-select"
-                  >
-                    <MenuItem value="reportID">Report ID</MenuItem>
-                    <MenuItem value="dateReported">Date Reported</MenuItem>
-                    <MenuItem value="status">Status</MenuItem>
-                    <MenuItem value="franchiseeName">Franchisee Name</MenuItem>
-                  </Select>
-                </FormControl>
-              </Grid>
-              
-              {/* Sort Order Filter */}
-              <Grid item xs={12}>
-                <FormControl fullWidth className="filter-form-control">
-                  <InputLabel id="sort-order-filter-label">Sort Order</InputLabel>
-                  <Select
-                    labelId="sort-order-filter-label"
-                    value={tempFilters.sortOrder}
-                    label="Sort Order"
-                    onChange={(e) => handleTempFilterChange('sortOrder', e.target.value)}
-                    className="filter-select"
-                  >
-                    <MenuItem value="asc">Ascending</MenuItem>
-                    <MenuItem value="desc">Descending</MenuItem>
-                  </Select>
-                </FormControl>
-              </Grid>
-            </Grid>
-          </DialogContent>
-          
-          <DialogActions className="filter-dialog-actions">
-            <Button 
-              onClick={handleClearFilters}
-              className="filter-clear-button"
-            >
-              Clear All
-            </Button>
-            <Box sx={{ flex: 1 }} />
-            <Button 
-              onClick={handleCloseFilter}
-              variant="outlined"
-              className="filter-cancel-button"
-            >
-              Cancel
-            </Button>
-            <Button 
-              onClick={handleApplyFilters}
-              variant="contained"
-              className="filter-apply-button"
-            >
-              Apply Filters
-            </Button>
-          </DialogActions>
-        </Dialog>
-        
-        {/* Modal for displaying report details */}
-        <Modal
-          open={open}
-          onClose={handleClose}
-          aria-labelledby="report-details-modal"
-        >
+
+        {/* View Franchise Details Modal */}
+        <Modal open={openViewModal} onClose={handleCloseViewModal}>
           <Box className="modal-container">
             <div className="modal-header">
-              <Typography variant="h5" component="h2">
-                REPORT DETAILS
+              <Typography variant="h5" component="h2" sx={{ fontWeight: 700, color: '#0A356B' }}>
+                Certificate of Approval Details
               </Typography>
-              <IconButton onClick={handleClose}>
+              <IconButton onClick={handleCloseViewModal}>
                 <CloseIcon />
               </IconButton>
             </div>
-            
-            {selectedReport && (
+
+            {selectedFranchise && (
               <>
-                <Typography variant="h6" className="section-header">
-                  REPORT INFORMATION
-                </Typography>
+                <Divider sx={{ my: 2 }} />
                 
-                <div className="info-grid">
-                  <Typography variant="subtitle2" className="label">Report ID:</Typography>
-                  <Typography>{selectedReport.reportID}</Typography>
+                <div className="modal-content">
+                  {/* Franchise Information */}
+                  <Typography variant="h6" sx={{ fontWeight: 600, color: '#0A356B', mb: 2 }}>
+                    Franchise Information
+                  </Typography>
                   
-                  <Typography variant="subtitle2" className="label">Franchisee:</Typography>
-                  <Typography>{selectedReport.franchiseeName}</Typography>
-                  
-                  <Typography variant="subtitle2" className="label">Date:</Typography>
-                  <Typography>{formatDate(selectedReport.dateReported)}</Typography>
-                  
-                  <Typography variant="subtitle2" className="label">Contact:</Typography>
-                  <Typography>{selectedReport.reporterContact}</Typography>
-                  
-                  <Typography variant="subtitle2" className="label">Charged:</Typography>
-                  <Typography>₱{selectedReport.amountCharged?.toFixed(2)}</Typography>
-                  
-                  <Typography variant="subtitle2" className="label">Expected:</Typography>
-                  <Typography>₱{selectedReport.expectedFare?.toFixed(2)}</Typography>
-                  
-                  <Typography variant="subtitle2" className="label">Description:</Typography>
-                  <Typography sx={{ gridColumn: '2' }}>{selectedReport.description}</Typography>
-                  
-                  <Typography variant="subtitle2" className="label">Status:</Typography>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                    <FormControl size="small" sx={{ minWidth: 150 }}>
-                      <Select
-                        value={newStatus}
-                        onChange={(e) => setNewStatus(e.target.value)}
-                      >
-                        <MenuItem value="pending">Pending</MenuItem>
-                        <MenuItem value="investigating">Investigating</MenuItem>
-                        <MenuItem value="resolved">Resolved</MenuItem>
-                        <MenuItem value="dismissed">Dismissed</MenuItem>
-                      </Select>
-                    </FormControl>
-                    <Button
-                      variant="contained"
-                      size="small"
-                      onClick={handleUpdateStatus}
-                      disabled={updatingStatus || newStatus === selectedReport.status}
-                      sx={{
-                        bgcolor: '#0a3161',
-                        '&:hover': { bgcolor: '#082548' },
-                        '&:disabled': { bgcolor: '#ccc' }
-                      }}
-                    >
-                      {updatingStatus ? <CircularProgress size={20} /> : 'Update'}
-                    </Button>
-                  </Box>
+                  <div className="info-grid">
+                    <div className="info-item">
+                      <Typography variant="subtitle2" className="label">Franchise Number:</Typography>
+                      <Typography variant="body1" sx={{ fontWeight: 600 }}>
+                        {selectedFranchise.franchiseNumber}
+                      </Typography>
+                    </div>
+
+                    <div className="info-item">
+                      <Typography variant="subtitle2" className="label">Resolution Number:</Typography>
+                      <Typography variant="body1">
+                        {selectedFranchise.sbResolutionNumber || 'N/A'}
+                      </Typography>
+                    </div>
+
+                    <div className="info-item">
+                      <Typography variant="subtitle2" className="label">Operator Name:</Typography>
+                      <Typography variant="body1">{selectedFranchise.operatorName}</Typography>
+                    </div>
+
+                    <div className="info-item">
+                      <Typography variant="subtitle2" className="label">Address:</Typography>
+                      <Typography variant="body1">{selectedFranchise.operatorAddress}</Typography>
+                    </div>
+
+                    <div className="info-item">
+                      <Typography variant="subtitle2" className="label">Contact Number:</Typography>
+                      <Typography variant="body1">{selectedFranchise.operatorContactNumber}</Typography>
+                    </div>
+
+                    <div className="info-item">
+                      <Typography variant="subtitle2" className="label">Date Approved:</Typography>
+                      <Typography variant="body1">
+                        {formatDate(selectedFranchise.sbApprovedAt || selectedFranchise.createdAt)}
+                      </Typography>
+                    </div>
+                  </div>
+
+                  <Divider sx={{ my: 3 }} />
+
+                  {/* Vehicle Information */}
+                  <Typography variant="h6" sx={{ fontWeight: 600, color: '#0A356B', mb: 2 }}>
+                    Vehicle Information
+                  </Typography>
+
+                  <div className="info-grid">
+                    <div className="info-item">
+                      <Typography variant="subtitle2" className="label">Plate Number:</Typography>
+                      <Typography variant="body1" sx={{ fontWeight: 600 }}>
+                        {selectedFranchise.mvPlateNo}
+                      </Typography>
+                    </div>
+
+                    <div className="info-item">
+                      <Typography variant="subtitle2" className="label">Unit Model:</Typography>
+                      <Typography variant="body1">{selectedFranchise.unitModel}</Typography>
+                    </div>
+
+                    <div className="info-item">
+                      <Typography variant="subtitle2" className="label">Engine Number:</Typography>
+                      <Typography variant="body1">{selectedFranchise.motorEngineNo}</Typography>
+                    </div>
+
+                    <div className="info-item">
+                      <Typography variant="subtitle2" className="label">Chassis Number:</Typography>
+                      <Typography variant="body1">{selectedFranchise.chasisNo}</Typography>
+                    </div>
+
+                    <div className="info-item">
+                      <Typography variant="subtitle2" className="label">Motor Color:</Typography>
+                      <Typography variant="body1">{selectedFranchise.colorMotor}</Typography>
+                    </div>
+
+                    <div className="info-item">
+                      <Typography variant="subtitle2" className="label">Sidecar Color:</Typography>
+                      <Typography variant="body1">{selectedFranchise.sideCarColor}</Typography>
+                    </div>
+                  </div>
                 </div>
+
+                <Divider sx={{ my: 2 }} />
+
+                {/* Action Buttons */}
+                <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2, mt: 3 }}>
+                  <Button
+                    variant="outlined"
+                    onClick={handleCloseViewModal}
+                    sx={{ textTransform: 'none' }}
+                  >
+                    Close
+                  </Button>
+                  <Button
+                    variant="contained"
+                    startIcon={downloadingPdf ? <CircularProgress size={20} /> : <PictureAsPdfIcon />}
+                    onClick={() => handleDownloadCertificate(selectedFranchise)}
+                    disabled={downloadingPdf}
+                    sx={{
+                      bgcolor: '#d32f2f',
+                      '&:hover': { bgcolor: '#b71c1c' },
+                      textTransform: 'none',
+                    }}
+                  >
+                    Download Certificate
+                  </Button>
+                </Box>
               </>
             )}
           </Box>
         </Modal>
-        
-        {/* Snackbar for notifications */}
-        <Snackbar
-          open={snackbar.open}
-          autoHideDuration={6000}
-          onClose={handleCloseSnackbar}
-          anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-        >
-          <Alert onClose={handleCloseSnackbar} severity={snackbar.severity} sx={{ width: '100%' }}>
-            {snackbar.message}
-          </Alert>
-        </Snackbar>
+
+        {/* Bulk Report Modal */}
+        <Modal open={openBulkModal} onClose={handleCloseBulkModal}>
+          <Box className="modal-container">
+            <div className="modal-header">
+              <Typography variant="h5" component="h2" sx={{ fontWeight: 700, color: '#0A356B' }}>
+                Bulk Certificate Report - Plenary Session
+              </Typography>
+              <IconButton onClick={handleCloseBulkModal}>
+                <CloseIcon />
+              </IconButton>
+            </div>
+
+            <Divider sx={{ my: 2 }} />
+
+            <div className="modal-content">
+              <Alert severity="info" sx={{ mb: 3 }}>
+                This will generate a consolidated PDF report of all {filteredFranchises.length} approved franchises
+                {(startDate || endDate) && ' within the selected date range'} for the plenary session.
+              </Alert>
+
+              <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
+                Report Summary
+              </Typography>
+
+              <div className="info-grid">
+                <div className="info-item">
+                  <Typography variant="subtitle2" className="label">Total Franchises:</Typography>
+                  <Typography variant="body1" sx={{ fontWeight: 600 }}>
+                    {filteredFranchises.length}
+                  </Typography>
+                </div>
+
+                {startDate && (
+                  <div className="info-item">
+                    <Typography variant="subtitle2" className="label">Start Date:</Typography>
+                    <Typography variant="body1">{formatDate(startDate)}</Typography>
+                  </div>
+                )}
+
+                {endDate && (
+                  <div className="info-item">
+                    <Typography variant="subtitle2" className="label">End Date:</Typography>
+                    <Typography variant="body1">{formatDate(endDate)}</Typography>
+                  </div>
+                )}
+
+                <div className="info-item">
+                  <Typography variant="subtitle2" className="label">Report Type:</Typography>
+                  <Typography variant="body1">Certificate of Approval - Bulk</Typography>
+                </div>
+              </div>
+
+              <Divider sx={{ my: 3 }} />
+
+              {/* Preview List */}
+              <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>
+                Franchises to be included:
+              </Typography>
+              <Box sx={{ maxHeight: '200px', overflowY: 'auto', bgcolor: '#f5f5f5', p: 2, borderRadius: 1 }}>
+                {filteredFranchises.slice(0, 10).map((franchise, index) => (
+                  <Typography key={franchise._id} variant="body2" sx={{ mb: 0.5 }}>
+                    {index + 1}. {franchise.franchiseNumber} - {franchise.operatorName}
+                  </Typography>
+                ))}
+                {filteredFranchises.length > 10 && (
+                  <Typography variant="body2" sx={{ fontStyle: 'italic', mt: 1 }}>
+                    ... and {filteredFranchises.length - 10} more
+                  </Typography>
+                )}
+              </Box>
+            </div>
+
+            <Divider sx={{ my: 2 }} />
+
+            {/* Action Buttons */}
+            <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2, mt: 3 }}>
+              <Button
+                variant="outlined"
+                onClick={handleCloseBulkModal}
+                sx={{ textTransform: 'none' }}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="contained"
+                startIcon={bulkDownloading ? <CircularProgress size={20} /> : <DownloadIcon />}
+                onClick={handleBulkDownload}
+                disabled={bulkDownloading}
+                sx={{
+                  bgcolor: '#0A356B',
+                  '&:hover': { bgcolor: '#083057' },
+                  textTransform: 'none',
+                }}
+              >
+                Generate & Download PDF
+              </Button>
+            </Box>
+          </Box>
+        </Modal>
       </div>
     </div>
   );

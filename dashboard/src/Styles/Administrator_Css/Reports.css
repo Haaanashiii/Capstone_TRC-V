@@ -1,5 +1,5 @@
-*{
-    font-family: 'Poppins', sans-serif !important;
+* {
+  font-family: 'Poppins', sans-serif !important;
 }
 
 .reports-container {
@@ -7,13 +7,6 @@
   min-height: 100vh;
   background-color: #f5f7fa;
   position: relative;
-}
-
-.reports-content {
-  flex: 1;
-  padding: 32px;
-  margin-left: 240px;
-  width: calc(100% - 240px);
 }
 
 .content-container {
@@ -33,49 +26,52 @@
 .page-title {
   font-size: 36px;
   font-weight: 700;
-  margin-bottom: 32px;
   color: #0A356B;
   margin: 0;
   letter-spacing: -0.5px;
 }
 
-.search-container {
+/* Controls Section */
+.controls-section {
+  background-color: #ffffff;
+  border-radius: 12px !important;
+  box-shadow: 0 4px 16px rgba(10, 53, 107, 0.1) !important;
+  border: 1px solid rgba(10, 53, 107, 0.08);
+  padding: 24px !important;
+  margin-bottom: 24px;
+}
+
+.controls-row {
   display: flex;
-  margin-bottom: 28px;
   gap: 16px;
   align-items: center;
-  background: white;
-  padding: 20px;
-  border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(10, 53, 107, 0.08);
+  flex-wrap: wrap;
+  margin-bottom: 16px;
 }
 
 .search-field {
-  margin-right: 0 !important;
-  background-color: transparent;
+  flex: 1;
+  min-width: 300px;
+}
+
+.search-field .MuiOutlinedInput-root {
+  border-radius: 8px;
 }
 
 .search-field .MuiOutlinedInput-notchedOutline {
   border-color: rgba(10, 53, 107, 0.2);
 }
 
-.search-button {
-  background-color: #0A356B !important;
-  color: white !important;
-  font-weight: 600 !important;
-  padding: 10px 24px !important;
-  border-radius: 8px !important;
-  text-transform: none !important;
-  box-shadow: 0 4px 12px rgba(10, 53, 107, 0.2) !important;
-  transition: all 0.3s ease !important;
+.summary-info {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(10, 53, 107, 0.1);
 }
 
-.search-button:hover {
-  background-color: #083057 !important;
-  box-shadow: 0 6px 16px rgba(10, 53, 107, 0.3) !important;
-  transform: translateY(-2px);
-}
-
+/* Table Container */
 .table-container {
   margin-bottom: 24px;
   background-color: #ffffff;
@@ -85,7 +81,6 @@
   overflow: hidden;
 }
 
-/* For the table header */
 .MuiTableCell-head {
   background-color: #0A356B;
   color: white;
@@ -96,19 +91,178 @@
   text-transform: uppercase;
 }
 
-.action-button {
-  background-color: #0A356B !important;
-  color: white !important;
-  font-weight: 600 !important;
-  padding: 10px 24px !important;
-  border-radius: 8px !important;
-  text-transform: none !important;
+.MuiTableCell-body {
+  padding: 12px;
+}
+
+/* Modal Styles */
+.modal-container {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background-color: white;
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(10, 53, 107, 0.2);
+  padding: 32px;
+  max-width: 800px;
+  width: 90%;
+  max-height: 90vh;
+  overflow-y: auto;
+  outline: none;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.modal-header h2 {
+  margin: 0;
+  color: #0A356B;
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.modal-content {
+  margin-top: 16px;
+}
+
+.info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 20px;
+  margin-top: 16px;
+}
+
+.info-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.info-item .label {
+  color: #666;
+  font-weight: 500;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.info-item .MuiTypography-body1 {
+  color: #333;
+  font-size: 15px;
+}
+
+/* Responsive Design */
+@media (max-width: 1024px) {
+  .content-container {
+    margin-left: 0;
+    width: 100%;
+    padding: 16px;
+  }
+
+  .page-title {
+    font-size: 28px;
+  }
+
+  .controls-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .search-field {
+    min-width: 100%;
+  }
+
+  .modal-container {
+    width: 95%;
+    padding: 24px;
+  }
+
+  .info-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .page-title {
+    font-size: 24px;
+  }
+
+  .modal-container {
+    padding: 20px;
+    max-height: 85vh;
+  }
+
+  .modal-header h2 {
+    font-size: 20px;
+  }
+}
+
+/* Scrollbar Styling */
+.modal-container::-webkit-scrollbar {
+  width: 8px;
+}
+
+.modal-container::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 10px;
+}
+
+.modal-container::-webkit-scrollbar-thumb {
+  background: #0A356B;
+  border-radius: 10px;
+}
+
+.modal-container::-webkit-scrollbar-thumb:hover {
+  background: #083057;
+}
+
+/* Loading State */
+.MuiCircularProgress-root {
+  color: #0A356B !important;
+}
+
+/* Button Styles */
+.MuiButton-contained {
   box-shadow: 0 4px 12px rgba(10, 53, 107, 0.2) !important;
   transition: all 0.3s ease !important;
 }
 
-.action-button:hover {
-  background-color: #083057 !important;
+.MuiButton-contained:hover {
   box-shadow: 0 6px 16px rgba(10, 53, 107, 0.3) !important;
   transform: translateY(-2px);
+}
+
+.MuiButton-outlined {
+  border-width: 2px !important;
+  transition: all 0.3s ease !important;
+}
+
+.MuiButton-outlined:hover {
+  border-width: 2px !important;
+}
+
+/* Chip Styles */
+.MuiChip-root {
+  font-weight: 600 !important;
+  font-size: 13px !important;
+  padding: 4px 8px !important;
+}
+
+/* Date Picker Styling */
+.MuiPickersDay-root {
+  color: #333 !important;
+}
+
+.MuiPickersDay-root.Mui-selected {
+  background-color: #0A356B !important;
+  color: white !important;
+}
+
+.MuiPickersDay-root:hover {
+  background-color: rgba(10, 53, 107, 0.1) !important;
 }

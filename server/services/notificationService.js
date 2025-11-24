@@ -147,7 +147,7 @@ class NotificationService {
                 
                 <!-- Header with Logo -->
                 <tr>
-                  <td style="background: linear-gradient(135deg, #059669 0%, #10b981 100%); padding: 35px 40px;">
+                  <td style="background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%); padding: 35px 40px;">
                     <table role="presentation" style="width: 100%;">
                       <tr>
                         <td style="width: 80px; vertical-align: middle;">
@@ -155,7 +155,7 @@ class NotificationService {
                         </td>
                         <td style="vertical-align: middle; padding-left: 20px;">
                           <h1 style="color: #ffffff; margin: 0; font-size: 32px; font-weight: 700; letter-spacing: 1px; font-family: 'Poppins', sans-serif;">TRC-V</h1>
-                          <p style="color: #d1fae5; margin: 5px 0 0 0; font-size: 14px; font-family: 'Poppins', sans-serif; font-weight: 400;">Tricycle Verification System</p>
+                          <p style="color: #e0e7ff; margin: 5px 0 0 0; font-size: 14px; font-family: 'Poppins', sans-serif; font-weight: 400;">Tricycle Verification System</p>
                         </td>
                       </tr>
                     </table>
@@ -165,14 +165,14 @@ class NotificationService {
                 <!-- Main Content -->
                 <tr>
                   <td style="padding: 45px 40px;">
-                    <h2 style="color: #1e293b; margin: 0 0 15px 0; font-size: 24px; font-weight: 600; text-align: center; font-family: 'Poppins', sans-serif;">BPLO Approval Received</h2>
+                    <h2 style="color: #1e293b; margin: 0 0 15px 0; font-size: 24px; font-weight: 600; text-align: center; font-family: 'Poppins', sans-serif;">Documentary Requirements Approved</h2>
                     <p style="color: #64748b; font-size: 16px; line-height: 1.6; margin: 0 0 30px 0; text-align: center; font-family: 'Poppins', sans-serif;">
                       Dear <strong style="color: #1e293b;">${operatorName}</strong>,
                     </p>
                     
-                    <div style="background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%); border: 2px solid #10b981; border-radius: 10px; padding: 25px; text-align: center; margin: 30px 0;">
-                      <p style="color: #065f46; font-size: 18px; font-weight: 600; line-height: 1.6; margin: 0; font-family: 'Poppins', sans-serif;">
-                        Your franchise application has been approved by the<br/><strong>Business Permit and Licensing Office (BPLO)</strong>
+                    <div style="background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%); border: 2px solid #3b82f6; border-radius: 10px; padding: 25px; text-align: center; margin: 30px 0;">
+                      <p style="color: #1e3a8a; font-size: 18px; font-weight: 600; line-height: 1.6; margin: 0; font-family: 'Poppins', sans-serif;">
+                        Your documentary requirements have been approved by the<br/><strong>Business Permit and Licensing Office (BPLO)</strong>
                       </p>
                     </div>
                     
@@ -269,7 +269,7 @@ class NotificationService {
                 
                 <!-- Header with Logo -->
                 <tr>
-                  <td style="background: linear-gradient(135deg, #dc2626 0%, #f97316 100%); padding: 35px 40px;">
+                  <td style="background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%); padding: 35px 40px;">
                     <table role="presentation" style="width: 100%;">
                       <tr>
                         <td style="width: 80px; vertical-align: middle;">
@@ -277,7 +277,7 @@ class NotificationService {
                         </td>
                         <td style="vertical-align: middle; padding-left: 20px;">
                           <h1 style="color: #ffffff; margin: 0; font-size: 32px; font-weight: 700; letter-spacing: 1px; font-family: 'Poppins', sans-serif;">TRC-V</h1>
-                          <p style="color: #fed7aa; margin: 5px 0 0 0; font-size: 14px; font-family: 'Poppins', sans-serif; font-weight: 400;">Tricycle Verification System</p>
+                          <p style="color: #e0e7ff; margin: 5px 0 0 0; font-size: 14px; font-family: 'Poppins', sans-serif; font-weight: 400;">Tricycle Verification System</p>
                         </td>
                       </tr>
                     </table>
@@ -287,13 +287,13 @@ class NotificationService {
                 <!-- Main Content -->
                 <tr>
                   <td style="padding: 45px 40px;">
-                    <h2 style="color: #1e293b; margin: 0 0 15px 0; font-size: 24px; font-weight: 600; text-align: center; font-family: 'Poppins', sans-serif;">Application Requires Attention</h2>
+                    <h2 style="color: #1e293b; margin: 0 0 15px 0; font-size: 24px; font-weight: 600; text-align: center; font-family: 'Poppins', sans-serif;">Documentary Requirements Need Revision</h2>
                     <p style="color: #64748b; font-size: 16px; line-height: 1.6; margin: 0 0 30px 0; text-align: center; font-family: 'Poppins', sans-serif;">
                       Dear <strong style="color: #1e293b;">${operatorName}</strong>,
                     </p>
                     
                     <p style="color: #475569; font-size: 15px; line-height: 1.7; margin: 0 0 25px 0; font-family: 'Poppins', sans-serif;">
-                      Your tricycle franchise application has been reviewed by the <strong>Business Permit and Licensing Office (BPLO)</strong> and requires your attention.
+                      Your documentary requirements have been reviewed by the <strong>Business Permit and Licensing Office (BPLO)</strong> and require your attention.
                     </p>
                     
                     <!-- Reason Box -->

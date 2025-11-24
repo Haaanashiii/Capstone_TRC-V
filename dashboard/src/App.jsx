@@ -18,6 +18,7 @@ import FranchiseeList from './pages/Administration/FranchiseeList';
 import FranchiseMgmt from './pages/Administration/FranchiseMgmt';
 import Dashboard from './pages/Administration/Dashboard';
 import Reports from './pages/Administration/Reports';
+import FareReports from './pages/Administration/FareReports';
 import Announcement from './pages/Administration/Announcement';
 import Analytics from './pages/Administration/Analytics';
 import AuditTrail from './pages/Administration/AuditTrail';
@@ -114,6 +115,14 @@ function App() {
           element={
             <ProtectedRoute requiredRole={["bplo-admin", "sb-admin", "super-admin"]}>
               <Reports />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/fare-reports" 
+          element={
+            <ProtectedRoute requiredRole={["bplo-admin", "sb-admin", "super-admin"]}>
+              <FareReports />
             </ProtectedRoute>
           } 
         />

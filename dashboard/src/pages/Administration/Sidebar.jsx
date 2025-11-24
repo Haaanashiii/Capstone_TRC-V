@@ -21,6 +21,7 @@ const allMenuItems = [
   { name: 'Franchisee List', icon: <ListAltIcon />, path: '/franchisee-list', allowedRoles: ['super-admin', 'sb-admin', 'bplo-admin'] },
   { name: 'Franchise Management', icon: <BusinessIcon />, path: '/franchise-management', allowedRoles: ['super-admin', 'sb-admin', 'bplo-admin'] },
   { name: 'Reports', icon: <AssessmentIcon />, path: '/reports', allowedRoles: ['super-admin', 'sb-admin', 'bplo-admin'] },
+  { name: 'Fare Overpricing Report', icon: <AssessmentIcon />, path: '/fare-reports', allowedRoles: ['super-admin', 'sb-admin', 'bplo-admin'] },
   { name: 'Analytics', icon: <AnalyticsIcon />, path: '/analytics', allowedRoles: ['super-admin'] },
   { name: 'Announcements', icon: <CampaignIcon />, path: '/announcements', allowedRoles: ['super-admin'] },
   { name: 'Audit Trail', icon: <HistoryIcon />, path: '/audit-trail', allowedRoles: ['super-admin'] },
