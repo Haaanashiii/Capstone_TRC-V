@@ -126,6 +126,18 @@ exports.createNewApplication = async (req, res, next) => {
       );
     }
     
+    // Broadcast new application to BPLO admins and dashboard
+    try {
+      const io = req.app.get('io');
+      if (io) {
+        io.to('bplo-admins').emit('pending-applications', [finalApplication]);
+        io.to('general').emit('application-updated', finalApplication);
+        console.log('[createNewApplication] Broadcasted new application to bplo-admins and general rooms');
+      }
+    } catch (wsError) {
+      console.error('[createNewApplication] WebSocket broadcast error:', wsError.message);
+    }
+    
     res.status(201).json({ success: true, data: finalApplication });
   } catch (error) {
     console.error('[createNewApplication] Error:', error.message);
@@ -442,6 +454,18 @@ exports.createRenewOrAmendment = async (req, res, next) => {
       });
     }
     
+    // Broadcast renewal/amendment application to BPLO admins and dashboard
+    try {
+      const io = req.app.get('io');
+      if (io) {
+        io.to('bplo-admins').emit('pending-applications', [application]);
+        io.to('general').emit('application-updated', application);
+        console.log('[createRenewOrAmendment] Broadcasted new application to bplo-admins and general rooms');
+      }
+    } catch (wsError) {
+      console.error('[createRenewOrAmendment] WebSocket broadcast error:', wsError.message);
+    }
+    
     res.status(201).json({ success: true, data: application, message: `${applicationType} application created` });
   } catch (error) {
     next(error);
@@ -506,6 +530,9 @@ exports.approveFranchiseByBPLO = async (req, res, next) => {
     if (req.app.get('io')) {
       // Notify BPLO admins that application was approved
       req.app.get('io').to('bplo-admins').emit('application-approved', updated);
+      
+      // Broadcast to general room for dashboard pages
+      req.app.get('io').to('general').emit('application-updated', updated);
       
       // Update SB admins list - show applications with OR or without OR
       // SB should see both 'bplo-approved' and 'awaiting-sb' statuses
@@ -598,6 +625,9 @@ exports.disapproveFranchiseByBPLO = async (req, res, next) => {
       } catch (error) {
         console.error('[BPLO Disapproval] Failed to fetch pending applications:', error.message);
       }
+      
+      // Broadcast to general room for dashboard pages
+      req.app.get('io').to('general').emit('application-updated', updated);
       
       // Notify user about the disapproval
       if (updated.operatorInfo) {
@@ -843,6 +873,9 @@ exports.approveFranchiseBySBAdmin = async (req, res, next) => {
         
         // Update BPLO admins about the final approval
         req.app.get('io').to('bplo-admins').emit('application-sb-approved', updated);
+        
+        // Broadcast to general room for dashboard pages
+        req.app.get('io').to('general').emit('application-updated', updated);
       } catch (error) {
         console.error('[SB Approval] Failed to fetch application lists:', error.message);
       }

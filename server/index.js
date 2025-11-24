@@ -46,28 +46,45 @@ const io = new Server(server, {
     methods: ['GET', 'POST'],
     credentials: true
   },
+  // Engine configuration for WebSocket support
+  engine: {
+    wsEngine: 'ws'
+  },
   // Additional production-ready settings
   pingTimeout: 60000,
   pingInterval: 25000,
-  transports: ['websocket', 'polling'] 
+  transports: ['websocket', 'polling']
 });
 
 // Store io instance in app for access in controllers
 app.set('io', io);
 
+// Socket.IO error handling
+io.on('error', (error) => {
+  console.error('[SOCKET.IO] Server error:', error);
+});
+
 // Socket.IO connection handling
 io.on('connection', (socket) => {
   console.log(`[SOCKET.IO] Client connected: ${socket.id}`);
+  console.log(`[SOCKET.IO] Available transports: websocket, polling`);
+  console.log(`[SOCKET.IO] Connection handshake:', { id: socket.id, connected: socket.connected }`);
+  
+  // Handle connection errors
+  socket.on('error', (error) => {
+    console.error(`[SOCKET.IO] Socket error for ${socket.id}:`, error);
+  });
   
   // Allow clients to join specific rooms based on their role
   socket.on('join-room', async (room) => {
-    if (!['bplo-admins', 'sb-admins', 'users'].includes(room)) {
+    if (!['bplo-admins', 'sb-admins', 'users', 'general'].includes(room)) {
       console.warn(`[SOCKET.IO] Invalid room requested: ${room}`);
       return;
     }
     
+    console.log(`[SOCKET.IO] Client ${socket.id} attempting to join room: ${room}`);
     socket.join(room);
-    console.log(`[SOCKET.IO] Client ${socket.id} joined room: ${room}`);
+    console.log(`[SOCKET.IO] Client ${socket.id} successfully joined room: ${room}`);
     
     // Emit current state when joining room (prevents stale data)
     try {
@@ -87,6 +104,9 @@ io.on('connection', (socket) => {
         }).sort({ submittedAt: -1 });
         socket.emit('pending-applications', applications);
         console.log(`[SOCKET.IO] Sent ${applications.length} pending applications to BPLO admin`);
+      } else if (room === 'general') {
+        // General room for dashboard pages - no initial state needed
+        console.log(`[SOCKET.IO] Client ${socket.id} joined general room for dashboard updates`);
       }
     } catch (error) {
       console.error(`[SOCKET.IO] Error fetching initial data for ${room}:`, error.message);
@@ -119,7 +139,7 @@ app.use(helmet({
       imgSrc: ["'self'", "data:", "https://pub-422a490d7e024793bffa369b66dfae83.r2.dev"],
       styleSrc: ["'self'", "'unsafe-inline'"],
       fontSrc: ["'self'"],
-      connectSrc: ["'self'", "https://trc-v.vercel.app", "https://*.vercel.app", "https://*.workers.dev"]
+      connectSrc: ["'self'", "https://trc-v.vercel.app", "https://*.vercel.app", "https://*.workers.dev", "ws://localhost:5170", "ws://localhost:*"]
     }
   },
   referrerPolicy: { policy: 'same-origin' },
@@ -271,10 +291,11 @@ mongoose.connect(process.env.MONGO_URI, {
     console.log(`[SERVER] ✅ MongoDB connected (${dbConnectTime}ms)`);
     
     // Start server immediately, initialize scheduler in background
-    server.listen(PORT, () => {
+    server.listen(PORT, '0.0.0.0', () => {
       const totalBootTime = Date.now() - startTime;
       console.log(`[SERVER] ✅ Server running on port ${PORT} (${totalBootTime}ms)`);
-      console.log(`[SERVER] ✅ Socket.IO enabled`);
+      console.log(`[SERVER] ✅ Socket.IO enabled on ws://0.0.0.0:${PORT}/socket.io/`);
+      console.log(`[SERVER] ✅ Socket.IO CORS enabled for origins: ${socketCorsOrigin}`);
       
       // Initialize scheduler AFTER server starts (non-blocking)
       setImmediate(() => {

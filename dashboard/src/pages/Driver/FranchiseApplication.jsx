@@ -326,7 +326,7 @@ export default function FranchiseApplication() {
     todaMembership: "",
     unitModel: "",
     colorMotor: "",
-    colorSidecar: "Blue and Yellow", // Default to "Blue and Yellow"
+    colorSidecar: "B / Y", // Default to "Blue and Yellow"
     mvPlateNo: "",
     motorEngineNumber: "",
     chassisNumber: "",
@@ -456,9 +456,9 @@ export default function FranchiseApplication() {
     const newErrors = {};
     setSidecarColorError("");
 
-    // Ensure every field in `fields` (except `date`, `hasCoOwner`, and `motorcyclePicture`) is present and non-empty
+    // Ensure every field in `fields` (except `date`, `hasCoOwner`, `motorcyclePicture`, and `todaMembership`) is present and non-empty
     Object.keys(fields).forEach(k => {
-      if (k === 'date' || k === 'hasCoOwner' || k === 'motorcyclePicture') return;
+      if (k === 'date' || k === 'hasCoOwner' || k === 'motorcyclePicture' || k === 'todaMembership') return;
       const v = fields[k];
       if (k === 'birthDate') {
         if (!v) newErrors[k] = 'Date of birth is required';
@@ -752,7 +752,7 @@ export default function FranchiseApplication() {
           
           <div className="franchise-app-grid-2">
             <TextField
-              label="STREET AND PUROK"
+              label="House No., Street, Purok/Subdivision"
               size="small"
               className="franchise-app-input"
               value={fields.operatorAddress}
@@ -880,7 +880,7 @@ export default function FranchiseApplication() {
           </div>
           <div className="franchise-app-field">
             <TextField
-              label="STREET AND PUROK"
+              label="House No., Street, Purok/Subdivision, Barangay, Solano, Nueva Vizcaya"
               size="small"
               className="franchise-app-input"
               value={fields.driverAddress}

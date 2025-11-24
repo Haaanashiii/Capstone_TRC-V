@@ -113,7 +113,8 @@ const uploadOperatorDocuments = multer({
   { name: 'motorChassisStencilObj', maxCount: 1 },
   { name: 'operatorPictureObj', maxCount: 1 },
   { name: 'oRLTOObj', maxCount: 1 },
-  { name: 'cRLTOObj', maxCount: 1 }
+  { name: 'cRLTOObj', maxCount: 1 },
+  { name: 'oRTreasurerOfficeObj', maxCount: 1 }
 ]);
 
 // Combined upload for operator creation (profile + documents)

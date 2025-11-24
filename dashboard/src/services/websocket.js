@@ -4,6 +4,7 @@
  */
 
 import { io } from 'socket.io-client';
+import { useEffect } from 'react';
 import { API_BASE_URL, TokenManager } from '../pages/Services/api';
 
 class WebSocketService {
@@ -13,6 +14,7 @@ class WebSocketService {
     this.reconnectAttempts = 0;
     this.maxReconnectAttempts = 5;
     this.reconnectDelay = 3000;
+    this.currentRoom = null; // Track current room
   }
 
   /**
@@ -21,11 +23,19 @@ class WebSocketService {
    */
   connect(room = null) {
     if (this.socket?.connected) {
-      console.log('[WebSocket] Already connected');
+      console.log('[WebSocket] Already connected, current room:', this.currentRoom);
+      // If a different room is requested, switch to it
+      if (room && room !== this.currentRoom) {
+        console.log('[WebSocket] Switching from room:', this.currentRoom, 'to:', room);
+        this.joinRoom(room);
+      }
       return;
     }
 
     const token = TokenManager.getAccessToken();
+    
+    console.log('[WebSocket] Attempting to connect to:', API_BASE_URL);
+    console.log('[WebSocket] Token available:', !!token);
     
     this.socket = io(API_BASE_URL, {
       transports: ['websocket', 'polling'],
@@ -54,7 +64,12 @@ class WebSocketService {
     });
 
     this.socket.on('connect_error', (error) => {
-      console.error('[WebSocket] Connection error:', error.message);
+      console.error('[WebSocket] Connection error:', error);
+      console.error('[WebSocket] Error details:', {
+        message: error.message,
+        data: error.data,
+        type: error.type
+      });
       this.reconnectAttempts++;
       
       if (this.reconnectAttempts >= this.maxReconnectAttempts) {
@@ -76,7 +91,7 @@ class WebSocketService {
 
   /**
    * Join a specific room for role-based updates
-   * @param {string} room - Room name ('bplo-admins', 'sb-admins', 'users')
+   * @param {string} room - Room name ('bplo-admins', 'sb-admins', 'users', 'general')
    */
   joinRoom(room) {
     if (!this.socket?.connected) {
@@ -84,7 +99,8 @@ class WebSocketService {
       return;
     }
 
-    console.log('[WebSocket] Joining room:', room);
+    console.log('[WebSocket] Joining room:', room, '(was in:', this.currentRoom + ')');
+    this.currentRoom = room; // Track the current room
     this.socket.emit('join-room', room);
   }
 
@@ -197,8 +213,6 @@ export default websocketService;
  * }
  */
 export const useWebSocket = (event, callback, room = null) => {
-  const { useEffect } = require('react');
-
   useEffect(() => {
     // Connect and join room
     if (!websocketService.isConnected()) {
