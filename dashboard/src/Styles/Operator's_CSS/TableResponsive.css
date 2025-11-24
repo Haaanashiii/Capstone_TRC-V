@@ -1,0 +1,113 @@
+/* Table responsive styling - automatic font and layout adjustments */
+
+/* Base table styling */
+.MuiTableContainer-root {
+  width: 100% !important;
+  max-width: 100% !important;
+  overflow-x: auto !important;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Desktop and large tablets */
+@media (min-width: 769px) {
+  .MuiTableCell-head,
+  .MuiTableCell-body {
+    font-size: 14px !important;
+    padding: 12px 16px !important;
+  }
+}
+
+/* Tablets */
+@media (max-width: 768px) and (min-width: 481px) {
+  .MuiTableCell-head,
+  .MuiTableCell-body {
+    font-size: 12px !important;
+    padding: 10px 12px !important;
+  }
+
+  .MuiTableContainer-root {
+    font-size: 12px;
+  }
+
+  .MuiChip-root {
+    font-size: 11px !important;
+    height: 24px !important;
+  }
+
+  .MuiButton-root {
+    font-size: 11px !important;
+    padding: 4px 10px !important;
+  }
+}
+
+/* Mobile phones */
+@media (max-width: 480px) {
+  .MuiTableCell-head,
+  .MuiTableCell-body {
+    font-size: 10px !important;
+    padding: 6px 8px !important;
+  }
+
+  .MuiTableContainer-root {
+    font-size: 10px;
+  }
+
+  .MuiChip-root {
+    font-size: 9px !important;
+    height: 20px !important;
+    padding: 2px 6px !important;
+  }
+
+  .MuiButton-root {
+    font-size: 9px !important;
+    padding: 3px 8px !important;
+    min-width: 60px !important;
+  }
+}
+
+/* Extra small phones */
+@media (max-width: 360px) {
+  .MuiTableCell-head,
+  .MuiTableCell-body {
+    font-size: 9px !important;
+    padding: 4px 6px !important;
+  }
+
+  .MuiChip-root {
+    font-size: 8px !important;
+    height: 18px !important;
+    padding: 2px 4px !important;
+  }
+
+  .MuiButton-root {
+    font-size: 8px !important;
+    padding: 2px 6px !important;
+    min-width: 50px !important;
+  }
+}
+
+/* Table scrollbar styling for mobile */
+@media (max-width: 768px) {
+  .MuiTableContainer-root::-webkit-scrollbar {
+    height: 8px;
+  }
+
+  .MuiTableContainer-root::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 10px;
+  }
+
+  .MuiTableContainer-root::-webkit-scrollbar-thumb {
+    background: #174D7A;
+    border-radius: 10px;
+  }
+
+  .MuiTableContainer-root::-webkit-scrollbar-thumb:hover {
+    background: #0f3a5f;
+  }
+
+  /* Add scroll hint shadow */
+  .MuiTableContainer-root {
+    box-shadow: inset -10px 0 10px -10px rgba(0,0,0,0.15);
+  }
+}

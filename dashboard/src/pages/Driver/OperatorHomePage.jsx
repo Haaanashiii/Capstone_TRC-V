@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import UnifiedNavbar from "../../components/UnifiedNavbar";
 import { useAuth } from "../../contexts/AuthContext";
 import "../../Styles/Operator's_CSS/OperatorHomePage.css";
+import "../../Styles/Operator's_CSS/TableResponsive.css";
 import { Link2, PlusCircle } from 'lucide-react';
 import io from 'socket.io-client';
 import {
@@ -691,24 +692,34 @@ const OperatorHomePage = () => {
             <TableContainer component={Paper} sx={{ 
               marginBottom: '32px',
               boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+              overflowX: 'auto',
+              width: '100%',
             '& .MuiTableCell-head': {
               backgroundColor: '#174D7A',
               color: '#fff',
               fontWeight: 700,
-              fontSize: { xs: '12px', sm: '13px', md: '14px' },
+              fontSize: 'clamp(10px, 2vw, 14px)',
               position: 'sticky',
               top: 0,
               zIndex: 10,
-              fontFamily: 'Poppins, sans-serif'
+              fontFamily: 'Poppins, sans-serif',
+              whiteSpace: 'nowrap',
+              padding: 'clamp(6px, 1.5vw, 16px)'
             },
             '& .MuiTableCell-body': {
-              fontSize: { xs: '12px', sm: '13px', md: '14px' },
-              fontFamily: 'Poppins, sans-serif'
+              fontSize: 'clamp(10px, 2vw, 14px)',
+              fontFamily: 'Poppins, sans-serif',
+              whiteSpace: 'nowrap',
+              padding: 'clamp(6px, 1.5vw, 16px)'
             },
             '& .MuiTableRow-root': {
               '&:hover': {
                 backgroundColor: '#f5f7fa'
               }
+            },
+            '& .MuiTable-root': {
+              width: '100%',
+              tableLayout: 'auto'
             }
           }}>
             <Table>
@@ -773,24 +784,34 @@ const OperatorHomePage = () => {
               <TableContainer component={Paper} sx={{ 
                 marginBottom: '32px',
                 boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                overflowX: 'auto',
+                width: '100%',
                 '& .MuiTableCell-head': {
                   backgroundColor: '#174D7A',
                   color: '#fff',
                   fontWeight: 700,
-                  fontSize: { xs: '12px', sm: '13px', md: '14px' },
+                  fontSize: 'clamp(10px, 2vw, 14px)',
                   position: 'sticky',
                   top: 0,
                   zIndex: 10,
-                  fontFamily: 'Poppins, sans-serif'
+                  fontFamily: 'Poppins, sans-serif',
+                  whiteSpace: 'nowrap',
+                  padding: 'clamp(6px, 1.5vw, 16px)'
                 },
                 '& .MuiTableCell-body': {
-                  fontSize: { xs: '12px', sm: '13px', md: '14px' },
-                  fontFamily: 'Poppins, sans-serif'
+                  fontSize: 'clamp(10px, 2vw, 14px)',
+                  fontFamily: 'Poppins, sans-serif',
+                  whiteSpace: 'nowrap',
+                  padding: 'clamp(6px, 1.5vw, 16px)'
                 },
                 '& .MuiTableRow-root': {
                   '&:hover': {
                     backgroundColor: '#f5f7fa'
                   }
+                },
+                '& .MuiTable-root': {
+                  width: '100%',
+                  tableLayout: 'auto'
                 }
               }}>
                 <Table>
@@ -845,24 +866,33 @@ const OperatorHomePage = () => {
           {userApplications.length > 0 ? (
             <TableContainer component={Paper} sx={{ 
               boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+              overflowX: 'auto',
+              width: '100%',
               '& .MuiTableCell-head': {
                 backgroundColor: '#174D7A',
                 color: '#fff',
                 fontWeight: 700,
-                fontSize: { xs: '12px', sm: '13px', md: '14px' },
+                fontSize: 'clamp(10px, 2vw, 14px)',
                 position: 'sticky',
                 top: 0,
                 zIndex: 10,
-                fontFamily: 'Poppins, sans-serif'
+                fontFamily: 'Poppins, sans-serif',
+                whiteSpace: 'nowrap',
+                padding: 'clamp(6px, 1.5vw, 16px)'
               },
               '& .MuiTableCell-body': {
-                fontSize: { xs: '12px', sm: '13px', md: '14px' },
-                fontFamily: 'Poppins, sans-serif'
+                fontSize: 'clamp(10px, 2vw, 14px)',
+                fontFamily: 'Poppins, sans-serif',
+                padding: 'clamp(6px, 1.5vw, 16px)'
               },
               '& .MuiTableRow-root': {
                 '&:hover': {
                   backgroundColor: '#f5f7fa'
                 }
+              },
+              '& .MuiTable-root': {
+                width: '100%',
+                tableLayout: 'auto'
               }
             }}>
               <Table>
