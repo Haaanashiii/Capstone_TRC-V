@@ -20,8 +20,15 @@ const DocumentReferenceSchema = new mongoose.Schema({
 
 const franchiseInformationSchema = new mongoose.Schema({
 
-  franchiseNumber: { type: String, unique: true }, //inputed by sb
+  franchiseNumber: { type: String, required: true }, // Can be reused after revoke
   sessionNumber: { type: String }, // sort 
+  
+  // CRITICAL: Tracks the lineage/chain of this franchise
+  // When franchise #001 expires and is given to another user, they get a NEW franchiseChainId
+  // This prevents data mixing between User A's history and User B's history
+  // Format: franchiseNumber-operatorName (e.g., "0012-Juan-dela-Cruz", "0012-Maria-Santos")
+  // SB/BPLO admins can see this to identify different owners of reused franchise numbers
+  franchiseChainId: { type: String, required: true, index: true },
 
   // operator details
   operatorName: { type: String, required: true },
@@ -96,7 +103,9 @@ const franchiseInformationSchema = new mongoose.Schema({
   }
 }, { timestamps: true });
 
-// Compound index: franchiseNumber can be reused if previous franchise is revoked (not current version)
+// Compound index: franchiseNumber can be reused, but each chain is unique
+// When franchise #001 is active (User A), no other active franchise #001 can exist
+// When User A's franchise #001 is revoked, a new franchiseChainId for #001 (User B) is created
 franchiseInformationSchema.index(
   { franchiseNumber: 1, isCurrentVersion: 1 },
   { 
@@ -104,6 +113,12 @@ franchiseInformationSchema.index(
     partialFilterExpression: { isCurrentVersion: true }
   }
 );
+
+// Index for finding all versions in a franchise chain (all users who ever had this franchise number)
+franchiseInformationSchema.index({ franchiseChainId: 1 });
+
+// Index for finding a specific user's franchise chain
+franchiseInformationSchema.index({ franchiseChainId: 1, linkedUser: 1 });
 
 // Additional indexes for performance
 franchiseInformationSchema.index({ linkedUser: 1 });

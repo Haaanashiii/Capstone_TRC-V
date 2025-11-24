@@ -85,23 +85,25 @@ exports.searchFranchiseInformation = async (req, res, next) => {
     
     if (isPureLetters) {
       // Search by OPERATOR NAME (case-insensitive, partial match)
+      // Sort by: franchiseChainId (descending - newest chain first), then changedAt (latest first within chain)
       searchType = 'name';
       franchises = await FranchiseInformation.find({
         operatorName: { $regex: searchTerm, $options: 'i' }
       })
       .populate('linkedUser', 'username email')
       .populate('previousVersion', 'version changeType')
-      .sort({ operatorName: 1, version: -1 });
+      .sort({ franchiseChainId: -1, changedAt: -1 });
       
     } else if (hasNumbers) {
       // Search by FRANCHISE NUMBER (exact or partial match, all versions)
+      // Sort by: franchiseNumber, franchiseChainId (descending - newest chain first), then changedAt (latest first within chain)
       searchType = 'franchiseNumber';
       franchises = await FranchiseInformation.find({
         franchiseNumber: { $regex: searchTerm, $options: 'i' }
       })
       .populate('linkedUser', 'username email')
       .populate('previousVersion', 'version changeType')
-      .sort({ franchiseNumber: 1, version: -1 });
+      .sort({ franchiseNumber: 1, franchiseChainId: -1, changedAt: -1 });
       
     } else {
       return res.status(400).json({

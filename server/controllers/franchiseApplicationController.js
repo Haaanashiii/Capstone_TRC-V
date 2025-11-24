@@ -969,6 +969,7 @@ exports.sbAdminAcceptNewFranchise = async (req, res, next) => {
     const franchiseData = {
       franchiseNumber: franchiseNo,
       sessionNumber,
+      franchiseChainId: `${franchiseNo}-${application.operatorName.toLowerCase().replace(/\s+/g, '-')}`,
       operatorName: application.operatorName,
       operatorContactNumber: application.operatorContactNumber,
       coOwnerName: application.coOwnerName,
