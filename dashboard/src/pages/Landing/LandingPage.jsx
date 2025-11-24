@@ -274,7 +274,7 @@ const LandingPage = () => {
             </AccordionSummary>
             <AccordionDetails>
               <Typography sx={{ fontFamily: 'Poppins, sans-serif' }}>
-                The approval process typically takes 5-10 business days. First, BPLO reviews your application, then it's forwarded to the Sangguniang Bayan for final approval. You can track your application status in real-time through your dashboard.
+                The approval process typically takes A week. First, BPLO reviews your application, then it's forwarded to the Sangguniang Bayan for final approval. You can track your application status in real-time through your dashboard.
               </Typography>
             </AccordionDetails>
           </Accordion>

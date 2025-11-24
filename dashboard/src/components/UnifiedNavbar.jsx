@@ -14,7 +14,6 @@ import {
   DialogContent,
   DialogActions
 } from "@mui/material";
-import PermIdentityIcon from '@mui/icons-material/PermIdentity';
 import LogoutIcon from '@mui/icons-material/Logout';
 import WarningIcon from '@mui/icons-material/Warning';
 import { useAuth } from "../contexts/AuthContext";
@@ -25,7 +24,6 @@ const UnifiedNavbar = ({ language, onLanguageToggle, translations }) => {
   const navigate = useNavigate();
   const { user: authUser, logout, loading } = useAuth();
   const [anchorEl, setAnchorEl] = useState(null);
-  const [warningDialogOpen, setWarningDialogOpen] = useState(false);
   const [activeFranchiseDialogOpen, setActiveFranchiseDialogOpen] = useState(false);
   const menuOpen = Boolean(anchorEl);
 
@@ -95,25 +93,6 @@ const UnifiedNavbar = ({ language, onLanguageToggle, translations }) => {
     } finally {
       navigate('/');
     }
-  };
-
-  const handleGoToId = () => {
-    handleMenuClose();
-    
-    if (!userHasFranchise) {
-      setWarningDialogOpen(true);
-    } else {
-      navigate('/operator/id');
-    }
-  };
-  
-  const handleWarningClose = () => {
-    setWarningDialogOpen(false);
-  };
-  
-  const handleGoToFranchise = () => {
-    setWarningDialogOpen(false);
-    navigate('/operator/franchise/application');
   };
   
   const handleActiveFranchiseDialogClose = () => {
@@ -216,12 +195,6 @@ const UnifiedNavbar = ({ language, onLanguageToggle, translations }) => {
                       transformOrigin={{ vertical: 'top', horizontal: 'right' }}
                       PaperProps={{ sx: { borderRadius: 2, minWidth: 200 } }}
                     >
-                      <MenuItem onClick={handleGoToId}>
-                        <ListItemIcon sx={{ minWidth: 40 }}>
-                          <PermIdentityIcon fontSize="small" />
-                        </ListItemIcon>
-                        Operator ID
-                      </MenuItem>
                       <MenuItem onClick={handleLogout}>
                         <ListItemIcon sx={{ minWidth: 40 }}>
                           <LogoutIcon fontSize="small" />
@@ -261,53 +234,6 @@ const UnifiedNavbar = ({ language, onLanguageToggle, translations }) => {
           </Box>
         </Toolbar>
       </AppBar>
-
-      {/* Warning Dialog for No Franchise */}
-      <Dialog
-        open={warningDialogOpen}
-        onClose={handleWarningClose}
-        PaperProps={{
-          sx: {
-            borderRadius: 3,
-            padding: 2,
-            maxWidth: 500
-          }
-        }}
-      >
-        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1, color: '#d32f2f' }}>
-          <WarningIcon sx={{ fontSize: 32 }} />
-          No Franchise Found
-        </DialogTitle>
-        <DialogContent>
-          <Typography variant="body1" sx={{ mb: 2 }}>
-            You need an approved franchise to access the Operator ID.
-          </Typography>
-          <Typography variant="body2" sx={{ color: '#666' }}>
-            To view your Operator ID, you need to:
-          </Typography>
-          <Box component="ul" sx={{ mt: 1, pl: 2 }}>
-            <li><Typography variant="body2">Submit a franchise application and get it approved</Typography></li>
-          </Box>
-        </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button 
-            onClick={handleWarningClose} 
-            sx={{ color: '#666' }}
-          >
-            Cancel
-          </Button>
-          <Button 
-            onClick={handleGoToFranchise}
-            variant="contained"
-            sx={{ 
-              bgcolor: '#083d77',
-              '&:hover': { bgcolor: '#0a3970' }
-            }}
-          >
-            Submit Application
-          </Button>
-        </DialogActions>
-      </Dialog>
 
       {/* Active Franchise Dialog */}
       <Dialog

@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useNavigate } from 'react-router-dom';
 import UnifiedNavbar from "../../components/UnifiedNavbar";
-import { TextField, Button, Snackbar, Alert, CircularProgress, Select, MenuItem, FormControl, InputLabel, FormHelperText } from "@mui/material";
+import { TextField, Button, Snackbar, Alert, CircularProgress, Select, MenuItem, FormControl, InputLabel, FormHelperText, Accordion, AccordionSummary, AccordionDetails, Typography } from "@mui/material";
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
@@ -125,8 +126,8 @@ export default function FranchiseApplication() {
                 motorChassisStencil: app.documents.motorChassisStencilObj || null,
                 driverPicture: app.documents.driverPictureObj || null,
                 operatorPicture: app.documents.operatorPictureObj || null,
-                oRLTO: app.documents.oRLTOObj || null,
-                cRLTO: app.documents.cRLTOObj || null
+                orLTO: app.documents.orLTOObj || null,
+                cr: app.documents.crObj || null
               });
             }
             
@@ -181,7 +182,9 @@ export default function FranchiseApplication() {
       photoLicense: "Photocopy of Driver's License",
       photoStencil: "Photocopy of Motor Chassis Stencil",
       photoAffidavit: "Photocopy of Voter's Affidavit",
-      picture: "1x1 Picture of the Driver",
+      photoOrLTO: "OR LTO (Official Receipt)",
+      photoCR: "CR (Certificate of Registration)",
+      picture: "1x1 Picture of the Operator",
       browseFiles: "Browse Files to upload",
       noFileSelected: "No selected File -",
       digitalSignature: "Digital Signature",
@@ -235,6 +238,8 @@ export default function FranchiseApplication() {
       photoLicense: "Photocopy ng Driver's License",
       photoStencil: "Photocopy ng Motor Chassis Stencil",
       photoAffidavit: "Photocopy ng Voter's Affidavit",
+      photoOrLTO: "OR LTO (Official Receipt)",
+      photoCR: "CR (Certificate of Registration)",
       picture: "1x1 na Larawan",
       browseFiles: "Mag-browse ng mga file para i-upload",
       noFileSelected: "Walang napiling File -",
@@ -406,6 +411,8 @@ export default function FranchiseApplication() {
     license: null,
     stencil: null,
     affidavit: null,
+    orLTO: null,
+    cr: null,
     picture: null,
   });
 
@@ -471,7 +478,7 @@ export default function FranchiseApplication() {
     }
 
     // Required documents
-    const requiredDocs = ['registration', 'barangay', 'cedula', 'license', 'affidavit', 'picture'];
+    const requiredDocs = ['registration', 'barangay', 'cedula', 'license', 'affidavit', 'orLTO', 'cr', 'picture'];
     requiredDocs.forEach(dk => {
       if (!uploads[dk]) newErrors[`doc_${dk}`] = 'Document is required';
     });
@@ -523,6 +530,8 @@ export default function FranchiseApplication() {
     cedula: useRef(),
     license: useRef(),
     affidavit: useRef(),
+    orLTO: useRef(),
+    cr: useRef(),
     picture: useRef(),
   };
 
@@ -958,6 +967,8 @@ export default function FranchiseApplication() {
               { key: 'stencil', label: t.photoStencil.toUpperCase() },
               { key: 'license', label: t.photoLicense.toUpperCase() },
               { key: 'affidavit', label: t.photoAffidavit.toUpperCase() },
+              { key: 'orLTO', label: t.photoOrLTO.toUpperCase() },
+              { key: 'cr', label: t.photoCR.toUpperCase() },
               { key: 'picture', label: t.picture.toUpperCase() },
             ].map((doc) => (
               <div key={doc.key} style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
@@ -1121,6 +1132,18 @@ export default function FranchiseApplication() {
                         formDataToSend.append('existingVotersAffidavit', existingDocuments.votersAffidavit);
                       }
                       
+                      if (uploads.orLTO) {
+                        formDataToSend.append('orLTOObj', uploads.orLTO);
+                      } else if (isResubmission && existingDocuments?.orLTO) {
+                        formDataToSend.append('existingOrLTO', existingDocuments.orLTO);
+                      }
+                      
+                      if (uploads.cr) {
+                        formDataToSend.append('crObj', uploads.cr);
+                      } else if (isResubmission && existingDocuments?.cr) {
+                        formDataToSend.append('existingCR', existingDocuments.cr);
+                      }
+                      
                       if (uploads.picture) {
                         formDataToSend.append('driverPictureObj', uploads.picture);
                       } else if (isResubmission && existingDocuments?.driverPicture) {
@@ -1199,7 +1222,7 @@ export default function FranchiseApplication() {
                       })
                       setAddressError('');
                       setBarangayError('');
-                      setUploads({ registration: null, barangay: null, cedula: null, license: null, affidavit: null, picture: null })
+                      setUploads({ registration: null, barangay: null, cedula: null, license: null, affidavit: null, orLTO: null, cr: null, picture: null })
                       setCoOwners([]);
 
                       
@@ -1254,47 +1277,182 @@ export default function FranchiseApplication() {
                 </Button>
               </div>
 
-          <div className="franchise-app-section" style={{ marginTop: 32 }}>
-            {t.swornStatement}
-            <div className="franchise-app-section-line" />
-          </div>
-          <div className="franchise-app-sworn-statement">
-            <p>{t.swornDeclaration}</p>
-            <ol style={{ marginLeft: 24 }}>
-              <li>{t.swornItem1}</li>
-              <li>{t.swornItem2}</li>
-              <li>{t.swornItem3}</li>
-              <li>{t.swornItem4}</li>
-            </ol>
-            <p>{t.swornCompliance}</p>
-            <div className="franchise-app-digital-signature">
-                <div className="franchise-app-digital-signature" style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 32 }}>
-                  <div style={{ width: 340 }}>
-                    <div
-                      style={{
-                        width: '100%',
-                        height: 80,
-                        background: 'transparent',
-                        borderTop: '2px solid #000',
-                        borderBottom: 'none',
-                        borderLeft: 'none',
-                        borderRight: 'none',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontWeight: 400,
-                        fontSize: 16,
-                        color: '#000',
-                        marginBottom: 8,
-                        paddingTop: '10px'
-                      }}
-                    >
-                      SIGNATURE
+          {/* Sworn Statement Accordion */}
+          <Accordion 
+            defaultExpanded={false}
+            sx={{ 
+              marginTop: 4, 
+              boxShadow: '0 4px 12px rgba(23, 77, 122, 0.15)', 
+              borderRadius: '12px !important',
+              '&:before': { display: 'none' },
+              overflow: 'hidden'
+            }}
+          >
+            <AccordionSummary 
+              expandIcon={<ExpandMoreIcon sx={{ color: '#174D7A', fontSize: 32 }} />}
+              sx={{ 
+                background: 'linear-gradient(135deg, #174D7A 0%, #2563A8 100%)',
+                color: '#fff',
+                padding: '16px 24px',
+                '&:hover': {
+                  background: 'linear-gradient(135deg, #133D5F 0%, #1D4F85 100%)'
+                },
+                '& .MuiAccordionSummary-expandIconWrapper': {
+                  color: '#fff'
+                }
+              }}
+            >
+              <Typography sx={{ 
+                fontWeight: 700, 
+                fontSize: '18px',
+                letterSpacing: '0.5px',
+                fontFamily: 'Poppins, sans-serif',
+                textTransform: 'uppercase'
+              }}>
+                {t.swornStatement}
+              </Typography>
+            </AccordionSummary>
+            <AccordionDetails sx={{ 
+              padding: '32px 24px',
+              background: '#fafbfd'
+            }}>
+              <div className="franchise-app-sworn-statement">
+                <Typography sx={{ 
+                  marginBottom: 2, 
+                  lineHeight: 1.8,
+                  color: '#333',
+                  fontSize: '15px',
+                  fontFamily: 'Poppins, sans-serif'
+                }}>
+                  {t.swornDeclaration}
+                </Typography>
+                <ol style={{ 
+                  marginLeft: 24, 
+                  marginBottom: 24,
+                  lineHeight: 1.8,
+                  color: '#444'
+                }}>
+                  <li style={{ marginBottom: 12 }}>{t.swornItem1}</li>
+                  <li style={{ marginBottom: 12 }}>{t.swornItem2}</li>
+                  <li style={{ marginBottom: 12 }}>{t.swornItem3}</li>
+                  <li style={{ marginBottom: 12 }}>{t.swornItem4}</li>
+                </ol>
+                <Typography sx={{ 
+                  marginBottom: 3,
+                  fontWeight: 500,
+                  color: '#333',
+                  fontSize: '15px',
+                  fontFamily: 'Poppins, sans-serif'
+                }}>
+                  {t.swornCompliance}
+                </Typography>
+                <div className="franchise-app-digital-signature">
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 32 }}>
+                    <div style={{ width: 340 }}>
+                      <div
+                        style={{
+                          width: '100%',
+                          height: 80,
+                          background: 'transparent',
+                          borderTop: '2px solid #174D7A',
+                          borderBottom: 'none',
+                          borderLeft: 'none',
+                          borderRight: 'none',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontWeight: 600,
+                          fontSize: 14,
+                          color: '#174D7A',
+                          marginBottom: 8,
+                          paddingTop: '10px',
+                          letterSpacing: '1px'
+                        }}
+                      >
+                        SIGNATURE
+                      </div>
                     </div>
                   </div>
                 </div>
-            </div>
-          </div>
+              </div>
+            </AccordionDetails>
+          </Accordion>
+
+          {/* Agreement Accordion */}
+          <Accordion 
+            defaultExpanded={false}
+            sx={{ 
+              marginTop: 3, 
+              marginBottom: 4,
+              boxShadow: '0 4px 12px rgba(23, 77, 122, 0.15)', 
+              borderRadius: '12px !important',
+              '&:before': { display: 'none' },
+              overflow: 'hidden'
+            }}
+          >
+            <AccordionSummary 
+              expandIcon={<ExpandMoreIcon sx={{ color: '#174D7A', fontSize: 32 }} />}
+              sx={{ 
+                background: 'linear-gradient(135deg, #174D7A 0%, #2563A8 100%)',
+                color: '#fff',
+                padding: '16px 24px',
+                '&:hover': {
+                  background: 'linear-gradient(135deg, #133D5F 0%, #1D4F85 100%)'
+                },
+                '& .MuiAccordionSummary-expandIconWrapper': {
+                  color: '#fff'
+                }
+              }}
+            >
+              <Typography sx={{ 
+                fontWeight: 700, 
+                fontSize: '18px',
+                letterSpacing: '0.5px',
+                fontFamily: 'Poppins, sans-serif',
+                textTransform: 'uppercase'
+              }}>
+                {t.agreement}
+              </Typography>
+            </AccordionSummary>
+            <AccordionDetails sx={{ 
+              padding: '32px 24px',
+              background: '#fafbfd'
+            }}>
+              <ol style={{ 
+                marginLeft: 24,
+                lineHeight: 1.8,
+                color: '#444'
+              }}>
+                <li style={{ marginBottom: 16 }}>
+                  <Typography sx={{ 
+                    fontSize: '15px',
+                    fontFamily: 'Poppins, sans-serif',
+                    color: '#333'
+                  }}>
+                    {t.agreeText1}
+                  </Typography>
+                </li>
+                <li style={{ marginBottom: 16 }}>
+                  <Typography sx={{ 
+                    fontSize: '15px',
+                    fontFamily: 'Poppins, sans-serif',
+                    color: '#333'
+                  }}>
+                    {t.agreeText2}
+                  </Typography>
+                </li>
+                <li style={{ marginBottom: 16 }}>
+                  <Typography sx={{ 
+                    fontSize: '15px',
+                    fontFamily: 'Poppins, sans-serif',
+                    color: '#333'
+                  }}>
+                    {t.agreeText3}
+                  </Typography>
+                </li>
+              </ol>
+            </AccordionDetails>
+          </Accordion>
           {/* Snackbar for toast notifications */}
           <Snackbar
             open={toast.open}
