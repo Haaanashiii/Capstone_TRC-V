@@ -9,6 +9,23 @@ html, body {
   max-width: 100vw;
 }
 
+/* Keyframe animations */
+@keyframes fadeInSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
 .franchise-app-bg {
   min-height: 100vh;
   background: #083d77;
@@ -19,6 +36,9 @@ html, body {
   box-sizing: border-box;
   overflow-x: hidden;
   width: 100%;
+  animation: fadeIn 0.4s ease-out;
+  /* Smooth scrolling for mobile */
+  -webkit-overflow-scrolling: touch;
 }
 
 .franchise-app-paper {
@@ -31,6 +51,17 @@ html, body {
   position: relative;
   margin: clamp(10px, 5vh, 40px) auto;
   box-sizing: border-box;
+  animation: fadeInSlideUp 0.6s ease-out;
+  transition: box-shadow 0.3s ease;
+  /* Mobile optimizations */
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Desktop hover only */
+@media (hover: hover) and (pointer: fine) {
+  .franchise-app-paper:hover {
+    box-shadow: 0 8px 40px rgba(0,0,0,0.15);
+  }
 }
 
 .franchise-app-title {
@@ -51,6 +82,33 @@ html, body {
 
 .franchise-app-field {
   margin-bottom: clamp(12px, 2.5vw, 18px);
+  animation: fadeIn 0.5s ease-out backwards;
+}
+
+.franchise-app-field input,
+.franchise-app-field textarea,
+.franchise-app-field select {
+  transition: border-color 0.3s ease, box-shadow 0.3s ease, transform 0.2s ease;
+  /* Mobile touch optimization */
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.franchise-app-field input:focus,
+.franchise-app-field textarea:focus,
+.franchise-app-field select:focus {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(8, 61, 119, 0.1);
+}
+
+/* Mobile-specific: reduce transform on small screens */
+@media (max-width: 768px) {
+  .franchise-app-field input:focus,
+  .franchise-app-field textarea:focus,
+  .franchise-app-field select:focus {
+    transform: none;
+    box-shadow: 0 2px 8px rgba(8, 61, 119, 0.12);
+  }
 }
 
 .franchise-app-section {
@@ -62,6 +120,7 @@ html, body {
   align-items: center;
   flex-wrap: wrap;
   gap: clamp(8px, 2vw, 16px);
+  animation: fadeInSlideUp 0.5s ease-out backwards;
 }
 
 .franchise-app-section-line {
@@ -69,6 +128,17 @@ html, body {
   height: 2px;
   background: #222;
   min-width: 50px;
+  animation: scaleInWidth 0.6s ease-out backwards;
+}
+
+@keyframes scaleInWidth {
+  from {
+    transform: scaleX(0);
+    transform-origin: left;
+  }
+  to {
+    transform: scaleX(1);
+  }
 }
 
 .franchise-app-grid,

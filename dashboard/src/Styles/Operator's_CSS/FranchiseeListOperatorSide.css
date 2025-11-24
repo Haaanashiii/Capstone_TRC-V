@@ -1,5 +1,27 @@
 /* explicit colors used instead of :root variables */
 
+/* Keyframe animations */
+@keyframes slideInCard {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes badgePulse {
+  from {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
 
 /* wrapper that centers the card and allows the badge to be absolutely positioned relative to the wrapper */
 .driver-id-wrapper{
@@ -23,6 +45,25 @@
   position:relative;
   z-index:90;
   box-sizing:border-box;
+  animation: slideInCard 0.5s ease-out;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  /* Mobile optimizations */
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+/* Desktop hover only */
+@media (hover: hover) and (pointer: fine) {
+  .driver-id-card:hover {
+    transform: translateY(-4px);
+    box-shadow:0 10px 32px rgba(10,35,118,0.18);
+  }
+}
+
+/* Mobile touch feedback */
+.driver-id-card:active {
+  transform: scale(0.98);
+  transition: transform 0.15s ease;
 }
 
 .id-left{
@@ -56,6 +97,25 @@
   font-size:clamp(11px, 1.8vw, 13px);
   letter-spacing:0.2px;
   z-index:60;
+  animation: badgePulse 0.6s ease-out 0.3s backwards;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  /* Mobile touch optimization */
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+/* Desktop hover only */
+@media (hover: hover) and (pointer: fine) {
+  .driver-id-badge:hover {
+    transform: scale(1.05);
+    box-shadow:0 10px 24px rgba(8,61,119,0.3);
+  }
+}
+
+/* Mobile touch feedback */
+.driver-id-badge:active {
+  transform: scale(0.95);
+  transition: transform 0.1s ease;
 }
 
 @media (max-width: 900px){

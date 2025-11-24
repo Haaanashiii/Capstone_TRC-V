@@ -1,9 +1,51 @@
 /* OperatorHomePage.css */
 
+/* Keyframe animations */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Mobile tap feedback */
+@keyframes tapFeedback {
+  0% { transform: scale(1); }
+  50% { transform: scale(0.95); }
+  100% { transform: scale(1); }
+}
+
 .operator-home-container {
   padding: clamp(16px, 3vw, 20px);
   background-color: #f5f5f5;
   min-height: 100vh;
+  animation: fadeIn 0.3s ease-out;
+  /* Smooth scrolling for mobile */
+  -webkit-overflow-scrolling: touch;
 }
 
 .time-date-display {
@@ -13,6 +55,21 @@
   margin-bottom: clamp(12px, 2vw, 16px);
   display: inline-block;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  animation: fadeInUp 0.4s ease-out;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  /* Touch optimization */
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.time-date-display:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+/* Mobile tap feedback */
+.time-date-display:active {
+  animation: tapFeedback 0.3s ease;
 }
 
 .time-date-display span {
@@ -28,6 +85,20 @@
   border-radius: clamp(8px, 1.5vw, 12px);
   margin-bottom: clamp(18px, 3vw, 24px);
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  animation: scaleIn 0.5s ease-out 0.1s backwards;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  /* Mobile optimizations */
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+.greeting-card:hover {
+  transform: scale(1.02);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+}
+
+.greeting-card:active {
+  animation: tapFeedback 0.3s ease;
 }
 
 .greeting-text {
@@ -35,6 +106,7 @@
   font-size: clamp(24px, 4vw, 32px);
   font-weight: bold;
   margin: 0;
+  animation: fadeInUp 0.6s ease-out 0.2s backwards;
 }
 
 .datetime-subtext {
@@ -50,6 +122,7 @@
   border-radius: clamp(8px, 1.5vw, 12px);
   margin-bottom: clamp(18px, 3vw, 24px);
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  animation: fadeInUp 0.5s ease-out 0.3s backwards;
 }
 
 .options-container {
@@ -65,19 +138,53 @@
   border-radius: clamp(8px, 1.5vw, 12px);
   text-align: center;
   cursor: pointer;
-  transition: transform 0.2s, box-shadow 0.2s;
+  transition: transform 0.3s ease, box-shadow 0.3s ease, background-color 0.3s ease;
   flex: 1;
   max-width: 300px;
   min-width: clamp(200px, 40vw, 250px);
+  animation: scaleIn 0.4s ease-out backwards;
+  /* Mobile/Android optimizations */
+  -webkit-tap-highlight-color: rgba(254, 222, 5, 0.3);
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-touch-callout: none;
 }
 
-.option-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 8px 12px rgba(0, 0, 0, 0.15);
+.option-card:nth-child(1) { animation-delay: 0.4s; }
+.option-card:nth-child(2) { animation-delay: 0.5s; }
+.option-card:nth-child(3) { animation-delay: 0.6s; }
+
+/* Desktop hover */
+@media (hover: hover) and (pointer: fine) {
+  .option-card:hover {
+    transform: translateY(-8px) scale(1.03);
+    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.2);
+    background-color: #ffd700;
+  }
+}
+
+/* Mobile/Touch active state */
+.option-card:active {
+  transform: scale(0.97);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  background-color: #ffd700;
+  transition: transform 0.1s ease, box-shadow 0.1s ease, background-color 0.1s ease;
+}
+
+/* Prevent double-tap zoom on mobile */
+@media (max-width: 768px) {
+  .option-card {
+    touch-action: manipulation;
+  }
 }
 
 .option-icon {
   margin-bottom: clamp(12px, 2vw, 16px);
+  transition: transform 0.3s ease;
+}
+
+.option-card:hover .option-icon {
+  transform: scale(1.1) rotateY(10deg);
 }
 
 .option-title {
@@ -85,6 +192,11 @@
   font-size: clamp(16px, 2.5vw, 20px);
   font-weight: bold;
   margin: 0;
+  transition: color 0.3s ease;
+}
+
+.option-card:hover .option-title {
+  color: #0A356B;
 }
 
 .section-title {

@@ -1,5 +1,27 @@
 /* explicit colors used instead of :root variables */
 
+/* Keyframe animations */
+@keyframes slideInFromTop {
+  from {
+    opacity: 0;
+    transform: translateY(-30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeInScale {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
 
 /* wrapper that centers the card and allows the badge to be absolutely positioned relative to the wrapper */
 .driver-id-wrapper{
@@ -9,6 +31,9 @@
   padding:20px 24px 40px;
   margin-top: 60px; /* keeps the card below the blue header */
   box-sizing:border-box;
+  animation: fadeInScale 0.5s ease-out;
+  /* Smooth scrolling for mobile */
+  -webkit-overflow-scrolling: touch;
 }
 
 .driver-id-card{
@@ -23,6 +48,24 @@
   position:relative;
   z-index:90;
   box-sizing:border-box;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  /* Mobile optimizations */
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+/* Desktop hover only */
+@media (hover: hover) and (pointer: fine) {
+  .driver-id-card:hover {
+    transform: translateY(-4px);
+    box-shadow:0 12px 32px rgba(10,35,118,0.18);
+  }
+}
+
+/* Mobile/Touch feedback */
+.driver-id-card:active {
+  transform: scale(0.98);
+  transition: transform 0.15s ease;
 }
 
 .id-left{
@@ -48,6 +91,25 @@
   right:40px; /* stick near the right edge of the card on large screens */
   top:-36px; /* overlaps into the blue header */
   background:#083d77;
+  animation: slideInFromTop 0.6s ease-out 0.2s backwards;
+  transition: transform 0.3s ease;
+  /* Mobile touch optimization */
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+/* Desktop hover only */
+@media (hover: hover) and (pointer: fine) {
+  .driver-id-badge:hover {
+    transform: scale(1.05);
+  }
+}
+
+/* Mobile touch feedback */
+.driver-id-badge:active {
+  transform: scale(0.95);
+  transition: transform 0.1s ease;
+}
   color:#ffffff;
   padding:10px 22px;
   border-radius:8px;
