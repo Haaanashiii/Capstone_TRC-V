@@ -1344,7 +1344,9 @@ const OperatorHomePage = () => {
               <Button
                 onClick={() => {
                   handleCloseNoticeModal();
-                  navigate('/operator/franchise/application');
+                  // Navigate with the application ID for editing/resubmission
+                  const appId = selectedNotice?.application?._id || selectedNotice?.id;
+                  navigate(`/operator/franchise/application?resubmit=${appId}`);
                 }}
                 sx={{
                   backgroundColor: '#FEDE05',

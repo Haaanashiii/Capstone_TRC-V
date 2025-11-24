@@ -267,6 +267,16 @@ exports.editPendingFranchise = async (req, res, next) => {
       if (crLTO) updateData['documents.cRLTOObj'] = crLTO;
     }
     
+    // Preserve existing documents if no new file uploaded
+    if (body.existingMotorRegistration) updateData['documents.motorRegistrationObj'] = body.existingMotorRegistration;
+    if (body.existingBarangayClearance) updateData['documents.barangayClearanceObj'] = body.existingBarangayClearance;
+    if (body.existingCedula) updateData['documents.cedulaObj'] = body.existingCedula;
+    if (body.existingDriversLicense) updateData['documents.driversLicenseObj'] = body.existingDriversLicense;
+    if (body.existingMotorChassisStencil) updateData['documents.motorChassisStencilObj'] = body.existingMotorChassisStencil;
+    if (body.existingVotersAffidavit) updateData['documents.votersAffidavitObj'] = body.existingVotersAffidavit;
+    if (body.existingDriverPicture) updateData['documents.driverPictureObj'] = body.existingDriverPicture;
+    if (body.existingOperatorPicture) updateData['documents.operatorPictureObj'] = body.existingOperatorPicture;
+    
     const updated = await franchiseApplicationRepository.updateFranchiseApplication(id, updateData);
     
     // Log application edit/resubmission

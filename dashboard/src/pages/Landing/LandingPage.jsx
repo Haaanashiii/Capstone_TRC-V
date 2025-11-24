@@ -3,11 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import '../../Styles/LandingCss/LandingPage.css';
 import { useAuth } from '../../contexts/AuthContext';
 import UnifiedNavbar from '../../components/UnifiedNavbar';
-import { Button, Typography, Box, useMediaQuery, useTheme, MobileStepper } from '@mui/material';
+import { Button, Typography, Box, useMediaQuery, useTheme, MobileStepper, Accordion, AccordionSummary, AccordionDetails } from '@mui/material';
 import SwipeableViews from 'react-swipeable-views';
 import { autoPlay } from 'react-swipeable-views-utils';
 import KeyboardArrowLeft from '@mui/icons-material/KeyboardArrowLeft';
 import KeyboardArrowRight from '@mui/icons-material/KeyboardArrowRight';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 
 // --- Added for mobile carousel auto-play
 const AutoPlaySwipeableViews = autoPlay(SwipeableViews);
@@ -222,6 +223,89 @@ const LandingPage = () => {
           />
         </div>
       </main>
+
+      {/* FAQ Accordion Section */}
+      <section style={{ background: '#fff', padding: '60px 20px' }}>
+        <Box sx={{ maxWidth: '1100px', margin: '0 auto' }}>
+          <Typography 
+            variant="h4" 
+            sx={{ 
+              textAlign: 'center', 
+              fontWeight: 'bold', 
+              color: '#174D7A', 
+              mb: 4,
+              fontFamily: 'Poppins, sans-serif'
+            }}
+          >
+            Frequently Asked Questions
+          </Typography>
+          
+          <Accordion sx={{ mb: 2, boxShadow: '0 2px 8px rgba(0,0,0,0.1)', borderRadius: '8px !important', '&:before': { display: 'none' } }}>
+            <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ background: '#f5f5f5' }}>
+              <Typography sx={{ fontWeight: 600, fontFamily: 'Poppins, sans-serif' }}>
+                How do I apply for a tricycle franchise?
+              </Typography>
+            </AccordionSummary>
+            <AccordionDetails>
+              <Typography sx={{ fontFamily: 'Poppins, sans-serif' }}>
+                To apply for a tricycle franchise, register an account on our platform, complete the online application form with all required documents, and submit it for BPLO review. You'll be notified of the approval status through the system.
+              </Typography>
+            </AccordionDetails>
+          </Accordion>
+
+          <Accordion sx={{ mb: 2, boxShadow: '0 2px 8px rgba(0,0,0,0.1)', borderRadius: '8px !important', '&:before': { display: 'none' } }}>
+            <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ background: '#f5f5f5' }}>
+              <Typography sx={{ fontWeight: 600, fontFamily: 'Poppins, sans-serif' }}>
+                What documents are required for franchise application?
+              </Typography>
+            </AccordionSummary>
+            <AccordionDetails>
+              <Typography sx={{ fontFamily: 'Poppins, sans-serif' }}>
+                Required documents include: Motor registration (OR/CR), Barangay clearance, Cedula, Driver's license, Motor chassis stencil rubbing, and operator/driver photos (1x1). All documents can be uploaded directly through the online form.
+              </Typography>
+            </AccordionDetails>
+          </Accordion>
+
+          <Accordion sx={{ mb: 2, boxShadow: '0 2px 8px rgba(0,0,0,0.1)', borderRadius: '8px !important', '&:before': { display: 'none' } }}>
+            <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ background: '#f5f5f5' }}>
+              <Typography sx={{ fontWeight: 600, fontFamily: 'Poppins, sans-serif' }}>
+                How long does the approval process take?
+              </Typography>
+            </AccordionSummary>
+            <AccordionDetails>
+              <Typography sx={{ fontFamily: 'Poppins, sans-serif' }}>
+                The approval process typically takes 5-10 business days. First, BPLO reviews your application, then it's forwarded to the Sangguniang Bayan for final approval. You can track your application status in real-time through your dashboard.
+              </Typography>
+            </AccordionDetails>
+          </Accordion>
+
+          <Accordion sx={{ mb: 2, boxShadow: '0 2px 8px rgba(0,0,0,0.1)', borderRadius: '8px !important', '&:before': { display: 'none' } }}>
+            <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ background: '#f5f5f5' }}>
+              <Typography sx={{ fontWeight: 600, fontFamily: 'Poppins, sans-serif' }}>
+                How does the QR code verification system work?
+              </Typography>
+            </AccordionSummary>
+            <AccordionDetails>
+              <Typography sx={{ fontFamily: 'Poppins, sans-serif' }}>
+                Once your franchise is approved, a unique QR code is generated for your tricycle. Passengers can scan this code to instantly verify your franchise status, view driver information, and confirm that your vehicle is legally registered and compliant.
+              </Typography>
+            </AccordionDetails>
+          </Accordion>
+
+          <Accordion sx={{ mb: 2, boxShadow: '0 2px 8px rgba(0,0,0,0.1)', borderRadius: '8px !important', '&:before': { display: 'none' } }}>
+            <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ background: '#f5f5f5' }}>
+              <Typography sx={{ fontWeight: 600, fontFamily: 'Poppins, sans-serif' }}>
+                What if my application is disapproved?
+              </Typography>
+            </AccordionSummary>
+            <AccordionDetails>
+              <Typography sx={{ fontFamily: 'Poppins, sans-serif' }}>
+                If your application is disapproved, you'll receive a notification with the specific reason. You can then edit and resubmit your application with the necessary corrections through your operator dashboard. All your previous data will be prefilled for easy editing.
+              </Typography>
+            </AccordionDetails>
+          </Accordion>
+        </Box>
+      </section>
 
             {/* Announcements Section - Dynamic with Mobile Carousel */}
       <section className="announcements-section">

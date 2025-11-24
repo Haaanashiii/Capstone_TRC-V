@@ -112,6 +112,24 @@ export default function FranchiseApplication() {
               }]);
             }
             
+            // Store existing document URLs (so we don't require re-uploading if not changed)
+            if (app.documents) {
+              console.log('[FranchiseApplication] Existing documents found:', app.documents);
+              // Store document URLs in state so they can be referenced
+              setExistingDocuments({
+                motorRegistration: app.documents.motorRegistrationObj || null,
+                barangayClearance: app.documents.barangayClearanceObj || null,
+                cedula: app.documents.cedulaObj || null,
+                driversLicense: app.documents.driversLicenseObj || null,
+                votersAffidavit: app.documents.votersAffidavitObj || null,
+                motorChassisStencil: app.documents.motorChassisStencilObj || null,
+                driverPicture: app.documents.driverPictureObj || null,
+                operatorPicture: app.documents.operatorPictureObj || null,
+                oRLTO: app.documents.oRLTOObj || null,
+                cRLTO: app.documents.cRLTOObj || null
+              });
+            }
+            
             console.log('[FranchiseApplication] Application data loaded for resubmission');
           }
         } catch (error) {
@@ -318,6 +336,7 @@ export default function FranchiseApplication() {
   // Track if this is a resubmission (editing disapproved application)
   const [isResubmission, setIsResubmission] = useState(false);
   const [resubmissionAppId, setResubmissionAppId] = useState(null);
+  const [existingDocuments, setExistingDocuments] = useState(null);
 
   // Co-owner state
   const [coOwners, setCoOwners] = useState([]);
@@ -724,7 +743,7 @@ export default function FranchiseApplication() {
           
           <div className="franchise-app-grid-2">
             <TextField
-              label="ADDRESS OF THE OPERATOR"
+              label="STREET AND PUROK"
               size="small"
               className="franchise-app-input"
               value={fields.operatorAddress}
@@ -746,6 +765,17 @@ export default function FranchiseApplication() {
               </Select>
               <FormHelperText>{barangayError}</FormHelperText>
             </FormControl>
+          </div>
+
+          <div className="franchise-app-field">
+            <TextField 
+              label={t.todaMembership} 
+              size="small" 
+              className="franchise-app-input" 
+              value={fields.todaMembership} 
+              onChange={handleChange('todaMembership')}
+              helperText="Optional - Leave blank if not applicable"
+            />
           </div>
 
           {/* Co-Owner Information */}
@@ -841,7 +871,7 @@ export default function FranchiseApplication() {
           </div>
           <div className="franchise-app-field">
             <TextField
-              label="ADDRESS OF THE DRIVER"
+              label="STREET AND PUROK"
               size="small"
               className="franchise-app-input"
               value={fields.driverAddress}
@@ -1054,29 +1084,53 @@ export default function FranchiseApplication() {
                       }
                       
                       // Documents - EXACT field names backend expects (with 'Obj' suffix)
+                      // Only upload new files if provided, otherwise keep existing documents
                       if (uploads.registration) {
                         formDataToSend.append('motorRegistrationObj', uploads.registration);
+                      } else if (isResubmission && existingDocuments?.motorRegistration) {
+                        formDataToSend.append('existingMotorRegistration', existingDocuments.motorRegistration);
                       }
+                      
                       if (uploads.barangay) {
                         formDataToSend.append('barangayClearanceObj', uploads.barangay);
+                      } else if (isResubmission && existingDocuments?.barangayClearance) {
+                        formDataToSend.append('existingBarangayClearance', existingDocuments.barangayClearance);
                       }
+                      
                       if (uploads.cedula) {
                         formDataToSend.append('cedulaObj', uploads.cedula);
+                      } else if (isResubmission && existingDocuments?.cedula) {
+                        formDataToSend.append('existingCedula', existingDocuments.cedula);
                       }
+                      
                       if (uploads.license) {
                         formDataToSend.append('driversLicenseObj', uploads.license);
+                      } else if (isResubmission && existingDocuments?.driversLicense) {
+                        formDataToSend.append('existingDriversLicense', existingDocuments.driversLicense);
                       }
+                      
                       if (uploads.stencil) {
                         formDataToSend.append('motorChassisStencilObj', uploads.stencil);
+                      } else if (isResubmission && existingDocuments?.motorChassisStencil) {
+                        formDataToSend.append('existingMotorChassisStencil', existingDocuments.motorChassisStencil);
                       }
+                      
                       if (uploads.affidavit) {
                         formDataToSend.append('votersAffidavitObj', uploads.affidavit);
+                      } else if (isResubmission && existingDocuments?.votersAffidavit) {
+                        formDataToSend.append('existingVotersAffidavit', existingDocuments.votersAffidavit);
                       }
+                      
                       if (uploads.picture) {
                         formDataToSend.append('driverPictureObj', uploads.picture);
+                      } else if (isResubmission && existingDocuments?.driverPicture) {
+                        formDataToSend.append('existingDriverPicture', existingDocuments.driverPicture);
                       }
+                      
                       if (fields.motorcyclePicture) {
                         formDataToSend.append('operatorPictureObj', fields.motorcyclePicture);
+                      } else if (isResubmission && existingDocuments?.operatorPicture) {
+                        formDataToSend.append('existingOperatorPicture', existingDocuments.operatorPicture);
                       }
                       // Debug: Log all FormData keys and values before submission
                       console.log('[FranchiseApplication] FormData to send:');
@@ -1168,10 +1222,10 @@ export default function FranchiseApplication() {
                       
                       try {
                         setTimeout(() => {
-                          navigate('/operator/home')
+                          navigate('/operator/franchise')
                         }, 2000) 
                       } catch {
-                        navigate('/operator/home')
+                        navigate('/operator/franchise')
                       }
                     } catch (err) {
                       console.error('[FranchiseApplication] Failed to submit application:', err)
