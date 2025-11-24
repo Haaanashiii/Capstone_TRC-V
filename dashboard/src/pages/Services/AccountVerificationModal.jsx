@@ -9,7 +9,7 @@ import {
   ThemeProvider,
   createTheme
 } from '@mui/material';
-import { VerifiedUser, Email, Timer } from '@mui/icons-material';
+import { VerifiedUser, Email, Timer, Phone } from '@mui/icons-material';
 import api from '../Services/api';
 import '../../Styles/ServicesCss/AccountVerificationModal.css';
 
@@ -21,21 +21,53 @@ const poppinsTheme = createTheme({
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170';
 
-const AccountVerificationModal = ({ open, onClose, email, rememberMe = false, onVerificationSuccess, buttonText = 'Sign in to your account' }) => {
+const AccountVerificationModal = ({ open, onClose, email, rememberMe = false, onVerificationSuccess, buttonText = 'Sign in to your account', userType = 'user' }) => {
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [timeLeft, setTimeLeft] = useState(300);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [deliveryMethod, setDeliveryMethod] = useState('email'); // 'email' or 'phone'
 
   const [isResending, setIsResending] = useState(false);
   const [canVerify, setCanVerify] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false); 
-  const [resendCooldown, setResendCooldown] = useState(0); 
+  const [resendCooldown, setResendCooldown] = useState(0);
+  const [userPhoneNumber, setUserPhoneNumber] = useState(null);
+  const [isLoadingPhoneNumber, setIsLoadingPhoneNumber] = useState(false);
+
+  // Fetch user's phone number from backend (only for non-admin users)
+  useEffect(() => {
+    const fetchUserPhoneNumber = async () => {
+      // Skip phone fetch for admin accounts
+      if (userType === 'admin') {
+        return;
+      }
+
+      if (open && email) {
+        setIsLoadingPhoneNumber(true);
+        try {
+          const response = await api.get('/users/account', {
+            params: { email }
+          });
+          if (response.data && response.data.phoneNumber) {
+            setUserPhoneNumber(response.data.phoneNumber);
+          }
+        } catch (error) {
+          console.error('Failed to fetch user phone number:', error);
+          // Phone number is optional, so we don't set error
+        } finally {
+          setIsLoadingPhoneNumber(false);
+        }
+      }
+    };
+
+    fetchUserPhoneNumber();
+  }, [open, email, userType]); 
 
  
  
 
   // Reset OTP and timer when modal opens
-
   useEffect(() => {
     if (open) {
       setOtp(['', '', '', '', '', '']);
@@ -43,11 +75,13 @@ const AccountVerificationModal = ({ open, onClose, email, rememberMe = false, on
       setError('');
       setCanVerify(false);
       setIsVerifying(false);
-      setResendCooldown(60); 
+      setResendCooldown(60);
+      // Admins MUST use email, users default to email
+      setDeliveryMethod('email');
       const timer = setTimeout(() => setCanVerify(true), 3000);
       return () => clearTimeout(timer);
     }
-  }, [open]);
+  }, [open, userType]);
 
   // Countdown for resend OTP cooldown
   useEffect(() => {
@@ -171,6 +205,8 @@ const AccountVerificationModal = ({ open, onClose, email, rememberMe = false, on
     try {
       const response = await api.post('/auth/request-otp', {
         email: email,
+        phoneNumber: deliveryMethod === 'phone' ? userPhoneNumber : undefined,
+        deliveryMethod: deliveryMethod,
       });
       if (response.data) {
         setTimeLeft(300); // Reset timer to 5 minutes
@@ -184,9 +220,46 @@ const AccountVerificationModal = ({ open, onClose, email, rememberMe = false, on
     }
   };
 
-  const handleTryAnotherWay = () => {
-    // Close modal and return to login page
-    onClose();
+  const handleTryAnotherWay = async () => {
+    // Admins cannot switch away from email
+    if (userType === 'admin') {
+      setError('Admins must use email verification. SMS is not available.');
+      return;
+    }
+
+    setIsResending(true);
+    setError('');
+    setSuccess('');
+    
+    try {
+      const newMethod = deliveryMethod === 'email' ? 'phone' : 'email';
+      
+      // Only switch to phone if user has phone number and current method is email
+      if (newMethod === 'phone' && !userPhoneNumber) {
+        setError('Phone number not available. Unable to switch to SMS.');
+        setIsResending(false);
+        return;
+      }
+
+      const response = await api.post('/auth/request-otp', {
+        email: email,
+        phoneNumber: newMethod === 'phone' ? userPhoneNumber : undefined,
+        deliveryMethod: newMethod,
+      });
+      
+      if (response.data) {
+        setDeliveryMethod(newMethod);
+        setTimeLeft(300);
+        setOtp(['', '', '', '', '', '']);
+        setResendCooldown(60);
+        const method = newMethod === 'phone' ? 'phone number' : 'email';
+        setSuccess(`OTP sent to your ${method}`);
+      }
+    } catch (error) {
+      setError(error.response?.data?.error || 'Failed to switch delivery method');
+    } finally {
+      setIsResending(false);
+    }
   };
 
   const maskEmail = (email) => {
@@ -197,6 +270,16 @@ const AccountVerificationModal = ({ open, onClose, email, rememberMe = false, on
     }
     const maskedLocal = localPart.substring(0, 2) + '****' + localPart.slice(-1);
     return `${maskedLocal}@${domain}`;
+  };
+
+  const maskPhoneNumber = (phone) => {
+    if (!phone) return '';
+    // Handle both 09123456789 and +639123456789 formats
+    const digits = phone.replace(/\D/g, '');
+    if (digits.length >= 10) {
+      return `****${digits.slice(-4)}`;
+    }
+    return phone;
   };
 
   return (
@@ -224,9 +307,15 @@ const AccountVerificationModal = ({ open, onClose, email, rememberMe = false, on
                 To verify your identity, we have sent a verification code
               </Typography>
               
-              <Typography variant="body1" className="verification-email">
-                to your email address: <strong>{maskEmail(email)}</strong>
-              </Typography>
+              {deliveryMethod === 'email' ? (
+                <Typography variant="body1" className="verification-email">
+                  to your email address: <strong>{maskEmail(email)}</strong>
+                </Typography>
+              ) : (
+                <Typography variant="body1" className="verification-email">
+                  to your phone number: <strong>{maskPhoneNumber(userPhoneNumber)}</strong>
+                </Typography>
+              )}
               
               <Typography variant="body2" className="verification-timer">
                 <Timer className="inline-icon" />
@@ -275,16 +364,29 @@ const AccountVerificationModal = ({ open, onClose, email, rememberMe = false, on
                         : 'RESEND CODE'}
                   </button>
                 </Typography>
-                
-                <Typography variant="body2" className="verification-alternative">
-                  Or{' '}
-                  <button
-                    onClick={handleTryAnotherWay}
-                    className="link-button try-another-btn"
-                  >
-                    try a different login method
-                  </button>
-                </Typography>
+
+                {/* Only show alternative method for regular users, not admins */}
+                {userType !== 'admin' && userPhoneNumber && (
+                  <Typography variant="body2" className="verification-alternative">
+                    Or{' '}
+                    <button
+                      onClick={handleTryAnotherWay}
+                      className="link-button try-another-btn"
+                      disabled={isResending}
+                    >
+                      {deliveryMethod === 'email' 
+                        ? 'try SMS instead' 
+                        : 'try email instead'}
+                    </button>
+                  </Typography>
+                )}
+
+                {/* Show admin-only message */}
+                {userType === 'admin' && (
+                  <Typography variant="caption" sx={{ display: 'block', marginTop: 1, color: 'info.main' }}>
+                    Admin accounts use email verification only for security.
+                  </Typography>
+                )}
               </Box>
 
               <Button

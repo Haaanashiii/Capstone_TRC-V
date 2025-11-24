@@ -21,14 +21,14 @@ const DocumentReferenceSchema = new mongoose.Schema({
 const franchiseInformationSchema = new mongoose.Schema({
 
   franchiseNumber: { type: String, required: true }, // Can be reused after revoke
-  sessionNumber: { type: String }, // sort 
+  sessionNumber: { type: String }, // Session number added when SB admin finalizes the franchise 
   
   // CRITICAL: Tracks the lineage/chain of this franchise
   // When franchise #001 expires and is given to another user, they get a NEW franchiseChainId
   // This prevents data mixing between User A's history and User B's history
   // Format: franchiseNumber-operatorName (e.g., "0012-Juan-dela-Cruz", "0012-Maria-Santos")
   // SB/BPLO admins can see this to identify different owners of reused franchise numbers
-  franchiseChainId: { type: String, required: true, index: true },
+  franchiseChainId: { type: String, required: true },
 
   // operator details
   operatorName: { type: String, required: true },
@@ -44,7 +44,6 @@ const franchiseInformationSchema = new mongoose.Schema({
   operatorEmail: { type: String, required: false, lowercase: true, trim: true, match: [/^\S+@\S+\.\S+$/, 'Invalid email address'] }, 
   
   // driver details
-  driversID: { type: String, required: true, unique: true },
   driverName: { type: String, required: true },
   driversAddress: { type: String, required: true },
   todaMembership: { type: String, required: false },
@@ -60,7 +59,7 @@ const franchiseInformationSchema = new mongoose.Schema({
   
   
   profilePhoto: { type: String },
-  qrCode: { type: String }, 
+  qrCode: { type: String }, // Static QR code based on franchise number (same across all versions) 
 
   approvedAt: { type: Date },
   expiryDate: { type: Date },

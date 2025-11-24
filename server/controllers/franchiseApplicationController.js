@@ -6,6 +6,7 @@ const { uploadFile, validateFile, moveFilesToInformation } = require('../service
 const { generateHashedFranchiseNo, generateQRCodeBuffer, handleVersionControl, validateFranchiseStatus } = require('../utils/franchiseHelpers');
 const { moveFranchiseFiles } = require('../services/cloudflareService');
 const { auditLogService } = require('../services/auditLogService');
+const { sendBPLOApprovalNotification, sendSBApprovalNotification } = require('../services/notificationQueueService');
 
 // 1) CREATE NEW APPLICATION
 exports.createNewApplication = async (req, res, next) => {
@@ -503,27 +504,87 @@ exports.approveFranchiseByBPLO = async (req, res, next) => {
     
     const adminUsername = req.user?.username || req.user?.email || 'BPLO Admin';
     
-    const updated = await franchiseApplicationRepository.updateFranchiseApplication(id, { 
+    // For NEW applications, automatically assign the next available franchise number
+    const updateData = { 
       statusOfBPLO: 'bplo-approved',
       bploApprovedBy: adminUsername,
       bploApprovedAt: new Date(),
       bploInspectionRequired: true, // Set inspection requirement
       approvedAt: new Date() // Legacy field
-    });
+    };
     
-    // Send notification to user about BPLO approval and inspection requirement
-    // Non-blocking: email failures should not prevent approval
-    if (updated.operatorEmail) {
+    // Only assign franchiseNumber for NEW applications (not renewals/amendments)
+    if (application.applicationType === 'new' && !application.franchiseNumber) {
       try {
-        const notificationService = require('../services/notificationService');
-        await notificationService.sendBPLOApprovalNotification(updated);
-        console.log('[BPLO Approval] Email notification sent to:', updated.operatorEmail);
-      } catch (emailError) {
-        console.warn('[BPLO Approval] Failed to send email notification:', emailError.message);
-        // Continue with approval even if email fails
+        // Get available franchise numbers
+        const FranchiseInformation = require('../models/franchiseInformationModel');
+        const allCurrentFranchises = await FranchiseInformation.find({
+          isCurrentVersion: true
+        }).select('franchiseNumber franchiseStatus expiryDate').lean().exec();
+        
+        const now = new Date();
+        const threeYearsAgo = new Date(now);
+        threeYearsAgo.setFullYear(now.getFullYear() - 3);
+        
+        const franchiseMap = new Map();
+        let latestNumber = 0;
+        
+        for (const franchise of allCurrentFranchises) {
+          const numberMatch = franchise.franchiseNumber.match(/^(\d{1,4})$/);
+          if (!numberMatch) continue;
+          
+          const franchiseNum = parseInt(numberMatch[1], 10);
+          latestNumber = Math.max(latestNumber, franchiseNum);
+          
+          const isRevoked = franchise.franchiseStatus === 'revoked' || franchise.franchiseStatus === 'Revoked';
+          const isExpired3Years = franchise.expiryDate && new Date(franchise.expiryDate) <= threeYearsAgo;
+          const isAvailable = isRevoked && isExpired3Years;
+          
+          franchiseMap.set(franchiseNum, { available: isAvailable });
+        }
+        
+        // Find first available gap or use next number
+        let assignedNumber = null;
+        for (let i = 1; i <= latestNumber; i++) {
+          const franchise = franchiseMap.get(i);
+          if (!franchise || franchise.available) {
+            assignedNumber = i;
+            break;
+          }
+        }
+        
+        if (!assignedNumber) {
+          assignedNumber = latestNumber + 1;
+        }
+        
+        const franchiseNumber = String(assignedNumber).padStart(4, '0');
+        updateData.franchiseNumber = franchiseNumber;
+        console.log('[BPLO Approval] Assigned franchise number:', franchiseNumber, 'to application:', id);
+      } catch (numberError) {
+        console.error('[BPLO Approval] Failed to assign franchise number:', numberError.message);
+        // Continue without franchise number assignment - can be assigned manually later
+      }
+    }
+    
+    const updated = await franchiseApplicationRepository.updateFranchiseApplication(id, updateData);
+    
+    // Send SMS + Email notification using notification queue
+    // SMS: Go to BPLO office (max 2 SMS attempts)
+    // Email: Always sent (free)
+    if (updated.operatorContactNumber || updated.operatorEmail) {
+      try {
+        const notificationResult = await sendBPLOApprovalNotification(updated);
+        console.log('[BPLO Approval] Notification sent:', {
+          sms: notificationResult.sms?.success ? 'SENT' : 'FAILED',
+          email: notificationResult.email?.success ? 'SENT' : 'FAILED',
+          operator: updated.operatorName
+        });
+      } catch (notificationError) {
+        console.warn('[BPLO Approval] Failed to send notification:', notificationError.message);
+        // Continue with approval even if notification fails
       }
     } else {
-      console.warn('[BPLO Approval] No operator email, skipping notification');
+      console.warn('[BPLO Approval] No contact information, skipping notification');
     }
     
     // Emit to WebSocket
@@ -564,13 +625,12 @@ exports.approveFranchiseByBPLO = async (req, res, next) => {
       );
     }
     
-    res.json({ success: true, data: updated, message: 'Application approved by BPLO. Applicant will be notified to proceed with inspection and OR submission.' });
+    res.json({ success: true, data: updated, message: 'Application approved by BPLO. Applicant will be notified via SMS and email to proceed with inspection and OR submission.' });
   } catch (error) {
     console.error('[BPLO Approval] Error:', error);
     next(error);
   }
 };
-
 // 7b) DISAPPROVE FRANCHISE BY BPLO
 exports.disapproveFranchiseByBPLO = async (req, res, next) => {
   try {
@@ -771,6 +831,56 @@ exports.getApprovedRoutesForSBAdmin = async (req, res, next) => {
   }
 };
 
+// 9a) SB ADMIN ADD SESSION NUMBER (for session report before final approval)
+exports.addSessionNumber = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { sessionNumber } = req.body;
+    
+    if (!sessionNumber || !sessionNumber.trim()) {
+      return res.status(400).json({ error: 'Session number is required' });
+    }
+    
+    const application = await franchiseApplicationRepository.getFranchiseApplicationById(id);
+    
+    if (!application) {
+      return res.status(404).json({ error: 'Application not found' });
+    }
+    
+    // Can add session number for applications approved by BPLO
+    if (application.statusOfBPLO !== 'bplo-approved' && application.statusOfBPLO !== 'awaiting-sb') {
+      return res.status(400).json({ error: 'Application must be approved by BPLO before adding session number' });
+    }
+    
+    // If this is a new application, must have franchise number assigned
+    if (application.applicationType === 'new' && !application.franchiseNumber) {
+      return res.status(400).json({ error: 'Franchise number must be assigned before adding session number' });
+    }
+    
+    console.log('[Add Session Number] Session number ready:', {
+      applicationId: id,
+      franchiseNumber: application.franchiseNumber,
+      sessionNumber: sessionNumber.trim(),
+      operatorName: application.operatorName,
+      note: 'Will be stored in FranchiseInformation when SB admin finalizes'
+    });
+    
+    res.json({ 
+      success: true, 
+      data: {
+        applicationId: id,
+        franchiseNumber: application.franchiseNumber,
+        sessionNumber: sessionNumber.trim(),
+        operatorName: application.operatorName
+      },
+      message: `Session number ${sessionNumber.trim()} confirmed. You can now proceed with session report. This will be stored in franchise information when you finalize the franchise.`
+    });
+  } catch (error) {
+    console.error('[Add Session Number] Error:', error);
+    next(error);
+  }
+};
+
 // 9b) SB ADMIN FINAL APPROVAL (with resolution number and optional document)
 exports.approveFranchiseBySBAdmin = async (req, res, next) => {
   try {
@@ -842,19 +952,25 @@ exports.approveFranchiseBySBAdmin = async (req, res, next) => {
       );
     }
     
-    // Send notification to user about final approval
-    // Non-blocking: email failures should not prevent approval
-    if (updated.operatorEmail) {
+    // Send SMS + Email notification using notification queue
+    // SMS: Claim your franchise (action required)
+    // Email: Always sent (free)
+    if (updated.operatorContactNumber || updated.operatorEmail) {
       try {
-        const notificationService = require('../services/notificationService');
-        await notificationService.sendSBApprovalNotification(updated, resolutionNumber);
-        console.log('[SB Approval] Email notification sent to:', updated.operatorEmail);
-      } catch (emailError) {
-        console.warn('[SB Approval] Failed to send email notification:', emailError.message);
-        // Continue with approval even if email fails
+        // Note: We need franchise info for the notification, but it's not created yet
+        // So we'll pass the application data with franchise info to be added post-acceptance
+        const notificationResult = await sendSBApprovalNotification(updated, resolutionNumber);
+        console.log('[SB Approval] Notification sent:', {
+          sms: notificationResult.sms?.success ? 'SENT' : 'FAILED',
+          email: notificationResult.email?.success ? 'SENT' : 'FAILED',
+          operator: updated.operatorName
+        });
+      } catch (notificationError) {
+        console.warn('[SB Approval] Failed to send notification:', notificationError.message);
+        // Continue with approval even if notification fails
       }
     } else {
-      console.warn('[SB Approval] No operator email, skipping notification');
+      console.warn('[SB Approval] No contact information, skipping notification');
     }
     
     // Emit to WebSocket
@@ -894,7 +1010,7 @@ exports.approveFranchiseBySBAdmin = async (req, res, next) => {
     res.json({ 
       success: true, 
       data: updated, 
-      message: 'Application finally approved by SB Admin. Applicant can now claim their certificate.' 
+      message: 'Application finally approved by SB Admin. Applicant has been notified via SMS and email to claim their certificate.' 
     });
   } catch (error) {
     console.error('[SB Approval] Error:', error);
@@ -910,8 +1026,13 @@ exports.sbAdminAcceptNewFranchise = async (req, res, next) => {
   
   try {
     const { id } = req.params;
-    const { franchiseNo, sessionNumber } = req.body;
+    const { sessionNumber } = req.body;
     const { files } = req;
+    
+    if (!sessionNumber || !sessionNumber.trim()) {
+      await session.abortTransaction();
+      return res.status(400).json({ error: 'Session number is required' });
+    }
     
     const application = await franchiseApplicationRepository.getFranchiseApplicationById(id);
     if (!application) {
@@ -929,8 +1050,34 @@ exports.sbAdminAcceptNewFranchise = async (req, res, next) => {
       });
     }
     
-    // Hash franchise number
-    const hashedFranchiseNo = generateHashedFranchiseNo(franchiseNo);
+    // Use the franchise number assigned by BPLO (or from req.body for manual override)
+    const franchiseNo = application.franchiseNumber;
+    if (!franchiseNo) {
+      await session.abortTransaction();
+      return res.status(400).json({ error: 'Franchise number not assigned. Please contact BPLO admin.' });
+    }
+    
+    // Check if this franchise number was used before (recycled number)
+    // If yes, reuse the previous QR code; if no, generate a new one
+    let qrResult;
+    const previousFranchiseWithSameNumber = await FranchiseInformation.findOne(
+      { franchiseNumber: franchiseNo, isCurrentVersion: false },
+      { qrCode: 1 },
+      { sort: { version: -1 }, session }
+    );
+    
+    if (previousFranchiseWithSameNumber?.qrCode) {
+      // Recycled number - reuse previous QR code
+      qrResult = { cloudflare: previousFranchiseWithSameNumber.qrCode };
+      console.log('[sbAdminAcceptNewFranchise] Recycled franchise number:', franchiseNo, '- Reusing previous QR code');
+    } else {
+      // New franchise number - generate new QR code
+      const hashedFranchiseNo = generateHashedFranchiseNo(franchiseNo);
+      const qrBuffer = await generateQRCodeBuffer(hashedFranchiseNo);
+      qrResult = await uploadFile(qrBuffer, `qr-${franchiseNo}.png`, 'image/png',
+        { baseFolder: 'franchiseInformations', subFolder: franchiseNo, category: 'QRCode', customKey: `version-1/QRCode/qr-${franchiseNo}.png` });
+      console.log('[sbAdminAcceptNewFranchise] New franchise number:', franchiseNo, '- Generated new QR code');
+    }
     
     // Check version with transaction
     const { version, previousVersion } = await handleVersionControl(franchiseNo, 'new', session);
@@ -954,11 +1101,6 @@ exports.sbAdminAcceptNewFranchise = async (req, res, next) => {
       }
     }
     
-    // Generate QR Code
-    const qrBuffer = await generateQRCodeBuffer(hashedFranchiseNo);
-    const qrResult = await uploadFile(qrBuffer, `qr-${franchiseNo}.png`, 'image/png',
-      { baseFolder: 'franchiseInformations', subFolder: franchiseNo, category: 'QRCode', customKey: `version-${version}/QRCode/qr-${franchiseNo}.png` });
-    
     // Move files from applications → information (both local and cloud)
     const userId = application.operatorInfo || 'pending';
     const appId = String(application._id);
@@ -968,7 +1110,7 @@ exports.sbAdminAcceptNewFranchise = async (req, res, next) => {
     // Create FranchiseInformation record within transaction
     const franchiseData = {
       franchiseNumber: franchiseNo,
-      sessionNumber,
+      sessionNumber: sessionNumber.trim(),
       franchiseChainId: `${franchiseNo}-${application.operatorName.toLowerCase().replace(/\s+/g, '-')}`,
       operatorName: application.operatorName,
       operatorContactNumber: application.operatorContactNumber,
@@ -1057,6 +1199,7 @@ exports.sbAdminAcceptNewFranchise = async (req, res, next) => {
         req.app.get('io').to(`user-${franchise[0].linkedUser}`).emit('franchise-created', {
           franchiseId: franchise[0]._id,
           franchiseNumber: franchise[0].franchiseNumber,
+          sessionNumber: franchise[0].sessionNumber,
           message: 'Your franchise has been successfully created! You can now download your certificate.',
           qrCode: franchise[0].qrCode
         });
@@ -1105,7 +1248,6 @@ exports.sbAdminAcceptRenewOrAmendment = async (req, res, next) => {
     }
     
     const franchiseNo = existingFranchise.franchiseNumber;
-    const hashedFranchiseNo = generateHashedFranchiseNo(franchiseNo);
     
     // Handle versioning with transaction
     const { version, previousVersion } = await handleVersionControl(franchiseNo, application.applicationType, session);
@@ -1129,10 +1271,21 @@ exports.sbAdminAcceptRenewOrAmendment = async (req, res, next) => {
       }
     }
     
-    // Generate NEW QR Code for version
-    const qrBuffer = await generateQRCodeBuffer(`${hashedFranchiseNo}_v${version}`);
-    const qrResult = await uploadFile(qrBuffer, `qr-${franchiseNo}-v${version}.png`, 'image/png',
-      { baseFolder: 'franchiseInformations', subFolder: franchiseNo, category: 'QRCode', customKey: `version-${version}/QRCode/qr-${franchiseNo}-v${version}.png` });
+    // Generate QR Code (STATIC - based only on franchise number)
+    // For renewals/amendments, reuse the existing QR code to keep it consistent
+    let qrResult;
+    if (existingFranchise.qrCode) {
+      // Reuse existing QR code from previous version (static for franchise number)
+      qrResult = { cloudflare: existingFranchise.qrCode };
+      console.log('[sbAdminAcceptRenewOrAmendment] Reusing static QR code for franchise:', franchiseNo);
+    } else {
+      // Generate new QR if somehow missing (shouldn't happen)
+      const hashedFranchiseNo = generateHashedFranchiseNo(franchiseNo);
+      const qrBuffer = await generateQRCodeBuffer(hashedFranchiseNo);
+      qrResult = await uploadFile(qrBuffer, `qr-${franchiseNo}.png`, 'image/png',
+        { baseFolder: 'franchiseInformations', subFolder: franchiseNo, category: 'QRCode', customKey: `version-${version}/QRCode/qr-${franchiseNo}.png` });
+      console.log('[sbAdminAcceptRenewOrAmendment] Generated new QR code for franchise:', franchiseNo);
+    }
     
     // Create new version based on application type
     const newVersionData = {

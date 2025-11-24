@@ -3,6 +3,7 @@ const { generateOTP, setOTP, verifyOTP, checkRateLimit, DEFAULT_EXPIRES_MS } = r
 const { sendOTPEmail } = require('../services/emailService');
 const { auditLogService } = require('../services/auditLogService');
 const { getClientIp } = require('../utils/ipHelper');
+const { sendOTPNotification } = require('../services/notificationQueueService');
 
 const userAccountRepository = require('../repositories/userAccountRepository');
 const sessionRepository = require('../repositories/sessionRepository');
@@ -11,7 +12,7 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const fetch = require('node-fetch');
 
-async function handleOtpRequest(email, res, next, message) {
+async function handleOtpRequest(email, phoneNumber, userId, res, next, message, deliveryMethod = null) {
   try {
     if (!email) return res.status(400).json({ error: 'Email is required' });
     
@@ -36,7 +37,17 @@ async function handleOtpRequest(email, res, next, message) {
     try {
       const otp = generateOTP();
       setOTP(email, otp); // OTP will expire in 5 minutes (DEFAULT_EXPIRES_MS)
-      await sendOTPEmail(email, otp);
+      
+      // Use notification queue for smart SMS + Email delivery
+      // SMS: Max 2 attempts (initial + resend), Email: Always
+      await sendOTPNotification(
+        userId || email,
+        phoneNumber || (user && user.phoneNumber),
+        email,
+        otp,
+        deliveryMethod
+      );
+      
       console.log(`[OTP] Generated and sent OTP for ${email} - Valid for 5 minutes`);
     } catch (e) {
       // Log the error for server operators (do not expose to client)
@@ -50,14 +61,14 @@ async function handleOtpRequest(email, res, next, message) {
 
 // Request OTP for 2FA
 exports.requestOtp = async (req, res, next) => {
-  const { email } = req.body;
-  return handleOtpRequest(email, res, next, 'If the email exists, an OTP has been sent.');
+  const { email, phoneNumber, deliveryMethod } = req.body;
+  return handleOtpRequest(email, phoneNumber, null, res, next, 'If the email exists, an OTP has been sent.', deliveryMethod);
 };
 
 // Forgot password: send OTP
 exports.forgotPassword = async (req, res, next) => {
-  const { email } = req.body;
-  return handleOtpRequest(email, res, next, 'If the email exists, an OTP has been sent for password reset.');
+  const { email, phoneNumber } = req.body;
+  return handleOtpRequest(email, phoneNumber, null, res, next, 'If the email exists, an OTP has been sent for password reset.');
 };
 
 // Constant-time OTP verification

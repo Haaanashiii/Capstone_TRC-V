@@ -165,7 +165,10 @@ exports.findAccountByEmail = async (req, res, next) => {
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
-    res.status(200).json(user);
+    // Return only phone number and other non-sensitive data for verification modal
+    res.status(200).json({
+      phoneNumber: user.phoneNumber || null
+    });
   } catch (err) {
     next(err);
   }

@@ -1,6 +1,7 @@
 const cron = require('node-cron');
 const FranchiseInformation = require('../models/franchiseInformationModel');
 const { sendFranchiseExpiryEmail } = require('./emailService');
+const { sendFranchiseExpiryNotification } = require('./notificationQueueService');
 const { auditLogService } = require('./auditLogService');
 
 /**
@@ -109,6 +110,7 @@ function markNotificationSent(franchiseId, interval) {
 
 /**
  * Send expiry reminder emails for latest franchises expiring in 30 days
+ * 30-day reminders: EMAIL ONLY (cost optimization)
  */
 async function sendThirtyDayReminders() {
   console.log('\n[EXPIRY_SCHEDULER] Checking latest franchise versions expiring in 30 days...');
@@ -153,6 +155,8 @@ async function sendThirtyDayReminders() {
 
 /**
  * Send expiry reminder emails for latest franchises expiring in 7 days
+ * 7-day reminders: SMS + EMAIL (actionable warning)
+ * Uses notification queue for smart delivery (max 2 SMS attempts tracked)
  */
 async function sendSevenDayReminders() {
   console.log('\n[EXPIRY_SCHEDULER] Checking latest franchise versions expiring in 7 days...');
@@ -167,8 +171,8 @@ async function sendSevenDayReminders() {
   console.log(`[EXPIRY_SCHEDULER] Found ${franchises.length} latest franchise(s) expiring in 7 days`);
   
   for (const franchise of franchises) {
-    if (!franchise.operatorEmail) {
-      console.log(`[EXPIRY_SCHEDULER] Skipping ${franchise.franchiseNumber} (v${franchise.versionNumber}) - no email address`);
+    if (!franchise.operatorEmail && !franchise.operatorContactNumber) {
+      console.log(`[EXPIRY_SCHEDULER] Skipping ${franchise.franchiseNumber} (v${franchise.versionNumber}) - no contact info`);
       continue;
     }
     
@@ -179,24 +183,25 @@ async function sendSevenDayReminders() {
     }
     
     try {
-      await sendFranchiseExpiryEmail(
-        franchise.operatorEmail,
-        franchise.operatorName,
-        franchise.franchiseNumber,
-        franchise.expiryDate,
-        7 // days until expiry
-      );
+      // Use notification queue: SMS (high priority) + Email (always)
+      const notificationResult = await sendFranchiseExpiryNotification(franchise, 7);
       
       markNotificationSent(franchise._id.toString(), '7days');
-      console.log(`[EXPIRY_SCHEDULER] ✅ Sent 7-day reminder for Franchise ${franchise.franchiseNumber} (v${franchise.versionNumber}) to ${franchise.operatorName} (${franchise.operatorEmail})`);
+      console.log(`[EXPIRY_SCHEDULER] ✅ Sent 7-day reminder for Franchise ${franchise.franchiseNumber} (v${franchise.versionNumber}):`, {
+        sms: notificationResult.sms?.success ? 'SENT' : 'FAILED',
+        email: notificationResult.email?.success ? 'SENT' : 'FAILED',
+        operator: franchise.operatorName
+      });
     } catch (error) {
-      console.error(`[EXPIRY_SCHEDULER] ❌ Failed to send email to ${franchise.operatorEmail}:`, error.message);
+      console.error(`[EXPIRY_SCHEDULER] ❌ Failed to send 7-day notification to ${franchise.franchiseNumber}:`, error.message);
     }
   }
 }
 
 /**
  * Mark expired latest franchises and send expiry notice
+ * Final day reminders: SMS + EMAIL (URGENT - actionable)
+ * Uses notification queue for smart delivery
  */
 async function handleExpiredFranchises() {
   console.log('\n[EXPIRY_SCHEDULER] Checking for expired latest franchises...');
@@ -223,24 +228,23 @@ async function handleExpiredFranchises() {
         console.error('[EXPIRY_SCHEDULER] Audit log error:', err)
       );
       
-      // Send expiry notice if email exists
-      if (franchise.operatorEmail) {
+      // Send expiry notice if contact info exists
+      if (franchise.operatorContactNumber || franchise.operatorEmail) {
         // Check if already sent
         if (wasNotificationSent(franchise._id.toString(), 'expired')) {
           console.log(`[EXPIRY_SCHEDULER] Already sent expiry notice for ${franchise.franchiseNumber} (v${franchise.versionNumber})`);
           continue;
         }
         
-        await sendFranchiseExpiryEmail(
-          franchise.operatorEmail,
-          franchise.operatorName,
-          franchise.franchiseNumber,
-          franchise.expiryDate,
-          0 // expired today
-        );
+        // Use notification queue: SMS (URGENT) + Email (always)
+        const notificationResult = await sendFranchiseExpiryNotification(franchise, 0);
         
         markNotificationSent(franchise._id.toString(), 'expired');
-        console.log(`[EXPIRY_SCHEDULER] ✅ Sent expiry notice to ${franchise.operatorName} (${franchise.operatorEmail})`);
+        console.log(`[EXPIRY_SCHEDULER] ✅ Sent URGENT expiry notice for ${franchise.franchiseNumber} (v${franchise.versionNumber}):`, {
+          sms: notificationResult.sms?.success ? 'SENT' : 'FAILED',
+          email: notificationResult.email?.success ? 'SENT' : 'FAILED',
+          operator: franchise.operatorName
+        });
       }
     } catch (error) {
       console.error(`[EXPIRY_SCHEDULER] ❌ Failed to handle expired franchise ${franchise.franchiseNumber} (v${franchise.versionNumber}):`, error.message);

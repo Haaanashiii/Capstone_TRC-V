@@ -20,6 +20,7 @@ router.put('/bplo/disapprove/:id', authenticate, authorize(['bplo-admin', 'super
 
 // SB ADMIN ROUTES - Final acceptance and franchise creation
 router.get('/sb/approved-websocket', authenticate, authorize(['sb-admin', 'super-admin']), controller.getApprovedRoutesForSBAdmin);
+router.put('/sb/add-session/:id', authenticate, authorize(['sb-admin', 'super-admin']), controller.addSessionNumber);
 router.put('/sb/approve/:id', authenticate, authorize(['sb-admin', 'super-admin']), upload.uploadOperatorDocuments, controller.approveFranchiseBySBAdmin);
 router.post('/sb/accept-new/:id', authenticate, authorize(['sb-admin', 'super-admin']), upload.uploadOperatorDocuments, controller.sbAdminAcceptNewFranchise);
 router.post('/sb/accept-renew-amend/:id', authenticate, authorize(['sb-admin', 'super-admin']), upload.uploadOperatorDocuments, controller.sbAdminAcceptRenewOrAmendment);

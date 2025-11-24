@@ -82,6 +82,9 @@ const franchiseApplicationSchema = new mongoose.Schema({
 
   documents: DocumentReferenceSchema,
 
+  // Franchise Number (assigned by system when BPLO approves - cannot be edited)
+  franchiseNumber: { type: String, required: false }, // Assigned on BPLO approval for 'new' applications
+  
   // Application type - determines what happens when approved
   applicationType: { 
     type: String, 
