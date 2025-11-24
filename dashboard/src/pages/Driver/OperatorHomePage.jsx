@@ -486,7 +486,11 @@ const OperatorHomePage = () => {
 
   const handleSubmitOR = async () => {
     if (!orNumberInput.trim() || !orFileInput) {
-      alert('Please provide both OR Number and OR Document');
+      setNotificationAlert({ 
+        open: true, 
+        message: 'Please provide both OR Number and OR Document', 
+        type: 'warning' 
+      });
       return;
     }
 
@@ -499,7 +503,11 @@ const OperatorHomePage = () => {
 
       await franchiseAPI.submitOR(selectedAppForOR._id, formData);
 
-      alert('OR submitted successfully! Your application will now proceed to SB for final approval.');
+      setNotificationAlert({ 
+        open: true, 
+        message: 'OR submitted successfully! Your application will now proceed to SB for final approval.', 
+        type: 'success' 
+      });
       
       // Refresh applications
       const response = await franchiseAPI.getMyApplications();
@@ -510,7 +518,11 @@ const OperatorHomePage = () => {
       handleCloseORModal();
     } catch (error) {
       console.error('Error submitting OR:', error);
-      alert(error.response?.data?.error || 'Failed to submit OR. Please try again.');
+      setNotificationAlert({ 
+        open: true, 
+        message: error.response?.data?.error || 'Failed to submit OR. Please try again.', 
+        type: 'error' 
+      });
     } finally {
       setIsSubmitting(false);
     }
