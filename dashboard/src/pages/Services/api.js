@@ -756,7 +756,14 @@ export const franchiseInformationAPI = {
    * @param {string} franchiseNumber - Franchise number
    * @returns {Promise} Response with version history
    */
-  getHistory: (franchiseNumber) => api.get(`/api/franchise-information/history/${franchiseNumber}`)
+  getHistory: (franchiseNumber) => api.get(`/api/franchise-information/history/${franchiseNumber}`),
+
+  /**
+   * Get franchise chain history (all versions of one user's franchise)
+   * @param {string} franchiseChainId - Franchise chain ID (format: user-{userId}-{timestamp})
+   * @returns {Promise} Response with franchise chain history and latest version
+   */
+  getByChainId: (franchiseChainId) => api.get(`/api/franchise-information/chain/${franchiseChainId}`)
 };
 
 // ====================================================================

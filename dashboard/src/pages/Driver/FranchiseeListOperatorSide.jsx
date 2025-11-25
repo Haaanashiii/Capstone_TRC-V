@@ -671,10 +671,18 @@ function FranchiseeListOperatorSide() {
 
   const handleAmendmentChoice = (choice) => {
     setAmendmentModalOpen(false);
+    
+    // Prepare state with amendment type and franchise data
+    const navigationState = { 
+      amendmentType: choice,
+      franchise: matchedFranchise || fields, // Pass matched franchise or form fields
+      franchiseChainId: matchedFranchise?.franchiseChainId
+    };
+    
     if (choice === 'owner') {
-      navigate('/operator/request-amendment', { state: { amendmentType: 'owner' } });
+      navigate('/operator/request-amendment', { state: navigationState });
     } else if (choice === 'motor') {
-      navigate('/operator/request-amendment', { state: { amendmentType: 'motor' } });
+      navigate('/operator/request-amendment', { state: navigationState });
     }
   };
 

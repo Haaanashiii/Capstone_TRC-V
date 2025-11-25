@@ -131,242 +131,365 @@ export default function RequestAmendment() {
       try {
         setIsLoading(true);
         
+        // First check if franchise data was passed via navigation state
+        const passedFranchiseChainId = location.state?.franchiseChainId;
+        const passedFranchise = location.state?.franchise;
+        
+        console.log('[RequestAmendment] Navigation state:', { 
+          amendmentType: location.state?.amendmentType,
+          hasPassedFranchise: !!passedFranchise,
+          franchiseChainId: passedFranchiseChainId
+        });
+        
+        // If franchise data was passed from navigation, use it as immediate fallback
+        if (passedFranchise && passedFranchise.franchiseNumber) {
+          console.log('[RequestAmendment] Using franchise from navigation state:', {
+            franchiseNumber: passedFranchise.franchiseNumber,
+            operatorName: passedFranchise.operatorName || passedFranchise.fullName,
+            franchiseChainId: passedFranchiseChainId
+          });
+          
+          // Populate form immediately with passed franchise data
+          setFormData({
+            date: dayjs(),
+            fullName: passedFranchise.operatorName || passedFranchise.fullName || '',
+            address: passedFranchise.operatorAddress || passedFranchise.address || '',
+            civilStatus: passedFranchise.operatorCivilStatus || passedFranchise.civilStatus || '',
+            coOwner: passedFranchise.coOwnerName || passedFranchise.coOwner || '',
+            orNumber: passedFranchise.franchiseNumber || '',
+            franchiseNumber: passedFranchise.franchiseNumber || '',
+            dateApproved: passedFranchise.approvedAt 
+              ? new Date(passedFranchise.approvedAt).toISOString().split('T')[0]
+              : passedFranchise.dateApproved || '',
+            expiryDate: passedFranchise.expiryDate 
+              ? new Date(passedFranchise.expiryDate).toISOString().split('T')[0]
+              : '',
+            franchiseStatus: passedFranchise.franchiseStatus || 'Active',
+            make: passedFranchise.unitModel || passedFranchise.make || '',
+            sidecarNumber: passedFranchise.sideCarPlateNumber || passedFranchise.sidecarNumber || '',
+            plateNumber: passedFranchise.mvPlateNo || passedFranchise.plateNumber || '',
+            chassisNumber: passedFranchise.chasisNo || passedFranchise.chassisNumber || '',
+            motorNumber: passedFranchise.motorEngineNo || passedFranchise.motorNumber || ''
+          });
+        }
+        
         // Get token
         const token = sessionStorage.getItem('accessToken');
         if (!token) {
-          console.log('[RequestAmendment] No token found, skipping data fetch');
+          console.log('[RequestAmendment] No token found, using passed data as final');
           setIsLoading(false);
           return;
         }
 
-        // Fetch user data with franchise information from /auth/me
         console.log('[RequestAmendment] Fetching user data from /auth/me');
-        console.log('[RequestAmendment] Using token:', token ? 'Token exists' : 'No token');
-        console.log('[RequestAmendment] API URL:', `${API_BASE_URL}/auth/me`);
         
+        // Fetch user data with franchise information from /auth/me
         const userResponse = await fetch(`${API_BASE_URL}/auth/me`, {
           method: 'GET',
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
           },
-          credentials: 'include' // Include cookies for refresh token
+          credentials: 'include'
         });
 
-        console.log('[RequestAmendment] Response status:', userResponse.status);
-
         if (!userResponse.ok) {
-          const errorText = await userResponse.text();
-          console.error('[RequestAmendment] Error response:', errorText);
-          // Don't block - just log and continue
+          console.error('[RequestAmendment] Failed to fetch user data:', userResponse.status);
+          console.log('[RequestAmendment] Will use data from navigation state');
           setIsLoading(false);
           return;
         }
 
         const userData = await userResponse.json();
         console.log('[RequestAmendment] User data received:', userData);
-        console.log('[RequestAmendment] Franchise data:', userData.user?.franchise);
-
-        const userFranchise = userData.user?.franchise;
-
-        // Comment out validation - allow access for UI testing
-        // if (!userFranchise || !userFranchise.franchiseStatus || userFranchise.franchiseStatus !== 'active') {
-        //   console.error('[RequestAmendment] No active franchise found');
-        //   setToast({
-        //     open: true,
-        //     message: 'No active franchise found. Please apply for a franchise first.',
-        //     severity: 'error'
-        //   });
-        //   setTimeout(() => navigate('/operator/franchise'), 2000);
-        //   return;
-        // }
-
-        // Fetch complete franchise application data (includes motorcycle info)
-        console.log('[RequestAmendment] Fetching franchise application data...');
-        const userId = JSON.parse(atob(token.split('.')[1])).id;
-        const appResponse = await fetch(`${API_BASE_URL}/api/franchise-applications?status=approved`);
         
-        let franchiseApp = null;
-        if (appResponse.ok) {
-          const apps = await appResponse.json();
-          franchiseApp = apps.find(app => app.userId === userId || app.userId?._id === userId);
-          console.log('[RequestAmendment] Franchise application found:', franchiseApp);
+        // Get franchise information from user data
+        const userFranchise = userData.user?.franchise;
+        
+        if (!userFranchise) {
+          console.warn('[RequestAmendment] No franchise found in user data');
+          setIsLoading(false);
+          return;
         }
 
-        // Pre-populate form with existing data if available (prioritize franchiseApp data, fallback to userFranchise)
-        if (userFranchise || franchiseApp) {
+        console.log('[RequestAmendment] Found franchise:', {
+          franchiseChainId: userFranchise.franchiseChainId,
+          franchiseNumber: userFranchise.franchiseNumber,
+          operatorName: userFranchise.operatorName,
+          status: userFranchise.franchiseStatus
+        });
+
+        // If we have a franchiseChainId, fetch the complete franchise history to get the latest version
+        if (userFranchise.franchiseChainId) {
+          try {
+            console.log('[RequestAmendment] Fetching franchise chain history:', userFranchise.franchiseChainId);
+            
+            const chainResponse = await fetch(
+              `${API_BASE_URL}/api/franchise-information/chain/${userFranchise.franchiseChainId}`,
+              {
+                headers: {
+                  'Authorization': `Bearer ${token}`,
+                  'Content-Type': 'application/json'
+                }
+              }
+            );
+
+            if (chainResponse.ok) {
+              const chainData = await chainResponse.json();
+              console.log('[RequestAmendment] Chain data received:', chainData);
+              
+              // Get the latest version (last item in the data array)
+              if (chainData.data && chainData.data.length > 0) {
+                const latestFranchise = chainData.data[chainData.data.length - 1];
+                
+                console.log('[RequestAmendment] Latest franchise version:', {
+                  version: latestFranchise.version,
+                  operatorName: latestFranchise.operatorName,
+                  operatorAddress: latestFranchise.operatorAddress,
+                  driverName: latestFranchise.driverName,
+                  franchiseStatus: latestFranchise.franchiseStatus
+                });
+
+                // Pre-populate form with latest franchise data
+                setFormData({
+                  date: dayjs(),
+                  fullName: latestFranchise.operatorName || '',
+                  address: latestFranchise.operatorAddress || '',
+                  civilStatus: latestFranchise.operatorCivilStatus || '',
+                  coOwner: latestFranchise.coOwnerName || '',
+                  orNumber: latestFranchise.franchiseNumber || '',
+                  franchiseNumber: latestFranchise.franchiseNumber || '',
+                  dateApproved: latestFranchise.approvedAt 
+                    ? new Date(latestFranchise.approvedAt).toISOString().split('T')[0]
+                    : '',
+                  expiryDate: latestFranchise.expiryDate 
+                    ? new Date(latestFranchise.expiryDate).toISOString().split('T')[0]
+                    : '',
+                  franchiseStatus: latestFranchise.franchiseStatus || 'Active',
+                  make: latestFranchise.unitModel || '',
+                  sidecarNumber: latestFranchise.sideCarPlateNumber || '',
+                  plateNumber: latestFranchise.mvPlateNo || '',
+                  chassisNumber: latestFranchise.chasisNo || '',
+                  motorNumber: latestFranchise.motorEngineNo || ''
+                });
+                
+                console.log('[RequestAmendment] Form populated successfully');
+              }
+            } else {
+              console.warn('[RequestAmendment] Failed to fetch franchise chain:', chainResponse.status);
+              // Fallback: populate with basic franchise data
+              setFormData({
+                date: dayjs(),
+                fullName: userFranchise.operatorName || '',
+                address: userFranchise.operatorAddress || '',
+                civilStatus: userFranchise.operatorCivilStatus || '',
+                coOwner: userFranchise.coOwnerName || '',
+                orNumber: userFranchise.franchiseNumber || '',
+                franchiseNumber: userFranchise.franchiseNumber || '',
+                dateApproved: userFranchise.approvedAt 
+                  ? new Date(userFranchise.approvedAt).toISOString().split('T')[0]
+                  : '',
+                expiryDate: userFranchise.expiryDate 
+                  ? new Date(userFranchise.expiryDate).toISOString().split('T')[0]
+                  : '',
+                franchiseStatus: userFranchise.franchiseStatus || 'Active',
+                make: userFranchise.unitModel || '',
+                sidecarNumber: userFranchise.sideCarPlateNumber || '',
+                plateNumber: userFranchise.mvPlateNo || '',
+                chassisNumber: userFranchise.chasisNo || '',
+                motorNumber: userFranchise.motorEngineNo || ''
+              });
+            }
+          } catch (chainError) {
+            console.error('[RequestAmendment] Error fetching franchise chain:', chainError);
+            // Fallback: use franchise data from /auth/me
+            setFormData({
+              date: dayjs(),
+              fullName: userFranchise.operatorName || '',
+              address: userFranchise.operatorAddress || '',
+              civilStatus: userFranchise.operatorCivilStatus || '',
+              coOwner: userFranchise.coOwnerName || '',
+              orNumber: userFranchise.franchiseNumber || '',
+              franchiseNumber: userFranchise.franchiseNumber || '',
+              dateApproved: userFranchise.approvedAt 
+                ? new Date(userFranchise.approvedAt).toISOString().split('T')[0]
+                : '',
+              expiryDate: userFranchise.expiryDate 
+                ? new Date(userFranchise.expiryDate).toISOString().split('T')[0]
+                : '',
+              franchiseStatus: userFranchise.franchiseStatus || 'Active',
+              make: userFranchise.unitModel || '',
+              sidecarNumber: userFranchise.sideCarPlateNumber || '',
+              plateNumber: userFranchise.mvPlateNo || '',
+              chassisNumber: userFranchise.chasisNo || '',
+              motorNumber: userFranchise.motorEngineNo || ''
+            });
+          }
+        } else {
+          // No franchiseChainId, use basic franchise data
           setFormData({
-            date: dayjs(), // Keep today's date as the amendment request date
-            fullName: userFranchise?.operatorName || '',
-            address: userFranchise?.address || '',
-            civilStatus: userFranchise?.civilStatus || '',
-            coOwner: franchiseApp?.coOwner || '',
-            orNumber: franchiseApp?.orNumber || '',
-            franchiseNumber: userFranchise?.mtopNumber || '',
-            dateApproved: userFranchise?.approvedAt ? new Date(userFranchise.approvedAt).toISOString().split('T')[0] : '',
-            expiryDate: userFranchise?.expiryDate ? new Date(userFranchise.expiryDate).toISOString().split('T')[0] : '',
-            franchiseStatus: userFranchise?.franchiseStatus || 'active',
-            make: franchiseApp?.unitModel || '',
-            sidecarNumber: franchiseApp?.sideCar || '',
-            plateNumber: franchiseApp?.mvPlateNo || '',
-            chassisNumber: franchiseApp?.chasisNo || '',
-            motorNumber: franchiseApp?.motorEngineNo || ''
+            date: dayjs(),
+            fullName: userFranchise.operatorName || '',
+            address: userFranchise.operatorAddress || '',
+            civilStatus: userFranchise.operatorCivilStatus || '',
+            coOwner: userFranchise.coOwnerName || '',
+            orNumber: userFranchise.franchiseNumber || '',
+            franchiseNumber: userFranchise.franchiseNumber || '',
+            dateApproved: userFranchise.approvedAt 
+              ? new Date(userFranchise.approvedAt).toISOString().split('T')[0]
+              : '',
+            expiryDate: userFranchise.expiryDate 
+              ? new Date(userFranchise.expiryDate).toISOString().split('T')[0]
+              : '',
+            franchiseStatus: userFranchise.franchiseStatus || 'Active',
+            make: userFranchise.unitModel || '',
+            sidecarNumber: userFranchise.sideCarPlateNumber || '',
+            plateNumber: userFranchise.mvPlateNo || '',
+            chassisNumber: userFranchise.chasisNo || '',
+            motorNumber: userFranchise.motorEngineNo || ''
           });
-          console.log('[RequestAmendment] Form populated with franchise data');
         }
       } catch (error) {
         console.error('[RequestAmendment] Error fetching franchise data:', error);
-        // Don't show error toast - just log it for UI testing
-        console.log('[RequestAmendment] Continuing without franchise data for UI testing');
       } finally {
         setIsLoading(false);
       }
     };
 
     fetchFranchiseData();
-  }, [navigate]);
-
-  const validateForm = useCallback(() => {
-    const newErrors = {};
-    
-    // Comment out validation for UI testing
-    // Validate all required fields
-    // Object.keys(FIELD_LABELS).forEach(field => {
-    //   if (!formData[field] || !formData[field].toString().trim()) {
-    //     newErrors[field] = `${FIELD_LABELS[field]} is required`;
-    //   }
-    // });
-
-    setErrors(newErrors);
-    
-    // Show toast with first missing field
-    if (Object.keys(newErrors).length > 0) {
-      const firstErrorField = Object.keys(newErrors)[0];
-      const fieldName = FIELD_LABELS[firstErrorField];
-      setToast({ 
-        open: true, 
-        message: `${fieldName} is required`,
-        severity: 'error'
-      });
-    }
-    
-    return Object.keys(newErrors).length === 0;
-  }, []);
+  }, [navigate, location.state]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     
     if (isSubmitting) return; // Prevent duplicate submissions
     
-    if (validateForm()) {
-      setIsSubmitting(true);
+    setIsSubmitting(true);
+    
+    try {
+      // Get token to check user info
+      const token = sessionStorage.getItem('accessToken');
       
-      try {
-        // Get token to check user info
-        const token = sessionStorage.getItem('accessToken');
-        
-        if (!token) {
-          setToast({ 
-            open: true, 
-            message: 'Session expired. Please log in again.', 
-            severity: 'error' 
-          });
-          setTimeout(() => navigate('/login'), 2000);
-          setIsSubmitting(false);
-          return;
-        }
-        
-        // Build FormData for submission
-        const formDataToSend = new FormData();
-        
-        // Add actionType as AMMENDMENTS (backend expects this exact spelling with double M)
-        formDataToSend.append('actionType', 'AMMENDMENTS');
-        
-        // Personal Information
-        formDataToSend.append('operatorName', formData.fullName || '');
-        formDataToSend.append('operatorContact', ''); // Add empty contact if not collected
-        formDataToSend.append('operatorAddress', formData.address || '');
-        formDataToSend.append('driversID', formData.fullName || ''); // Use same as operator name
-        formDataToSend.append('driversAddress', formData.address || '');
-        formDataToSend.append('civilStatus', formData.civilStatus || '');
-        formDataToSend.append('birthPlace', ''); // Not collected in amendment
-        formDataToSend.append('birthDate', ''); // Not collected in amendment
-        formDataToSend.append('citizenship', ''); // Not collected in amendment
-        formDataToSend.append('todaMembership', ''); // Not collected in amendment
-        formDataToSend.append('barangay', ''); // Not collected in amendment
-        
-        // Franchise Information
-        formDataToSend.append('orNumber', formData.orNumber || '');
-        formDataToSend.append('franchiseNumber', formData.franchiseNumber || '');
-        formDataToSend.append('dateApproved', formData.dateApproved || '');
-        formDataToSend.append('expiryDate', formData.expiryDate || '');
-        formDataToSend.append('franchiseStatus', formData.franchiseStatus || '');
-        
-        // Motorcycle Information
-        formDataToSend.append('unitModel', formData.make || '');
-        formDataToSend.append('colorMotor', ''); // Not collected in amendment
-        formDataToSend.append('sideCar', formData.sidecarNumber || '');
-        formDataToSend.append('mvPlateNo', formData.plateNumber || '');
-        formDataToSend.append('chasisNo', formData.chassisNumber || '');
-        formDataToSend.append('motorEngineNo', formData.motorNumber || '');
-        
-        // Additional info
-        formDataToSend.append('coOwner', formData.coOwner || '');
-        
-        console.log('[RequestAmendment] Submitting amendment request...');
-        console.log('[RequestAmendment] FormData contents:');
-        for (let pair of formDataToSend.entries()) {
-          console.log(pair[0] + ': ' + pair[1]);
-        }
-        
-        // Submit using the renew-amend endpoint
-        const response = await franchiseAPI.createRenewAmend(formDataToSend);
-        
-        if (!response.data) throw new Error('No response data received');
-        
-        console.log('[RequestAmendment] Amendment submitted successfully:', response.data);
-        
-        // Show success message
+      if (!token) {
         setToast({ 
           open: true, 
-          message: 'Amendment request submitted successfully!', 
-          severity: 'success' 
-        });
-        
-        // Reset form
-        setFormData(INITIAL_FORM_STATE);
-        
-        // Redirect to franchise page after 2 seconds
-        setTimeout(() => {
-          navigate('/operator/franchise');
-        }, 2000);
-        
-      } catch (error) {
-        console.error('[RequestAmendment] Error submitting amendment:', error);
-        console.error('[RequestAmendment] Error response:', error.response);
-        
-        let errorMessage = 'Failed to submit amendment request. Please try again.';
-        
-        if (error.response?.data?.message) {
-          errorMessage = error.response.data.message;
-        } else if (error.response?.data?.error) {
-          errorMessage = error.response.data.error;
-        } else if (error.response?.data) {
-          errorMessage = JSON.stringify(error.response.data);
-        } else if (error.message) {
-          errorMessage = error.message;
-        }
-        
-        console.error('[RequestAmendment] Error message:', errorMessage);
-        
-        setToast({ 
-          open: true, 
-          message: errorMessage, 
+          message: 'Session expired. Please log in again.', 
           severity: 'error' 
         });
-      } finally {
+        setTimeout(() => navigate('/login'), 2000);
         setIsSubmitting(false);
+        return;
       }
+      
+      // Build FormData for submission
+      const formDataToSend = new FormData();
+      
+      // Determine application type based on amendment type
+      let applicationType = 'renewal'; // default
+      if (amendmentType === 'owner') {
+        applicationType = 'update_ownership';
+      } else if (amendmentType === 'motor') {
+        applicationType = 'change_unit';
+      }
+      
+      console.log('[RequestAmendment] Submitting with applicationType:', applicationType);
+      
+      // Add application type
+      formDataToSend.append('applicationType', applicationType);
+      
+      // Personal/Operator Information
+      formDataToSend.append('operatorName', formData.fullName || '');
+      formDataToSend.append('operatorAddress', formData.address || '');
+      formDataToSend.append('operatorCivilStatus', formData.civilStatus || '');
+      formDataToSend.append('coOwnerName', formData.coOwner || '');
+      
+      // Franchise Information (read from form - user can edit these)
+      formDataToSend.append('orNumber', formData.orNumber || '');
+      formDataToSend.append('franchiseNumber', formData.franchiseNumber || '');
+      
+      // Motorcycle Information
+      formDataToSend.append('unitModel', formData.make || '');
+      formDataToSend.append('sideCarPlateNumber', formData.sidecarNumber || '');
+      formDataToSend.append('mvPlateNo', formData.plateNumber || '');
+      formDataToSend.append('chasisNo', formData.chassisNumber || '');
+      formDataToSend.append('motorEngineNo', formData.motorNumber || '');
+      
+      // Add uploaded documents for owner amendment
+      if (amendmentType === 'owner') {
+        const uploadHelper = async (fieldName, key) => {
+          if (uploads[key]) {
+            formDataToSend.append(fieldName, uploads[key]);
+          }
+        };
+        
+        await uploadHelper('motorRegistrationObj', 'registration');
+        await uploadHelper('barangayClearanceObj', 'barangay');
+        await uploadHelper('cedulaObj', 'cedula');
+        await uploadHelper('driversLicenseObj', 'license');
+        await uploadHelper('votersAffidavitObj', 'affidavit');
+        await uploadHelper('motorChassisStencilObj', 'stencil');
+        await uploadHelper('driverPictureObj', 'picture');
+      }
+      
+      console.log('[RequestAmendment] Submitting amendment request...');
+      console.log('[RequestAmendment] Amendment type:', amendmentType);
+      
+      // Submit using the renew-amend endpoint
+      const response = await franchiseAPI.createRenewAmend(formDataToSend);
+      
+      if (!response.data) throw new Error('No response data received');
+      
+      console.log('[RequestAmendment] Amendment submitted successfully:', response.data);
+      
+      // Show success message
+      setToast({ 
+        open: true, 
+        message: 'Amendment request submitted successfully!', 
+        severity: 'success' 
+      });
+      
+      // Reset form
+      setFormData(INITIAL_FORM_STATE);
+      setUploads({
+        registration: null,
+        barangay: null,
+        cedula: null,
+        license: null,
+        affidavit: null,
+        picture: null,
+        stencil: null
+      });
+      
+      // Redirect to franchisee list after 2 seconds
+      setTimeout(() => {
+        navigate('/operator/franchisee-list');
+      }, 2000);
+      
+    } catch (error) {
+      console.error('[RequestAmendment] Error submitting amendment:', error);
+      console.error('[RequestAmendment] Error response:', error.response);
+      
+      let errorMessage = 'Failed to submit amendment request. Please try again.';
+      
+      if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.response?.data?.error) {
+        errorMessage = error.response.data.error;
+      } else if (error.response?.data) {
+        errorMessage = JSON.stringify(error.response.data);
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      console.error('[RequestAmendment] Error message:', errorMessage);
+      
+      setToast({ 
+        open: true, 
+        message: errorMessage, 
+        severity: 'error' 
+      });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 

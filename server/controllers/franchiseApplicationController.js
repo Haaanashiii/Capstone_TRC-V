@@ -23,6 +23,21 @@ exports.createNewApplication = async (req, res, next) => {
       filesCount: files ? Object.keys(files).length : 0
     });
     
+    // Fetch user email from database
+    let userEmail = user?.email || '';
+    if (!userEmail && userId) {
+      try {
+        const User = require('../models/userAccountModel');
+        const foundUser = await User.findById(userId).select('email');
+        if (foundUser && foundUser.email) {
+          userEmail = foundUser.email;
+          console.log('[createNewApplication] Fetched user email from DB:', userEmail);
+        }
+      } catch (emailError) {
+        console.error('[createNewApplication] Failed to fetch user email:', emailError);
+      }
+    }
+    
     // Build application data from request body
     const applicationData = {
       operatorName: body.operatorName,
@@ -33,7 +48,7 @@ exports.createNewApplication = async (req, res, next) => {
       operatorBirthPlace: body.operatorBirthPlace,
       operatorBirthDate: body.operatorBirthDate ? new Date(body.operatorBirthDate) : null,
       operatorCitizenship: body.operatorCitizenship,
-      operatorEmail: body.operatorEmail || '',
+      operatorEmail: userEmail,
       coOwnerName: body.coOwnerName || '',
       coOwnerAddress: body.coOwnerAddress || '',
       driverName: body.driverName,
@@ -345,55 +360,95 @@ exports.editPendingFranchise = async (req, res, next) => {
 // 5) CREATE RENEWAL OR AMENDMENT
 exports.createRenewOrAmendment = async (req, res, next) => {
   try {
-    const { franchiseId, applicationType, body, files, user } = { ...req, franchiseId: req.body.relatedFranchise, applicationType: req.body.applicationType };
+    const { applicationType, body, files, user } = req;
     const userId = user?._id || user?.userId || String(user?.id);
     
-    // Fetch existing franchise
-    const existingFranchise = await FranchiseInformation.findOne({ _id: franchiseId, isCurrentVersion: true });
-    if (!existingFranchise) return res.status(404).json({ error: 'Franchise not found' });
+    console.log('[createRenewOrAmendment] Creating renewal/amendment application');
+    console.log('[createRenewOrAmendment] User ID:', userId);
+    console.log('[createRenewOrAmendment] Application Type:', applicationType || body?.applicationType);
     
-    if (!validateFranchiseStatus(existingFranchise, applicationType)) {
-      return res.status(400).json({ error: `Cannot ${applicationType} this franchise (status: ${existingFranchise.franchiseStatus})` });
+    const appType = applicationType || body?.applicationType;
+    
+    if (!appType) {
+      return res.status(400).json({ error: 'applicationType is required' });
     }
     
-    // Pre-fill data based on type
+    // Fetch user email from database
+    let userEmail = user?.email || '';
+    if (!userEmail && userId) {
+      try {
+        const User = require('../models/userAccountModel');
+        const foundUser = await User.findById(userId).select('email');
+        if (foundUser && foundUser.email) {
+          userEmail = foundUser.email;
+          console.log('[createRenewOrAmendment] Fetched user email from DB:', userEmail);
+        }
+      } catch (emailError) {
+        console.error('[createRenewOrAmendment] Failed to fetch user email:', emailError);
+      }
+    }
+    
+    // Find the user's latest active franchise (isCurrentVersion: true)
+    // This is the franchise they are renewing or amending
+    const existingFranchise = await FranchiseInformation.findOne({
+      linkedUser: userId,
+      isCurrentVersion: true
+    }).sort({ createdAt: -1 });
+    
+    if (!existingFranchise) {
+      console.error('[createRenewOrAmendment] No active franchise found for user:', userId);
+      return res.status(404).json({ error: 'No active franchise found. Please apply for a franchise first.' });
+    }
+    
+    console.log('[createRenewOrAmendment] Found existing franchise:', {
+      franchiseNumber: existingFranchise.franchiseNumber,
+      franchiseChainId: existingFranchise.franchiseChainId,
+      franchiseStatus: existingFranchise.franchiseStatus,
+      version: existingFranchise.version
+    });
+    
+    if (!validateFranchiseStatus(existingFranchise, appType)) {
+      return res.status(400).json({ error: `Cannot ${appType} this franchise (status: ${existingFranchise.franchiseStatus})` });
+    }
+    
+    // Pre-fill data based on application type
     const applicationData = {
-      applicationType,
-      relatedFranchise: franchiseId,
-      operatorInfo: user?._id,
+      applicationType: appType,
+      relatedFranchise: existingFranchise._id,
+      operatorInfo: userId,
       statusOfBPLO: 'pending',
-      ...(applicationType === 'change_unit' ? {
+      ...(appType === 'change_unit' ? {
         // Keep operator, update motor + driver
-        operatorName: existingFranchise.operatorName,
-        operatorContactNumber: existingFranchise.operatorContactNumber,
-        operatorAddress: existingFranchise.operatorAddress,
-        operatorBarangay: existingFranchise.operatorBarangay,
-        operatorCivilStatus: existingFranchise.operatorCivilStatus,
+        operatorName: body.operatorName || existingFranchise.operatorName,
+        operatorContactNumber: body.operatorContactNumber || existingFranchise.operatorContactNumber,
+        operatorAddress: body.operatorAddress || existingFranchise.operatorAddress,
+        operatorBarangay: body.operatorBarangay || existingFranchise.operatorBarangay,
+        operatorCivilStatus: body.operatorCivilStatus || existingFranchise.operatorCivilStatus,
         operatorBirthPlace: existingFranchise.operatorBirthPlace,
         operatorBirthDate: existingFranchise.operatorBirthDate,
         operatorCitizenship: existingFranchise.operatorCitizenship,
-        operatorEmail: existingFranchise.operatorEmail,
+        operatorEmail: userEmail || existingFranchise.operatorEmail,
         driverName: body.driverName || existingFranchise.driverName,
         driversAddress: body.driversAddress || existingFranchise.driversAddress,
         todaMembership: body.todaMembership || existingFranchise.todaMembership,
-        unitModel: body.unitModel,
-        colorMotor: body.colorMotor,
-        sideCarColor: body.sideCarColor,
-        sideCarPlateNumber: body.sideCarPlateNumber,
-        mvPlateNo: body.mvPlateNo,
-        motorEngineNo: body.motorEngineNo,
-        chasisNo: body.chasisNo
-      } : applicationType === 'update_ownership' ? {
+        unitModel: body.unitModel || existingFranchise.unitModel,
+        colorMotor: body.colorMotor || existingFranchise.colorMotor,
+        sideCarColor: body.sideCarColor || existingFranchise.sideCarColor,
+        sideCarPlateNumber: body.sideCarPlateNumber || existingFranchise.sideCarPlateNumber,
+        mvPlateNo: body.mvPlateNo || existingFranchise.mvPlateNo,
+        motorEngineNo: body.motorEngineNo || existingFranchise.motorEngineNo,
+        chasisNo: body.chasisNo || existingFranchise.chasisNo
+      } : appType === 'update_ownership' ? {
         // Update operator, keep motor + driver
-        operatorName: body.operatorName,
-        operatorContactNumber: body.operatorContactNumber,
-        operatorAddress: body.operatorAddress,
-        operatorBarangay: body.operatorBarangay,
-        operatorCivilStatus: body.operatorCivilStatus,
-        operatorBirthPlace: body.operatorBirthPlace,
-        operatorBirthDate: new Date(body.operatorBirthDate),
-        operatorCitizenship: body.operatorCitizenship,
-        operatorEmail: body.operatorEmail,
+        operatorName: body.operatorName || existingFranchise.operatorName,
+        operatorContactNumber: body.operatorContactNumber || existingFranchise.operatorContactNumber,
+        operatorAddress: body.operatorAddress || existingFranchise.operatorAddress,
+        operatorBarangay: body.operatorBarangay || existingFranchise.operatorBarangay,
+        operatorCivilStatus: body.operatorCivilStatus || existingFranchise.operatorCivilStatus,
+        operatorBirthPlace: body.operatorBirthPlace || existingFranchise.operatorBirthPlace,
+        operatorBirthDate: body.operatorBirthDate ? new Date(body.operatorBirthDate) : existingFranchise.operatorBirthDate,
+        operatorCitizenship: body.operatorCitizenship || existingFranchise.operatorCitizenship,
+        operatorEmail: userEmail || body.operatorEmail || existingFranchise.operatorEmail,
         driverName: existingFranchise.driverName,
         driversAddress: existingFranchise.driversAddress,
         todaMembership: existingFranchise.todaMembership,
@@ -405,23 +460,49 @@ exports.createRenewOrAmendment = async (req, res, next) => {
         motorEngineNo: existingFranchise.motorEngineNo,
         chasisNo: existingFranchise.chasisNo
       } : {
-        // Renewal - keep all
-        ...existingFranchise.toObject()
+        // Renewal - keep all fields, allow user overrides
+        operatorName: body.operatorName || existingFranchise.operatorName,
+        operatorContactNumber: body.operatorContactNumber || existingFranchise.operatorContactNumber,
+        operatorAddress: body.operatorAddress || existingFranchise.operatorAddress,
+        operatorBarangay: body.operatorBarangay || existingFranchise.operatorBarangay,
+        operatorCivilStatus: body.operatorCivilStatus || existingFranchise.operatorCivilStatus,
+        operatorBirthPlace: existingFranchise.operatorBirthPlace,
+        operatorBirthDate: existingFranchise.operatorBirthDate,
+        operatorCitizenship: existingFranchise.operatorCitizenship,
+        operatorEmail: userEmail || existingFranchise.operatorEmail,
+        driverName: body.driverName || existingFranchise.driverName,
+        driversAddress: body.driversAddress || existingFranchise.driversAddress,
+        todaMembership: body.todaMembership || existingFranchise.todaMembership,
+        unitModel: body.unitModel || existingFranchise.unitModel,
+        colorMotor: body.colorMotor || existingFranchise.colorMotor,
+        sideCarColor: body.sideCarColor || existingFranchise.sideCarColor,
+        sideCarPlateNumber: body.sideCarPlateNumber || existingFranchise.sideCarPlateNumber,
+        coOwnerName: body.coOwnerName || existingFranchise.coOwnerName,
+        mvPlateNo: body.mvPlateNo || existingFranchise.mvPlateNo,
+        motorEngineNo: body.motorEngineNo || existingFranchise.motorEngineNo,
+        chasisNo: body.chasisNo || existingFranchise.chasisNo
       })
     };
     
+    console.log('[createRenewOrAmendment] Application data prepared:', {
+      applicationType: applicationData.applicationType,
+      operatorName: applicationData.operatorName,
+      relatedFranchise: applicationData.relatedFranchise
+    });
+    
     const application = await franchiseApplicationRepository.createFranchiseApplication(applicationData);
+    console.log('[createRenewOrAmendment] Application created:', application._id);
     
     // Link application to user's franchiseApplications array
-    if (user?._id) {
+    if (userId) {
       try {
         const User = require('../models/userAccountModel');
         await User.findByIdAndUpdate(
-          user._id,
+          userId,
           { $addToSet: { franchiseApplications: application._id } },
           { new: true }
         );
-        console.log('[createRenewOrAmendment] Application linked to user:', user._id);
+        console.log('[createRenewOrAmendment] Application linked to user:', userId);
       } catch (linkError) {
         console.error('[createRenewOrAmendment] Failed to link application to user:', linkError);
         // Don't fail the whole operation if linking fails
@@ -464,6 +545,8 @@ exports.createRenewOrAmendment = async (req, res, next) => {
         'documents.oRLTOObj': docs[8],
         'documents.cRLTOObj': docs[9]
       });
+      
+      console.log('[createRenewOrAmendment] Documents uploaded for application:', application._id);
     }
     
     // Broadcast renewal/amendment application to BPLO admins and dashboard
@@ -478,8 +561,13 @@ exports.createRenewOrAmendment = async (req, res, next) => {
       console.error('[createRenewOrAmendment] WebSocket broadcast error:', wsError.message);
     }
     
-    res.status(201).json({ success: true, data: application, message: `${applicationType} application created` });
+    res.status(201).json({ 
+      success: true, 
+      data: application, 
+      message: `${appType} application created successfully` 
+    });
   } catch (error) {
+    console.error('[createRenewOrAmendment] Error:', error);
     next(error);
   }
 };
@@ -1150,8 +1238,6 @@ exports.sbAdminAcceptNewFranchise = async (req, res, next) => {
       approvedAt: new Date(),
       expiryDate: new Date(Date.now() + 3 * 365 * 24 * 60 * 60 * 1000), // 3 years
       franchiseStatus: 'Active',
-      resolutionNumber: application.sbResolutionNumber, // Add SB resolution number
-      resolutionDocument: application.sbResolutionDocument, // Add SB resolution document
       documents: {
         motorRegistrationObj: urlMapping[application.documents?.motorRegistrationObj] || application.documents?.motorRegistrationObj,
         barangayClearanceObj: urlMapping[application.documents?.barangayClearanceObj] || application.documents?.barangayClearanceObj,
@@ -1203,10 +1289,13 @@ exports.sbAdminAcceptNewFranchise = async (req, res, next) => {
       }
     }
     
-    // Delete application from FranchiseApplication collection (now in FranchiseInformation)
-    // This prevents data redundancy and keeps FranchiseApplication for pending applications only
-    await franchiseApplicationRepository.deleteFranchiseApplication(id);
-    console.log('[sbAdminAcceptNewFranchise] Application deleted from FranchiseApplication collection:', id);
+    // Mark application as completed
+    await franchiseApplicationRepository.updateFranchiseApplication(id, {
+      statusOfBPLO: 'completed',
+      franchiseCreated: true,
+      franchiseCreatedAt: new Date(),
+      relatedFranchiseInfo: franchise[0]._id
+    });
     
     // Commit transaction
     await session.commitTransaction();
@@ -1233,17 +1322,6 @@ exports.sbAdminAcceptNewFranchise = async (req, res, next) => {
     // Emit to WebSocket
     if (req.app.get('io')) {
       req.app.get('io').to('sb-admins').to('bplo-admins').emit('franchise-created', franchise[0]);
-      
-      // Update SB admins list - remove completed application from their view
-      try {
-        const sbApplications = await FranchiseApplication.find({
-          statusOfBPLO: { $in: ['bplo-approved', 'awaiting-sb', 'sb-approved'] }
-        }).sort({ sbApprovedAt: -1, bploApprovedAt: -1, orSubmittedAt: -1 });
-        req.app.get('io').to('sb-admins').emit('approved-applications', sbApplications);
-        console.log(`[sbAdminAcceptNewFranchise] Updated SB admins: ${sbApplications.length} remaining applications`);
-      } catch (wsError) {
-        console.error('[sbAdminAcceptNewFranchise] Failed to update SB list:', wsError.message);
-      }
       
       // Notify user
       if (franchise[0].linkedUser) {
@@ -1442,11 +1520,11 @@ exports.sbAdminAcceptRenewOrAmendment = async (req, res, next) => {
         throw linkError; // Fail transaction if linking fails
       }
     }
-    
-    // Delete application from FranchiseApplication collection (now in FranchiseInformation)
+     // Delete application from FranchiseApplication collection (now in FranchiseInformation)
     // This prevents data redundancy and keeps FranchiseApplication for pending applications only
     await franchiseApplicationRepository.deleteFranchiseApplication(id);
     console.log('[sbAdminAcceptRenewOrAmendment] Application deleted from FranchiseApplication collection:', id);
+
     
     // Commit transaction
     await session.commitTransaction();
@@ -1469,7 +1547,6 @@ exports.sbAdminAcceptRenewOrAmendment = async (req, res, next) => {
         console.warn('[sbAdminAcceptRenewOrAmendment] Failed to send email notification:', emailError.message);
       }
     }
-    
     // Emit to WebSocket
     if (req.app.get('io')) {
       req.app.get('io').to('sb-admins').to('bplo-admins').emit('franchise-updated', newFranchise[0]);
