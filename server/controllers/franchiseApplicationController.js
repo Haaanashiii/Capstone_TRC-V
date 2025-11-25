@@ -1176,6 +1176,7 @@ exports.sbAdminAcceptNewFranchise = async (req, res, next) => {
         operatorPictureObj: urlMapping[application.documents?.operatorPictureObj] || application.documents?.operatorPictureObj,
         oRLTOObj: urlMapping[application.documents?.oRLTOObj] || application.documents?.oRLTOObj,
         cRLTOObj: urlMapping[application.documents?.cRLTOObj] || application.documents?.cRLTOObj,
+        oRTreasurerOfficeObj: urlMapping[application.documents?.oRTreasurerOfficeObj] || application.documents?.oRTreasurerOfficeObj,
         individualSessionReportObj: sessionReport
       },
       version,
