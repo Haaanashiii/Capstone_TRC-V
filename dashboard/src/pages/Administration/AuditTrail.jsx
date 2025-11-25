@@ -535,7 +535,7 @@ function AuditTrail() {
           ) : (
             <>
               <TableContainer className="admin-table-wrapper">
-                <Table className="admin-table" stickyHeader>className="admin-table" stickyHeader>
+                <Table className="admin-table" stickyHeader>
                   <TableHead>
                     <TableRow>
                       <TableCell className="admin-table-header-cell col-date">Date/Time</TableCell>
