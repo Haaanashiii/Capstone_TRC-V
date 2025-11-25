@@ -168,7 +168,6 @@ function FranchiseMgmt() {
         chassisNumber: it.chasisNo || '',
         driverName: it.driverName || '',
         driverAddress: it.driversAddress || '',
-        driversID: it.driversID || '',
         statusOfBPLO: it.statusOfBPLO || 'pending',
         submittedAt: it.submittedAt ? new Date(it.submittedAt).toLocaleDateString() : '',
         // OR and approval information (for SB admins)
@@ -347,7 +346,6 @@ function FranchiseMgmt() {
         chassisNumber: it.chasisNo || '',
         driverName: it.driverName || '',
         driverAddress: it.driversAddress || '',
-        driversID: it.driversID || '',
         operatorBarangay: it.operatorBarangay || '',
         coOwnerName: it.coOwnerName || '',
         coOwnerAddress: it.coOwnerAddress || '',
@@ -445,8 +443,7 @@ function FranchiseMgmt() {
   const filteredApplications = useMemo(() => {
     let filtered = pendingApplications.filter(app => 
       app.name?.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
-      app.franchiseNumber?.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
-      app.plateNumber?.toLowerCase().includes(debouncedSearchTerm.toLowerCase())
+      app.franchiseNumber?.toLowerCase().includes(debouncedSearchTerm.toLowerCase())
     )
 
     // Apply status filter
@@ -1250,9 +1247,6 @@ function FranchiseMgmt() {
                     <TableCell className="admin-table-header-cell col-id">Record No.</TableCell>
                     <TableCell className="admin-table-header-cell col-name" align="left">Franchisee Name</TableCell>
                     <TableCell className="admin-table-header-cell col-contact">Make</TableCell>
-                    {userRole !== 'sb-admin' && (
-                      <TableCell className="admin-table-header-cell col-contact">Plate Number</TableCell>
-                    )}
                     <TableCell className="admin-table-header-cell col-status">Application Type</TableCell>
                     <TableCell className="admin-table-header-cell col-status">Status</TableCell>
                     <TableCell className="admin-table-header-cell col-barangay" align="left">Address</TableCell>
@@ -1273,9 +1267,6 @@ function FranchiseMgmt() {
                           <TableCell className="admin-table-cell">{index + 1}</TableCell>
                           <TableCell className="admin-table-cell col-name" align="left">{application.name}</TableCell>
                           <TableCell className="admin-table-cell">{application.make}</TableCell>
-                          {userRole !== 'sb-admin' && (
-                            <TableCell className="admin-table-cell">{application.plateNumber}</TableCell>
-                          )}
                           <TableCell className="admin-table-cell">
                             <span className={`status-badge ${
                               application.applicationType === 'New' ? 'status-pending' : 
@@ -1298,7 +1289,7 @@ function FranchiseMgmt() {
                     })
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={userRole === 'sb-admin' ? 6 : 7} className="admin-table-empty">
+                      <TableCell colSpan={6} className="admin-table-empty">
                         <Typography className="admin-table-empty-text">
                           {isLoading ? 'Loading...' : 'No pending applications found'}
                         </Typography>
@@ -1878,9 +1869,6 @@ function FranchiseMgmt() {
             </Typography>
             
             <div className="info-grid">
-              <Typography variant="subtitle2" className="label">Driver's ID:</Typography>
-              <Typography>{selectedApplication.driversID || 'N/A'}</Typography>
-              
               <Typography variant="subtitle2" className="label">Driver Name:</Typography>
               <Typography>{selectedApplication.driverName}</Typography>
               
