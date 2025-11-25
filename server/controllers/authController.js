@@ -517,7 +517,7 @@ exports.login = async (req, res, next) => {
 // Local signup (create account with username/email/password)
 exports.signup = async (req, res, next) => {
   try {
-    const { name, username, email, password } = req.body;
+    const { name, username, email, password, phoneNumber } = req.body;
     if (!name || !email || !password) return res.status(400).json({ error: 'name, email and password are required' });
 
     // Prevent accidental overwrites
@@ -527,9 +527,15 @@ exports.signup = async (req, res, next) => {
     const existingByUsername = username ? await userAccountRepository.findAccountByUsername(username).catch(() => null) : null;
     if (existingByUsername) return res.status(409).json({ error: 'Username already taken' });
 
-    // Create local account - omit oauthProvider field entirely (not null)
-    const user = await userAccountRepository.createUserAccount({ name, username, email, password });
-    res.status(201).json({ message: 'Account created', user: { id: user._id, name: user.name, email: user.email } });
+    // Create local account with phone number if provided
+    const user = await userAccountRepository.createUserAccount({ 
+      name, 
+      username, 
+      email, 
+      password,
+      phoneNumber: phoneNumber || undefined  // Include phone number if provided
+    });
+    res.status(201).json({ message: 'Account created', user: { id: user._id, name: user.name, email: user.email, phoneNumber: user.phoneNumber } });
   } catch (err) {
     next(err);
   }

@@ -36,7 +36,7 @@ const otpLimiter = createRateLimiter({
 // Create specific rate limiters for different routes
 const authLimiter = createRateLimiter({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 20, // number of allowed attempts
+  max: 10, // number of allowed attempts
   skipSuccessfulRequests: true,
   message: {
     error: 'Too many login attempts from this network, please try again after 15 minutes',
