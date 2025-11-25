@@ -9,10 +9,15 @@ function generateHashedFranchiseNo(franchiseNo) {
 }
 
 // Generate QR code buffer for franchise verification
+// Encodes a hashed franchise number (static)
+// The hash stays the same regardless of owner changes
 async function generateQRCodeBuffer(hashedFranchiseNo) {
   const baseUrl = process.env.BASE_URL || 'http://localhost:5173';
-  const verifyUrl = `${baseUrl}/verify/${hashedFranchiseNo}`;
-  return await QRCode.toBuffer(verifyUrl, { type: 'png', width: 400 });
+  // QR code encodes hashed franchise number (e.g., "a1b2c3d4e5f6g7h8")
+  // Scanner will use /api/qr/scan/{hashedFranchiseNo} endpoint
+  // Backend will unhash and find current owner
+  const verifyUrl = `${baseUrl}/verify/franchise/${hashedFranchiseNo}`;
+  return await QRCode.toBuffer(verifyUrl, { type: 'image/png', width: 400 });
 }
 
 // Handle franchise version control - mark previous as non-current, calculate next version

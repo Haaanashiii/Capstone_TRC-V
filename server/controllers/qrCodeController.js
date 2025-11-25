@@ -2,6 +2,86 @@ const qrCodeService = require('../services/qrCodeService');
 const qrCodeRepository = require('../repositories/qrCodeRepository');
 
 /**
+ * Scan QR code and retrieve franchise information
+ * GET /api/qr/scan/:hashedFranchiseNo
+ * 
+ * SIMPLE: Scan a QR code to get the CURRENT owner's franchise information
+ * INPUT: hashedFranchiseNo from QR code (hashed franchise number - static)
+ * OUTPUT: Current active owner's details - driver name, address, photo, status
+ * 
+ * The QR code is static (doesn't change), but lookup finds current owner
+ */
+exports.scanQRCode = async (req, res, next) => {
+  try {
+    const { hashedFranchiseNo } = req.params;
+    
+    if (!hashedFranchiseNo) {
+      return res.status(400).json({ error: 'Hashed franchise number is required' });
+    }
+    
+    console.log(`[QR SCAN] Scanning QR code with hash: ${hashedFranchiseNo}`);
+    
+    // The hashedFranchiseNo is a static identifier for a franchise number
+    // We need to reverse-lookup the actual franchise number
+    // For now, we'll search by the hash stored in the database
+    const FranchiseInformation = require('../models/franchiseInformationModel');
+    
+    // Find the CURRENT ACTIVE version of this franchise (regardless of owner)
+    // by searching for any franchise with this hash
+    const latestFranchise = await FranchiseInformation.findOne(
+      { 
+        // Search for franchise with matching hash in any chainId
+        $expr: {
+          $eq: [
+            { $substr: [{ $sha256: '$franchiseNumber' }, 0, 16] },
+            hashedFranchiseNo
+          ]
+        },
+        isCurrentVersion: true,
+        franchiseStatus: 'Active'  // Only active franchises
+      }
+    ).select(
+      'franchiseNumber franchiseChainId driverName driversAddress ' +
+      'franchiseStatus documents.driverPictureObj operatorName operatorContactNumber'
+    );
+    
+    if (!latestFranchise) {
+      return res.status(404).json({ 
+        error: 'Franchise not found or not active',
+        hashedFranchiseNo: hashedFranchiseNo,
+        message: 'This franchise number is either inactive, revoked, or does not exist'
+      });
+    }
+    
+    // Construct response with current owner's information
+    const response = {
+      success: true,
+      data: {
+        franchiseNumber: latestFranchise.franchiseNumber,
+        franchiseChainId: latestFranchise.franchiseChainId,
+        franchiseStatus: latestFranchise.franchiseStatus,
+        driver: {
+          name: latestFranchise.driverName,
+          address: latestFranchise.driversAddress,
+          pictureUrl: latestFranchise.documents?.driverPictureObj || null
+        },
+        operator: {
+          name: latestFranchise.operatorName,
+          contactNumber: latestFranchise.operatorContactNumber
+        }
+      }
+    };
+    
+    console.log(`[QR SCAN] Successfully scanned franchise: ${latestFranchise.franchiseNumber} (current owner: ${latestFranchise.franchiseChainId})`);
+    
+    res.status(200).json(response);
+  } catch (error) {
+    console.error('[QR SCAN] Error:', error);
+    next(error);
+  }
+};
+
+/**
  * Generate QR code for an operator
  * POST /api/qr/generate/operator/:operatorId
  * 
@@ -86,7 +166,7 @@ exports.getOperatorQRCode = async (req, res, next) => {
       success: true,
       data: {
         operatorId: operator.userId,
-        driversID: operator.driversID,
+        franchiseNo: operator.franchiseNumber,
         name: `${operator.firstName} ${operator.lastName}`,
         qrCodePath: operator.qrCode,
         qrCodeDataURL: operator.qrCodeDataURL,

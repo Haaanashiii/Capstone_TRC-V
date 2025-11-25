@@ -10,6 +10,26 @@ const authenticate = require('../middlewares/authenticate');
 const authorize = require('../middlewares/authorize');
 
 // ============================================================================
+// PUBLIC ROUTES (No authentication - for QR code scanning at checkpoints)
+// ============================================================================
+
+/**
+ * Scan QR code and retrieve CURRENT franchise information
+ * GET /api/qr/scan/:hashedFranchiseNo
+ * 
+ * PUBLIC: Anyone can scan a QR code to verify current franchise information
+ * The QR code is STATIC (same hash for same franchise number forever)
+ * But lookup returns CURRENT ACTIVE OWNER of that franchise number
+ * 
+ * Example: GET /api/qr/scan/a1b2c3d4e5f6g7h8
+ * Returns: Current owner's driver name, address, photo, franchise status
+ */
+router.get(
+  '/scan/:hashedFranchiseNo',
+  qrCodeController.scanQRCode
+);
+
+// ============================================================================
 // ADMIN ROUTES (Protected - requires authentication and admin role)
 // ============================================================================
 

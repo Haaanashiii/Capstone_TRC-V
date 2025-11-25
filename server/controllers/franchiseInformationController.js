@@ -616,7 +616,6 @@ exports.franchiseQRLookupByHash = async (req, res, next) => {
       franchiseStatus: franchiseInformation.franchiseStatus,
       
       // Driver Information (PRIMARY)
-      driversID: franchiseInformation.driversID,
       driverName: franchiseInformation.driverName,
       driversAddress: franchiseInformation.driversAddress,
       driverPicture: driverPictureUrl,

@@ -41,11 +41,11 @@ exports.storeOperatorQRCode = async (operatorId, qrCodePath, qrCodeDataURL = nul
  */
 exports.getOperatorQRCode = async (operatorId) => {
   let franchise = await FranchiseInformation.findOne({ userId: operatorId })
-    .select('driversID operatorName franchiseStatus qrCode ');
+    .select('operatorName franchiseStatus qrCode ');
   
   if (!franchise) {
     franchise = await FranchiseInformation.findById(operatorId)
-      .select('driversID operatorName franchiseStatus qrCode');
+      .select('operatorName franchiseStatus qrCode');
   }
   
   return franchise;

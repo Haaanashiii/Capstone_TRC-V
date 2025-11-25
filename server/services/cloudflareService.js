@@ -266,13 +266,14 @@ async function uploadFranchiseDocuments(files, applicationId = 'pending') {
 
 /**
  * Move files from franchise-applications folder to franchise-information folder
- * Called after application approval to reorganize files with hashed MTOP
+ * Called after application approval to reorganize files with version control
  * @param {string} userId - User ID (source folder)
  * @param {string} applicationId - Application ID (source folder)
- * @param {string} franchiseNo - Franchise number (destination folder)
+ * @param {string} franchiseChainId - Franchise chain ID (destination folder) - format: "{franchiseNo}-{operatorName}"
+ * @param {number} version - Version number for organization (default 1)
  * @returns {Promise<Object>} Mapping of old URLs to new URLs
  */
-async function moveFranchiseFiles(userId, applicationId, franchiseNo) {
+async function moveFranchiseFiles(userId, applicationId, franchiseChainId, version = 1) {
   try {
     const client = getR2Client();
     const bucketName = process.env.CLOUDFLARE_R2_BUCKET_NAME;
@@ -281,7 +282,7 @@ async function moveFranchiseFiles(userId, applicationId, franchiseNo) {
     }
 
     const sourcePrefix = `TRC-V/franchiseApplications/${userId}/${applicationId}/`;
-    const destPrefix = `TRC-V/franchiseInformations/${franchiseNo}/`;
+    const destPrefix = `TRC-V/franchiseInformations/${franchiseChainId}/version-${version}/`;
 
     console.log(`[CLOUDFLARE] Moving files from ${sourcePrefix} to ${destPrefix}`);
 
@@ -310,7 +311,7 @@ async function moveFranchiseFiles(userId, applicationId, franchiseNo) {
         // Copy file to new location
         const copyCommand = new CopyObjectCommand({
           Bucket: bucketName,
-          CopySource: `${bucketName}/${oldKey}`,
+          CopySource: `/${bucketName}/${oldKey}`,
           Key: newKey,
         });
         await client.send(copyCommand);
