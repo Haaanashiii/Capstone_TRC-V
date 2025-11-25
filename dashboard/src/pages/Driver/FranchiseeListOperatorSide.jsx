@@ -1,35 +1,35 @@
 import React, { useState, useEffect } from "react";
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Box, Typography, Button, Paper, Avatar, TextField, Dialog, DialogTitle, DialogContent, DialogActions, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, IconButton, Menu, MenuItem } from '@mui/material';
 import PersonIcon from '@mui/icons-material/Person';
 import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
 import EditIcon from '@mui/icons-material/Edit';
+import AutorenewIcon from '@mui/icons-material/Autorenew';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import UnifiedNavbar from '../../components/UnifiedNavbar';
 import '../../Styles/Operator\'s_CSS/FranchiseeListOperatorSide.css';
 import dayjs from 'dayjs';
+import { franchiseInformationAPI } from '../Services/api';
 
 function FranchiseeListOperatorSide() {
-  const navigate = useNavigate(); // Must be declared at the top before any useEffect that uses it
+  const navigate = useNavigate();
+  const location = useLocation();
+  const franchiseFromState = location.state?.franchise; // Get franchise from navigation state
   
   const [user, setUser] = useState(null);
   const [language, setLanguage] = useState('en'); // Language state
   const [franchiseStatus, setFranchiseStatus] = useState(null); // Franchise status state
-  const [matchedFranchise, setMatchedFranchise] = useState(null);
+  const [matchedFranchise, setMatchedFranchise] = useState(franchiseFromState || null);
   
   // Modal states
   const [franchiseListModalOpen, setFranchiseListModalOpen] = useState(false);
   const [amendmentModalOpen, setAmendmentModalOpen] = useState(false);
   
-  // Placeholder data for franchise list (will be replaced with actual API data later)
-  // eslint-disable-next-line no-unused-vars
-  const [franchiseList, setFranchiseList] = useState([
-    { id: 1, franchiseNumber: 'FR-2024-001', orNumber: 'OR-123456', status: 'ACTIVE', dateApproved: '2024-01-15' },
-    { id: 2, franchiseNumber: 'FR-2024-002', orNumber: 'OR-123457', status: 'ACTIVE', dateApproved: '2024-02-20' },
-    { id: 3, franchiseNumber: 'FR-2024-003', orNumber: 'OR-123458', status: 'ACTIVE', dateApproved: '2024-03-10' }
-  ]);
+  // User's franchises list (fetched from API)
+  const [franchiseList, setFranchiseList] = useState([]);
+  const [loadingFranchises, setLoadingFranchises] = useState(false);
   
   // Translation object
   const translations = {
@@ -152,6 +152,33 @@ function FranchiseeListOperatorSide() {
 
   
   useEffect(() => {
+    // If franchise data was passed via navigation state, use it directly
+    if (franchiseFromState) {
+      console.log('[FranchiseeListOperatorSide] Using franchise from navigation state:', franchiseFromState);
+      setMatchedFranchise(franchiseFromState);
+      setFranchiseStatus(franchiseFromState.franchiseStatus || 'Active');
+      
+      // Set form fields from franchise data
+      const parsedApproved = franchiseFromState.approvedAt ? dayjs(franchiseFromState.approvedAt) : null;
+      const parsedExpiry = franchiseFromState.expiryDate ? dayjs(franchiseFromState.expiryDate) : null;
+      
+      setFields(prev => ({
+        ...prev,
+        orNumber: franchiseFromState.franchiseNumber || '',
+        franchiseNumber: franchiseFromState.franchiseNumber || '',
+        dateApproved: parsedApproved,
+        expiryDate: parsedExpiry,
+        make: franchiseFromState.unitModel || '',
+        sidecarNumber: franchiseFromState.sideCarPlateNumber || '',
+        plateNumber: franchiseFromState.mvPlateNo || '',
+        chassisNumber: franchiseFromState.chasisNo || '',
+        motorNumber: franchiseFromState.motorEngineNo || ''
+      }));
+      
+      return; // Skip the API fetch since we already have the data
+    }
+
+    // Otherwise, fetch from API (original logic)
     try {
       if (!user) return;
       const storedOwnerUserId = sessionStorage.getItem('franchiseOwnerUserId');
@@ -387,9 +414,9 @@ function FranchiseeListOperatorSide() {
     } catch {
       // ignore
     }
-  }, [user])
+  }, [user, franchiseFromState])
 
-  // When the authenticated user changes, load QR from user.franchise.qrCode (do not regenerate)
+  // When the authenticated user changes or matchedFranchise changes, load QR code
   useEffect(() => {
     let cancelled = false;
     // revoke previous
@@ -403,9 +430,9 @@ function FranchiseeListOperatorSide() {
     }
 
     const fetchQr = async () => {
-      const raw = user?.franchise?.qrCode;
+      const raw = matchedFranchise?.qrCode || user?.franchise?.qrCode;
       if (!raw) {
-        // No qr on user's franchise info; clear any existing blob
+        // No qr available; clear any existing blob
         setQrBlobUrl(null);
         return;
       }
@@ -430,7 +457,7 @@ function FranchiseeListOperatorSide() {
         qrBlobRef.current = obj;
         setQrBlobUrl(obj);
       } catch (err) {
-        console.warn('FranchiseeListOperatorSide: failed to fetch qr blob from user.franchise.qrCode', err);
+        console.warn('FranchiseeListOperatorSide: failed to fetch qr blob', err);
         setQrBlobUrl(null);
       }
     };
@@ -449,7 +476,7 @@ function FranchiseeListOperatorSide() {
       }
       setQrBlobUrl(null);
     };
-  }, [user?.franchise?.qrCode]);
+  }, [matchedFranchise?.qrCode, user?.franchise?.qrCode]);
 
   
   useEffect(() => {
@@ -763,26 +790,83 @@ function FranchiseeListOperatorSide() {
           <div className="id-left">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
               <h3 className="id-title">MOTORIZED TRICYCLE OPERATORS FRANCHISE</h3>
-              <Button
-                variant="contained"
-                startIcon={<EditIcon />}
-                onClick={() => setAmendmentModalOpen(true)}
-                sx={{
-                  bgcolor: '#083d77',
-                  color: '#fff',
-                  fontWeight: 600,
-                  fontSize: 12,
-                  textTransform: 'none',
-                  borderRadius: 1,
-                  px: 2,
-                  py: 0.5,
-                  '&:hover': {
-                    bgcolor: '#062d5c'
+              <Box sx={{ display: 'flex', gap: 1 }}>
+                {/* Show Renewal button if franchise expires within 3 months or is expired */}
+                {(() => {
+                  const expiryDate = fields.expiryDate && fields.expiryDate.isValid && fields.expiryDate.isValid() 
+                    ? fields.expiryDate 
+                    : (matchedFranchise?.expiryDate ? dayjs(matchedFranchise.expiryDate) : null);
+                  
+                  if (expiryDate && expiryDate.isValid()) {
+                    const today = dayjs();
+                    const threeMonthsFromNow = today.add(3, 'month');
+                    const isExpiringSoon = expiryDate.isBefore(threeMonthsFromNow) || expiryDate.isSame(threeMonthsFromNow, 'day');
+                    
+                    if (isExpiringSoon) {
+                      return (
+                        <Button
+                          variant="contained"
+                          startIcon={<AutorenewIcon />}
+                          onClick={() => {
+                            // Navigate to franchise application with renewal data
+                            navigate('/operator/franchise', {
+                              state: {
+                                applicationType: 'renewal',
+                                previousFranchiseId: matchedFranchise?._id,
+                                franchiseNumber: fields.franchiseNumber,
+                                dateApproved: fields.dateApproved,
+                                expiryDate: fields.expiryDate,
+                                make: fields.make,
+                                sidecarNumber: fields.sidecarNumber,
+                                plateNumber: fields.plateNumber,
+                                chassisNumber: fields.chassisNumber,
+                                motorNumber: fields.motorNumber
+                              }
+                            });
+                          }}
+                          sx={{
+                            bgcolor: '#27ae60',
+                            color: '#fff',
+                            fontWeight: 600,
+                            fontSize: 12,
+                            textTransform: 'none',
+                            borderRadius: 1,
+                            px: 2,
+                            py: 0.5,
+                            '&:hover': {
+                              bgcolor: '#229954'
+                            }
+                          }}
+                        >
+                          Renew Franchise
+                        </Button>
+                      );
+                    }
                   }
-                }}
-              >
-                Make Amendment
-              </Button>
+                  return null;
+                })()}
+                
+                <Button
+                  variant="contained"
+                  startIcon={<EditIcon />}
+                  onClick={() => setAmendmentModalOpen(true)}
+                  sx={{
+                    bgcolor: '#083d77',
+                    color: '#fff',
+                    fontWeight: 600,
+                    fontSize: 12,
+                    textTransform: 'none',
+                    borderRadius: 1,
+                    px: 2,
+                    py: 0.5,
+                    '&:hover': {
+                      bgcolor: '#062d5c'
+                    }
+                  }}
+                >
+                  Make Amendment
+                </Button>
+              </Box>
             </div>
             <div className="divider" />
 
@@ -832,10 +916,10 @@ function FranchiseeListOperatorSide() {
           </div>
 
           <div className="id-right">
-            <div className="qr-container" aria-hidden={user?.franchise?.qrCode ? 'false' : 'true'}>
-              {user?.franchise?.qrCode ? (
+            <div className="qr-container" aria-hidden={(matchedFranchise?.qrCode || user?.franchise?.qrCode) ? 'false' : 'true'}>
+              {(matchedFranchise?.qrCode || user?.franchise?.qrCode) ? (
                 (() => {
-                  const raw = user.franchise.qrCode;
+                  const raw = matchedFranchise?.qrCode || user?.franchise?.qrCode;
                   const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170').replace(/\/$/, '');
                   let serverUrl = /^https?:\/\//i.test(raw) ? raw : (API_BASE_URL + (raw.startsWith('/') ? raw : '/' + raw));
                   // If R2 scheme or public R2 URL, point to backend proxy URL as fallback
@@ -859,7 +943,7 @@ function FranchiseeListOperatorSide() {
           </div>
         </div>
         {/* external badge: positioned relative to the wrapper so its right edge matches the card's right edge */}
-        <div className="driver-id-badge">ID NO: {user?.operatorId || user?.id?.toString().slice(-4) || '0000'}</div>
+        <div className="driver-id-badge">ID NO: {matchedFranchise?.franchiseNumber || fields.franchiseNumber || '0000'}</div>
       </div>
 
       {/* Franchise List Modal */}
@@ -868,110 +952,125 @@ function FranchiseeListOperatorSide() {
         onClose={() => setFranchiseListModalOpen(false)}
         maxWidth="md"
         fullWidth
+        onTransitionEnter={() => {
+          // Fetch franchises when modal opens
+          const userId = user?._id || user?.id;
+          if (userId) {
+            setLoadingFranchises(true);
+            franchiseInformationAPI.getByUser(userId)
+              .then(response => {
+                if (response.data?.success && Array.isArray(response.data.data)) {
+                  setFranchiseList(response.data.data);
+                }
+              })
+              .catch(err => console.error('Failed to fetch franchises:', err))
+              .finally(() => setLoadingFranchises(false));
+          }
+        }}
       >
         <DialogTitle sx={{ bgcolor: '#083d77', color: '#fff', fontWeight: 700 }}>
           Active Franchises
         </DialogTitle>
         <DialogContent sx={{ mt: 2 }}>
-          {/* Desktop Table View */}
-          <Box sx={{ display: { xs: 'none', md: 'block' } }}>
-            <TableContainer component={Paper} elevation={0}>
-              <Table>
-                <TableHead>
-                  <TableRow sx={{ bgcolor: '#f5f7fa' }}>
-                    <TableCell sx={{ fontWeight: 700 }}>Franchise Number</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }}>OR Number</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }}>Status</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }}>Date Approved</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {franchiseList.map((franchise) => (
-                    <TableRow key={franchise.id} hover sx={{ cursor: 'pointer' }}>
-                      <TableCell>{franchise.franchiseNumber}</TableCell>
-                      <TableCell>{franchise.orNumber}</TableCell>
-                      <TableCell>
-                        <span style={{ 
-                          color: '#2ecc71', 
-                          fontWeight: 600,
-                          padding: '4px 12px',
-                          borderRadius: 4,
-                          backgroundColor: '#e8f8f0'
-                        }}>
-                          {franchise.status}
-                        </span>
-                      </TableCell>
-                      <TableCell>{franchise.dateApproved}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </Box>
-
-          {/* Mobile Card View */}
-          <Box sx={{ display: { xs: 'block', md: 'none' } }}>
-            {franchiseList.map((franchise) => (
-              <Paper
-                key={franchise.id}
-                elevation={2}
-                sx={{
-                  p: 2,
-                  mb: 2,
-                  borderRadius: 2,
-                  cursor: 'pointer',
-                  '&:hover': {
-                    bgcolor: '#f5f7fa',
-                    boxShadow: 3
-                  }
-                }}
-              >
-                <Box sx={{ mb: 1.5 }}>
-                  <Typography sx={{ fontSize: 12, color: '#666', mb: 0.5 }}>
-                    Franchise Number
-                  </Typography>
-                  <Typography sx={{ fontSize: 16, fontWeight: 700, color: '#083d77' }}>
-                    {franchise.franchiseNumber}
-                  </Typography>
-                </Box>
-                <Box sx={{ mb: 1.5 }}>
-                  <Typography sx={{ fontSize: 12, color: '#666', mb: 0.5 }}>
-                    OR Number
-                  </Typography>
-                  <Typography sx={{ fontSize: 14, fontWeight: 600 }}>
-                    {franchise.orNumber}
-                  </Typography>
-                </Box>
-                <Box sx={{ mb: 1.5 }}>
-                  <Typography sx={{ fontSize: 12, color: '#666', mb: 0.5 }}>
-                    Status
-                  </Typography>
-                  <Box
-                    component="span"
+          {loadingFranchises ? (
+            <Box sx={{ textAlign: 'center', py: 4 }}>
+              <Typography color="text.secondary">Loading franchises...</Typography>
+            </Box>
+          ) : franchiseList.length === 0 ? (
+            <Box sx={{ textAlign: 'center', py: 4 }}>
+              <Typography color="text.secondary">No franchises found</Typography>
+            </Box>
+          ) : (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              {franchiseList.map((franchise) => {
+                const isCurrentFranchise = matchedFranchise?._id === franchise._id || 
+                                          matchedFranchise?.franchiseNumber === franchise.franchiseNumber;
+                return (
+                  <Paper
+                    key={franchise._id}
+                    elevation={isCurrentFranchise ? 4 : 2}
+                    onClick={() => {
+                      // Switch to this franchise
+                      setMatchedFranchise(franchise);
+                      setFranchiseStatus(franchise.franchiseStatus);
+                      
+                      // Update form fields
+                      const parsedApproved = franchise.approvedAt ? dayjs(franchise.approvedAt) : null;
+                      const parsedExpiry = franchise.expiryDate ? dayjs(franchise.expiryDate) : null;
+                      
+                      setFields({
+                        orNumber: franchise.franchiseNumber || '',
+                        franchiseNumber: franchise.franchiseNumber || '',
+                        dateApproved: parsedApproved,
+                        expiryDate: parsedExpiry,
+                        make: franchise.unitModel || '',
+                        sidecarNumber: franchise.sideCarPlateNumber || '',
+                        plateNumber: franchise.mvPlateNo || '',
+                        chassisNumber: franchise.chasisNo || '',
+                        motorNumber: franchise.motorEngineNo || ''
+                      });
+                      
+                      setFranchiseListModalOpen(false);
+                    }}
                     sx={{
-                      display: 'inline-block',
-                      color: '#2ecc71',
-                      fontWeight: 600,
-                      padding: '6px 16px',
-                      borderRadius: 1,
-                      backgroundColor: '#e8f8f0',
-                      fontSize: 14
+                      p: 2,
+                      borderRadius: 2,
+                      border: isCurrentFranchise ? '2px solid #083d77' : '2px solid transparent',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                      bgcolor: isCurrentFranchise ? '#f0f7ff' : 'transparent',
+                      '&:hover': {
+                        borderColor: '#083d77',
+                        boxShadow: 4
+                      }
                     }}
                   >
-                    {franchise.status}
-                  </Box>
-                </Box>
-                <Box>
-                  <Typography sx={{ fontSize: 12, color: '#666', mb: 0.5 }}>
-                    Date Approved
-                  </Typography>
-                  <Typography sx={{ fontSize: 14, fontWeight: 600 }}>
-                    {franchise.dateApproved}
-                  </Typography>
-                </Box>
-              </Paper>
-            ))}
-          </Box>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
+                      <Box>
+                        <Typography sx={{ fontSize: 12, color: '#666', mb: 0.5 }}>
+                          Franchise Number
+                        </Typography>
+                        <Typography sx={{ fontSize: 18, fontWeight: 700, color: '#083d77' }}>
+                          {franchise.franchiseNumber}
+                        </Typography>
+                      </Box>
+                      <Box
+                        sx={{
+                          display: 'inline-block',
+                          color: franchise.franchiseStatus === 'Active' ? '#2ecc71' : '#e74c3c',
+                          fontWeight: 600,
+                          padding: '6px 16px',
+                          borderRadius: 1,
+                          backgroundColor: franchise.franchiseStatus === 'Active' ? '#e8f8f0' : '#ffe8e8',
+                          fontSize: 14
+                        }}
+                      >
+                        {franchise.franchiseStatus || 'Active'}
+                      </Box>
+                    </Box>
+                    <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
+                      <Box>
+                        <Typography sx={{ fontSize: 12, color: '#666', mb: 0.5 }}>
+                          Date Approved
+                        </Typography>
+                        <Typography sx={{ fontSize: 14, fontWeight: 600 }}>
+                          {franchise.approvedAt ? new Date(franchise.approvedAt).toLocaleDateString() : 'N/A'}
+                        </Typography>
+                      </Box>
+                      <Box>
+                        <Typography sx={{ fontSize: 12, color: '#666', mb: 0.5 }}>
+                          Expiry Date
+                        </Typography>
+                        <Typography sx={{ fontSize: 14, fontWeight: 600 }}>
+                          {franchise.expiryDate ? new Date(franchise.expiryDate).toLocaleDateString() : 'N/A'}
+                        </Typography>
+                      </Box>
+                    </Box>
+                  </Paper>
+                );
+              })}
+            </Box>
+          )}
         </DialogContent>
         <DialogActions sx={{ p: 2 }}>
           <Button 

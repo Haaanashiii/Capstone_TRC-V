@@ -135,6 +135,22 @@ router.get(
 );
 
 /**
+ * GET /franchise-information/by-user/:userId
+ * Get all active franchises for a specific user
+ * PROTECTED - User must be authenticated
+ * 
+ * Returns:
+ * - All current franchises linked to the user
+ * - Only current versions (isCurrentVersion: true)
+ * - Sorted by franchise number
+ */
+router.get(
+  '/by-user/:userId',
+  authenticate,
+  franchiseInformationController.getFranchisesByUser
+);
+
+/**
  * GET /franchise-information/:id
  * Get specific franchise by ID (any version)
  * PROTECTED - Admin only
