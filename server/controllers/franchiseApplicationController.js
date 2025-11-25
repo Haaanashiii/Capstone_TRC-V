@@ -528,10 +528,22 @@ exports.approveFranchiseByBPLO = async (req, res, next) => {
     if (application.applicationType === 'new' && !application.franchiseNumber) {
       try {
         // Get available franchise numbers
+        // Check TWO sources:
+        // 1. FranchiseInformation (completed franchises)
+        // 2. FranchiseApplication (pending applications with assigned numbers)
+        
         const FranchiseInformation = require('../models/franchiseInformationModel');
         const allCurrentFranchises = await FranchiseInformation.find({
           isCurrentVersion: true
         }).select('franchiseNumber franchiseStatus expiryDate').lean().exec();
+        
+        // CRITICAL: Also check pending applications to avoid duplicate assignments
+        // Get all applications that have been assigned a franchise number (bplo-approved or later)
+        const allPendingApplications = await FranchiseApplication.find({
+          applicationType: 'new',
+          franchiseNumber: { $exists: true, $ne: null },
+          statusOfBPLO: { $in: ['bplo-approved', 'awaiting-sb', 'sb-approved', 'completed'] }
+        }).select('franchiseNumber').lean().exec();
         
         const now = new Date();
         const threeYearsAgo = new Date(now);
@@ -540,6 +552,7 @@ exports.approveFranchiseByBPLO = async (req, res, next) => {
         const franchiseMap = new Map();
         let latestNumber = 0;
         
+        // Add completed franchises to the map
         for (const franchise of allCurrentFranchises) {
           const numberMatch = franchise.franchiseNumber.match(/^(\d{1,4})$/);
           if (!numberMatch) continue;
@@ -551,13 +564,26 @@ exports.approveFranchiseByBPLO = async (req, res, next) => {
           const isExpired3Years = franchise.expiryDate && new Date(franchise.expiryDate) <= threeYearsAgo;
           const isAvailable = isRevoked && isExpired3Years;
           
-          franchiseMap.set(franchiseNum, { available: isAvailable });
+          franchiseMap.set(franchiseNum, { available: isAvailable, reserved: false });
+        }
+        
+        // Add pending applications to mark numbers as RESERVED (in use)
+        for (const pendingApp of allPendingApplications) {
+          const numberMatch = pendingApp.franchiseNumber.match(/^(\d{1,4})$/);
+          if (!numberMatch) continue;
+          
+          const franchiseNum = parseInt(numberMatch[1], 10);
+          latestNumber = Math.max(latestNumber, franchiseNum);
+          
+          // Mark this number as reserved (being processed)
+          franchiseMap.set(franchiseNum, { available: false, reserved: true });
         }
         
         // Find first available gap or use next number
         let assignedNumber = null;
         for (let i = 1; i <= latestNumber; i++) {
           const franchise = franchiseMap.get(i);
+          // Only use if it exists AND is available (not reserved and not in use)
           if (!franchise || franchise.available) {
             assignedNumber = i;
             break;
@@ -570,7 +596,7 @@ exports.approveFranchiseByBPLO = async (req, res, next) => {
         
         const franchiseNumber = String(assignedNumber).padStart(4, '0');
         updateData.franchiseNumber = franchiseNumber;
-        console.log('[BPLO Approval] Assigned franchise number:', franchiseNumber, 'to application:', id);
+        console.log('[BPLO Approval] Assigned franchise number:', franchiseNumber, 'to application:', id, '| Reserved numbers:', Array.from(franchiseMap.entries()).filter(([_, v]) => v.reserved).map(([k]) => String(k).padStart(4, '0')).join(', '));
       } catch (numberError) {
         console.error('[BPLO Approval] Failed to assign franchise number:', numberError.message);
         // Continue without franchise number assignment - can be assigned manually later
@@ -672,8 +698,8 @@ exports.disapproveFranchiseByBPLO = async (req, res, next) => {
     // Non-blocking: email failures should not prevent disapproval
     if (updated.operatorEmail) {
       try {
-        const notificationService = require('../services/notificationService');
-        await notificationService.sendBPLODisapprovalNotification(updated, reason);
+        const { sendFranchiseDisapprovalEmail } = require('../services/emailService');
+        await sendFranchiseDisapprovalEmail(updated.operatorEmail, updated.operatorName, reason);
         console.log('[BPLO Disapproval] Email notification sent to:', updated.operatorEmail);
       } catch (emailError) {
         console.warn('[BPLO Disapproval] Failed to send email notification:', emailError.message);
@@ -889,7 +915,7 @@ exports.approveFranchiseBySBAdmin = async (req, res, next) => {
         file.buffer, 
         file.originalname, 
         file.mimetype, 
-        { baseFolder: 'franchiseApplications', subFolder: 'resolutions', applicationId: id, category: 'Documentations' }
+        { baseFolder: 'franchiseApplications', subFolder: application.operatorInfo || 'pending', applicationId: id, category: 'Documentations' }
       );
       updateData.sbResolutionDocument = result.cloudflare;
       console.log('[SB Approval] Resolution document uploaded:', result.cloudflare);
@@ -1063,7 +1089,7 @@ exports.sbAdminAcceptNewFranchise = async (req, res, next) => {
       const hashedFranchiseNo = generateHashedFranchiseNo(franchiseNo);
       const qrBuffer = await generateQRCodeBuffer(hashedFranchiseNo);
       qrResult = await uploadFile(qrBuffer, `qr-${franchiseNo}.png`, 'image/png',
-        { baseFolder: 'franchiseInformations', subFolder: franchiseChainId, category: 'QRCode', customKey: `version-1/QRCode/qr-${franchiseNo}.png` });
+        { baseFolder: 'franchiseInformations', subFolder: `${franchiseNo}/${franchiseChainId}`, category: 'QRCode', customKey: `version-1/QRCode/qr-${franchiseNo}.png` });
       console.log('[sbAdminAcceptNewFranchise] New franchise number:', franchiseNo, '- Generated static QR code with hash:', hashedFranchiseNo);
     }
     
@@ -1072,19 +1098,19 @@ exports.sbAdminAcceptNewFranchise = async (req, res, next) => {
     
     // Upload SB documents
     let scannedReg, sessionReport;
-    if (files) {
-      if (files.scannedSignedRegistrationObj) {
-        const file = files.scannedSignedRegistrationObj[0];
+    if (req.files) {
+      if (req.files.scannedSignedRegistrationObj) {
+        const file = req.files.scannedSignedRegistrationObj[0];
         validateFile(file);
         const result = await uploadFile(file.buffer, file.originalname, file.mimetype,
-          { baseFolder: 'franchiseInformations', subFolder: franchiseChainId, category: 'Documentations', customKey: `version-${version}/Documentations/${file.originalname}` });
+          { baseFolder: 'franchiseInformations', subFolder: `${franchiseNo}/${franchiseChainId}`, category: 'Documentations', customKey: `version-${version}/Documentations/${file.originalname}` });
         scannedReg = result.cloudflare;
       }
-      if (files.individualSessionReportObj) {
-        const file = files.individualSessionReportObj[0];
+      if (req.files.individualSessionReportObj) {
+        const file = req.files.individualSessionReportObj[0];
         validateFile(file);
         const result = await uploadFile(file.buffer, file.originalname, file.mimetype,
-          { baseFolder: 'franchiseInformations', subFolder: franchiseChainId, category: 'Documentations', customKey: `version-${version}/Documentations/${file.originalname}` });
+          { baseFolder: 'franchiseInformations', subFolder: `${franchiseNo}/${franchiseChainId}`, category: 'Documentations', customKey: `version-${version}/Documentations/${file.originalname}` });
         sessionReport = result.cloudflare;
       }
     }
@@ -1092,8 +1118,8 @@ exports.sbAdminAcceptNewFranchise = async (req, res, next) => {
     // Move files from applications → information (both local and cloud)
     const userId = application.operatorInfo || 'pending';
     const appId = String(application._id);
-    await moveFilesToInformation(userId, appId, franchiseChainId, version); // Local
-    const urlMapping = await moveFranchiseFiles(userId, appId, franchiseChainId, version); // Cloud - now handles the version folder
+    await moveFilesToInformation(userId, appId, franchiseNo, franchiseChainId, version); // Local
+    const urlMapping = await moveFranchiseFiles(userId, appId, franchiseNo, franchiseChainId, version); // Cloud - now handles the version folder
     
     // Create FranchiseInformation record within transaction
     const franchiseData = {
@@ -1136,7 +1162,8 @@ exports.sbAdminAcceptNewFranchise = async (req, res, next) => {
         oRLTOObj: urlMapping[application.documents?.oRLTOObj] || application.documents?.oRLTOObj,
         cRLTOObj: urlMapping[application.documents?.cRLTOObj] || application.documents?.cRLTOObj,
         oRTreasurerOfficeObj: urlMapping[application.documents?.oRTreasurerOfficeObj] || application.documents?.oRTreasurerOfficeObj,
-        individualSessionReportObj: sessionReport
+        individualSessionReportObj: sessionReport,
+        resolutionDocumentObj: application.sbResolutionDocument // Add SB resolution document
       },
       version,
       isCurrentVersion: true,
@@ -1149,6 +1176,10 @@ exports.sbAdminAcceptNewFranchise = async (req, res, next) => {
     
     const FranchiseInformationModel = require('../models/franchiseInformationModel');
     const franchise = await FranchiseInformationModel.create([franchiseData], { session });
+    console.log('[sbAdminAcceptNewFranchise] Franchise created with resolution document:', {
+      franchiseNumber: franchiseNo,
+      resolutionDocument: franchiseData.documents?.resolutionDocumentObj ? '✓ Saved' : '✗ Not found'
+    });
     
     // Link franchise to user's franchiseInformation array
     if (application.operatorInfo) {
@@ -1188,8 +1219,8 @@ exports.sbAdminAcceptNewFranchise = async (req, res, next) => {
     // Send notification to user
     if (franchise[0].operatorEmail) {
       try {
-        const notificationService = require('../services/notificationService');
-        await notificationService.sendFranchiseCreatedNotification(franchise[0]);
+        const { sendFranchiseCreatedEmail } = require('../services/emailService');
+        await sendFranchiseCreatedEmail(franchise[0].operatorEmail, franchise[0].operatorName, franchise[0].franchiseNumber);
         console.log('[sbAdminAcceptNewFranchise] Email notification sent to:', franchise[0].operatorEmail);
       } catch (emailError) {
         console.warn('[sbAdminAcceptNewFranchise] Failed to send email notification:', emailError.message);
@@ -1264,19 +1295,19 @@ exports.sbAdminAcceptRenewOrAmendment = async (req, res, next) => {
     
     // Upload new docs
     let scannedReg, sessionReport;
-    if (files) {
-      if (files.scannedSignedRegistrationObj) {
-        const file = files.scannedSignedRegistrationObj[0];
+    if (req.files) {
+      if (req.files.scannedSignedRegistrationObj) {
+        const file = req.files.scannedSignedRegistrationObj[0];
         validateFile(file);
         const result = await uploadFile(file.buffer, file.originalname, file.mimetype,
-          { baseFolder: 'franchiseInformations', subFolder: franchiseChainId, category: 'Documentations', customKey: `version-${version}/Documentations/${file.originalname}` });
+          { baseFolder: 'franchiseInformations', subFolder: `${franchiseNo}/${franchiseChainId}`, category: 'Documentations', customKey: `version-${version}/Documentations/${file.originalname}` });
         scannedReg = result.cloudflare;
       }
-      if (files.individualSessionReportObj) {
-        const file = files.individualSessionReportObj[0];
+      if (req.files.individualSessionReportObj) {
+        const file = req.files.individualSessionReportObj[0];
         validateFile(file);
         const result = await uploadFile(file.buffer, file.originalname, file.mimetype,
-          { baseFolder: 'franchiseInformations', subFolder: franchiseChainId, category: 'Documentations', customKey: `version-${version}/Documentations/${file.originalname}` });
+          { baseFolder: 'franchiseInformations', subFolder: `${franchiseNo}/${franchiseChainId}`, category: 'Documentations', customKey: `version-${version}/Documentations/${file.originalname}` });
         sessionReport = result.cloudflare;
       }
     }
@@ -1293,7 +1324,7 @@ exports.sbAdminAcceptRenewOrAmendment = async (req, res, next) => {
       const hashedFranchiseNo = generateHashedFranchiseNo(franchiseNo);
       const qrBuffer = await generateQRCodeBuffer(hashedFranchiseNo);
       qrResult = await uploadFile(qrBuffer, `qr-${franchiseNo}.png`, 'image/png',
-        { baseFolder: 'franchiseInformations', subFolder: franchiseChainId, category: 'QRCode', customKey: `version-${version}/QRCode/qr-${franchiseNo}.png` });
+        { baseFolder: 'franchiseInformations', subFolder: `${franchiseNo}/${franchiseChainId}`, category: 'QRCode', customKey: `version-${version}/QRCode/qr-${franchiseNo}.png` });
       console.log('[sbAdminAcceptRenewOrAmendment] Generated static QR code with hash:', hashedFranchiseNo);
     }
     
@@ -1324,7 +1355,8 @@ exports.sbAdminAcceptRenewOrAmendment = async (req, res, next) => {
         operatorPictureObj: application.documents?.operatorPictureObj || existingFranchise.documents?.operatorPictureObj,
         oRLTOObj: application.documents?.oRLTOObj || existingFranchise.documents?.oRLTOObj,
         cRLTOObj: application.documents?.cRLTOObj || existingFranchise.documents?.cRLTOObj,
-        oRTreasurerOfficeObj: application.documents?.oRTreasurerOfficeObj || existingFranchise.documents?.oRTreasurerOfficeObj
+        oRTreasurerOfficeObj: application.documents?.oRTreasurerOfficeObj || existingFranchise.documents?.oRTreasurerOfficeObj,
+        resolutionDocumentObj: application.sbResolutionDocument || existingFranchise.documents?.resolutionDocumentObj // Add SB resolution document
       },
       relatedApplicationId: application._id
     };
@@ -1356,6 +1388,12 @@ exports.sbAdminAcceptRenewOrAmendment = async (req, res, next) => {
     
     const FranchiseInformationModel = require('../models/franchiseInformationModel');
     const newFranchise = await FranchiseInformationModel.create([newVersionData], { session });
+    console.log('[sbAdminAcceptRenewOrAmendment] New franchise version created with resolution document:', {
+      franchiseNumber: franchiseNo,
+      applicationType: application.applicationType,
+      version: newVersionData.version,
+      resolutionDocument: newVersionData.documents?.resolutionDocumentObj ? '✓ Saved' : '✗ Not found'
+    });
     
     // Link franchise to user's franchiseInformation array (for ownership updates)
     if (application.applicationType === 'update_ownership' && application.operatorInfo) {
@@ -1395,8 +1433,8 @@ exports.sbAdminAcceptRenewOrAmendment = async (req, res, next) => {
     // Send notification to user
     if (newFranchise[0].operatorEmail) {
       try {
-        const notificationService = require('../services/notificationService');
-        await notificationService.sendFranchiseUpdatedNotification(newFranchise[0], application.applicationType);
+        const { sendFranchiseUpdatedEmail } = require('../services/emailService');
+        await sendFranchiseUpdatedEmail(newFranchise[0].operatorEmail, newFranchise[0].operatorName, newFranchise[0].franchiseNumber, application.applicationType);
         console.log('[sbAdminAcceptRenewOrAmendment] Email notification sent to:', newFranchise[0].operatorEmail);
       } catch (emailError) {
         console.warn('[sbAdminAcceptRenewOrAmendment] Failed to send email notification:', emailError.message);

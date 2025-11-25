@@ -269,11 +269,12 @@ async function uploadFranchiseDocuments(files, applicationId = 'pending') {
  * Called after application approval to reorganize files with version control
  * @param {string} userId - User ID (source folder)
  * @param {string} applicationId - Application ID (source folder)
- * @param {string} franchiseChainId - Franchise chain ID (destination folder) - format: "{franchiseNo}-{operatorName}"
+ * @param {string} franchiseNo - Franchise number (destination folder level 1)
+ * @param {string} franchiseChainId - Franchise chain ID (destination folder level 2) - format: "{franchiseNo}-{operatorName}"
  * @param {number} version - Version number for organization (default 1)
  * @returns {Promise<Object>} Mapping of old URLs to new URLs
  */
-async function moveFranchiseFiles(userId, applicationId, franchiseChainId, version = 1) {
+async function moveFranchiseFiles(userId, applicationId, franchiseNo, franchiseChainId, version = 1) {
   try {
     const client = getR2Client();
     const bucketName = process.env.CLOUDFLARE_R2_BUCKET_NAME;
@@ -282,7 +283,7 @@ async function moveFranchiseFiles(userId, applicationId, franchiseChainId, versi
     }
 
     const sourcePrefix = `TRC-V/franchiseApplications/${userId}/${applicationId}/`;
-    const destPrefix = `TRC-V/franchiseInformations/${franchiseChainId}/version-${version}/`;
+    const destPrefix = `TRC-V/franchiseInformations/${franchiseNo}/${franchiseChainId}/version-${version}/`;
 
     console.log(`[CLOUDFLARE] Moving files from ${sourcePrefix} to ${destPrefix}`);
 

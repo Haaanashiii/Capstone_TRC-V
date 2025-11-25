@@ -414,4 +414,402 @@ async function sendFranchiseExpiryEmail(to, operatorName, mtopNumber, expiryDate
   }
 }
 
-module.exports = { sendOTPEmail, sendFranchiseExpiryEmail, sendViaGmailApi };
+/**
+ * Send franchise created/accepted notification email
+ */
+async function sendFranchiseCreatedEmail(to, operatorName, franchiseNumber) {
+  const email = String(to || '').trim();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    throw new Error('Invalid recipient email address');
+  }
+  
+  const fromName = process.env.EMAIL_FROM_NAME || 'TRC-V';
+  const fromAddress = process.env.EMAIL_FROM || process.env.EMAIL_USER;
+  if (!fromAddress) {
+    throw new Error('EMAIL_FROM must be configured');
+  }
+  
+  const mailOptions = {
+    from: `${fromName} <${fromAddress}>`,
+    to: email,
+    subject: `Franchise Approved - License #${franchiseNumber} Ready to Claim`,
+    text: `Dear ${operatorName},\n\nCongratulations! Your franchise application has been approved. Your franchise license number is ${franchiseNumber}.\n\nPlease login to your TRC-V account to view your franchise details and download your certificate.`,
+    html: `
+      <!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Franchise Approved - TRC-V</title>
+        <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+      </head>
+      <body style="margin: 0; padding: 0; font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f5f5f5;">
+        <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f5f5f5;">
+          <tr>
+            <td style="padding: 40px 20px;">
+              <table role="presentation" style="max-width: 600px; width: 100%; margin: 0 auto; background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.07); overflow: hidden;">
+                
+                <!-- Header with Logo -->
+                <tr>
+                  <td style="background: linear-gradient(135deg, #10b981 0%, #34d399 100%); padding: 35px 40px;">
+                    <table role="presentation" style="width: 100%;">
+                      <tr>
+                        <td style="width: 80px; vertical-align: middle;">
+                          <img src="cid:logo" alt="TRC-V Logo" style="width: 70px; height: 70px; display: block;" />
+                        </td>
+                        <td style="vertical-align: middle; padding-left: 20px;">
+                          <h1 style="color: #ffffff; margin: 0; font-size: 32px; font-weight: 700; letter-spacing: 1px; font-family: 'Poppins', sans-serif;">TRC-V</h1>
+                          <p style="color: #d1fae5; margin: 5px 0 0 0; font-size: 14px; font-family: 'Poppins', sans-serif; font-weight: 400;">Tricycle Verification System</p>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+                
+                <!-- Main Content -->
+                <tr>
+                  <td style="padding: 45px 40px;">
+                    <h2 style="color: #1e293b; margin: 0 0 15px 0; font-size: 28px; font-weight: 700; text-align: center; font-family: 'Poppins', sans-serif;">🎉 Congratulations!</h2>
+                    <p style="color: #64748b; font-size: 16px; line-height: 1.6; margin: 0 0 30px 0; text-align: center; font-family: 'Poppins', sans-serif;">
+                      Your franchise application has been <strong style="color: #10b981;">approved</strong> by the Sangguniang Bayan!
+                    </p>
+                    
+                    <!-- License Info Box -->
+                    <div style="background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%); border: 2px solid #10b981; border-radius: 10px; padding: 30px; text-align: center; margin: 35px 0;">
+                      <p style="color: #64748b; font-size: 14px; margin: 0 0 15px 0; font-family: 'Poppins', sans-serif;">Your Franchise License Number</p>
+                      <p style="color: #10b981; font-size: 48px; font-weight: 700; margin: 0; font-family: 'Poppins', monospace; letter-spacing: 4px;">${franchiseNumber}</p>
+                      <p style="color: #64748b; font-size: 12px; margin: 15px 0 0 0; font-family: 'Poppins', sans-serif;">Keep this number for your records</p>
+                    </div>
+                    
+                    <!-- Next Steps -->
+                    <div style="background-color: #f0fdf4; border-left: 4px solid #10b981; padding: 20px; margin: 30px 0; border-radius: 6px;">
+                      <h3 style="color: #1e293b; margin: 0 0 15px 0; font-size: 16px; font-weight: 600; font-family: 'Poppins', sans-serif;">Next Steps:</h3>
+                      <ol style="color: #64748b; font-size: 14px; line-height: 1.8; margin: 0; padding-left: 20px; font-family: 'Poppins', sans-serif;">
+                        <li>Login to your TRC-V account</li>
+                        <li>Navigate to your franchise dashboard</li>
+                        <li>Download your franchise certificate and QR code</li>
+                        <li>Keep your franchise documents safe</li>
+                      </ol>
+                    </div>
+                    
+                    <div style="text-align: center; margin: 30px 0;">
+                      <a href="${process.env.BASE_URL || 'http://localhost:5173'}/operator/franchise" style="display: inline-block; background: linear-gradient(135deg, #10b981 0%, #34d399 100%); color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 16px; font-family: 'Poppins', sans-serif;">
+                        View Your Franchise
+                      </a>
+                    </div>
+                    
+                    <p style="color: #94a3b8; font-size: 13px; text-align: center; margin: 25px 0 0 0; line-height: 1.5; font-family: 'Poppins', sans-serif;">
+                      If you have any questions, please contact the Municipal Transportation Office.
+                    </p>
+                  </td>
+                </tr>
+                
+                <!-- Footer -->
+                <tr>
+                  <td style="background-color: #f8fafc; padding: 30px 40px; text-align: center; border-top: 1px solid #e2e8f0;">
+                    <p style="color: #94a3b8; font-size: 13px; margin: 0 0 8px 0; line-height: 1.5; font-family: 'Poppins', sans-serif;">
+                      <strong style="color: #64748b;">TRC-V System</strong><br>
+                      Tricycle Regulatory Compliance & Verification
+                    </p>
+                    <p style="color: #cbd5e1; font-size: 12px; margin: 5px 0; font-family: 'Poppins', sans-serif;">
+                      © ${new Date().getFullYear()} TRC-V. All rights reserved.
+                    </p>
+                    <p style="color: #cbd5e1; font-size: 11px; margin: 5px 0 0 0; font-family: 'Poppins', sans-serif;">
+                      This is an automated notification. Please do not reply to this email.
+                    </p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </body>
+      </html>
+    `,
+    attachments: [{
+      filename: 'TRC-vLogo.png',
+      path: path.join(__dirname, '..', '..', 'dashboard', 'src', 'assets', 'TRC-vLogo.png'),
+      cid: 'logo'
+    }]
+  };
+  
+  try {
+    const info = await sendViaGmailApi(mailOptions);
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[EmailService] Franchise created email sent:', info && info.messageId ? info.messageId : info);
+    }
+    return info;
+  } catch (err) {
+    const errMsg = err && err.message ? err.message : String(err);
+    throw new Error(`Failed to send franchise created email: ${errMsg}`);
+  }
+}
+
+/**
+ * Send franchise renewed/amended notification email
+ */
+async function sendFranchiseUpdatedEmail(to, operatorName, franchiseNumber, updateType) {
+  const email = String(to || '').trim();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    throw new Error('Invalid recipient email address');
+  }
+  
+  const fromName = process.env.EMAIL_FROM_NAME || 'TRC-V';
+  const fromAddress = process.env.EMAIL_FROM || process.env.EMAIL_USER;
+  if (!fromAddress) {
+    throw new Error('EMAIL_FROM must be configured');
+  }
+  
+  const typeLabel = updateType === 'renewal' ? 'Renewal' : updateType === 'change_unit' ? 'Unit Change' : 'Amendment';
+  const typeMessage = updateType === 'renewal' ? 'renewed' : updateType === 'change_unit' ? 'unit has been changed' : 'amended';
+  
+  const mailOptions = {
+    from: `${fromName} <${fromAddress}>`,
+    to: email,
+    subject: `Franchise ${typeLabel} Approved - License #${franchiseNumber}`,
+    text: `Dear ${operatorName},\n\nYour franchise ${typeMessage} has been approved. Your franchise license number is ${franchiseNumber}.\n\nPlease login to your TRC-V account to view your updated franchise details.`,
+    html: `
+      <!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Franchise ${typeLabel} Approved - TRC-V</title>
+        <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+      </head>
+      <body style="margin: 0; padding: 0; font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f5f5f5;">
+        <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f5f5f5;">
+          <tr>
+            <td style="padding: 40px 20px;">
+              <table role="presentation" style="max-width: 600px; width: 100%; margin: 0 auto; background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.07); overflow: hidden;">
+                
+                <!-- Header with Logo -->
+                <tr>
+                  <td style="background: linear-gradient(135deg, #0ea5e9 0%, #06b6d4 100%); padding: 35px 40px;">
+                    <table role="presentation" style="width: 100%;">
+                      <tr>
+                        <td style="width: 80px; vertical-align: middle;">
+                          <img src="cid:logo" alt="TRC-V Logo" style="width: 70px; height: 70px; display: block;" />
+                        </td>
+                        <td style="vertical-align: middle; padding-left: 20px;">
+                          <h1 style="color: #ffffff; margin: 0; font-size: 32px; font-weight: 700; letter-spacing: 1px; font-family: 'Poppins', sans-serif;">TRC-V</h1>
+                          <p style="color: #cffafe; margin: 5px 0 0 0; font-size: 14px; font-family: 'Poppins', sans-serif; font-weight: 400;">Tricycle Verification System</p>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+                
+                <!-- Main Content -->
+                <tr>
+                  <td style="padding: 45px 40px;">
+                    <h2 style="color: #1e293b; margin: 0 0 15px 0; font-size: 28px; font-weight: 700; text-align: center; font-family: 'Poppins', sans-serif;">✓ Approved</h2>
+                    <p style="color: #64748b; font-size: 16px; line-height: 1.6; margin: 0 0 30px 0; text-align: center; font-family: 'Poppins', sans-serif;">
+                      Your franchise <strong style="color: #0ea5e9;">${typeMessage}</strong> has been approved!
+                    </p>
+                    
+                    <!-- License Info Box -->
+                    <div style="background: linear-gradient(135deg, #ecf0ff 0%, #dbeafe 100%); border: 2px solid #0ea5e9; border-radius: 10px; padding: 30px; text-align: center; margin: 35px 0;">
+                      <p style="color: #64748b; font-size: 14px; margin: 0 0 15px 0; font-family: 'Poppins', sans-serif;">Your Franchise License Number</p>
+                      <p style="color: #0ea5e9; font-size: 48px; font-weight: 700; margin: 0; font-family: 'Poppins', monospace; letter-spacing: 4px;">${franchiseNumber}</p>
+                      <p style="color: #64748b; font-size: 12px; margin: 15px 0 0 0; font-family: 'Poppins', sans-serif;">Keep this number for your records</p>
+                    </div>
+                    
+                    <!-- Info Box -->
+                    <div style="background-color: #f0f9ff; border-left: 4px solid #0ea5e9; padding: 20px; margin: 30px 0; border-radius: 6px;">
+                      <p style="color: #064e3b; font-size: 14px; line-height: 1.8; margin: 0; font-family: 'Poppins', sans-serif;">
+                        Your franchise ${typeMessage} has been processed and approved by the Sangguniang Bayan. Your updated franchise is now valid and ready for use.
+                      </p>
+                    </div>
+                    
+                    <div style="text-align: center; margin: 30px 0;">
+                      <a href="${process.env.BASE_URL || 'http://localhost:5173'}/operator/franchise" style="display: inline-block; background: linear-gradient(135deg, #0ea5e9 0%, #06b6d4 100%); color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 16px; font-family: 'Poppins', sans-serif;">
+                        View Franchise Details
+                      </a>
+                    </div>
+                    
+                    <p style="color: #94a3b8; font-size: 13px; text-align: center; margin: 25px 0 0 0; line-height: 1.5; font-family: 'Poppins', sans-serif;">
+                      If you have any questions, please contact the Municipal Transportation Office.
+                    </p>
+                  </td>
+                </tr>
+                
+                <!-- Footer -->
+                <tr>
+                  <td style="background-color: #f8fafc; padding: 30px 40px; text-align: center; border-top: 1px solid #e2e8f0;">
+                    <p style="color: #94a3b8; font-size: 13px; margin: 0 0 8px 0; line-height: 1.5; font-family: 'Poppins', sans-serif;">
+                      <strong style="color: #64748b;">TRC-V System</strong><br>
+                      Tricycle Regulatory Compliance & Verification
+                    </p>
+                    <p style="color: #cbd5e1; font-size: 12px; margin: 5px 0; font-family: 'Poppins', sans-serif;">
+                      © ${new Date().getFullYear()} TRC-V. All rights reserved.
+                    </p>
+                    <p style="color: #cbd5e1; font-size: 11px; margin: 5px 0 0 0; font-family: 'Poppins', sans-serif;">
+                      This is an automated notification. Please do not reply to this email.
+                    </p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </body>
+      </html>
+    `,
+    attachments: [{
+      filename: 'TRC-vLogo.png',
+      path: path.join(__dirname, '..', '..', 'dashboard', 'src', 'assets', 'TRC-vLogo.png'),
+      cid: 'logo'
+    }]
+  };
+  
+  try {
+    const info = await sendViaGmailApi(mailOptions);
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[EmailService] Franchise updated email sent:', info && info.messageId ? info.messageId : info);
+    }
+    return info;
+  } catch (err) {
+    const errMsg = err && err.message ? err.message : String(err);
+    throw new Error(`Failed to send franchise updated email: ${errMsg}`);
+  }
+}
+
+/**
+ * Send franchise disapproval notification email
+ */
+async function sendFranchiseDisapprovalEmail(to, operatorName, reason) {
+  const email = String(to || '').trim();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    throw new Error('Invalid recipient email address');
+  }
+  
+  const fromName = process.env.EMAIL_FROM_NAME || 'TRC-V';
+  const fromAddress = process.env.EMAIL_FROM || process.env.EMAIL_USER;
+  if (!fromAddress) {
+    throw new Error('EMAIL_FROM must be configured');
+  }
+  
+  const mailOptions = {
+    from: `${fromName} <${fromAddress}>`,
+    to: email,
+    subject: 'Franchise Application Status Update - Action Required',
+    text: `Dear ${operatorName},\n\nYour franchise application has been reviewed. Reason: ${reason}\n\nPlease login to your TRC-V account to view details and resubmit if needed.`,
+    html: `
+      <!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Application Status Update - TRC-V</title>
+        <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+      </head>
+      <body style="margin: 0; padding: 0; font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f5f5f5;">
+        <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f5f5f5;">
+          <tr>
+            <td style="padding: 40px 20px;">
+              <table role="presentation" style="max-width: 600px; width: 100%; margin: 0 auto; background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.07); overflow: hidden;">
+                
+                <!-- Header with Logo -->
+                <tr>
+                  <td style="background: linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%); padding: 35px 40px;">
+                    <table role="presentation" style="width: 100%;">
+                      <tr>
+                        <td style="width: 80px; vertical-align: middle;">
+                          <img src="cid:logo" alt="TRC-V Logo" style="width: 70px; height: 70px; display: block;" />
+                        </td>
+                        <td style="vertical-align: middle; padding-left: 20px;">
+                          <h1 style="color: #ffffff; margin: 0; font-size: 32px; font-weight: 700; letter-spacing: 1px; font-family: 'Poppins', sans-serif;">TRC-V</h1>
+                          <p style="color: #fef3c7; margin: 5px 0 0 0; font-size: 14px; font-family: 'Poppins', sans-serif; font-weight: 400;">Tricycle Verification System</p>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+                
+                <!-- Main Content -->
+                <tr>
+                  <td style="padding: 45px 40px;">
+                    <h2 style="color: #1e293b; margin: 0 0 15px 0; font-size: 28px; font-weight: 700; text-align: center; font-family: 'Poppins', sans-serif;">⚠ Action Required</h2>
+                    <p style="color: #64748b; font-size: 16px; line-height: 1.6; margin: 0 0 30px 0; text-align: center; font-family: 'Poppins', sans-serif;">
+                      Your franchise application requires attention
+                    </p>
+                    
+                    <!-- Alert Box -->
+                    <div style="background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border: 2px solid #f59e0b; border-radius: 10px; padding: 30px; text-align: center; margin: 35px 0;">
+                      <p style="color: #64748b; font-size: 14px; margin: 0 0 15px 0; font-family: 'Poppins', sans-serif;">Feedback from BPLO:</p>
+                      <p style="color: #92400e; font-size: 16px; font-weight: 600; margin: 0; font-family: 'Poppins', sans-serif;">${reason}</p>
+                    </div>
+                    
+                    <!-- Info Box -->
+                    <div style="background-color: #fffbeb; border-left: 4px solid #f59e0b; padding: 20px; margin: 30px 0; border-radius: 6px;">
+                      <h3 style="color: #1e293b; margin: 0 0 15px 0; font-size: 16px; font-weight: 600; font-family: 'Poppins', sans-serif;">What to do next:</h3>
+                      <ol style="color: #64748b; font-size: 14px; line-height: 1.8; margin: 0; padding-left: 20px; font-family: 'Poppins', sans-serif;">
+                        <li>Review the feedback provided above</li>
+                        <li>Prepare the required documents or information</li>
+                        <li>Login to your TRC-V account and resubmit your application</li>
+                        <li>Your application will be reviewed again</li>
+                      </ol>
+                    </div>
+                    
+                    <div style="text-align: center; margin: 30px 0;">
+                      <a href="${process.env.BASE_URL || 'http://localhost:5173'}/operator/applications" style="display: inline-block; background: linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%); color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 16px; font-family: 'Poppins', sans-serif;">
+                        Review Application
+                      </a>
+                    </div>
+                    
+                    <p style="color: #94a3b8; font-size: 13px; text-align: center; margin: 25px 0 0 0; line-height: 1.5; font-family: 'Poppins', sans-serif;">
+                      If you have questions, please contact the BPLO office.
+                    </p>
+                  </td>
+                </tr>
+                
+                <!-- Footer -->
+                <tr>
+                  <td style="background-color: #f8fafc; padding: 30px 40px; text-align: center; border-top: 1px solid #e2e8f0;">
+                    <p style="color: #94a3b8; font-size: 13px; margin: 0 0 8px 0; line-height: 1.5; font-family: 'Poppins', sans-serif;">
+                      <strong style="color: #64748b;">TRC-V System</strong><br>
+                      Tricycle Regulatory Compliance & Verification
+                    </p>
+                    <p style="color: #cbd5e1; font-size: 12px; margin: 5px 0; font-family: 'Poppins', sans-serif;">
+                      © ${new Date().getFullYear()} TRC-V. All rights reserved.
+                    </p>
+                    <p style="color: #cbd5e1; font-size: 11px; margin: 5px 0 0 0; font-family: 'Poppins', sans-serif;">
+                      This is an automated notification. Please do not reply to this email.
+                    </p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </body>
+      </html>
+    `,
+    attachments: [{
+      filename: 'TRC-vLogo.png',
+      path: path.join(__dirname, '..', '..', 'dashboard', 'src', 'assets', 'TRC-vLogo.png'),
+      cid: 'logo'
+    }]
+  };
+  
+  try {
+    const info = await sendViaGmailApi(mailOptions);
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[EmailService] Franchise disapproval email sent:', info && info.messageId ? info.messageId : info);
+    }
+    return info;
+  } catch (err) {
+    const errMsg = err && err.message ? err.message : String(err);
+    throw new Error(`Failed to send franchise disapproval email: ${errMsg}`);
+  }
+}
+
+module.exports = { 
+  sendOTPEmail, 
+  sendFranchiseExpiryEmail, 
+  sendFranchiseCreatedEmail,
+  sendFranchiseUpdatedEmail,
+  sendFranchiseDisapprovalEmail,
+  sendViaGmailApi 
+};
