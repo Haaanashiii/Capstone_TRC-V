@@ -42,14 +42,22 @@ export default function FranchiseApplication() {
             // Fetch user email from backend API using the user ID
             try {
               const response = await api.get('/auth/me');
-              if (response.data && response.data.user && response.data.user.email) {
-                setUserEmail(response.data.user.email);
-                console.log('[FranchiseApplication] ✓ Email fetched from backend API');
+              console.log('[FranchiseApplication] API response:', response.data);
+              
+              // Handle different response structures
+              const userData = response.data?.user || response.data;
+              const email = userData?.email;
+              
+              if (email) {
+                setUserEmail(email);
+                console.log('[FranchiseApplication] ✓ Email fetched from backend API:', email);
               } else {
-                console.error('[FranchiseApplication] ✗ No email in API response');
+                console.error('[FranchiseApplication] ✗ No email in API response. Full response:', response.data);
+                console.error('[FranchiseApplication] ✗ This means the user account does not have an email saved in the database');
               }
             } catch (apiError) {
               console.error('[FranchiseApplication] ✗ Failed to fetch user data from API:', apiError);
+              console.error('[FranchiseApplication] ✗ Response:', apiError.response?.data);
             }
           } else {
             console.error('[FranchiseApplication] ✗ No user ID found in JWT token');

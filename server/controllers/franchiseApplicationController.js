@@ -1150,6 +1150,8 @@ exports.sbAdminAcceptNewFranchise = async (req, res, next) => {
       approvedAt: new Date(),
       expiryDate: new Date(Date.now() + 3 * 365 * 24 * 60 * 60 * 1000), // 3 years
       franchiseStatus: 'Active',
+      resolutionNumber: application.sbResolutionNumber, // Add SB resolution number
+      resolutionDocument: application.sbResolutionDocument, // Add SB resolution document
       documents: {
         motorRegistrationObj: urlMapping[application.documents?.motorRegistrationObj] || application.documents?.motorRegistrationObj,
         barangayClearanceObj: urlMapping[application.documents?.barangayClearanceObj] || application.documents?.barangayClearanceObj,
@@ -1234,6 +1236,17 @@ exports.sbAdminAcceptNewFranchise = async (req, res, next) => {
     // Emit to WebSocket
     if (req.app.get('io')) {
       req.app.get('io').to('sb-admins').to('bplo-admins').emit('franchise-created', franchise[0]);
+      
+      // Update SB admins list - remove completed application from their view
+      try {
+        const sbApplications = await FranchiseApplication.find({
+          statusOfBPLO: { $in: ['bplo-approved', 'awaiting-sb', 'sb-approved'] }
+        }).sort({ sbApprovedAt: -1, bploApprovedAt: -1, orSubmittedAt: -1 });
+        req.app.get('io').to('sb-admins').emit('approved-applications', sbApplications);
+        console.log(`[sbAdminAcceptNewFranchise] Updated SB admins: ${sbApplications.length} remaining applications`);
+      } catch (wsError) {
+        console.error('[sbAdminAcceptNewFranchise] Failed to update SB list:', wsError.message);
+      }
       
       // Notify user
       if (franchise[0].linkedUser) {

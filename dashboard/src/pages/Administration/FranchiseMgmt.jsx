@@ -81,6 +81,8 @@ function FranchiseMgmt() {
     name: '',
     contactNumber: '',
     operatorEmail: '',
+    address: '',
+    barangay: '',
     birthPlace: '',
     birthDate: '',
     civilStatus: '',
@@ -180,6 +182,7 @@ function FranchiseMgmt() {
         sbApprovedBy: it.sbApprovedBy || '',
         sbApprovedAt: it.sbApprovedAt || '',
         sbResolutionNumber: it.sbResolutionNumber || '',
+        sbResolutionDocument: it.sbResolutionDocument || '',
         // Documents - backend returns URLs as strings, convert to {name, path, type} format
         documentRegistration: it.documents?.motorRegistrationObj ? { 
           name: it.documents.motorRegistrationObj.split('/').pop().split('?')[0] || 'Motor Registration', 
@@ -258,6 +261,12 @@ function FranchiseMgmt() {
   // Pause polling when any modal is open
   const isAnyModalOpen = openAddModal || openViewModal || openRejectModal || openFilePreview
 
+  // Initial fetch on mount - CRITICAL for reliable data loading
+  useEffect(() => {
+    console.log('[FranchiseMgmt] Component mounted, fetching initial data...')
+    fetchAllPending()
+  }, [fetchAllPending])
+
   // WebSocket real-time updates
   useEffect(() => {
     // Determine WebSocket room and event based on user role
@@ -273,7 +282,6 @@ function FranchiseMgmt() {
       websocketService.connect(websocketRoom)
       
       // Wait for WebSocket to emit initial data before falling back to API
-      // The server will emit current state upon connection
       connectionTimeout = setTimeout(() => {
         if (!hasReceivedInitialData) {
           console.log('[FranchiseMgmt] No WebSocket data received, fetching via API fallback')
@@ -284,9 +292,6 @@ function FranchiseMgmt() {
       // If already connected, just join the correct room
       console.log('[FranchiseMgmt] Already connected, joining room:', websocketRoom)
       websocketService.joinRoom(websocketRoom)
-      
-      // Already connected, fetch immediately as we may have missed the initial emit
-      fetchAllPending()
     }
 
     // Subscribe to real-time application updates
@@ -330,11 +335,12 @@ function FranchiseMgmt() {
         plateNumber: it.mvPlateNo || '',
         applicationType: it.applicationType || 'new',
         address: it.operatorAddress || it.driversAddress || '',
+        barangay: it.operatorBarangay || '',
         contactNumber: it.operatorContactNumber || '',
         email: it.operatorEmail || '',
         sidecarPlateNumber: it.sideCarPlateNumber || '',
         birthPlace: it.operatorBirthPlace || '',
-        birthDate: it.operatorBirthDate || '',
+        birthDate: it.operatorBirthDate ? new Date(it.operatorBirthDate).toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' }) : '',
         civilStatus: it.operatorCivilStatus || '',
         citizenship: it.operatorCitizenship || '',
         todaMembership: it.todaMembership || '',
@@ -346,11 +352,10 @@ function FranchiseMgmt() {
         chassisNumber: it.chasisNo || '',
         driverName: it.driverName || '',
         driverAddress: it.driversAddress || '',
-        operatorBarangay: it.operatorBarangay || '',
         coOwnerName: it.coOwnerName || '',
         coOwnerAddress: it.coOwnerAddress || '',
         officialReceiptNumber: it.officialReceiptNumber || '',
-        orSubmittedAt: it.orSubmittedAt || '',
+        orSubmittedAt: it.orSubmittedAt ? new Date(it.orSubmittedAt).toLocaleDateString() : '',
         bploApprovedBy: it.bploApprovedBy || '',
         bploApprovedAt: it.bploApprovedAt || '',
         bploDisapprovedReason: it.bploDisapprovedReason || '',
@@ -359,16 +364,56 @@ function FranchiseMgmt() {
         sbApprovedAt: it.sbApprovedAt || '',
         sbResolutionNumber: it.sbResolutionNumber || '',
         sbResolutionDocument: it.sbResolutionDocument || '',
-        documentRegistration: it.documents?.motorRegistrationObj || null,
-        documentBarangayClearance: it.documents?.barangayClearanceObj || null,
-        documentCedula: it.documents?.cedulaObj || null,
-        documentDriversLicense: it.documents?.driversLicenseObj || null,
-        documentVotersAffidavit: it.documents?.votersAffidavitObj || null,
-        documentChassisStencil: it.documents?.motorChassisStencilObj || null,
-        documentPicture: it.documents?.driverPictureObj || null,
-        documentOperatorPicture: it.documents?.operatorPictureObj || null,
-        documentORLTO: it.documents?.oRLTOObj || null,
-        documentCRLTO: it.documents?.cRLTOObj || null,
+        documentRegistration: it.documents?.motorRegistrationObj ? { 
+          name: it.documents.motorRegistrationObj.split('/').pop().split('?')[0] || 'Motor Registration', 
+          path: it.documents.motorRegistrationObj, 
+          type: getFileTypeFromUrl(it.documents.motorRegistrationObj) 
+        } : null,
+        documentBarangayClearance: it.documents?.barangayClearanceObj ? { 
+          name: it.documents.barangayClearanceObj.split('/').pop().split('?')[0] || 'Barangay Clearance', 
+          path: it.documents.barangayClearanceObj, 
+          type: getFileTypeFromUrl(it.documents.barangayClearanceObj) 
+        } : null,
+        documentCedula: it.documents?.cedulaObj ? { 
+          name: it.documents.cedulaObj.split('/').pop().split('?')[0] || 'Cedula', 
+          path: it.documents.cedulaObj, 
+          type: getFileTypeFromUrl(it.documents.cedulaObj) 
+        } : null,
+        documentDriversLicense: it.documents?.driversLicenseObj ? { 
+          name: it.documents.driversLicenseObj.split('/').pop().split('?')[0] || 'Driver\'s License', 
+          path: it.documents.driversLicenseObj, 
+          type: getFileTypeFromUrl(it.documents.driversLicenseObj) 
+        } : null,
+        documentVotersAffidavit: it.documents?.votersAffidavitObj ? { 
+          name: it.documents.votersAffidavitObj.split('/').pop().split('?')[0] || 'Voter\'s Affidavit', 
+          path: it.documents.votersAffidavitObj, 
+          type: getFileTypeFromUrl(it.documents.votersAffidavitObj) 
+        } : null,
+        documentChassisStencil: it.documents?.motorChassisStencilObj ? { 
+          name: it.documents.motorChassisStencilObj.split('/').pop().split('?')[0] || 'Chassis Stencil', 
+          path: it.documents.motorChassisStencilObj, 
+          type: getFileTypeFromUrl(it.documents.motorChassisStencilObj) 
+        } : null,
+        documentPicture: it.documents?.driverPictureObj ? { 
+          name: it.documents.driverPictureObj.split('/').pop().split('?')[0] || 'Driver Picture', 
+          path: it.documents.driverPictureObj, 
+          type: getFileTypeFromUrl(it.documents.driverPictureObj) 
+        } : null,
+        documentOperatorPicture: it.documents?.operatorPictureObj ? { 
+          name: it.documents.operatorPictureObj.split('/').pop().split('?')[0] || 'Operator Picture', 
+          path: it.documents.operatorPictureObj, 
+          type: getFileTypeFromUrl(it.documents.operatorPictureObj) 
+        } : null,
+        documentORLTO: it.documents?.oRLTOObj ? { 
+          name: it.documents.oRLTOObj.split('/').pop().split('?')[0] || 'OR LTO', 
+          path: it.documents.oRLTOObj, 
+          type: getFileTypeFromUrl(it.documents.oRLTOObj) 
+        } : null,
+        documentCRLTO: it.documents?.cRLTOObj ? { 
+          name: it.documents.cRLTOObj.split('/').pop().split('?')[0] || 'CR LTO', 
+          path: it.documents.cRLTOObj, 
+          type: getFileTypeFromUrl(it.documents.cRLTOObj) 
+        } : null,
         documents: {
           ...it.documents,
           oRTreasurerOfficeObj: it.documents?.oRTreasurerOfficeObj || null
@@ -752,26 +797,51 @@ function FranchiseMgmt() {
       // Create FormData for file uploads
       const formDataToSend = new FormData()
       
-      // Add all form fields to FormData
+      // Map frontend field names to backend expected names
+      const fieldMapping = {
+        name: 'operatorName',
+        contactNumber: 'operatorContactNumber',
+        operatorEmail: 'operatorEmail',
+        address: 'operatorAddress',
+        barangay: 'operatorBarangay',
+        birthPlace: 'operatorBirthPlace',
+        birthDate: 'operatorBirthDate',
+        civilStatus: 'operatorCivilStatus',
+        citizenship: 'operatorCitizenship',
+        todaMembership: 'todaMembership',
+        sidecarPlateNumber: 'sideCarPlateNumber',
+        colorSidecar: 'sideCarColor',
+        mvPlate: 'mvPlateNo',
+        motorEngineNumber: 'motorEngineNo',
+        chassisNumber: 'chasisNo',
+        driverName: 'driverName',
+        driverAddress: 'driversAddress',
+        unitModel: 'unitModel',
+        colorMotor: 'colorMotor',
+        // Document mappings
+        documentRegistration: 'motorRegistrationObj',
+        documentBarangayClearance: 'barangayClearanceObj',
+        documentCedula: 'cedulaObj',
+        documentDriversLicense: 'driversLicenseObj',
+        documentVotersAffidavit: 'votersAffidavitObj',
+        documentPicture: 'driverPictureObj'
+      }
+      
+      // Add form fields with correct backend names
       Object.keys(formData).forEach(key => {
+        const backendKey = fieldMapping[key] || key
+        
         if (key.startsWith('document') && formData[key]?.file) {
-          // Add file uploads
-          formDataToSend.append(key, formData[key].file)
-        } else if (formData[key] !== null && formData[key] !== undefined) {
-          // Add regular fields
-          formDataToSend.append(key, formData[key])
+          // Add file uploads with backend field name
+          formDataToSend.append(backendKey, formData[key].file)
+        } else if (formData[key] !== null && formData[key] !== undefined && formData[key] !== '') {
+          // Add regular fields with backend field name
+          formDataToSend.append(backendKey, formData[key])
         }
       })
       
-      // Add application type if not present
-      if (!formData.applicationType) {
-        formDataToSend.append('applicationType', 'New')
-      }
-      
-      // Add address if not present
-      if (!formData.address && formData.driverAddress) {
-        formDataToSend.append('address', formData.driverAddress)
-      }
+      // Add application type
+      formDataToSend.append('applicationType', 'new')
 
       // Submit to backend using secure API
       const response = await franchiseAPI.create(formDataToSend)
@@ -802,6 +872,8 @@ function FranchiseMgmt() {
         name: '',
         contactNumber: '',
         operatorEmail: '',
+        address: '',
+        barangay: '',
         birthPlace: '',
         birthDate: '',
         civilStatus: '',
@@ -905,6 +977,7 @@ function FranchiseMgmt() {
   
   /**
    * SB Admin final approval with resolution number and optional document
+   * This is the FINAL step - automatically creates franchise record
    */
   const handleSBApproval = async () => {
     if (!selectedApplication || !resolutionNumber.trim()) {
@@ -919,7 +992,7 @@ function FranchiseMgmt() {
     setIsLoading(true)
     
     try {
-      console.log('[FranchiseMgmt] SB approving application:', selectedApplication.id)
+      console.log('[FranchiseMgmt] SB final approval - this will create franchise:', selectedApplication.id)
       
       // Create FormData for multipart upload if resolution document is provided
       const formData = new FormData()
@@ -928,28 +1001,40 @@ function FranchiseMgmt() {
         formData.append('resolutionDocument', resolutionFile)
       }
       
-      const response = await franchiseAPI.approveSBWithDocument(selectedApplication.id, formData)
-      
-      console.log('[FranchiseMgmt] Application finally approved by SB:', response.data)
+      // Step 1: SB Approval with resolution
+      const approvalResponse = await franchiseAPI.approveSBWithDocument(selectedApplication.id, formData)
+      console.log('[FranchiseMgmt] SB approval completed:', approvalResponse.data)
 
+      // Step 2: Immediately create franchise record (FINAL STEP)
+      console.log('[FranchiseMgmt] Creating franchise record in FranchiseList...')
+      const isNew = selectedApplication.applicationType === 'new'
+      const franchiseResponse = await (isNew 
+        ? franchiseAPI.acceptNewFranchise(selectedApplication.id, {})
+        : franchiseAPI.acceptRenewAmend(selectedApplication.id, {}))
+      
+      console.log('[FranchiseMgmt] Franchise created successfully:', franchiseResponse.data)
+
+      // Refresh list to remove completed application
       await fetchAllPending()
 
       setNotification({ 
         open: true, 
-        message: 'Application approved successfully. You may now proceed to create the franchise record.', 
+        message: 'Franchise approved and created successfully! Now visible in FranchiseList.', 
         type: 'success' 
       })
       
       setOpenSBApprovalModal(false)
       setResolutionNumber('')
       setResolutionFile(null)
-      // Don't close view modal - user needs to accept franchise next
+      handleCloseViewModal()
     } catch (error) {
-      console.error('[FranchiseMgmt] Error in SB approval:', error)
+      console.error('[FranchiseMgmt] Error in SB final approval:', error)
+      
+      const errorMessage = error.response?.data?.error || error.response?.data?.message || error.message || 'Failed to complete franchise approval'
       
       setNotification({
         open: true,
-        message: error.response?.data?.error || 'Failed to approve application',
+        message: errorMessage,
         type: 'error'
       })
     } finally {
@@ -1161,11 +1246,13 @@ function FranchiseMgmt() {
       case 'bplo-approved':
         // Check if OR is submitted for more accurate status
         if (hasOR) {
-          return { label: 'Approved by BPLO - OR Submitted', color: '#059669', bgColor: '#D1FAE5' }
+          return { label: 'Ready for SB Final Approval', color: '#059669', bgColor: '#D1FAE5' }
         }
-        return { label: 'Awaiting OR Document and OR Number from Client', color: '#DC8C09', bgColor: '#FFF4E6' }
+        return { label: 'Awaiting Client OR Number', color: '#DC8C09', bgColor: '#FFF4E6' }
       case 'awaiting-sb':
         return { label: 'Ready for SB Final Approval', color: '#0A356B', bgColor: '#DBEAFE' }
+      case 'sb-approved':
+        return { label: 'Completing Franchise Creation...', color: '#059669', bgColor: '#D1FAE5' }
       case 'bplo-disapproved':
         return { label: 'Disapproved by BPLO', color: '#DC2626', bgColor: '#FEE2E2' }
       default:
@@ -1383,6 +1470,26 @@ function FranchiseMgmt() {
               required
               placeholder="operator@example.com"
               helperText="This email will be used to link the franchise to the operator's account"
+            />
+            
+            <TextField
+              label="Address"
+              name="address"
+              value={formData.address}
+              onChange={handleFormChange}
+              fullWidth
+              required
+              placeholder="Street, Barangay, City"
+            />
+            
+            <TextField
+              label="Barangay"
+              name="barangay"
+              value={formData.barangay}
+              onChange={handleFormChange}
+              fullWidth
+              required
+              placeholder="Enter barangay"
             />
             
             <div className="form-row">
@@ -2041,38 +2148,19 @@ function FranchiseMgmt() {
                     disabled={isLoading}
                     fullWidth
                   >
-                    {isLoading ? <CircularProgress className="circular-progress-small circular-progress-inherit" /> : 'Final Approval with Resolution Number'}
-                  </Button>
-                </>
-              )}
-              
-              {userRole === 'sb-admin' && selectedApplication.statusOfBPLO === 'sb-approved' && (
-                <>
-                  <Typography variant="body2" className="success-box" sx={{ textAlign: 'center', mb: 2 }}>
-                    Application approved. Click below to create the official franchise record.
-                  </Typography>
-                  <Button
-                    className="button-success"
-                    onClick={handleAcceptFranchise}
-                    disabled={isLoading}
-                    fullWidth
-                  >
-                    {isLoading ? <CircularProgress className="circular-progress-small circular-progress-inherit" /> : 'Create Franchise Record'}
+                    {isLoading ? <CircularProgress className="circular-progress-small circular-progress-inherit" /> : 'Final Approval - Create Franchise'}
                   </Button>
                 </>
               )}
               
               {(selectedApplication.statusOfBPLO === 'bplo-approved' || 
                 selectedApplication.statusOfBPLO === 'awaiting-sb' ||
-                selectedApplication.statusOfBPLO === 'sb-approved' ||
                 selectedApplication.statusOfBPLO === 'bplo-disapproved') && userRole !== 'sb-admin' && (
                 <Typography variant="body2" className="info-message-box" sx={{ textAlign: 'center', width: '100%' }}>
                   {selectedApplication.statusOfBPLO === 'bplo-approved' && 
                     'Approved by BPLO. Waiting for applicant to submit Official Receipt.'}
                   {selectedApplication.statusOfBPLO === 'awaiting-sb' && 
                     'Official Receipt submitted. Ready for SB final approval.'}
-                  {selectedApplication.statusOfBPLO === 'sb-approved' && 
-                    'Finally approved by SB. Awaiting franchise record creation.'}
                   {selectedApplication.statusOfBPLO === 'bplo-disapproved' && 
                     'Disapproved by BPLO. Applicant has been notified.'}
                 </Typography>

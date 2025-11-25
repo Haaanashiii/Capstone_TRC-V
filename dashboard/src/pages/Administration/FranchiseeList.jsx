@@ -173,9 +173,6 @@ const FranchiseeDetailsModal = ({ open, onClose, franchisee, isEditing, onEdit, 
             </Typography>
             
             <div className="info-grid">
-              <Typography variant="subtitle2" className="label">Driver's ID:</Typography>
-              <Typography>{franchisee.driversID || 'N/A'}</Typography>
-              
               <Typography variant="subtitle2" className="label">Driver Name:</Typography>
               <Typography>{franchisee.driverName || 'N/A'}</Typography>
               
@@ -199,6 +196,37 @@ const FranchiseeDetailsModal = ({ open, onClose, franchisee, isEditing, onEdit, 
               
               <Typography variant="subtitle2" className="label">Expiry Date:</Typography>
               <Typography>{franchisee.expiryDate || 'N/A'}</Typography>
+              
+              <Typography variant="subtitle2" className="label">Resolution Number:</Typography>
+              <Typography sx={{ fontWeight: 'bold', color: franchisee.resolutionNumber ? 'success.main' : 'text.secondary' }}>
+                {franchisee.resolutionNumber || 'N/A'}
+              </Typography>
+              
+              <Typography variant="subtitle2" className="label">Resolution Document:</Typography>
+              {franchisee.resolutionDocument ? (
+                <Link 
+                  className="document-link" 
+                  onClick={() => onFilePreview({
+                    name: typeof franchisee.resolutionDocument === 'string' 
+                      ? franchisee.resolutionDocument.split('/').pop() 
+                      : franchisee.resolutionDocument.name || 'Resolution Document',
+                    path: typeof franchisee.resolutionDocument === 'string' 
+                      ? franchisee.resolutionDocument 
+                      : franchisee.resolutionDocument.path,
+                    type: typeof franchisee.resolutionDocument === 'string'
+                      ? getFileIcon(franchisee.resolutionDocument)
+                      : franchisee.resolutionDocument.type
+                  })}
+                  sx={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 0.5 }}
+                >
+                  {getFileIcon(typeof franchisee.resolutionDocument === 'string' 
+                    ? franchisee.resolutionDocument 
+                    : franchisee.resolutionDocument.type)}
+                  <span>View Resolution Document</span>
+                </Link>
+              ) : (
+                <Typography sx={{ color: 'text.secondary' }}>N/A</Typography>
+              )}
             </div>
             
             <Typography variant="h6" className="section-header">
@@ -334,12 +362,6 @@ const FranchiseeDetailsModal = ({ open, onClose, franchisee, isEditing, onEdit, 
                 {getFileIcon(franchisee.documentTreasurerOR?.type)}
                 <span>{franchisee.documentTreasurerOR?.name || 'No file'}</span>
               </Link>
-              
-              <Typography variant="subtitle2" className="label">Session Report:</Typography>
-              <Link className="document-link" onClick={() => onFilePreview(franchisee.documentSessionReport)}>
-                {getFileIcon(franchisee.documentSessionReport?.type)}
-                <span>{franchisee.documentSessionReport?.name || 'No file'}</span>
-              </Link>
             </div>
           </div>
         </Box>
@@ -435,6 +457,8 @@ function FranchiseeList() {
           franchiseStatus: app.franchiseStatus || '',
           approvedAt: app.approvedAt ? new Date(app.approvedAt).toLocaleDateString() : '',
           expiryDate: app.expiryDate ? new Date(app.expiryDate).toLocaleDateString() : '',
+          resolutionNumber: app.resolutionNumber || app.sbResolutionNumber || '',
+          resolutionDocument: app.resolutionDocument || app.sbResolutionDocument || null,
           qrCode: app.qrCode || null,
           profilePhoto: app.profilePhoto || null,
           // Document files from documents subdocument - normalize to objects with name, path, and type

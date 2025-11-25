@@ -63,6 +63,10 @@ const franchiseInformationSchema = new mongoose.Schema({
   approvedAt: { type: Date },
   expiryDate: { type: Date },
 
+  // SB Resolution Information
+  resolutionNumber: { type: String, required: false },
+  resolutionDocument: { type: String, required: false },
+
   //rate
   rate:{type: String, enum: ['Old Rate', 'New Rate',], required: true , default: 'New Rate' },
   franchiseStatus: { type: String, enum: ['Active', 'Expired' , 'Revoked'], required: true },

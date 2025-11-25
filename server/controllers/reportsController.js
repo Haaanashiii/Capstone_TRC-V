@@ -83,6 +83,25 @@ exports.createPublicReport = async (req, res, next) => {
         const ipAddress = getClientIp(req);
         console.log(`[PUBLIC REPORT] Operator: ${operatorId}, Reporter: ${fullName}, IP: ${ipAddress}`);
         
+        // Emit WebSocket event for real-time updates
+        if (req.app.get('io')) {
+            req.app.get('io').to('general').emit('fare-reports', {
+                action: 'created',
+                reportID: newReport.reportID,
+                franchiseeName: newReport.franchiseeName
+            });
+            req.app.get('io').to('bplo-admins').emit('fare-reports', {
+                action: 'created',
+                reportID: newReport.reportID,
+                franchiseeName: newReport.franchiseeName
+            });
+            req.app.get('io').to('sb-admins').emit('fare-reports', {
+                action: 'created',
+                reportID: newReport.reportID,
+                franchiseeName: newReport.franchiseeName
+            });
+        }
+        
         res.status(201).json({ 
             success: true,
             message: 'Report submitted successfully. Thank you for helping maintain fair fare practices.',
@@ -196,6 +215,27 @@ exports.updateReport = async (req, res, next) => {
         
         if (!updatedReport) {
             return res.status(404).json({ error: 'Report not found' });
+        }
+        
+        // Emit WebSocket event for real-time updates
+        if (req.app.get('io')) {
+            req.app.get('io').to('general').emit('report-updated', {
+                reportID: updatedReport.reportID,
+                status: updatedReport.status,
+                timestamp: new Date().toISOString()
+            });
+            // Also emit to admin rooms
+            req.app.get('io').to('bplo-admins').emit('fare-reports', {
+                action: 'updated',
+                reportID: updatedReport.reportID,
+                status: updatedReport.status
+            });
+            req.app.get('io').to('sb-admins').emit('fare-reports', {
+                action: 'updated',
+                reportID: updatedReport.reportID,
+                status: updatedReport.status
+            });
+            console.log(`[WebSocket] Report ${updatedReport.reportID} status updated to ${updatedReport.status}`);
         }
         
         res.status(200).json({ 

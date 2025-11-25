@@ -170,14 +170,24 @@ exports.getReportById = async (reportId) => {
 
 /**
  * Update a report
- * @param {string} reportId - Report ID
+ * @param {string} reportId - Report ID (can be _id or reportID)
  * @param {Object} updateData - Update data
  * @returns {Promise<Object|null>} Updated report or null if not found
  */
 exports.updateReport = async (reportId, updateData) => {
   try {
+    // Try to find by _id first (MongoDB ObjectId), then by reportID (RPT-XXXX)
+    let query;
+    if (reportId.match(/^[0-9a-fA-F]{24}$/)) {
+      // It's a MongoDB ObjectId
+      query = { _id: reportId };
+    } else {
+      // It's a reportID in RPT-XXXX format
+      query = { reportID: reportId };
+    }
+    
     const updatedReport = await Report.findOneAndUpdate(
-      { reportID: reportId },
+      query,
       updateData,
       { new: true, runValidators: true }
     );
