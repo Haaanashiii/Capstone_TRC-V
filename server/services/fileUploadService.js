@@ -123,18 +123,19 @@ async function uploadFile(buffer, originalname, mimetype, metadata) {
  * Used when SB admin accepts application
  * @param {string} userId - User ID (source folder)
  * @param {string} applicationId - Application ID (source folder)
- * @param {string} franchiseNo - Franchise number (destination folder)
+ * @param {string} franchiseNo - Franchise number (destination folder level 1)
+ * @param {string} franchiseChainId - Franchise chain ID (destination folder level 2)
  * @param {number} version - Version number
  * @returns {Promise<void>}
  */
-async function moveFilesToInformation(userId, applicationId, franchiseNo, version) {
+async function moveFilesToInformation(userId, applicationId, franchiseNo, franchiseChainId, version) {
   if (!UPLOAD_TO_LOCAL) {
     console.log('[Move] Local storage disabled, skipping');
     return;
   }
 
   const sourcePath = path.join(LOCAL_BASE_PATH, 'franchiseApplications', userId, applicationId);
-  const destPath = path.join(LOCAL_BASE_PATH, 'franchiseInformations', franchiseNo, `version-${version}`);
+  const destPath = path.join(LOCAL_BASE_PATH, 'franchiseInformations', franchiseNo, franchiseChainId, `version-${version}`);
 
   try {
     // Check if source exists
