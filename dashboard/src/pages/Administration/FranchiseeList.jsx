@@ -29,6 +29,11 @@ import {
   Snackbar,
   Fade,
   Backdrop,
+  MenuItem,
+  Select,
+  FormControl,
+  InputLabel,
+  Menu,
 } from '@mui/material';
 import { styled } from "@mui/material/styles";
 import SearchIcon from '@mui/icons-material/Search';
@@ -40,6 +45,8 @@ import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFile';
 import ImageIcon from '@mui/icons-material/Image';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import DownloadIcon from '@mui/icons-material/Download';
+import FileDownloadIcon from '@mui/icons-material/FileDownload';
+import FilterListIcon from '@mui/icons-material/FilterList';
 import '../../Styles/Administrator_Css/FranchiseeList.css';
 import '../../Styles/Administrator_Css/SharedTable.css';
 
@@ -357,6 +364,8 @@ function FranchiseeList() {
   const currentBlobUrlRef = useRef(null);
   const qrBlobUrlRef = useRef(null);
   const [qrBlobUrl, setQrBlobUrl] = useState(null);
+  const [selectedBarangay, setSelectedBarangay] = useState('all');
+  const [exportMenuAnchor, setExportMenuAnchor] = useState(null);
 
   // Helper function to determine file type from URL extension
   const getFileTypeFromUrl = (url) => {
@@ -519,20 +528,36 @@ function FranchiseeList() {
     };
   }, [fetchFranchisees]);
 
-  // Filtered franchisees based on search term
+  // Get unique barangays for filter dropdown
+  const barangays = useMemo(() => {
+    const uniqueBarangays = [...new Set(franchisees.map(f => f.barangay).filter(Boolean))];
+    return uniqueBarangays.sort();
+  }, [franchisees]);
+
+  // Filtered franchisees based on search term and barangay
   const filteredFranchisees = useMemo(() => {
-    if (!searchTerm.trim()) return franchisees;
+    let filtered = franchisees;
     
-    const searchLower = searchTerm.toLowerCase();
-    return franchisees.filter(
-      (franchisee) =>
-        franchisee.franchiseeName.toLowerCase().includes(searchLower) ||
-        franchisee.franchiseNumber.includes(searchLower) ||
-        franchisee.plateNumber.toLowerCase().includes(searchLower) ||
-        franchisee.recordNumber.includes(searchLower) ||
-        franchisee.applicationType.toLowerCase().includes(searchLower)
-    );
-  }, [franchisees, searchTerm]);
+    // Filter by barangay
+    if (selectedBarangay !== 'all') {
+      filtered = filtered.filter(f => f.barangay === selectedBarangay);
+    }
+    
+    // Filter by search term
+    if (searchTerm.trim()) {
+      const searchLower = searchTerm.toLowerCase();
+      filtered = filtered.filter(
+        (franchisee) =>
+          franchisee.franchiseeName.toLowerCase().includes(searchLower) ||
+          franchisee.franchiseNumber.includes(searchLower) ||
+          franchisee.plateNumber.toLowerCase().includes(searchLower) ||
+          franchisee.recordNumber.includes(searchLower) ||
+          franchisee.applicationType.toLowerCase().includes(searchLower)
+      );
+    }
+    
+    return filtered;
+  }, [franchisees, searchTerm, selectedBarangay]);
 
   // Paginated data
   const paginatedFranchisees = useMemo(() => {
@@ -816,6 +841,141 @@ function FranchiseeList() {
     setNotification({ open: false, message: '', type: 'info' });
   }, []);
 
+  const handleBarangayChange = useCallback((event) => {
+    setSelectedBarangay(event.target.value);
+    setPage(0); // Reset to first page when filter changes
+  }, []);
+
+  const handleExportMenuOpen = useCallback((event) => {
+    setExportMenuAnchor(event.currentTarget);
+  }, []);
+
+  const handleExportMenuClose = useCallback(() => {
+    setExportMenuAnchor(null);
+  }, []);
+
+  const exportToCSV = useCallback(() => {
+    try {
+      // Prepare data for export
+      const dataToExport = filteredFranchisees.map(f => ({
+        'Record Number': f.recordNumber,
+        'Franchise Number': f.franchiseNumber,
+        'Franchisee Name': f.franchiseeName,
+        'Plate Number': f.plateNumber,
+        'Application Type': f.applicationType,
+        'Barangay': f.barangay || 'N/A',
+        'Address': f.address,
+        'Contact Number': f.contactNumber || 'N/A',
+        'Email': f.email || 'N/A',
+        'Unit Model': f.unitModel || 'N/A',
+        'Make': f.make,
+        'MV Plate': f.mvPlate || 'N/A',
+        'Driver Name': f.driverName || 'N/A',
+        'Franchise Status': f.franchiseStatus || 'N/A',
+        'Rate': f.rate || 'N/A',
+        'Approved Date': f.approvedAt || 'N/A',
+        'Expiry Date': f.expiryDate || 'N/A',
+      }));
+
+      // Create CSV content
+      const headers = Object.keys(dataToExport[0] || {});
+      const csvContent = [
+        headers.join(','),
+        ...dataToExport.map(row => 
+          headers.map(header => {
+            const value = String(row[header] || '');
+            // Escape quotes and wrap in quotes if contains comma, quote, or newline
+            return value.includes(',') || value.includes('"') || value.includes('\n')
+              ? `"${value.replace(/"/g, '""')}"`
+              : value;
+          }).join(',')
+        )
+      ].join('\n');
+
+      // Create and download file
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      const filename = `franchisee_list_${selectedBarangay !== 'all' ? selectedBarangay + '_' : ''}${new Date().toISOString().split('T')[0]}.csv`;
+      
+      link.setAttribute('href', url);
+      link.setAttribute('download', filename);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      setNotification({ open: true, message: 'Data exported successfully', type: 'success' });
+    } catch (error) {
+      console.error('Export error:', error);
+      setNotification({ open: true, message: 'Failed to export data', type: 'error' });
+    }
+    handleExportMenuClose();
+  }, [filteredFranchisees, selectedBarangay, handleExportMenuClose]);
+
+  const exportToJSON = useCallback(() => {
+    try {
+      // Prepare data for export (full data)
+      const dataToExport = filteredFranchisees.map(f => ({
+        recordNumber: f.recordNumber,
+        franchiseNumber: f.franchiseNumber,
+        franchiseeName: f.franchiseeName,
+        plateNumber: f.plateNumber,
+        applicationType: f.applicationType,
+        barangay: f.barangay,
+        address: f.address,
+        contactNumber: f.contactNumber,
+        email: f.email,
+        unitModel: f.unitModel,
+        make: f.make,
+        mvPlate: f.mvPlate,
+        motorEngineNumber: f.motorEngineNumber,
+        chassisNumber: f.chassisNumber,
+        colorMotor: f.colorMotor,
+        colorSidecar: f.colorSidecar,
+        sidecarPlateNumber: f.sidecarPlateNumber,
+        driverName: f.driverName,
+        driversID: f.driversID,
+        driversAddress: f.driversAddress,
+        franchiseStatus: f.franchiseStatus,
+        rate: f.rate,
+        approvedAt: f.approvedAt,
+        expiryDate: f.expiryDate,
+        civilStatus: f.civilStatus,
+        birthPlace: f.birthPlace,
+        birthDate: f.birthDate,
+        citizenship: f.citizenship,
+        todaMembership: f.todaMembership,
+        coOwnerName: f.coOwnerName,
+        coOwnerAddress: f.coOwnerAddress,
+      }));
+
+      // Create JSON content
+      const jsonContent = JSON.stringify(dataToExport, null, 2);
+
+      // Create and download file
+      const blob = new Blob([jsonContent], { type: 'application/json' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      const filename = `franchisee_list_${selectedBarangay !== 'all' ? selectedBarangay + '_' : ''}${new Date().toISOString().split('T')[0]}.json`;
+      
+      link.setAttribute('href', url);
+      link.setAttribute('download', filename);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      setNotification({ open: true, message: 'Data exported successfully', type: 'success' });
+    } catch (error) {
+      console.error('Export error:', error);
+      setNotification({ open: true, message: 'Failed to export data', type: 'error' });
+    }
+    handleExportMenuClose();
+  }, [filteredFranchisees, selectedBarangay, handleExportMenuClose]);
+
   const getApplicationTypeColor = (type) => {
     switch (type) {
       case 'New':
@@ -848,32 +1008,85 @@ function FranchiseeList() {
           </Alert>
         )}
 
-        {/* Search Bar */}
-        <div className="search-container">
-          <TextField
-            placeholder="Search by name, franchise number, plate number, or record number..."
-            variant="outlined"
-            fullWidth
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            onKeyPress={(e) => {
-              if (e.key === 'Enter') {
-                handleSearch();
-              }
+        {/* Search Bar and Filters */}
+        <Box sx={{ mb: 3, display: 'flex', gap: 2, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+          <Box sx={{ flex: '1 1 400px', display: 'flex', gap: 1 }}>
+            <TextField
+              placeholder="Search by name, franchise number, plate number, or record number..."
+              variant="outlined"
+              fullWidth
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              onKeyPress={(e) => {
+                if (e.key === 'Enter') {
+                  handleSearch();
+                }
+              }}
+              className="search-field"
+            />
+            <Button 
+              className="search-button"
+              onClick={handleSearch}
+              sx={{ minWidth: 'auto', px: 2 }}
+            >
+              <SearchIcon />
+            </Button>
+          </Box>
+          
+          <FormControl sx={{ minWidth: 200 }}>
+            <InputLabel id="barangay-filter-label">
+              <FilterListIcon sx={{ fontSize: 18, mr: 0.5, verticalAlign: 'middle' }} />
+              Filter by Barangay
+            </InputLabel>
+            <Select
+              labelId="barangay-filter-label"
+              value={selectedBarangay}
+              onChange={handleBarangayChange}
+              label="Filter by Barangay"
+            >
+              <MenuItem value="all">All Barangays</MenuItem>
+              {barangays.map((barangay) => (
+                <MenuItem key={barangay} value={barangay}>
+                  {barangay}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+
+          <Button
+            variant="contained"
+            startIcon={<FileDownloadIcon />}
+            onClick={handleExportMenuOpen}
+            sx={{
+              bgcolor: '#0A356B',
+              '&:hover': { bgcolor: '#082548' },
+              textTransform: 'none',
+              fontWeight: 600,
+              px: 3,
             }}
-            className="search-field"
-          />
-          <Button 
-            className="search-button"
-            onClick={handleSearch}
           >
-            <SearchIcon />
+            Export
           </Button>
-        </div>
+          <Menu
+            anchorEl={exportMenuAnchor}
+            open={Boolean(exportMenuAnchor)}
+            onClose={handleExportMenuClose}
+          >
+            <MenuItem onClick={exportToCSV}>
+              <FileDownloadIcon sx={{ mr: 1, fontSize: 20 }} />
+              Export as CSV
+            </MenuItem>
+            <MenuItem onClick={exportToJSON}>
+              <FileDownloadIcon sx={{ mr: 1, fontSize: 20 }} />
+              Export as JSON
+            </MenuItem>
+          </Menu>
+        </Box>
 
         {/* Results count */}
-        {searchTerm && (
+        {(searchTerm || selectedBarangay !== 'all') && (
           <Typography variant="body2" sx={{ mb: 2, color: '#666' }}>
+            {selectedBarangay !== 'all' && `Barangay: ${selectedBarangay} - `}
             Found {filteredFranchisees.length} result{filteredFranchisees.length !== 1 ? 's' : ''}
           </Typography>
         )}
