@@ -414,13 +414,29 @@
 .cert-type-card {
   transition: all 0.3s ease;
   cursor: pointer;
-  border: 2px solid transparent;
+  border: 2px solid #e0e0e0 !important;
+  height: 300px !important;
+  display: flex !important;
+  flex-direction: column !important;
 }
 
 .cert-type-card:hover {
-  border-color: #0A356B;
+  border-color: #0A356B !important;
   transform: translateY(-4px);
-  box-shadow: 0 8px 24px rgba(10, 53, 107, 0.15);
+  box-shadow: 0 8px 24px rgba(10, 53, 107, 0.15) !important;
+}
+
+.cert-type-card .MuiCardContent-root {
+  padding: 24px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: space-between !important;
+  flex: 1 !important;
+  text-align: center;
+}
+
+.cert-type-card .MuiCardContent-root:last-child {
+  padding-bottom: 24px !important;
 }
 
 .cert-type-icon {

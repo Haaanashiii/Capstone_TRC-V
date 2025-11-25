@@ -27,6 +27,9 @@ import {
   IconButton,
   Tooltip,
   Box,
+  Modal,
+  Divider,
+  Grid,
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import FileDownloadIcon from '@mui/icons-material/FileDownload';
@@ -34,6 +37,7 @@ import FilterListIcon from '@mui/icons-material/FilterList';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ErrorIcon from '@mui/icons-material/Error';
+import CloseIcon from '@mui/icons-material/Close';
 
 // API Configuration
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170';
@@ -120,6 +124,8 @@ function AuditTrail() {
   const [error, setError] = useState('');
   const [totalCount, setTotalCount] = useState(0);
   const [isAuthorized, setIsAuthorized] = useState(true);
+  const [selectedLog, setSelectedLog] = useState(null);
+  const [viewModalOpen, setViewModalOpen] = useState(false);
 
   // Get auth token from storage
   const getAuthToken = useCallback(() => {
@@ -361,6 +367,17 @@ function AuditTrail() {
     setPage(0);
   }, []);
 
+  // Modal handlers
+  const handleOpenViewModal = useCallback((log) => {
+    setSelectedLog(log);
+    setViewModalOpen(true);
+  }, []);
+
+  const handleCloseViewModal = useCallback(() => {
+    setViewModalOpen(false);
+    setTimeout(() => setSelectedLog(null), 200);
+  }, []);
+
   // Extract unique values for filters from current loaded logs
   const uniqueActions = useMemo(() => 
     [...new Set(auditLogs.map(log => log.action).filter(Boolean))].sort(),
@@ -423,9 +440,7 @@ function AuditTrail() {
           <Typography variant="h4" className="page-title">
             Audit Trail
           </Typography>
-          <Typography variant="body2" className="page-subtitle">
-            Track all system activities and user actions
-          </Typography>
+          
         </header>
 
         {error && (
@@ -434,7 +449,7 @@ function AuditTrail() {
           </Alert>
         )}
 
-        <Paper elevation={0} className="admin-table-container">
+        <Paper elevation={2} className="admin-table-container">
           {/* Search and Filters */}
           <div className="filters-section">
             <div className="filters-row">
@@ -563,7 +578,13 @@ function AuditTrail() {
                       </TableRow>
                     ) : (
                       filteredLogs.map((log) => (
-                        <TableRow key={log._id} className="admin-table-row" hover>
+                        <TableRow 
+                          key={log._id} 
+                          className="admin-table-row" 
+                          hover
+                          onClick={() => handleOpenViewModal(log)}
+                          sx={{ cursor: 'pointer' }}
+                        >
                           <TableCell className="admin-table-cell col-date">
                             <Typography variant="body2" className="timestamp-text">
                               {formatDateTime(log.createdAt)}
@@ -646,6 +667,180 @@ function AuditTrail() {
             </>
           )}
         </Paper>
+
+        {/* View Audit Log Details Modal */}
+        <Modal
+          open={viewModalOpen}
+          onClose={handleCloseViewModal}
+          aria-labelledby="audit-log-details-modal"
+        >
+          <Box className="modal-container">
+            <div className="modal-header">
+              <Typography variant="h5" component="h2">
+                AUDIT LOG DETAILS
+              </Typography>
+              <IconButton onClick={handleCloseViewModal}>
+                <CloseIcon />
+              </IconButton>
+            </div>
+            
+            {selectedLog && (
+              <>
+                <Typography variant="h6" className="section-header">
+                  USER INFORMATION
+                </Typography>
+                
+                <div className="info-grid">
+                  <Typography variant="subtitle2" className="label">Name:</Typography>
+                  <Typography>{selectedLog.name || selectedLog.username || 'N/A'}</Typography>
+                  
+                  <Typography variant="subtitle2" className="label">Email:</Typography>
+                  <Typography>{selectedLog.email || 'N/A'}</Typography>
+                  
+                  <Typography variant="subtitle2" className="label">Role:</Typography>
+                  <Box>
+                    <Chip
+                      label={formatRoleLabel(selectedLog.role)}
+                      color={ROLE_COLORS[selectedLog.role] || 'default'}
+                      size="small"
+                    />
+                  </Box>
+                  
+                  <Typography variant="subtitle2" className="label">User ID:</Typography>
+                  <Typography sx={{ fontFamily: 'monospace', fontSize: '0.9em' }}>
+                    {selectedLog.userId || 'N/A'}
+                  </Typography>
+                </div>
+
+                <Divider sx={{ my: 3, borderColor: '#e0e0e0' }} />
+
+                <Typography variant="h6" className="section-header">
+                  ACTION DETAILS
+                </Typography>
+                
+                <div className="info-grid">
+                  <Typography variant="subtitle2" className="label">Description:</Typography>
+                  <Typography sx={{ gridColumn: '2' }}>
+                    {selectedLog.description || selectedLog.action || 'N/A'}
+                  </Typography>
+                  
+                  <Typography variant="subtitle2" className="label">Action Type:</Typography>
+                  <Box>
+                    <Chip
+                      label={selectedLog.action || 'N/A'}
+                      color={ACTION_COLORS[selectedLog.action] || 'default'}
+                      size="small"
+                    />
+                  </Box>
+                  
+                  <Typography variant="subtitle2" className="label">Timestamp:</Typography>
+                  <Typography>{formatDateTime(selectedLog.createdAt)}</Typography>
+                  
+                  <Typography variant="subtitle2" className="label">Resource Type:</Typography>
+                  <Typography>{selectedLog.resourceType || 'N/A'}</Typography>
+                  
+                  <Typography variant="subtitle2" className="label">Resource ID:</Typography>
+                  <Typography sx={{ fontFamily: 'monospace', fontSize: '0.9em' }}>
+                    {selectedLog.resourceId || 'N/A'}
+                  </Typography>
+                </div>
+
+                <Divider sx={{ my: 3, borderColor: '#e0e0e0' }} />
+
+                <Typography variant="h6" className="section-header">
+                  REQUEST INFORMATION
+                </Typography>
+                
+                <div className="info-grid">
+                  <Typography variant="subtitle2" className="label">HTTP Method:</Typography>
+                  <Typography sx={{ fontFamily: 'monospace', fontSize: '0.9em' }}>
+                    {selectedLog.method || 'N/A'}
+                  </Typography>
+                  
+                  <Typography variant="subtitle2" className="label">Status Code:</Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    {selectedLog.success ? (
+                      <CheckCircleIcon sx={{ fontSize: 18, color: '#10B981' }} />
+                    ) : (
+                      <ErrorIcon sx={{ fontSize: 18, color: '#EF4444' }} />
+                    )}
+                    <Chip
+                      label={selectedLog.statusCode || 'N/A'}
+                      color={getStatusColor(selectedLog.statusCode)}
+                      size="small"
+                    />
+                  </Box>
+                  
+                  <Typography variant="subtitle2" className="label">Route:</Typography>
+                  <Typography 
+                    sx={{ 
+                      fontFamily: 'monospace',
+                      fontSize: '0.85em',
+                      bgcolor: '#f5f5f5',
+                      p: 1,
+                      borderRadius: 1,
+                      wordBreak: 'break-all',
+                      gridColumn: '2'
+                    }}
+                  >
+                    {selectedLog.route || 'N/A'}
+                  </Typography>
+                </div>
+
+                <Divider sx={{ my: 3, borderColor: '#e0e0e0' }} />
+
+                <Typography variant="h6" className="section-header">
+                  SYSTEM INFORMATION
+                </Typography>
+                
+                <div className="info-grid">
+                  <Typography variant="subtitle2" className="label">IP Address:</Typography>
+                  <Typography sx={{ fontFamily: 'monospace', fontSize: '0.9em' }}>
+                    {selectedLog.ipAddress || 'N/A'}
+                  </Typography>
+                  
+                  <Typography variant="subtitle2" className="label">Browser:</Typography>
+                  <Typography>{selectedLog.browser || 'Unknown Browser'}</Typography>
+                  
+                  <Typography variant="subtitle2" className="label">Device:</Typography>
+                  <Typography>{selectedLog.device || 'Unknown Device'}</Typography>
+                  
+                  <Typography variant="subtitle2" className="label">Operating System:</Typography>
+                  <Typography>{selectedLog.os || 'Unknown OS'}</Typography>
+                </div>
+
+                {/* Additional Details if available */}
+                {selectedLog.details && (
+                  <>
+                    <Divider sx={{ my: 3, borderColor: '#e0e0e0' }} />
+                    <Typography variant="h6" className="section-header">
+                      ADDITIONAL DETAILS
+                    </Typography>
+                    <Typography 
+                      variant="body2" 
+                      sx={{ 
+                        fontFamily: 'monospace',
+                        fontSize: '0.85em',
+                        bgcolor: '#f5f5f5',
+                        p: 2,
+                        borderRadius: 1,
+                        whiteSpace: 'pre-wrap',
+                        wordBreak: 'break-word',
+                        maxHeight: '200px',
+                        overflow: 'auto',
+                        mt: 2
+                      }}
+                    >
+                      {typeof selectedLog.details === 'object' 
+                        ? JSON.stringify(selectedLog.details, null, 2)
+                        : selectedLog.details}
+                    </Typography>
+                  </>
+                )}
+              </>
+            )}
+          </Box>
+        </Modal>
       </div>
     </div>
   );

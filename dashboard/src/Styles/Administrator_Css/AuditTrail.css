@@ -245,3 +245,115 @@
         min-width: 100%;
     }
 }
+
+/* Modal Styles */
+.modal-container {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: white;
+    border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+    max-width: 700px;
+    width: 90%;
+    max-height: 85vh;
+    overflow-y: auto;
+    outline: none;
+}
+
+.modal-header {
+    background-color: #0A356B;
+    color: white;
+    padding: 20px 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-top-left-radius: 12px;
+    border-top-right-radius: 12px;
+}
+
+.modal-header h2 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    font-family: 'Poppins', sans-serif !important;
+}
+
+.modal-header button {
+    color: white;
+    padding: 4px;
+}
+
+.modal-header button:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.section-header {
+    font-size: 14px !important;
+    font-weight: 700 !important;
+    color: #0A356B !important;
+    margin: 24px 24px 16px 24px !important;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    font-family: 'Poppins', sans-serif !important;
+    border-bottom: 2px solid #0A356B;
+    padding-bottom: 8px;
+}
+
+.info-grid {
+    display: grid;
+    grid-template-columns: 140px 1fr;
+    gap: 16px 24px;
+    padding: 0 24px 24px 24px;
+    font-family: 'Poppins', sans-serif;
+}
+
+.info-grid .label {
+    font-weight: 600 !important;
+    color: #555 !important;
+    font-size: 13px !important;
+    font-family: 'Poppins', sans-serif !important;
+}
+
+.info-grid > :nth-child(2n) {
+    color: #333;
+    font-size: 14px;
+}
+
+/* Modal Scrollbar */
+.modal-container::-webkit-scrollbar {
+    width: 8px;
+}
+
+.modal-container::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+}
+
+.modal-container::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 4px;
+}
+
+.modal-container::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}
+
+/* Responsive Modal */
+@media (max-width: 768px) {
+    .modal-container {
+        width: 95%;
+        max-height: 90vh;
+    }
+    
+    .info-grid {
+        grid-template-columns: 1fr;
+        gap: 12px;
+    }
+    
+    .info-grid .label {
+        margin-bottom: -8px;
+    }
+}

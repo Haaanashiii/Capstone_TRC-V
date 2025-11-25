@@ -845,57 +845,7 @@ exports.getApprovedRoutesForSBAdmin = async (req, res, next) => {
   }
 };
 
-// 9a) SB ADMIN ADD SESSION NUMBER (for session report before final approval)
-exports.addSessionNumber = async (req, res, next) => {
-  try {
-    const { id } = req.params;
-    const { sessionNumber } = req.body;
-    
-    if (!sessionNumber || !sessionNumber.trim()) {
-      return res.status(400).json({ error: 'Session number is required' });
-    }
-    
-    const application = await franchiseApplicationRepository.getFranchiseApplicationById(id);
-    
-    if (!application) {
-      return res.status(404).json({ error: 'Application not found' });
-    }
-    
-    // Can add session number for applications approved by BPLO
-    if (application.statusOfBPLO !== 'bplo-approved' && application.statusOfBPLO !== 'awaiting-sb') {
-      return res.status(400).json({ error: 'Application must be approved by BPLO before adding session number' });
-    }
-    
-    // If this is a new application, must have franchise number assigned
-    if (application.applicationType === 'new' && !application.franchiseNumber) {
-      return res.status(400).json({ error: 'Franchise number must be assigned before adding session number' });
-    }
-    
-    console.log('[Add Session Number] Session number ready:', {
-      applicationId: id,
-      franchiseNumber: application.franchiseNumber,
-      sessionNumber: sessionNumber.trim(),
-      operatorName: application.operatorName,
-      note: 'Will be stored in FranchiseInformation when SB admin finalizes'
-    });
-    
-    res.json({ 
-      success: true, 
-      data: {
-        applicationId: id,
-        franchiseNumber: application.franchiseNumber,
-        sessionNumber: sessionNumber.trim(),
-        operatorName: application.operatorName
-      },
-      message: `Session number ${sessionNumber.trim()} confirmed. You can now proceed with session report. This will be stored in franchise information when you finalize the franchise.`
-    });
-  } catch (error) {
-    console.error('[Add Session Number] Error:', error);
-    next(error);
-  }
-};
-
-// 9b) SB ADMIN FINAL APPROVAL (with resolution number and optional document)
+// 9) SB ADMIN FINAL APPROVAL (with resolution number and optional document)
 exports.approveFranchiseBySBAdmin = async (req, res, next) => {
   try {
     const { id } = req.params;
@@ -1040,13 +990,6 @@ exports.sbAdminAcceptNewFranchise = async (req, res, next) => {
   
   try {
     const { id } = req.params;
-    const { sessionNumber } = req.body;
-    const { files } = req;
-    
-    if (!sessionNumber || !sessionNumber.trim()) {
-      await session.abortTransaction();
-      return res.status(400).json({ error: 'Session number is required' });
-    }
     
     const application = await franchiseApplicationRepository.getFranchiseApplicationById(id);
     if (!application) {
@@ -1080,8 +1023,7 @@ exports.sbAdminAcceptNewFranchise = async (req, res, next) => {
     console.log('[sbAdminAcceptNewFranchise] Processing franchise creation:', {
       applicationId: id,
       franchiseNumber: franchiseNo,
-      operatorName: application.operatorName,
-      sessionNumber: sessionNumber.trim()
+      operatorName: application.operatorName
     });
     
     // Check if this franchise number was used before (recycled number)
@@ -1109,25 +1051,6 @@ exports.sbAdminAcceptNewFranchise = async (req, res, next) => {
     // Check version with transaction
     const { version, previousVersion } = await handleVersionControl(franchiseNo, 'new', session);
     
-    // Upload SB documents
-    let scannedReg, sessionReport;
-    if (files) {
-      if (files.scannedSignedRegistrationObj) {
-        const file = files.scannedSignedRegistrationObj[0];
-        validateFile(file);
-        const result = await uploadFile(file.buffer, file.originalname, file.mimetype,
-          { baseFolder: 'franchiseInformations', subFolder: franchiseNo, category: 'Documentations', customKey: `version-${version}/Documentations/${file.originalname}` });
-        scannedReg = result.cloudflare;
-      }
-      if (files.individualSessionReportObj) {
-        const file = files.individualSessionReportObj[0];
-        validateFile(file);
-        const result = await uploadFile(file.buffer, file.originalname, file.mimetype,
-          { baseFolder: 'franchiseInformations', subFolder: franchiseNo, category: 'Documentations', customKey: `version-${version}/Documentations/${file.originalname}` });
-        sessionReport = result.cloudflare;
-      }
-    }
-    
     // Move files from applications → information (both local and cloud)
     const userId = application.operatorInfo || 'pending';
     const appId = String(application._id);
@@ -1137,7 +1060,6 @@ exports.sbAdminAcceptNewFranchise = async (req, res, next) => {
     // Create FranchiseInformation record within transaction
     const franchiseData = {
       franchiseNumber: franchiseNo,
-      sessionNumber: sessionNumber.trim(),
       franchiseChainId: `${franchiseNo}-${application.operatorName.toLowerCase().replace(/\s+/g, '-')}`,
       operatorName: application.operatorName,
       operatorContactNumber: application.operatorContactNumber,
@@ -1175,8 +1097,7 @@ exports.sbAdminAcceptNewFranchise = async (req, res, next) => {
         driverPictureObj: urlMapping[application.documents?.driverPictureObj] || application.documents?.driverPictureObj,
         operatorPictureObj: urlMapping[application.documents?.operatorPictureObj] || application.documents?.operatorPictureObj,
         oRLTOObj: urlMapping[application.documents?.oRLTOObj] || application.documents?.oRLTOObj,
-        cRLTOObj: urlMapping[application.documents?.cRLTOObj] || application.documents?.cRLTOObj,
-        individualSessionReportObj: sessionReport
+        cRLTOObj: urlMapping[application.documents?.cRLTOObj] || application.documents?.cRLTOObj
       },
       version,
       isCurrentVersion: true,
@@ -1245,7 +1166,6 @@ exports.sbAdminAcceptNewFranchise = async (req, res, next) => {
         req.app.get('io').to(`user-${franchise[0].linkedUser}`).emit('franchise-created', {
           franchiseId: franchise[0]._id,
           franchiseNumber: franchise[0].franchiseNumber,
-          sessionNumber: franchise[0].sessionNumber,
           message: 'Your franchise has been successfully registered and is now active in the system.',
           qrCode: franchise[0].qrCode
         });
@@ -1273,7 +1193,6 @@ exports.sbAdminAcceptRenewOrAmendment = async (req, res, next) => {
   
   try {
     const { id } = req.params;
-    const { files } = req;
     
     const application = await franchiseApplicationRepository.getFranchiseApplicationById(id);
     if (!application) {
@@ -1302,25 +1221,6 @@ exports.sbAdminAcceptRenewOrAmendment = async (req, res, next) => {
     
     // Handle versioning with transaction
     const { version, previousVersion } = await handleVersionControl(franchiseNo, application.applicationType, session);
-    
-    // Upload new docs
-    let scannedReg, sessionReport;
-    if (files) {
-      if (files.scannedSignedRegistrationObj) {
-        const file = files.scannedSignedRegistrationObj[0];
-        validateFile(file);
-        const result = await uploadFile(file.buffer, file.originalname, file.mimetype,
-          { baseFolder: 'franchiseInformations', subFolder: franchiseNo, category: 'Documentations', customKey: `version-${version}/Documentations/${file.originalname}` });
-        scannedReg = result.cloudflare;
-      }
-      if (files.individualSessionReportObj) {
-        const file = files.individualSessionReportObj[0];
-        validateFile(file);
-        const result = await uploadFile(file.buffer, file.originalname, file.mimetype,
-          { baseFolder: 'franchiseInformations', subFolder: franchiseNo, category: 'Documentations', customKey: `version-${version}/Documentations/${file.originalname}` });
-        sessionReport = result.cloudflare;
-      }
-    }
     
     // Generate QR Code (STATIC - based only on franchise number)
     // For renewals/amendments, reuse the existing QR code to keep it consistent
@@ -1365,9 +1265,7 @@ exports.sbAdminAcceptRenewOrAmendment = async (req, res, next) => {
         operatorPictureObj: application.documents?.operatorPictureObj || existingFranchise.documents?.operatorPictureObj,
         oRLTOObj: application.documents?.oRLTOObj || existingFranchise.documents?.oRLTOObj,
         cRLTOObj: application.documents?.cRLTOObj || existingFranchise.documents?.cRLTOObj,
-        oRTreasurerOfficeObj: application.documents?.oRTreasurerOfficeObj || existingFranchise.documents?.oRTreasurerOfficeObj,
-        scannedSignedRegistrationObj: scannedReg || existingFranchise.documents?.scannedSignedRegistrationObj,
-        individualSessionReportObj: sessionReport || existingFranchise.documents?.individualSessionReportObj
+        oRTreasurerOfficeObj: application.documents?.oRTreasurerOfficeObj || existingFranchise.documents?.oRTreasurerOfficeObj
       },
       relatedApplicationId: application._id
     };

@@ -123,9 +123,6 @@ const FranchiseeDetailsModal = ({ open, onClose, franchisee, isEditing, onEdit, 
               <Typography variant="subtitle2" className="label">Name:</Typography>
               <Typography>{franchisee.franchiseeName}</Typography>
               
-              <Typography variant="subtitle2" className="label">Session Number:</Typography>
-              <Typography>{franchisee.sessionNumber || 'N/A'}</Typography>
-              
               <Typography variant="subtitle2" className="label">Contact Number:</Typography>
               <Typography>{franchisee.contactNumber || 'N/A'}</Typography>
               
@@ -400,7 +397,6 @@ function FranchiseeList() {
           recordNumber: String(index + 1).padStart(3, '0'),
           franchiseeName: app.operatorName || '',
           franchiseNumber: app.franchiseNumber || '',
-          sessionNumber: app.sessionNumber || '',
           make: app.unitModel || 'N/A',
           plateNumber: app.mvPlateNo || 'N/A',
           applicationType: 'Approved', // All are approved franchises
@@ -482,11 +478,6 @@ function FranchiseeList() {
             name: docs.oRTreasurerOfficeObj.split('/').pop(),
             path: docs.oRTreasurerOfficeObj,
             type: getFileTypeFromUrl(docs.oRTreasurerOfficeObj)
-          } : null,
-          documentSessionReport: docs.individualSessionReportObj ? {
-            name: docs.individualSessionReportObj.split('/').pop(),
-            path: docs.individualSessionReportObj,
-            type: getFileTypeFromUrl(docs.individualSessionReportObj)
           } : null
         };
       });

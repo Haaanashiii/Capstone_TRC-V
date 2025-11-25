@@ -508,22 +508,18 @@ export const franchiseAPI = {
   /**
    * SB Admin accept new franchise application (creates FranchiseInformation record)
    * @param {string} id - Application ID (must have statusOfBPLO = 'sb-approved')
-   * @param {FormData} formData - FormData containing sessionNumber and optional documents
+   * @param {Object} data - Empty object or additional data
    * @returns {Promise} Response with created franchise information
    */
-  acceptNewFranchise: (id, formData) => api.post(`/api/franchise-applications/sb/accept-new/${id}`, formData, {
-    headers: { 'Content-Type': undefined }
-  }),
+  acceptNewFranchise: (id, data) => api.post(`/api/franchise-applications/sb/accept-new/${id}`, data),
 
   /**
    * SB Admin accept renewal/amendment application (creates new version of FranchiseInformation)
    * @param {string} id - Application ID (must have statusOfBPLO = 'sb-approved')
-   * @param {FormData} formData - FormData containing optional documents
+   * @param {Object} data - Empty object or additional data
    * @returns {Promise} Response with updated franchise information
    */
-  acceptRenewAmend: (id, formData) => api.post(`/api/franchise-applications/sb/accept-renew-amend/${id}`, formData, {
-    headers: { 'Content-Type': undefined }
-  })
+  acceptRenewAmend: (id, data) => api.post(`/api/franchise-applications/sb/accept-renew-amend/${id}`, data)
 };
 
 // ====================================================================

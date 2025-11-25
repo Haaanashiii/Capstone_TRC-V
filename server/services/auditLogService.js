@@ -443,7 +443,6 @@ class AuditLogService {
         operatorEmail: franchise.operatorEmail,
         mvPlateNo: franchise.mvPlateNo,
         unitModel: franchise.unitModel,
-        sessionNumber: franchise.sessionNumber,
         applicationId: application?._id?.toString()
       }
     });

@@ -112,6 +112,25 @@ async function fillPDFForm(templatePath, franchiseData) {
         
         console.log(`[PDF Filler] Processing template with ${fields.length} fields`);
         
+        // Embed standard fonts for consistent appearance
+        const { StandardFonts } = require('pdf-lib');
+        const timesRomanFont = await pdfDoc.embedFont(StandardFonts.TimesRoman);
+        const timesRomanBoldFont = await pdfDoc.embedFont(StandardFonts.TimesRomanBold);
+        
+        // Set default appearance for all text fields
+        form.getFields().forEach(field => {
+            const fieldType = field.constructor.name;
+            if (fieldType === 'PDFTextField') {
+                try {
+                    const textField = form.getTextField(field.getName());
+                    // Set font and size for consistent appearance
+                    textField.defaultUpdateAppearances(timesRomanFont);
+                } catch (err) {
+                    // Field might not support this operation, skip silently
+                }
+            }
+        });
+        
         // Prepare comprehensive data map with all possible field variations
         const dataMap = {
             // Exact matches from PDF templates (matching database schema)
@@ -124,7 +143,7 @@ async function fillPDFForm(templatePath, franchiseData) {
             sbApprovedAt: franchiseData.sbApprovedAt || franchiseData.approvedAt || franchiseData.dateApproved 
                 ? formatDate(franchiseData.sbApprovedAt || franchiseData.approvedAt || franchiseData.dateApproved) 
                 : '',
-            sbResolutionNumber: franchiseData.sbResolutionNumber || franchiseData.sessionNumber || '',
+            sbResolutionNumber: franchiseData.sbResolutionNumber || '',
             
             // Vehicle information (using correct database field names)
             unitModel: franchiseData.unitModel || '',

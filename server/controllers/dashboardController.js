@@ -20,11 +20,12 @@ exports.getDashboardStatistics = async (req, res, next) => {
       pendingReportsResult,
       monthlyTrendResult
     ] = await Promise.all([
-      // Total Registered Units (from FranchiseInformation - actual registered franchises)
-      FranchiseInformation.countDocuments(),
+      // Total Registered Units (from FranchiseInformation - actual registered franchises, only current versions)
+      FranchiseInformation.countDocuments({ isCurrentVersion: true }),
 
-      // Expired Franchises (Registered franchises with past expiry dates)
+      // Expired Franchises (Registered franchises with past expiry dates, only current versions)
       FranchiseInformation.countDocuments({ 
+        isCurrentVersion: true,
         expiryDate: { $lt: currentDate }
       }),
 
@@ -213,6 +214,7 @@ exports.getQuickStats = async (req, res, next) => {
         ]
       }),
       FranchiseInformation.countDocuments({ 
+        isCurrentVersion: true,
         expiryDate: { $lt: new Date() }
       }),
       Report.countDocuments({ status: 'pending' })
@@ -249,16 +251,18 @@ exports.getAnalytics = async (req, res, next) => {
       pendingApplications,
       barangayStats
     ] = await Promise.all([
-      // Total franchises count
-      FranchiseInformation.countDocuments(),
+      // Total franchises count (only current versions)
+      FranchiseInformation.countDocuments({ isCurrentVersion: true }),
 
-      // Active franchises (not expired)
+      // Active franchises (not expired, only current versions)
       FranchiseInformation.countDocuments({ 
+        isCurrentVersion: true,
         expiryDate: { $gte: currentDate }
       }),
 
-      // Expired franchises
+      // Expired franchises (only current versions)
       FranchiseInformation.countDocuments({ 
+        isCurrentVersion: true,
         expiryDate: { $lt: currentDate }
       }),
 
@@ -274,6 +278,11 @@ exports.getAnalytics = async (req, res, next) => {
       // Barangay-wise franchise distribution
       FranchiseInformation.aggregate([
         {
+          $match: {
+            isCurrentVersion: true
+          }
+        },
+        {
           $facet: {
             // Get active franchises by barangay
             activeByBarangay: [
@@ -284,7 +293,7 @@ exports.getAnalytics = async (req, res, next) => {
               },
               {
                 $group: {
-                  _id: '$barangay',
+                  _id: '$operatorBarangay',
                   count: { $sum: 1 }
                 }
               }
@@ -298,7 +307,7 @@ exports.getAnalytics = async (req, res, next) => {
               },
               {
                 $group: {
-                  _id: '$barangay',
+                  _id: '$operatorBarangay',
                   count: { $sum: 1 }
                 }
               }
@@ -307,7 +316,7 @@ exports.getAnalytics = async (req, res, next) => {
             totalByBarangay: [
               {
                 $group: {
-                  _id: '$barangay',
+                  _id: '$operatorBarangay',
                   count: { $sum: 1 }
                 }
               }

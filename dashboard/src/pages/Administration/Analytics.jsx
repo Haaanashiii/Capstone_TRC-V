@@ -168,9 +168,6 @@ function Analytics() {
           <Typography variant="h4" className="page-title">
             Franchise Analytics
           </Typography>
-          <Typography variant="body2" className="page-subtitle">
-            Comprehensive franchise distribution and statistics
-          </Typography>
         </header>
 
         {error && (

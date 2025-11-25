@@ -14,7 +14,7 @@
 .franchise-mgmt-content {
     flex: 1;
     padding: 32px;
-    margin-left: 260px;
+    margin-left: 240px;
     width: calc(100% - 260px);
     max-width: 100%;
     box-sizing: border-box;

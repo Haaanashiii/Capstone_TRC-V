@@ -16,14 +16,12 @@ const DocumentReferenceSchema = new mongoose.Schema({
   qrCodeObj: { type: String, required: false },
   oRTreasurerOfficeObj: { type: String, required: false },
   //added of sb
-  individualSessionReportObj: { type: String, required: false },
   resolutionDocumentObj: { type: String, required: false },
 });
 
 const franchiseInformationSchema = new mongoose.Schema({
 
   franchiseNumber: { type: String, required: true }, // Can be reused after revoke
-  sessionNumber: { type: String }, // Session number added when SB admin finalizes the franchise 
   
   // CRITICAL: Tracks the lineage/chain of this franchise
   // When franchise #001 expires and is given to another user, they get a NEW franchiseChainId
