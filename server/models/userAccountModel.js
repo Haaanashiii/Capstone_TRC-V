@@ -28,9 +28,9 @@ const userAccountSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Franchise Application'
     }],
-    franchiseInformation: [{
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Franchise Information'
+    franchiseChainIds: [{
+        type: String,
+        description: 'Franchise chain IDs linked to this user (format: franchiseNumber-operatorName)'
     }]
     
 });
