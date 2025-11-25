@@ -109,7 +109,7 @@ export default function FranchiseApplication() {
               operatorAddress: app.operatorAddress || '',
               barangay: app.operatorBarangay || '',
               hasCoOwner: app.coOwnerName ? 'Yes' : 'No',
-              motorcyclePicture: null,
+              operatorPicture: null,
             });
             
             // Prefill co-owners if they exist
@@ -193,6 +193,7 @@ export default function FranchiseApplication() {
       photoOrLTO: "OR LTO (Official Receipt)",
       photoCR: "CR (Certificate of Registration)",
       picture: "1x1 Picture of the Operator",
+      driverPictureLabel: "1x1 Picture of the Driver",
       browseFiles: "Browse Files to upload",
       noFileSelected: "No selected File -",
       digitalSignature: "Digital Signature",
@@ -249,6 +250,7 @@ export default function FranchiseApplication() {
       photoOrLTO: "OR LTO (Official Receipt)",
       photoCR: "CR (Certificate of Registration)",
       picture: "1x1 na Larawan",
+      driverPictureLabel: "1x1 na Larawan ng Driver",
       browseFiles: "Mag-browse ng mga file para i-upload",
       noFileSelected: "Walang napiling File -",
       digitalSignature: "Digital na Pirma",
@@ -343,7 +345,8 @@ export default function FranchiseApplication() {
     operatorAddress: "",
     barangay: "",
     hasCoOwner: "",
-    motorcyclePicture: null,
+    operatorPicture: null,
+    driverPicture: null,
   });
 
   // Track if this is a resubmission (editing disapproved application)
@@ -464,9 +467,9 @@ export default function FranchiseApplication() {
     const newErrors = {};
     setSidecarColorError("");
 
-    // Ensure every field in `fields` (except `date`, `hasCoOwner`, `motorcyclePicture`, and `todaMembership`) is present and non-empty
+    // Ensure every field in `fields` (except `date`, `hasCoOwner`, `operatorPicture`, `driverPicture`, and `todaMembership`) is present and non-empty
     Object.keys(fields).forEach(k => {
-      if (k === 'date' || k === 'hasCoOwner' || k === 'motorcyclePicture' || k === 'todaMembership') return;
+      if (k === 'date' || k === 'hasCoOwner' || k === 'operatorPicture' || k === 'driverPicture' || k === 'todaMembership') return;
       const v = fields[k];
       if (k === 'birthDate') {
         if (!v) newErrors[k] = 'Date of birth is required';
@@ -505,9 +508,14 @@ export default function FranchiseApplication() {
       });
     }
 
-    // Validate motorcycle picture
-    if (!fields.motorcyclePicture) {
-      newErrors.motorcyclePicture = 'Motorcycle 1x1 picture is required';
+    // Validate operator picture
+    if (!fields.operatorPicture) {
+      newErrors.operatorPicture = 'Operator 1x1 picture is required';
+    }
+
+    // Validate driver picture
+    if (!fields.driverPicture) {
+      newErrors.driverPicture = 'Driver 1x1 picture is required';
     }
 
     // Special mapping to keep older per-field error states for UI
@@ -634,6 +642,10 @@ export default function FranchiseApplication() {
                   onClick={() => {
                     if (modalFile && modalDocKey) {
                       setUploads(u => ({ ...u, [modalDocKey]: modalFile }));
+                      // If uploading driver picture from modal, also set it in fields
+                      if (modalDocKey === 'picture') {
+                        setFields(f => ({ ...f, driverPicture: modalFile }));
+                      }
                     }
                     setModalDocKey(null);
                     setModalFile(null);
@@ -896,9 +908,9 @@ export default function FranchiseApplication() {
             />
           </div>
           
-          {/* 1x1 Picture Upload for Motorcycle */}
+          {/* 1x1 Picture Upload for OPERATOR */}
           <div style={{ marginTop: 24 }}>
-            <div style={{ fontWeight: 700, color: '#222', fontSize: 18, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>{t.picture}</div>
+            <div style={{ fontWeight: 700, color: '#222', fontSize: 18, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>1x1 Picture of Operator</div>
             <div
               style={{
                 width: '100%',
@@ -931,10 +943,10 @@ export default function FranchiseApplication() {
                     }
                     try {
                       const processedFile = await compressFile(file);
-                      setFields({ ...fields, motorcyclePicture: processedFile });
+                      setFields({ ...fields, operatorPicture: processedFile });
                       setToast({ open: true, message: 'Picture uploaded successfully', severity: 'success' });
                     } catch {
-                      setFields({ ...fields, motorcyclePicture: file });
+                      setFields({ ...fields, operatorPicture: file });
                       setToast({ open: true, message: 'Picture uploaded', severity: 'success' });
                     }
                   }
@@ -942,7 +954,7 @@ export default function FranchiseApplication() {
                 input.click();
               }}
             >
-              {fields.motorcyclePicture ? truncateFilename(fields.motorcyclePicture.name) : t.noFileSelected + ' Click to upload'}
+              {fields.operatorPicture ? truncateFilename(fields.operatorPicture.name) : t.noFileSelected + ' Click to upload'}
             </div>
           </div>
 
@@ -977,7 +989,7 @@ export default function FranchiseApplication() {
               { key: 'affidavit', label: t.photoAffidavit.toUpperCase() },
               { key: 'orLTO', label: t.photoOrLTO.toUpperCase() },
               { key: 'cr', label: t.photoCR.toUpperCase() },
-              { key: 'picture', label: t.picture.toUpperCase() },
+              { key: 'picture', label: t.driverPictureLabel.toUpperCase() },
             ].map((doc) => (
               <div key={doc.key} style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
                 <div style={{ flex: 2, fontWeight: 700, color: '#222', fontSize: 18, textTransform: 'uppercase', letterSpacing: 0.5 }}>{doc.label}</div>
@@ -1059,20 +1071,8 @@ export default function FranchiseApplication() {
                       formDataToSend.append('operatorCivilStatus', fields.civilStatus || '');
                       formDataToSend.append('operatorCitizenship', fields.citizenship || '');
                       
-                      // Email fetched from backend API (NOT from JWT for security)
-                      if (userEmail) {
-                        formDataToSend.append('operatorEmail', userEmail);
-                        console.log('[FranchiseApplication] Using email from backend API:', userEmail);
-                      } else {
-                        console.warn('[FranchiseApplication] No email available from backend API');
-                        formDataToSend.append('operatorEmail', '');
-                      }
-                      
-                      // User ID for tracking (extracted from JWT, then used to fetch email)
-                      if (userId) {
-                        formDataToSend.append('userId', userId);
-                        console.log('[FranchiseApplication] Including user ID:', userId);
-                      }
+                      // Email is automatically obtained from user?.email on the backend
+                      // No need to send from frontend - backend authentication middleware provides it
                       
                       // Driver/Operator Details
                       formDataToSend.append('driversID', fields.driverName || '');
@@ -1154,12 +1154,15 @@ export default function FranchiseApplication() {
                       
                       if (uploads.picture) {
                         formDataToSend.append('driverPictureObj', uploads.picture);
+                      } else if (fields.driverPicture) {
+                        // If driver picture was uploaded directly (not through modal), use that
+                        formDataToSend.append('driverPictureObj', fields.driverPicture);
                       } else if (isResubmission && existingDocuments?.driverPicture) {
                         formDataToSend.append('existingDriverPicture', existingDocuments.driverPicture);
                       }
                       
-                      if (fields.motorcyclePicture) {
-                        formDataToSend.append('operatorPictureObj', fields.motorcyclePicture);
+                      if (fields.operatorPicture) {
+                        formDataToSend.append('operatorPictureObj', fields.operatorPicture);
                       } else if (isResubmission && existingDocuments?.operatorPicture) {
                         formDataToSend.append('existingOperatorPicture', existingDocuments.operatorPicture);
                       }
@@ -1226,7 +1229,7 @@ export default function FranchiseApplication() {
                         driverAddress: "",
                         barangay: "",
                         hasCoOwner: "",
-                        motorcyclePicture: null,
+                        operatorPicture: null,
                       })
                       setAddressError('');
                       setBarangayError('');
