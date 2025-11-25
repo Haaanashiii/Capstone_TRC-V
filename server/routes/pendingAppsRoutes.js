@@ -16,7 +16,7 @@ let approved = []
 try {
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true })
 } catch (err) {
-  console.error('Failed to ensure data directory', err)
+  console.error('[Routes] Directory error', err.message)
 }
 
 // Load persisted data if available
@@ -28,7 +28,7 @@ try {
     approved = Array.isArray(parsed.approved) ? parsed.approved : []
   }
 } catch (err) {
-  console.warn('Failed to load pendingApps.json, starting with empty arrays', err)
+  console.warn('[Routes] Failed to load pendingApps.json', err.message)
 }
 
 const persist = () => {
@@ -36,7 +36,7 @@ const persist = () => {
     const payload = { pending, approved }
     fs.writeFileSync(DATA_FILE, JSON.stringify(payload, null, 2), 'utf8')
   } catch (err) {
-    console.error('Failed to persist pending apps', err)
+    console.error('[Routes] Persist error', err.message)
   }
 }
 
@@ -93,7 +93,7 @@ router.post('/', (req, res) => {
 
   res.status(201).json(app)
   } catch (err) {
-    console.error('Failed to create pending app', err)
+    console.error('[Routes] Create error', err.message)
     res.status(500).json({ error: 'Failed to create pending application' })
   }
 })
@@ -111,7 +111,7 @@ router.put('/:id/approve', (req, res) => {
   persist()
   res.json(app)
   } catch (err) {
-    console.error('Failed to approve application', err)
+    console.error('[Routes] Approve error', err.message)
     res.status(500).json({ error: 'Failed to approve application' })
   }
 })
@@ -130,7 +130,7 @@ router.delete('/:id', (req, res) => {
     persist()
     res.json(removed)
   } catch (err) {
-    console.error('Failed to delete pending application', err)
+    console.error('[Routes] Delete error', err.message)
     res.status(500).json({ error: 'Failed to delete pending application' })
   }
 })

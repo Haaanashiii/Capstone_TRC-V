@@ -11,15 +11,15 @@ const { triggerManualExpiryCheck } = require('../services/franchiseExpirySchedul
  */
 router.post('/trigger-expiry-check', authenticate, authorize(['super-admin', 'sb-admin']), async (req, res, next) => {
   try {
-    console.log('[API] Manual expiry check triggered by:', req.user.email || req.user.username);
+    console.log('[Scheduler] Manual check triggered');
     
     // Run the check asynchronously
     triggerManualExpiryCheck()
       .then(() => {
-        console.log('[API] Manual expiry check completed');
+        console.log('[Scheduler] Check completed');
       })
       .catch((error) => {
-        console.error('[API] Manual expiry check failed:', error);
+        console.error('[Scheduler] Check error:', error.message);
       });
     
     // Respond immediately

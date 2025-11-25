@@ -69,7 +69,7 @@ async function uploadToLocalDir(buffer, originalname, metadata) {
   // Write file to disk
   await fs.writeFile(filePath, buffer);
   
-  console.log(`[LOCAL] ✅ Uploaded file to: ${filePath}`);
+  console.log(`[Upload] ✅ File uploaded locally`);
   return filePath;
 }
 
@@ -93,9 +93,9 @@ async function uploadFile(buffer, originalname, mimetype, metadata) {
   try {
     const cloudflareUrl = await uploadToR2(buffer, originalname, mimetype, metadata);
     results.cloudflare = cloudflareUrl;
-    console.log(`[UPLOAD_SERVICE] Cloudflare upload success: ${cloudflareUrl}`);
+    console.log(`[Upload] Cloudflare OK`);
   } catch (err) {
-    console.error(`[UPLOAD_SERVICE] Cloudflare upload failed:`, err);
+    console.error(`[Upload] Cloudflare error:`, err.message);
     throw new Error(`Failed to upload to Cloudflare: ${err.message}`);
   }
   
@@ -104,15 +104,15 @@ async function uploadFile(buffer, originalname, mimetype, metadata) {
     try {
       const localPath = await uploadToLocalDir(buffer, originalname, metadata);
       results.local = localPath;
-      console.log(`[UPLOAD_SERVICE] ✅ Local upload success: ${localPath}`);
+      console.log(`[Upload] Local OK`);
     } catch (err) {
-      console.error(`[UPLOAD_SERVICE] ❌ Local upload failed:`, err);
+      console.error(`[Upload] Local error:`, err.message);
       // Don't throw - local upload failure shouldn't block the operation
       // Cloudflare R2 is the primary storage (always works online and offline)
     }
   } else {
     const reason = !isLocalhost() ? '(deployed online)' : '(UPLOAD_TO_LOCAL_DIR not enabled)';
-    console.log(`[UPLOAD_SERVICE] Local upload disabled ${reason}`);
+    console.log(`[Upload] Local disabled - ${reason}`);
   }
   
   return results;
@@ -129,7 +129,7 @@ async function uploadFile(buffer, originalname, mimetype, metadata) {
  */
 async function moveFilesToInformation(userId, applicationId, franchiseNo, version) {
   if (!UPLOAD_TO_LOCAL) {
-    console.log('[MOVE_FILES] Local storage disabled, skipping file move');
+    console.log('[Move] Local storage disabled, skipping');
     return;
   }
 
@@ -165,16 +165,16 @@ async function moveFilesToInformation(userId, applicationId, franchiseNo, versio
           const srcFile = path.join(srcDir, file);
           const destFile = path.join(destDir, file);
           await fs.copyFile(srcFile, destFile);
-          console.log(`[MOVE_FILES] Copied: ${srcFile} -> ${destFile}`);
+          console.log(`[Move] Copied`);
         }
       } catch (err) {
         console.log(`[MOVE_FILES] Category ${category} not found or empty, skipping`);
       }
     }
     
-    console.log(`[MOVE_FILES] Successfully moved files from ${sourcePath} to ${destPath}`);
+    console.log(`[Move] Successfully moved files`);
   } catch (err) {
-    console.error(`[MOVE_FILES] Error moving files:`, err);
+    console.error(`[Move] Error:`, err.message);
     // Don't throw - local file operations shouldn't block the main flow
   }
 }

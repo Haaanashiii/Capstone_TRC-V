@@ -22,10 +22,7 @@ function getR2Client() {
       throw new Error('Missing required Cloudflare R2 environment variables. Check your .env file.');
     }
 
-    console.log('[CLOUDFLARE] Initializing R2 client...');
-    console.log('[CLOUDFLARE] Endpoint:', process.env.CLOUDFLARE_R2_ENDPOINT);
-    console.log('[CLOUDFLARE] Bucket:', process.env.CLOUDFLARE_R2_BUCKET_NAME);
-    console.log('[CLOUDFLARE] Access Key:', process.env.CLOUDFLARE_R2_ACCESS_KEY_ID?.substring(0, 8) + '...');
+    console.log('[Cloudflare] R2 client initialized');
     
     // Initialize Cloudflare R2 client (S3-compatible)
     // For R2, use 'auto' region and the account endpoint
@@ -220,12 +217,12 @@ async function uploadToR2(buffer, originalName, mimetype, options = {}) {
     await client.send(command);
 
     const fileUrl = `r2://${key}`;
-    console.log(`File uploaded successfully to R2: ${key}`);
+    console.log(`[Cloudflare] File uploaded: ${key}`);
     
     return fileUrl;
 
   } catch (error) {
-    console.error('Error uploading to R2:', error);
+    console.error('[Cloudflare] Upload error:', error.message);
     throw new Error('Failed to upload file to Cloudflare R2');
   }
 }
@@ -332,16 +329,16 @@ async function moveFranchiseFiles(userId, applicationId, franchiseNo) {
 
         console.log(`[CLOUDFLARE] Moved: ${oldKey} → ${newKey}`);
       } catch (error) {
-        console.error(`[CLOUDFLARE] Error moving file ${oldKey}:`, error);
+        console.error(`[Cloudflare] Move error for ${oldKey}:`, error.message);
         // Continue with other files even if one fails
       }
     }
 
-    console.log(`[CLOUDFLARE] Successfully moved ${Object.keys(urlMapping).length} files`);
+    console.log(`[Cloudflare] Successfully moved ${Object.keys(urlMapping).length} files`);
     return urlMapping;
 
   } catch (error) {
-    console.error('[CLOUDFLARE] Error moving franchise files:', error);
+    console.error('[Cloudflare] Move error:', error.message);
     throw new Error('Failed to move franchise files in Cloudflare R2');
   }
 }
@@ -404,11 +401,11 @@ async function uploadQRToR2(qrBuffer, hashedMTOP) {
     await client.send(command);
 
     const fileUrl = `r2://${key}`;
-    console.log(`[CLOUDFLARE] QR code uploaded to R2: ${key}`);
+    console.log(`[Cloudflare] QR uploaded: ${key}`);
     
     return fileUrl;
   } catch (error) {
-    console.error('[CLOUDFLARE] Error uploading QR code to R2:', error);
+    console.error('[Cloudflare] QR upload error:', error.message);
     throw new Error('Failed to upload QR code to R2');
   }
 }

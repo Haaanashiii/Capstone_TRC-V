@@ -86,7 +86,7 @@ function getNotificationRecord(userId, notificationType) {
  */
 async function sendOTPNotification(userId, phoneNumber, email, otpCode, deliveryMethod = null) {
   try {
-    console.log(`[NotificationQueue] Processing OTP for user ${userId}, deliveryMethod: ${deliveryMethod}`);
+    console.log(`[Notification] Processing OTP for user: ${userId}`);
     
     const record = getNotificationRecord(userId, 'OTP');
     const rules = NOTIFICATION_RULES.OTP;
@@ -164,7 +164,7 @@ async function sendOTPNotification(userId, phoneNumber, email, otpCode, delivery
 
     return results;
   } catch (error) {
-    console.error(`[NotificationQueue] Error in sendOTPNotification:`, error.message);
+    console.error(`[Notification] OTP Error:`, error.message);
     return { sms: null, email: null, error: error.message };
   }
 }
@@ -183,7 +183,7 @@ async function sendFranchiseExpiryNotification(franchiseData, daysUntilExpiry) {
       return { skipped: true, reason: `Not a notification day (${daysUntilExpiry} days)` };
     }
 
-    console.log(`[NotificationQueue] Processing franchise expiry for ${franchiseNumber} (${daysUntilExpiry} days)`);
+    console.log(`[Notification] Processing franchise expiry for Franchise #${franchiseNumber}`);
 
     const notificationType = daysUntilExpiry === 7 ? 'FRANCHISE_EXPIRY_1_WEEK' : 'FRANCHISE_EXPIRY_FINAL_DAY';
     const record = getNotificationRecord(franchiseId, notificationType);
@@ -246,7 +246,7 @@ async function sendFranchiseExpiryNotification(franchiseData, daysUntilExpiry) {
 
     return results;
   } catch (error) {
-    console.error(`[NotificationQueue] Error in sendFranchiseExpiryNotification:`, error.message);
+    console.error(`[Notification] Expiry Error:`, error.message);
     return { sms: null, email: null, error: error.message };
   }
 }
@@ -258,7 +258,7 @@ async function sendFranchiseExpiryNotification(franchiseData, daysUntilExpiry) {
  */
 async function sendBPLOApprovalNotification(application) {
   try {
-    console.log(`[NotificationQueue] Processing BPLO approval for ${application.operatorName}`);
+    console.log(`[Notification] Processing BPLO approval for ${application.operatorName}`);
 
     const { operatorName, franchiseNumber, operatorContactNumber, operatorEmail, _id: appId } = application;
     const record = getNotificationRecord(appId, 'BPLO_APPROVAL');
@@ -310,7 +310,7 @@ async function sendBPLOApprovalNotification(application) {
 
     return results;
   } catch (error) {
-    console.error(`[NotificationQueue] Error in sendBPLOApprovalNotification:`, error.message);
+    console.error(`[Notification] BPLO Error:`, error.message);
     return { sms: null, email: null, error: error.message };
   }
 }
@@ -322,7 +322,7 @@ async function sendBPLOApprovalNotification(application) {
  */
 async function sendSBApprovalNotification(franchiseData, resolutionNumber) {
   try {
-    console.log(`[NotificationQueue] Processing SB approval for ${franchiseData.operatorName}`);
+    console.log(`[Notification] Processing SB approval for ${franchiseData.operatorName}`);
 
     const { operatorName, franchiseNumber, operatorContactNumber, operatorEmail, _id: franchiseId } = franchiseData;
     const record = getNotificationRecord(franchiseId, 'SB_APPROVAL');
@@ -375,7 +375,7 @@ async function sendSBApprovalNotification(franchiseData, resolutionNumber) {
 
     return results;
   } catch (error) {
-    console.error(`[NotificationQueue] Error in sendSBApprovalNotification:`, error.message);
+    console.error(`[Notification] SB Error:`, error.message);
     return { sms: null, email: null, error: error.message };
   }
 }
@@ -415,7 +415,7 @@ function cleanupOldRecords() {
     }
   });
 
-  console.log(`[NotificationQueue] Cleaned up ${cleaned} old notification records`);
+  console.log(`[Notification] Cleaned up ${cleaned} old records`);
   return cleaned;
 }
 

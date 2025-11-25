@@ -483,107 +483,7 @@ exports.getAvailableFranchiseNumbers = async (req, res, next) => {
     });
 
   } catch (error) {
-    console.error('[getAvailableFranchiseNumbers] Error:', error);
-    return next(error);
-  }
-};
-
-
-
-
-
-// ========================================
-// QR CODE LOOKUP - DRIVER VERIFICATION
-// ========================================
-
-
-/**
- * GET /franchise-information/qr/hash/:hashedMTOP
- * QR code verification endpoint - returns DRIVER details from LATEST franchise version
- * 
- * Purpose: Verify tricycle via QR code scan
- * PUBLIC - Rate limited, returns driver info for verification
- * 
- * Logic:
- * 1. Hash is computed from franchiseNumber (4-digit: "0001", "1234", etc.)
- * 2. Finds franchise matching the hash
- * 3. Returns LATEST VERSION of that franchise chain
- * 4. Shows driver info + franchise status
- * 
- * Returns: Driver name, picture, address, TODA membership, franchise status
- */
-exports.franchiseQRLookupByHash = async (req, res, next) => {
-  try {
-    const { hashedMTOP } = req.params;
-    
-    if (!hashedMTOP) {
-      return res.status(400).json({ error: 'Invalid QR code' });
-    }
-    
-    // Fetch all current version franchises
-    const FranchiseInformation = require('../models/franchiseInformationModel');
-    const allCurrentFranchises = await FranchiseInformation.find({ 
-      isCurrentVersion: true 
-    })
-    .sort({ franchiseChainId: 1, version: -1 }); // Group by chain, latest first
-    
-    // Find the franchise whose hashed franchise number matches
-    let franchiseInformation = null;
-    for (const franchise of allCurrentFranchises) {
-      const computedHash = generateHashedFranchiseNo(franchise.franchiseNumber);
-      if (computedHash === hashedMTOP) {
-        franchiseInformation = franchise;
-        break;
-      }
-    }
-    
-    if (!franchiseInformation) {
-      return res.status(404).json({ 
-        error: 'Franchise not found',
-        message: 'This QR code is invalid or the franchise has been revoked' 
-      });
-    }
-    
-    // Log QR scan for audit trail
-    const ipAddress = getClientIp(req);
-    console.log(`[QR SCAN] Hashed: ${hashedMTOP}, Franchise#: ${franchiseInformation.franchiseNumber}, Driver: ${franchiseInformation.driverName}, Status: ${franchiseInformation.franchiseStatus}, ChainID: ${franchiseInformation.franchiseChainId}, Version: ${franchiseInformation.version}, IP: ${ipAddress}, Time: ${new Date().toISOString()}`);
-    
-    // Get driver picture URL (with proxy for CORS bypass)
-    let driverPictureUrl = null;
-    if (franchiseInformation.documents?.driverPictureObj) {
-      const API_BASE_URL = process.env.VITE_API_BASE_URL || process.env.API_BASE_URL || '';
-      driverPictureUrl = `${API_BASE_URL.replace(/\/$/, '')}/api/franchise-information/proxy-file?url=${encodeURIComponent(franchiseInformation.documents.driverPictureObj)}`;
-    }
-    
-    // Return DRIVER-focused public information for QR code verification
-    const publicData = {
-      // Franchise Identification (for verification)
-      franchiseNumber: franchiseInformation.franchiseNumber,
-      franchiseChainId: franchiseInformation.franchiseChainId,
-      franchiseVersion: franchiseInformation.version,
-      franchiseStatus: franchiseInformation.franchiseStatus,
-      
-      // Driver Information (PRIMARY)
-      driversID: franchiseInformation.driversID,
-      driverName: franchiseInformation.driverName,
-      driversAddress: franchiseInformation.driversAddress,
-      driverPicture: driverPictureUrl,
-      driverPictureObj: franchiseInformation.documents?.driverPictureObj || null,
-      
-      // Membership & Registration
-      todaMembership: franchiseInformation.todaMembership,
-      
-      // Activity Status
-      isCurrentVersion: franchiseInformation.isCurrentVersion,
-      expiryDate: franchiseInformation.expiryDate
-    };
-    
-    return res.status(200).json({ 
-      success: true, 
-      data: publicData 
-    });
-  } catch (error) {
-    console.error('[QR SCAN ERROR]', error);
+    console.error('[Franchise Info] Error:', error.message);
     return next(error);
   }
 };
@@ -643,6 +543,103 @@ exports.getFranchisesByUser = async (req, res, next) => {
     return next(error);
   }
 };
+
+// ========================================
+// QR CODE LOOKUP - DRIVER VERIFICATION
+// ========================================
+
+
+/**
+ * GET /franchise-information/qr/hash/:hashedMTOP
+ * QR code verification endpoint - returns DRIVER details from LATEST franchise version
+ * 
+ * Purpose: Verify tricycle via QR code scan
+ * PUBLIC - Rate limited, returns driver info for verification
+ * 
+ * Logic:
+ * 1. Hash is computed from franchiseNumber (4-digit: "0001", "1234", etc.)
+ * 2. Finds franchise matching the hash
+ * 3. Returns LATEST VERSION of that franchise chain
+ * 4. Shows driver info + franchise status
+ * 
+ * Returns: Driver name, picture, address, TODA membership, franchise status
+ */
+exports.franchiseQRLookupByHash = async (req, res, next) => {
+  try {
+    const { hashedMTOP } = req.params;
+    
+    if (!hashedMTOP) {
+      return res.status(400).json({ error: 'Invalid QR code' });
+    }
+    
+    // Fetch all current version franchises
+    const FranchiseInformation = require('../models/franchiseInformationModel');
+    const allCurrentFranchises = await FranchiseInformation.find({ 
+      isCurrentVersion: true 
+    })
+    .sort({ franchiseChainId: 1, version: -1 }); // Group by chain, latest first
+    
+    // Find the franchise whose hashed franchise number matches
+    let franchiseInformation = null;
+    for (const franchise of allCurrentFranchises) {
+      const computedHash = generateHashedFranchiseNo(franchise.franchiseNumber);
+      if (computedHash === hashedMTOP) {
+        franchiseInformation = franchise;
+        break;
+      }
+    }
+    
+    if (!franchiseInformation) {
+      return res.status(404).json({ 
+        error: 'Franchise not found',
+        message: 'This QR code is invalid or the franchise has been revoked' 
+      });
+    }
+    
+    // Log QR scan for audit trail
+    const ipAddress = getClientIp(req);
+    console.log(`[QR Scan] Franchise: ${franchiseInformation.franchiseNumber}, Driver: ${franchiseInformation.driverName}`);
+    
+    // Get driver picture URL (with proxy for CORS bypass)
+    let driverPictureUrl = null;
+    if (franchiseInformation.documents?.driverPictureObj) {
+      const API_BASE_URL = process.env.VITE_API_BASE_URL || process.env.API_BASE_URL || '';
+      driverPictureUrl = `${API_BASE_URL.replace(/\/$/, '')}/api/franchise-information/proxy-file?url=${encodeURIComponent(franchiseInformation.documents.driverPictureObj)}`;
+    }
+    
+    // Return DRIVER-focused public information for QR code verification
+    const publicData = {
+      // Franchise Identification (for verification)
+      franchiseNumber: franchiseInformation.franchiseNumber,
+      franchiseChainId: franchiseInformation.franchiseChainId,
+      franchiseVersion: franchiseInformation.version,
+      franchiseStatus: franchiseInformation.franchiseStatus,
+      
+      // Driver Information (PRIMARY)
+      driversID: franchiseInformation.driversID,
+      driverName: franchiseInformation.driverName,
+      driversAddress: franchiseInformation.driversAddress,
+      driverPicture: driverPictureUrl,
+      driverPictureObj: franchiseInformation.documents?.driverPictureObj || null,
+      
+      // Membership & Registration
+      todaMembership: franchiseInformation.todaMembership,
+      
+      // Activity Status
+      isCurrentVersion: franchiseInformation.isCurrentVersion,
+      expiryDate: franchiseInformation.expiryDate
+    };
+    
+    return res.status(200).json({ 
+      success: true, 
+      data: publicData 
+    });
+  } catch (error) {
+    console.error('[QR Scan] Error:', error.message);
+    return next(error);
+  }
+};
+
 
 
 // ========================================

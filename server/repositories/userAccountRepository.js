@@ -38,7 +38,7 @@ exports.createUserAccount = async (userData) => {
     return saved;
   } catch (err) {
     // Log detailed validation errors to help debugging (do not reveal secrets)
-    console.error('userAccountRepository.createUserAccount save error:', err && err.message);
+    console.error('[Repo] User create error:', err.message);
     if (err && err.errors) {
       Object.keys(err.errors).forEach((k) => {
         try { console.error(' validation.', k, err.errors[k].message); } catch (e) {}

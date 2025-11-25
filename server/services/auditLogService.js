@@ -134,7 +134,7 @@ class AuditLogService {
       } = options;
 
       if (!user) {
-        console.warn('[AuditLog] No user data provided');
+        console.warn('[Audit] No user data provided');
         return null;
       }
 
@@ -187,10 +187,10 @@ class AuditLogService {
       });
 
       await auditLog.save();
-      console.log(`[AuditLog] ${name} (${role}) - ${description || action} - IP: ${ipAddress}`);
+      console.log(`[Audit] ${name} - ${action}`);
       return auditLog;
     } catch (error) {
-      console.error('[AuditLog] Error logging action:', error.message);
+      console.error('[Audit] Error:', error.message);
       // Don't throw - audit logging should never break the application
       return null;
     }
