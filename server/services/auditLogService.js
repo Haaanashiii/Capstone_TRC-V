@@ -423,6 +423,63 @@ class AuditLogService {
   }
 
   /**
+   * Log franchise creation (New Franchise)
+   */
+  async logFranchiseCreation(franchise, application, user, req) {
+    return this.logAction({
+      user,
+      method: 'POST',
+      route: `/api/franchise-information`,
+      action: 'CREATE_FRANCHISE',
+      description: `SB Admin ${user.name || user.username} created new Franchise #${franchise.franchiseNumber} for ${franchise.operatorName}`,
+      statusCode: 201,
+      ipAddress: getClientIp(req),
+      userAgent: req.headers['user-agent'],
+      resourceType: 'franchise',
+      resourceId: franchise._id?.toString(),
+      details: {
+        franchiseNumber: franchise.franchiseNumber,
+        operatorName: franchise.operatorName,
+        operatorEmail: franchise.operatorEmail,
+        mvPlateNo: franchise.mvPlateNo,
+        unitModel: franchise.unitModel,
+        sessionNumber: franchise.sessionNumber,
+        applicationId: application?._id?.toString()
+      }
+    });
+  }
+
+  /**
+   * Log franchise update (Renewal/Amendment)
+   */
+  async logFranchiseUpdate(franchise, application, changeType, user, req) {
+    const changeTypeLabel = changeType === 'renewal' ? 'Renewal' : changeType === 'change_unit' ? 'Unit Change' : changeType === 'update_ownership' ? 'Ownership Update' : 'Amendment';
+    
+    return this.logAction({
+      user,
+      method: 'PUT',
+      route: `/api/franchise-information/${franchise._id}`,
+      action: 'UPDATE_FRANCHISE',
+      description: `SB Admin ${user.name || user.username} processed ${changeTypeLabel} for Franchise #${franchise.franchiseNumber} (${franchise.operatorName})`,
+      statusCode: 200,
+      ipAddress: getClientIp(req),
+      userAgent: req.headers['user-agent'],
+      resourceType: 'franchise',
+      resourceId: franchise._id?.toString(),
+      details: {
+        franchiseNumber: franchise.franchiseNumber,
+        operatorName: franchise.operatorName,
+        operatorEmail: franchise.operatorEmail,
+        changeType: changeType,
+        version: franchise.version,
+        applicationId: application?._id?.toString(),
+        mvPlateNo: franchise.mvPlateNo,
+        unitModel: franchise.unitModel
+      }
+    });
+  }
+
+  /**
    * Log franchise expiration (system-detected)
    */
   async logFranchiseExpired(franchise) {
