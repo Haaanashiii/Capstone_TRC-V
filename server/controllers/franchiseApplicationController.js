@@ -1181,18 +1181,22 @@ exports.sbAdminAcceptNewFranchise = async (req, res, next) => {
       resolutionDocument: franchiseData.documents?.resolutionDocumentObj ? '✓ Saved' : '✗ Not found'
     });
     
-    // Link franchise to user's franchiseInformation array
+    // Link franchise chain ID to user account
     if (application.operatorInfo) {
       try {
         const User = require('../models/userAccountModel');
         await User.findByIdAndUpdate(
           application.operatorInfo,
-          { $addToSet: { franchiseInformation: franchise[0]._id } },
+          { 
+            $addToSet: { 
+              franchiseChainIds: franchiseChainId
+            } 
+          },
           { session }
         );
-        console.log('[sbAdminAcceptNewFranchise] Franchise linked to user:', application.operatorInfo);
+        console.log('[sbAdminAcceptNewFranchise] Franchise chain ID linked to user:', application.operatorInfo, '| Chain ID:', franchiseChainId);
       } catch (linkError) {
-        console.error('[sbAdminAcceptNewFranchise] Failed to link franchise to user:', linkError);
+        console.error('[sbAdminAcceptNewFranchise] Failed to link franchise chain ID to user:', linkError);
         throw linkError; // Fail transaction if linking fails
       }
     }
@@ -1288,7 +1292,20 @@ exports.sbAdminAcceptRenewOrAmendment = async (req, res, next) => {
     }
     
     const franchiseNo = existingFranchise.franchiseNumber;
-    const franchiseChainId = existingFranchise.franchiseChainId; // Preserve existing chain ID (owner hasn't changed)
+    
+    // Determine franchiseChainId based on application type:
+    // - For renewal/change_unit: KEEP same chainId (same owner, just new version)
+    // - For ownership_transfer: CREATE NEW chainId for new owner
+    let newFranchiseChainId;
+    if (application.applicationType === 'update_ownership') {
+      // Ownership transfer: new owner gets NEW franchiseChainId
+      newFranchiseChainId = `${franchiseNo}-${application.operatorName.toLowerCase().replace(/\s+/g, '-')}`;
+      console.log('[sbAdminAcceptRenewOrAmendment] Ownership transfer - creating NEW franchiseChainId:', newFranchiseChainId);
+    } else {
+      // Renewal/change_unit: same owner keeps SAME franchiseChainId (version increments)
+      newFranchiseChainId = existingFranchise.franchiseChainId;
+      console.log('[sbAdminAcceptRenewOrAmendment] Renewal/Amendment - keeping same franchiseChainId:', newFranchiseChainId);
+    }
     
     // Handle versioning with transaction
     const { version, previousVersion } = await handleVersionControl(franchiseNo, application.applicationType, session);
@@ -1329,11 +1346,11 @@ exports.sbAdminAcceptRenewOrAmendment = async (req, res, next) => {
     }
     
     // Create new version based on application type
-    // Preserve the original franchiseChainId from the existing franchise
+    // Use the NEW franchiseChainId created for this renewal/amendment/ownership application
     const newVersionData = {
       ...existingFranchise.toObject(),
       _id: undefined,
-      franchiseChainId: existingFranchise.franchiseChainId, // Maintain the same chain ID for this franchise
+      franchiseChainId: newFranchiseChainId, // Use NEW chain ID for this application
       version,
       isCurrentVersion: true,
       previousVersion,
@@ -1395,18 +1412,23 @@ exports.sbAdminAcceptRenewOrAmendment = async (req, res, next) => {
       resolutionDocument: newVersionData.documents?.resolutionDocumentObj ? '✓ Saved' : '✗ Not found'
     });
     
-    // Link franchise to user's franchiseInformation array (for ownership updates)
+    // Link franchise chain ID to new owner (for ownership updates)
     if (application.applicationType === 'update_ownership' && application.operatorInfo) {
       try {
         const User = require('../models/userAccountModel');
+        const newFranchiseChainId = `${franchiseNo}-${application.operatorName.toLowerCase().replace(/\s+/g, '-')}`;
         await User.findByIdAndUpdate(
           application.operatorInfo,
-          { $addToSet: { franchiseInformation: newFranchise[0]._id } },
+          { 
+            $addToSet: { 
+              franchiseChainIds: newFranchiseChainId
+            } 
+          },
           { session }
         );
-        console.log('[sbAdminAcceptRenewOrAmendment] Franchise linked to new owner:', application.operatorInfo);
+        console.log('[sbAdminAcceptRenewOrAmendment] Franchise chain ID linked to new owner:', application.operatorInfo, '| Chain ID:', newFranchiseChainId);
       } catch (linkError) {
-        console.error('[sbAdminAcceptRenewOrAmendment] Failed to link franchise to user:', linkError);
+        console.error('[sbAdminAcceptRenewOrAmendment] Failed to link franchise chain ID to user:', linkError);
         throw linkError; // Fail transaction if linking fails
       }
     }
