@@ -49,11 +49,6 @@ async function sendSMS(phoneNumber, message) {
     url.searchParams.append('phone_number', normalizedPhone);
     url.searchParams.append('message', truncatedMessage);
 
-    console.log(`[SMS Service] Sending SMS via iPROG API`);
-    console.log(`[SMS Service] To: ${phoneNumber} (normalized: ${normalizedPhone})`);
-    console.log(`[SMS Service] Message length: ${truncatedMessage.length} characters`);
-    console.log(`[SMS Service] API Token: ${apiToken.substring(0, 10)}...`);
-
     const response = await axios.post(
       url.toString(),
       {},
@@ -61,11 +56,9 @@ async function sendSMS(phoneNumber, message) {
         headers: {
           'Content-Type': 'application/json'
         },
-        timeout: 15000 // 15 second timeout
+        timeout: 15000
       }
     );
-
-    console.log(`[SMS Service] ✓ SMS sent successfully to ${phoneNumber}:`, response.data);
     return {
       success: true,
       messageId: response.data?.message_id || 'iprog-sms',
@@ -74,14 +67,7 @@ async function sendSMS(phoneNumber, message) {
     };
   } catch (error) {
     const errorMessage = error.response?.data?.message || error.message || 'Unknown error';
-    console.error(`[SMS Service] ✗ Failed to send SMS:`, {
-      phone: phoneNumber,
-      error: errorMessage,
-      status: error.response?.status,
-      statusText: error.response?.statusText,
-      data: error.response?.data,
-      axiosError: error.code
-    });
+    console.error(`[SMS] Error sending SMS:`, errorMessage);
 
     return {
       success: false,
@@ -108,18 +94,9 @@ async function sendOTPSMS(phoneNumber, otp) {
 
     const message = `Your TRC-V Verification Code is: ${otp}. It will expire in 5 minutes. Do not share this code with anyone.`;
 
-    console.log(`[SMS Service] Sending OTP to ${phoneNumber}`);
     const result = await sendSMS(phoneNumber, message);
-
-    if (result.success) {
-      console.log(`[SMS Service] OTP SMS sent successfully to ${phoneNumber}`);
-    } else {
-      console.warn(`[SMS Service] OTP SMS failed for ${phoneNumber}: ${result.error}`);
-    }
-
-    return result;
   } catch (error) {
-    console.error(`[SMS Service] Error in sendOTPSMS:`, error.message);
+    console.error(`[SMS] OTP Error:`, error.message);
     return {
       success: false,
       error: error.message
@@ -148,12 +125,12 @@ async function sendBPLOApprovalSMS(phoneNumber, operatorName, franchiseNumber) {
     if (result.success) {
       console.log(`[SMS Service] BPLO approval SMS sent to ${phoneNumber}`);
     } else {
-      console.warn(`[SMS Service] BPLO approval SMS failed for ${phoneNumber}: ${result.error}`);
+      console.warn(`[SMS] BPLO approval SMS failed`);
     }
 
     return result;
   } catch (error) {
-    console.error(`[SMS Service] Error in sendBPLOApprovalSMS:`, error.message);
+    console.error(`[SMS] BPLO Error:`, error.message);
     return {
       success: false,
       error: error.message
@@ -183,12 +160,12 @@ async function sendSBApprovalSMS(phoneNumber, operatorName, franchiseNumber, res
     if (result.success) {
       console.log(`[SMS Service] SB approval SMS sent to ${phoneNumber}`);
     } else {
-      console.warn(`[SMS Service] SB approval SMS failed for ${phoneNumber}: ${result.error}`);
+      console.warn(`[SMS] SB approval SMS failed`);
     }
 
     return result;
   } catch (error) {
-    console.error(`[SMS Service] Error in sendSBApprovalSMS:`, error.message);
+    console.error(`[SMS] SB Error:`, error.message);
     return {
       success: false,
       error: error.message

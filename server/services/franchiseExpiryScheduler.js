@@ -113,16 +113,16 @@ function markNotificationSent(franchiseId, interval) {
  * 30-day reminders: EMAIL ONLY (cost optimization)
  */
 async function sendThirtyDayReminders() {
-  console.log('\n[EXPIRY_SCHEDULER] Checking latest franchise versions expiring in 30 days...');
+  console.log('[Expiry Scheduler] Checking franchises expiring in 30 days...');
   
   const franchises = await getLatestFranchisesExpiringIn(30);
   
   if (franchises.length === 0) {
-    console.log('[EXPIRY_SCHEDULER] No latest franchises expiring in 30 days');
+    console.log('[Expiry Scheduler] No franchises expiring in 30 days');
     return;
   }
   
-  console.log(`[EXPIRY_SCHEDULER] Found ${franchises.length} latest franchise(s) expiring in 30 days`);
+  console.log(`[Expiry Scheduler] Found ${franchises.length} franchises expiring in 30 days`);
   
   for (const franchise of franchises) {
     if (!franchise.operatorEmail) {
@@ -146,9 +146,9 @@ async function sendThirtyDayReminders() {
       );
       
       markNotificationSent(franchise._id.toString(), '30days');
-      console.log(`[EXPIRY_SCHEDULER] ✅ Sent 30-day reminder for Franchise ${franchise.franchiseNumber} (v${franchise.versionNumber}) to ${franchise.operatorName} (${franchise.operatorEmail})`);
+      console.log(`[Expiry Scheduler] ✅ Sent 30-day reminder for Franchise ${franchise.franchiseNumber} (v${franchise.versionNumber})`);
     } catch (error) {
-      console.error(`[EXPIRY_SCHEDULER] ❌ Failed to send email to ${franchise.operatorEmail}:`, error.message);
+      console.error(`[Expiry Scheduler] ❌ Failed to send email:`, error.message);
     }
   }
 }
@@ -159,7 +159,7 @@ async function sendThirtyDayReminders() {
  * Uses notification queue for smart delivery (max 2 SMS attempts tracked)
  */
 async function sendSevenDayReminders() {
-  console.log('\n[EXPIRY_SCHEDULER] Checking latest franchise versions expiring in 7 days...');
+  console.log('[EXPIRY_SCHEDULER] Checking franchises expiring in 7 days...');
   
   const franchises = await getLatestFranchisesExpiringIn(7);
   
@@ -204,7 +204,7 @@ async function sendSevenDayReminders() {
  * Uses notification queue for smart delivery
  */
 async function handleExpiredFranchises() {
-  console.log('\n[EXPIRY_SCHEDULER] Checking for expired latest franchises...');
+  console.log('[EXPIRY_SCHEDULER] Checking expired franchises...');
   
   const franchises = await getLatestFranchisesExpiringIn(0); // Expiring today
   
@@ -256,7 +256,7 @@ async function handleExpiredFranchises() {
  * Check and revoke latest franchise versions that have been expired for more than 1 year
  */
 async function revokeExpiredFranchises() {
-  console.log('\n[EXPIRY_SCHEDULER] Checking latest franchise versions expired for more than 1 year...');
+  console.log('[EXPIRY_SCHEDULER] Checking for revocations...');
   
   try {
     const oneYearAgo = new Date();
@@ -322,10 +322,8 @@ async function revokeExpiredFranchises() {
  * Run all expiry checks (30 days, 7 days, expired, and revocation)
  */
 async function runExpiryChecks() {
-  console.log('\n========================================');
-  console.log('[EXPIRY_SCHEDULER] Running daily franchise expiry checks...');
-  console.log('[EXPIRY_SCHEDULER] Time:', new Date().toLocaleString('en-PH', { timeZone: 'Asia/Manila' }));
-  console.log('========================================');
+  console.log('[Expiry Scheduler] Running daily checks...');
+  console.log(`[Expiry Scheduler] Time: ${new Date().toLocaleString('en-PH', { timeZone: 'Asia/Manila' })}`);
   
   try {
     await sendThirtyDayReminders();
@@ -333,11 +331,9 @@ async function runExpiryChecks() {
     await handleExpiredFranchises();
     await revokeExpiredFranchises(); // Check and revoke franchises expired for over 1 year
     
-    console.log('\n========================================');
-    console.log('[EXPIRY_SCHEDULER] ✅ Daily checks completed');
-    console.log('========================================\n');
+    console.log('[Expiry Scheduler] Daily checks completed');
   } catch (error) {
-    console.error('[EXPIRY_SCHEDULER] ❌ Error during expiry checks:', error);
+    console.error('[Expiry Scheduler] ❌ Error during checks:', error.message);
   }
 }
 
@@ -364,11 +360,7 @@ function initializeFranchiseExpiryScheduler() {
   if (now.getHours() >= 6) {
     nextRun.setDate(nextRun.getDate() + 1);
   }
-  console.log('========================================');
-  console.log('[EXPIRY_SCHEDULER] 📅 Franchise Expiry Scheduler initialized');
-  console.log('[EXPIRY_SCHEDULER] Schedule: Every day at 6:00 AM (Philippine Time)');
-  console.log('[EXPIRY_SCHEDULER] Next run:', nextRun.toLocaleString('en-PH', { timeZone: 'Asia/Manila' }));
-  console.log('========================================\n');
+  console.log('[Expiry Scheduler] Initialized - runs daily at 6:00 AM (PH Time)');
   
   // Run immediately on startup (optional - for testing)
   if (process.env.RUN_EXPIRY_CHECK_ON_STARTUP === 'true') {

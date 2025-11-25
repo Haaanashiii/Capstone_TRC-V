@@ -17,7 +17,7 @@ exports.createAdminAccount = async (adminData) => {
     const saved = await admin.save();
     return saved;
   } catch (err) {
-    console.error('adminAccountRepository.createAdminAccount error:', err && err.message);
+    console.error('[Repo] Admin create error:', err.message);
     if (err && err.errors) {
       Object.keys(err.errors).forEach((k) => {
         console.error(' validation.', k, err.errors[k].message);

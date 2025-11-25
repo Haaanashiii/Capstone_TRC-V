@@ -12,7 +12,7 @@ exports.createReport = async (reportData) => {
     const savedReport = await report.save();
     return savedReport;
   } catch (error) {
-    console.error('Error creating report:', error);
+    console.error('[Repo] Create error:', error.message);
     throw error;
   }
 };
@@ -148,7 +148,7 @@ exports.getAllReports = async (options = {}) => {
       }
     };
   } catch (error) {
-    console.error('Error getting reports:', error);
+    console.error('[Repo] Get error:', error.message);
     throw error;
   }
 };

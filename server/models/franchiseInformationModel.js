@@ -10,6 +10,7 @@ const DocumentReferenceSchema = new mongoose.Schema({
   oRTreasurerOfficeObj: { type: String, required: false },
   oRLTOObj: { type: String, required: false },
   cRLTOObj: { type: String, required: false },
+  
   operatorPictureObj: { type: String, required: false },
   driverPictureObj: { type: String, required: false },
   qrCodeObj: { type: String, required: false },
