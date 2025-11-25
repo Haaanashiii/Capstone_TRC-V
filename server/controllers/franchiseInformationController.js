@@ -590,6 +590,61 @@ exports.franchiseQRLookupByHash = async (req, res, next) => {
 
 
 
+/**
+ * GET /franchise-information/by-user/:userId
+ * Get all active franchises for a specific user
+ * 
+ * Purpose: Fetch franchises linked to a specific user ID
+ * Returns only current versions (isCurrentVersion: true)
+ * Used by: Operator home page to display their active franchises
+ */
+exports.getFranchisesByUser = async (req, res, next) => {
+  try {
+    const { userId } = req.params;
+    
+    console.log('[getFranchisesByUser] Request for userId:', userId);
+    
+    if (!userId || userId.trim().length === 0) {
+      return res.status(400).json({ 
+        error: 'userId param is required',
+        message: 'Provide a valid user ID' 
+      });
+    }
+    
+    const FranchiseInformation = require('../models/franchiseInformationModel');
+    
+    // Fetch all current franchises for this user
+    const franchises = await FranchiseInformation.find({
+      linkedUser: userId.trim(),
+      isCurrentVersion: true
+    })
+      .populate('linkedUser', 'username email _id')
+      .populate('previousVersion', 'version changeType changedAt franchiseStatus')
+      .sort({ franchiseNumber: 1 }); // Sort by franchise number
+    
+    console.log('[getFranchisesByUser] Found', franchises.length, 'franchises for user:', userId);
+    if (franchises.length > 0) {
+      console.log('[getFranchisesByUser] First franchise:', {
+        id: franchises[0]._id,
+        franchiseNumber: franchises[0].franchiseNumber,
+        linkedUserId: franchises[0].linkedUser?._id
+      });
+    }
+    
+    return res.status(200).json({
+      success: true,
+      userId: userId.trim(),
+      count: franchises.length,
+      data: franchises
+    });
+    
+  } catch (error) {
+    console.error('[getFranchisesByUser] Error:', error);
+    return next(error);
+  }
+};
+
+
 // ========================================
 // FILE PROXY - CORS BYPASS
 // ========================================

@@ -728,6 +728,13 @@ export const franchiseInformationAPI = {
   getByNumber: (franchiseNumber) => api.get(`/api/franchise-information/number/${franchiseNumber}`),
 
   /**
+   * Get franchises by user ID
+   * @param {string} userId - User ID
+   * @returns {Promise} Response with user's franchises array
+   */
+  getByUser: (userId) => api.get(`/api/franchise-information/by-user/${userId}`),
+
+  /**
    * Update franchise information
    * @param {string} id - Franchise ID
    * @param {object} data - Updated franchise data
