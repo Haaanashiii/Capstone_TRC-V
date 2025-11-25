@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import '../../Styles/Administrator_Css/FranchiseMgmt.css'
+import '../../Styles/Administrator_Css/SharedTable.css'
 import Sidebar from './Sidebar'
 import { franchiseAPI, API_BASE_URL } from '../Services/api'
 import websocketService from '../../services/websocket'
@@ -610,7 +611,9 @@ function FranchiseMgmt() {
           const resp = await fetch(path, { mode: 'cors' })
           if (!resp.ok) throw new Error(`Failed to fetch file: ${resp.status}`)
           const blob = await resp.blob()
-          const objectUrl = URL.createObjectURL(blob)
+          // Ensure blob has correct MIME type for PDFs
+          const blobWithType = isPdf && !blob.type ? new Blob([blob], { type: 'application/pdf' }) : blob
+          const objectUrl = URL.createObjectURL(blobWithType)
           // Revoke previous if any
           if (currentBlobUrlRef.current) URL.revokeObjectURL(currentBlobUrlRef.current)
           currentBlobUrlRef.current = objectUrl
@@ -1246,76 +1249,73 @@ function FranchiseMgmt() {
         </Typography>
         
         {isLoading && !pendingApplications.length ? (
-          <Box className="loading-container">
+          <Box className="admin-table-loading">
             <CircularProgress />
           </Box>
         ) : (
-          <TableContainer component={Paper} className="table-container" elevation={2}>
-            <Table className="pending-table" aria-label="pending franchises table">
-              <TableHead>
-                <TableRow>
-                  <TableCell className="table-cell-head">Record No.</TableCell>
-                  <TableCell className="table-cell-head">Franchisee Name</TableCell>
-                  {/* <TableCell className="table-cell-head">Franchise Number</TableCell> */}
-                  <TableCell className="table-cell-head">Make</TableCell>
-                  <TableCell className="table-cell-head">Plate Number</TableCell>
-                  <TableCell className="table-cell-head">Application Type</TableCell>
-                  <TableCell className="table-cell-head">Status</TableCell>
-                  <TableCell className="table-cell-head">Address</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {filteredApplications.length > 0 ? (
-                  filteredApplications.map((application, index) => {
-                    const hasOR = !!(application.officialReceiptNumber && application.officialReceiptNumber.trim())
-                    const statusInfo = getStatusInfo(application.statusOfBPLO || 'pending', hasOR)
-                    return (
-                      <TableRow 
-                        key={application.id}
-                        className={`table-row ${index % 2 !== 0 ? 'table-row-odd' : ''}`}
-                        onClick={() => handleOpenViewModal(application)}
-                      >
-                        <TableCell className="table-cell-body">{index + 1}</TableCell>
-                        <TableCell className="table-cell-body">{application.name}</TableCell>
-                        {/* <TableCell className="table-cell-body">{application.franchiseNumber}</TableCell> */}
-                        <TableCell className="table-cell-body">{application.make}</TableCell>
-                        <TableCell className="table-cell-body">{application.plateNumber}</TableCell>
-                        <TableCell className="table-cell-body">
-                          <Chip 
-                            label={application.applicationType}
-                            size="small"
-                            className={
-                              application.applicationType === 'New' ? 'chip-new' : 
-                              application.applicationType === 'Renewal' ? 'chip-renewal' : 'chip-transfer'
-                            }
-                          />
-                        </TableCell>
-                        <TableCell className="table-cell-body">
-                          <Chip 
-                            label={statusInfo.label}
-                            size="small"
-                            sx={{
-                              backgroundColor: statusInfo.bgColor,
-                              color: statusInfo.color,
-                              fontWeight: 600,
-                              fontSize: '0.75rem'
-                            }}
-                          />
-                        </TableCell>
-                        <TableCell className="table-cell-body">{application.address}</TableCell>
-                      </TableRow>
-                    )
-                  })
-                ) : (
-                  <TableRow className="table-row">
-                    <TableCell className="table-cell-body table-cell-center" colSpan={8}>
-                      {isLoading ? 'Loading...' : 'No pending applications found'}
-                    </TableCell>
+          <Paper className="admin-table-container" elevation={2}>
+            <TableContainer className="admin-table-wrapper">
+              <Table className="admin-table" stickyHeader aria-label="pending franchises table">
+                <TableHead>
+                  <TableRow>
+                    <TableCell className="admin-table-header-cell col-id">Record No.</TableCell>
+                    <TableCell className="admin-table-header-cell col-name" align="left">Franchisee Name</TableCell>
+                    <TableCell className="admin-table-header-cell col-contact">Make</TableCell>
+                    <TableCell className="admin-table-header-cell col-contact">Plate Number</TableCell>
+                    <TableCell className="admin-table-header-cell col-status">Application Type</TableCell>
+                    <TableCell className="admin-table-header-cell col-status">Status</TableCell>
+                    <TableCell className="admin-table-header-cell col-barangay" align="left">Address</TableCell>
                   </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </TableContainer>
+                </TableHead>
+                <TableBody>
+                  {filteredApplications.length > 0 ? (
+                    filteredApplications.map((application, index) => {
+                      const hasOR = !!(application.officialReceiptNumber && application.officialReceiptNumber.trim())
+                      const statusInfo = getStatusInfo(application.statusOfBPLO || 'pending', hasOR)
+                      return (
+                        <TableRow 
+                          key={application.id}
+                          className="admin-table-row"
+                          onClick={() => handleOpenViewModal(application)}
+                          hover
+                        >
+                          <TableCell className="admin-table-cell">{index + 1}</TableCell>
+                          <TableCell className="admin-table-cell col-name" align="left">{application.name}</TableCell>
+                          <TableCell className="admin-table-cell">{application.make}</TableCell>
+                          <TableCell className="admin-table-cell">{application.plateNumber}</TableCell>
+                          <TableCell className="admin-table-cell">
+                            <span className={`status-badge ${
+                              application.applicationType === 'New' ? 'status-pending' : 
+                              application.applicationType === 'Renewal' ? 'status-active' : 'status-investigating'
+                            }`}>
+                              {application.applicationType}
+                            </span>
+                          </TableCell>
+                          <TableCell className="admin-table-cell">
+                            <span className="status-badge" style={{
+                              backgroundColor: statusInfo.bgColor,
+                              color: statusInfo.color
+                            }}>
+                              {statusInfo.label}
+                            </span>
+                          </TableCell>
+                          <TableCell className="admin-table-cell col-barangay" align="left">{application.address}</TableCell>
+                        </TableRow>
+                      )
+                    })
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan={7} className="admin-table-empty">
+                        <Typography className="admin-table-empty-text">
+                          {isLoading ? 'Loading...' : 'No pending applications found'}
+                        </Typography>
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </Paper>
         )}
       </div>
       
@@ -2109,58 +2109,203 @@ function FranchiseMgmt() {
         slotProps={{
           backdrop: {
             sx: {
-              backgroundColor: 'rgba(0, 0, 0, 0.5)',
-              backdropFilter: 'blur(3px)',
+              backgroundColor: 'rgba(0, 0, 0, 0.75)',
+              backdropFilter: 'blur(4px)',
             },
           },
         }}
       >
-        <Box className="file-preview-modal">
-          <div className="modal-header">
-            <Typography variant="h6">
-              {previewFile.name}
-            </Typography>
-            <IconButton onClick={handleCloseFilePreview}>
-              <CloseIcon />
-            </IconButton>
-          </div>
-          
-          <div className="file-preview-content">
-            {previewFile.type?.includes('image') || /\.(jpg|jpeg|png|gif|webp)$/i.test(previewFile.name) ? (
-              <img 
-                src={previewFile.path} 
-                alt={previewFile.name}
-                className="preview-image"
-                onError={(e) => {
-                  console.error('Image preview failed:', e);
-                  e.target.style.display = 'none';
+        <Box 
+          sx={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            width: '90%',
+            maxWidth: '900px',
+            height: '85vh',
+            bgcolor: 'background.paper',
+            borderRadius: 2,
+            boxShadow: '0 24px 48px rgba(0, 0, 0, 0.3)',
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden',
+          }}
+        >
+          {/* Header */}
+          <Box 
+            sx={{ 
+              p: 2.5,
+              borderBottom: '1px solid',
+              borderColor: 'divider',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              bgcolor: '#f8f9fa',
+            }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flex: 1, minWidth: 0 }}>
+              {previewFile.type?.includes('image') || /\.(jpg|jpeg|png|gif|webp)$/i.test(previewFile.name) ? (
+                <ImageIcon sx={{ color: '#2196f3', fontSize: 28 }} />
+              ) : previewFile.type?.includes('pdf') || previewFile.name?.toLowerCase().endsWith('.pdf') ? (
+                <PictureAsPdfIcon sx={{ color: '#d32f2f', fontSize: 28 }} />
+              ) : (
+                <InsertDriveFileIcon sx={{ color: '#757575', fontSize: 28 }} />
+              )}
+              <Box sx={{ minWidth: 0, flex: 1 }}>
+                <Typography 
+                  variant="h6" 
+                  sx={{ 
+                    fontWeight: 600,
+                    fontSize: '1.125rem',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    color: '#1a1a1a',
+                  }}
+                >
+                  {previewFile.name}
+                </Typography>
+                {previewFile.type && (
+                  <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.75rem' }}>
+                    {previewFile.type}
+                  </Typography>
+                )}
+              </Box>
+            </Box>
+            <Box sx={{ display: 'flex', gap: 1, flexShrink: 0 }}>
+              <Button
+                variant="outlined"
+                size="small"
+                startIcon={<DownloadIcon />}
+                onClick={() => {
+                  const link = document.createElement('a');
+                  link.href = previewFile.path;
+                  link.download = previewFile.name;
+                  document.body.appendChild(link);
+                  link.click();
+                  document.body.removeChild(link);
                 }}
-              />
+                sx={{ 
+                  borderColor: '#0A356B',
+                  color: '#0A356B',
+                  textTransform: 'none',
+                  fontWeight: 500,
+                  '&:hover': { 
+                    borderColor: '#082548',
+                    bgcolor: 'rgba(10, 53, 107, 0.04)'
+                  }
+                }}
+              >
+                Download
+              </Button>
+              <IconButton
+                onClick={handleCloseFilePreview}
+                sx={{ 
+                  color: '#666',
+                  '&:hover': { bgcolor: 'rgba(0, 0, 0, 0.08)' }
+                }}
+              >
+                <CloseIcon />
+              </IconButton>
+            </Box>
+          </Box>
+          
+          {/* Preview Content */}
+          <Box 
+            sx={{ 
+              flex: 1,
+              overflow: 'hidden',
+              bgcolor: '#2b2b2b',
+            }}
+          >
+            {previewFile.type?.includes('image') || /\.(jpg|jpeg|png|gif|webp)$/i.test(previewFile.name) ? (
+              <Box
+                sx={{
+                  width: '100%',
+                  height: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  p: 3,
+                }}
+              >
+                <img 
+                  src={previewFile.path} 
+                  alt={previewFile.name}
+                  style={{
+                    maxWidth: '100%',
+                    maxHeight: '100%',
+                    objectFit: 'contain',
+                    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
+                  }}
+                  onError={(e) => {
+                    console.error('Image preview failed:', e);
+                    e.target.style.display = 'none';
+                  }}
+                />
+              </Box>
             ) : previewFile.type?.includes('pdf') || previewFile.name?.toLowerCase().endsWith('.pdf') ? (
               <iframe
                 src={previewFile.path}
                 title={previewFile.name}
-                className="preview-iframe"
-                onError={(e) => {
-                  console.error('PDF preview failed:', e);
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  border: 'none',
+                  backgroundColor: '#525252',
                 }}
               />
             ) : (
-              <div className="file-preview-fallback">
-                <InsertDriveFileIcon className="file-icon-large" />
-                <Typography variant="body1" className="mt-2">
-                  This file type cannot be previewed. Download to view.
+              <Box
+                sx={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 2.5,
+                  p: 4,
+                  textAlign: 'center',
+                  bgcolor: 'background.paper',
+                  borderRadius: 2,
+                  m: 4,
+                  boxShadow: '0 4px 20px rgba(0, 0, 0, 0.1)',
+                }}
+              >
+                <InsertDriveFileIcon sx={{ fontSize: 80, color: '#bdbdbd' }} />
+                <Typography variant="h6" sx={{ color: '#424242', fontWeight: 500 }}>
+                  Preview Not Available
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 400 }}>
+                  This file type cannot be previewed directly in the browser. Please download the file to view its contents.
                 </Typography>
                 <Button
-                  className="mt-2 button-primary"
-                  href={previewFile.path}
-                  download={previewFile.name}
+                  variant="contained"
+                  size="large"
+                  startIcon={<DownloadIcon />}
+                  onClick={() => {
+                    const link = document.createElement('a');
+                    link.href = previewFile.path;
+                    link.download = previewFile.name;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                  }}
+                  sx={{
+                    mt: 1,
+                    bgcolor: '#0A356B',
+                    textTransform: 'none',
+                    fontWeight: 600,
+                    px: 4,
+                    py: 1.5,
+                    '&:hover': { bgcolor: '#082548' }
+                  }}
                 >
                   Download File
                 </Button>
-              </div>
+              </Box>
             )}
-          </div>
+          </Box>
         </Box>
       </Modal>
       

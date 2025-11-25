@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../../Styles/Administrator_Css/AuditTrail.css';
+import '../../Styles/Administrator_Css/SharedTable.css';
 import Sidebar from './Sidebar';
 import websocketService from '../../services/websocket';
 import {
@@ -23,12 +24,10 @@ import {
   Chip,
   CircularProgress,
   Alert,
-  tableCellClasses,
   IconButton,
   Tooltip,
   Box,
 } from '@mui/material';
-import { styled } from '@mui/material/styles';
 import SearchIcon from '@mui/icons-material/Search';
 import FileDownloadIcon from '@mui/icons-material/FileDownload';
 import FilterListIcon from '@mui/icons-material/FilterList';
@@ -38,34 +37,6 @@ import ErrorIcon from '@mui/icons-material/Error';
 
 // API Configuration
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170';
-
-// Styled components for table
-const StyledTableCell = styled(TableCell)(() => ({
-  [`&.${tableCellClasses.head}`]: {
-    backgroundColor: '#0A356B',
-    color: '#ffffff',
-    fontWeight: 'bold',
-    fontSize: '14px',
-    padding: '16px 12px',
-  },
-  [`&.${tableCellClasses.body}`]: {
-    fontSize: 13,
-    color: '#333',
-    padding: '12px',
-  },
-}));
-
-const StyledTableRow = styled(TableRow)(() => ({
-  '&:nth-of-type(odd)': {
-    backgroundColor: '#f9f9f9',
-  },
-  '&:hover': {
-    backgroundColor: 'rgba(10, 53, 107, 0.08)',
-  },
-  '&:last-child td, &:last-child th': {
-    border: 0,
-  },
-}));
 
 // Action type color mapping for chips
 const ACTION_COLORS = {
@@ -463,7 +434,7 @@ function AuditTrail() {
           </Alert>
         )}
 
-        <Paper elevation={0} className="audit-paper">
+        <Paper elevation={0} className="admin-table-container">
           {/* Search and Filters */}
           <div className="filters-section">
             <div className="filters-row">
@@ -563,24 +534,24 @@ function AuditTrail() {
             </div>
           ) : (
             <>
-              <TableContainer className="table-container">
-                <Table>
+              <TableContainer className="admin-table-wrapper">
+                <Table className="admin-table" stickyHeader>className="admin-table" stickyHeader>
                   <TableHead>
                     <TableRow>
-                      <StyledTableCell>Date/Time</StyledTableCell>
-                      <StyledTableCell>User</StyledTableCell>
-                      <StyledTableCell>Role</StyledTableCell>
-                      <StyledTableCell>Description</StyledTableCell>
-                      <StyledTableCell>Action</StyledTableCell>
-                      <StyledTableCell>Browser/Device</StyledTableCell>
-                      <StyledTableCell>Status</StyledTableCell>
-                      <StyledTableCell>IP Address</StyledTableCell>
+                      <TableCell className="admin-table-header-cell col-date">Date/Time</TableCell>
+                      <TableCell className="admin-table-header-cell col-name">User</TableCell>
+                      <TableCell className="admin-table-header-cell col-status">Role</TableCell>
+                      <TableCell className="admin-table-header-cell col-name">Description</TableCell>
+                      <TableCell className="admin-table-header-cell col-status">Action</TableCell>
+                      <TableCell className="admin-table-header-cell col-name">Browser/Device</TableCell>
+                      <TableCell className="admin-table-header-cell col-status">Status</TableCell>
+                      <TableCell className="admin-table-header-cell col-name">IP Address</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
                     {filteredLogs.length === 0 ? (
-                      <TableRow>
-                        <StyledTableCell colSpan={8} align="center">
+                      <TableRow className="admin-table-row">
+                        <TableCell className="admin-table-cell" colSpan={8} align="center">
                           <Box sx={{ py: 4 }}>
                             <Typography variant="body2" color="text.secondary" className="no-data">
                               {searchQuery || filterAction !== 'all' || filterRole !== 'all' || filterStatus !== 'all'
@@ -588,54 +559,54 @@ function AuditTrail() {
                                 : 'No audit logs available'}
                             </Typography>
                           </Box>
-                        </StyledTableCell>
+                        </TableCell>
                       </TableRow>
                     ) : (
                       filteredLogs.map((log) => (
-                        <StyledTableRow key={log._id}>
-                          <StyledTableCell>
+                        <TableRow key={log._id} className="admin-table-row" hover>
+                          <TableCell className="admin-table-cell col-date">
                             <Typography variant="body2" className="timestamp-text">
                               {formatDateTime(log.createdAt)}
                             </Typography>
-                          </StyledTableCell>
-                          <StyledTableCell>
+                          </TableCell>
+                          <TableCell className="admin-table-cell col-name">
                             <Typography variant="body2" className="user-name">
                               {log.name || log.username || 'Unknown'}
                             </Typography>
                             <Typography variant="caption" className="email-text">
                               {log.email || 'N/A'}
                             </Typography>
-                          </StyledTableCell>
-                          <StyledTableCell>
+                          </TableCell>
+                          <TableCell className="admin-table-cell col-status">
                             <Chip
                               label={formatRoleLabel(log.role)}
                               color={ROLE_COLORS[log.role] || 'default'}
                               size="small"
-                              className="role-chip"
+                              className="status-badge"
                             />
-                          </StyledTableCell>
-                          <StyledTableCell>
+                          </TableCell>
+                          <TableCell className="admin-table-cell col-name">
                             <Typography variant="body2" className="description-text" sx={{ fontWeight: 500 }}>
                               {log.description || log.action || 'N/A'}
                             </Typography>
-                          </StyledTableCell>
-                          <StyledTableCell>
+                          </TableCell>
+                          <TableCell className="admin-table-cell col-status">
                             <Chip
                               label={log.action || 'N/A'}
                               color={ACTION_COLORS[log.action] || 'default'}
                               size="small"
-                              className="action-chip"
+                              className="status-badge"
                             />
-                          </StyledTableCell>
-                          <StyledTableCell>
+                          </TableCell>
+                          <TableCell className="admin-table-cell col-name">
                             <Typography variant="body2" className="browser-text">
                               {log.browser || 'Unknown Browser'}
                             </Typography>
                             <Typography variant="caption" className="device-text">
                               {log.device || 'Unknown Device'}
                             </Typography>
-                          </StyledTableCell>
-                          <StyledTableCell>
+                          </TableCell>
+                          <TableCell className="admin-table-cell col-status">
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                               {log.success ? (
                                 <CheckCircleIcon sx={{ fontSize: 16, color: '#10B981' }} />
@@ -646,16 +617,16 @@ function AuditTrail() {
                                 label={log.statusCode || 'N/A'}
                                 color={getStatusColor(log.statusCode)}
                                 size="small"
-                                className="status-chip"
+                                className="status-badge"
                               />
                             </Box>
-                          </StyledTableCell>
-                          <StyledTableCell>
+                          </TableCell>
+                          <TableCell className="admin-table-cell col-name">
                             <Typography variant="body2" className="ip-text">
                               {log.ipAddress || 'N/A'}
                             </Typography>
-                          </StyledTableCell>
-                        </StyledTableRow>
+                          </TableCell>
+                        </TableRow>
                       ))
                     )}
                   </TableBody>
@@ -669,8 +640,8 @@ function AuditTrail() {
                 onPageChange={handleChangePage}
                 rowsPerPage={rowsPerPage}
                 onRowsPerPageChange={handleChangeRowsPerPage}
-                rowsPerPageOptions={[5, 10, 25, 50, 100]}
-                className="table-pagination"
+                rowsPerPageOptions={[10, 15, 25, 50]}
+                className="admin-table-pagination"
               />
             </>
           )}

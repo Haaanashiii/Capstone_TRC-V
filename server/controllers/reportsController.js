@@ -400,9 +400,9 @@ exports.generateCertificate = async (req, res, next) => {
 
         // Generate PDF using pdf-lib to fill form fields
         if (format === 'pdf') {
-            const { PDFDocument } = require('pdf-lib');
             const fs = require('fs').promises;
             const path = require('path');
+            const { fillPDFForm, inspectPDFFields } = require('../utils/pdfFieldMapper');
 
             // Map certificate types to template files
             const templateMap = {
@@ -416,7 +416,7 @@ exports.generateCertificate = async (req, res, next) => {
                 return res.status(400).json({ error: 'PDF template not available for this certificate type' });
             }
 
-            // Path to template (adjust based on your folder structure)
+            // Path to template
             const templatePath = path.join(__dirname, '../templates', templateFile);
             
             try {
@@ -429,72 +429,26 @@ exports.generateCertificate = async (req, res, next) => {
                 });
             }
 
-            // Load the PDF template
-            const existingPdfBytes = await fs.readFile(templatePath);
-            const pdfDoc = await PDFDocument.load(existingPdfBytes);
-            
-            // Get the form from the PDF
-            const form = pdfDoc.getForm();
-            const fields = form.getFields();
-            
-            // Log available fields for debugging
-            console.log('[Certificate] Available form fields:');
-            fields.forEach(field => {
-                const fieldName = field.getName();
-                console.log(`  - ${fieldName}`);
-            });
-
-            // Fill form fields based on certificate type
+            // Inspect PDF fields for debugging (optional - can be removed in production)
             try {
-                // Common fields for all certificates
-                const fieldMap = {
-                    'franchiseNumber': franchiseData.franchiseNumber,
-                    'operatorName': franchiseData.operatorName,
-                    'operatorAddress': franchiseData.operatorAddress,
-                    'plateNumber': franchiseData.mvPlateNo,
-                    'unitModel': franchiseData.unitModel,
-                    'resolutionNumber': franchiseData.sbResolutionNumber || 'N/A',
-                    'dateApproved': franchiseData.dateApproved ? new Date(franchiseData.dateApproved).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '',
-                    'chassisNumber': franchiseData.chassisNumber || '',
-                    'engineNumber': franchiseData.engineNumber || '',
-                    'makeModel': franchiseData.makeModel || franchiseData.unitModel || '',
-                    'generatedBy': generatedBy || 'Administrator',
-                    'dateGenerated': generatedDate ? new Date(generatedDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
-                };
-
-                // Fill each field if it exists in the form
-                fields.forEach(field => {
-                    const fieldName = field.getName();
-                    const fieldType = field.constructor.name;
-                    
-                    // Try to match field name with our data (case-insensitive)
-                    const matchingKey = Object.keys(fieldMap).find(key => 
-                        fieldName.toLowerCase().includes(key.toLowerCase()) ||
-                        key.toLowerCase().includes(fieldName.toLowerCase())
-                    );
-
-                    if (matchingKey && fieldMap[matchingKey]) {
-                        try {
-                            if (fieldType === 'PDFTextField') {
-                                form.getTextField(fieldName).setText(String(fieldMap[matchingKey]));
-                                console.log(`[Certificate] Filled field "${fieldName}" with "${fieldMap[matchingKey]}"`);
-                            }
-                        } catch (err) {
-                            console.warn(`[Certificate] Could not fill field "${fieldName}":`, err.message);
-                        }
-                    }
-                });
-
-                // Flatten the form to prevent further editing
-                form.flatten();
-
-            } catch (fillError) {
-                console.error('[Certificate] Error filling form fields:', fillError);
-                // Continue anyway - return the PDF even if some fields couldn't be filled
+                const fieldInfo = await inspectPDFFields(templatePath);
+                console.log(`[Certificate] Template has ${fieldInfo.totalFields} form fields`);
+                fieldInfo.fields.forEach(f => console.log(`  - ${f.name} (${f.type})`));
+            } catch (inspectError) {
+                console.warn('[Certificate] Could not inspect PDF fields:', inspectError.message);
             }
 
-            // Serialize the PDFDocument to bytes
-            const pdfBytes = await pdfDoc.save();
+            // Prepare complete franchise data for PDF filling
+            const completeFranchiseData = {
+                ...franchiseData,
+                generatedBy: generatedBy || 'Administrator',
+                generatedByRole: franchiseData.generatedByRole || req.user?.role || 'Municipal Administrator',
+                dateGenerated: generatedDate || new Date().toISOString(),
+                municipalityName: franchiseData.municipalityName || 'Municipality of Solano, Nueva Vizcaya'
+            };
+
+            // Fill the PDF form using the smart field mapper
+            const pdfBytes = await fillPDFForm(templatePath, completeFranchiseData);
 
             // Send the PDF
             res.setHeader('Content-Type', 'application/pdf');
@@ -504,53 +458,203 @@ exports.generateCertificate = async (req, res, next) => {
             return res.send(Buffer.from(pdfBytes));
 
         } else if (format === 'docx') {
-            // TODO: Implement Word document generation for MTOF reports
-            const { Document, Packer, Paragraph, TextRun } = require('docx');
+            // Word document generation using existing templates with headers/footers
+            const fs = require('fs').promises;
+            const path = require('path');
+            const PizZip = require('pizzip');
+            const Docxtemplater = require('docxtemplater');
             
-            const doc = new Document({
-                sections: [{
-                    properties: {},
-                    children: [
-                        new Paragraph({
-                            children: [
-                                new TextRun({
-                                    text: `Certificate Type: ${certificateType}`,
-                                    bold: true,
-                                    size: 28
-                                }),
-                            ],
-                        }),
-                        new Paragraph({
-                            children: [
-                                new TextRun({
-                                    text: `Franchise Number: ${franchiseData.franchiseNumber}`,
-                                    size: 24
-                                }),
-                            ],
-                        }),
-                        new Paragraph({
-                            children: [
-                                new TextRun({
-                                    text: `Operator: ${franchiseData.operatorName}`,
-                                    size: 24
-                                }),
-                            ],
-                        }),
-                    ],
-                }],
-            });
+            // Map certificate types to template files
+            const templateMap = {
+                'F.008-MTOF-DATE': 'F.008 - MTOF - DATE.docx',
+                'F.008-MTOF-SUMMARY': 'F.008 - MTOF DATE SUMMARY.docx'
+            };
 
-            const buffer = await Packer.toBuffer(doc);
+            const templateFile = templateMap[certificateType];
             
-            res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
-            res.setHeader('Content-Disposition', `attachment; filename="${certificateType}_${franchiseData.franchiseNumber}_${Date.now()}.docx"`);
+            if (!templateFile) {
+                // Fallback to programmatic generation if no template exists
+                console.log('[Certificate] No Word template found, generating programmatically');
+                const { Document, Packer, Paragraph, TextRun, AlignmentType } = require('docx');
+                
+                const children = [
+                    new Paragraph({
+                        children: [
+                            new TextRun({
+                                text: 'MUNICIPALITY OF SOLANO, NUEVA VIZCAYA',
+                                bold: true,
+                                size: 32
+                            })
+                        ],
+                        alignment: AlignmentType.CENTER,
+                        spacing: { after: 200 }
+                    }),
+                    new Paragraph({
+                        children: [
+                            new TextRun({
+                                text: certificateType.includes('SUMMARY') ? 'MOTORIZED TRICYCLE-FOR-HIRE (MTOF) SUMMARY' : 'Certificate Report',
+                                bold: true,
+                                size: 28
+                            })
+                        ],
+                        alignment: AlignmentType.CENTER,
+                        spacing: { after: 400 }
+                    }),
+                    new Paragraph({
+                        children: [
+                            new TextRun({
+                                text: franchiseData.summaryText || `Total Franchises: ${franchiseData.statistics?.total || 0}`,
+                                size: 24
+                            })
+                        ],
+                        spacing: { after: 400 }
+                    }),
+                    new Paragraph({
+                        children: [
+                            new TextRun({
+                                text: `Generated by: ${generatedBy || 'Administrator'}`,
+                                size: 20
+                            })
+                        ],
+                        spacing: { after: 100 }
+                    }),
+                    new Paragraph({
+                        children: [
+                            new TextRun({
+                                text: `Date: ${generatedDate ? new Date(generatedDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`,
+                                size: 20
+                            })
+                        ]
+                    })
+                ];
+                
+                const doc = new Document({
+                    sections: [{
+                        properties: {
+                            page: {
+                                margin: {
+                                    top: 1440,
+                                    right: 1440,
+                                    bottom: 1440,
+                                    left: 1440
+                                }
+                            }
+                        },
+                        children: children
+                    }]
+                });
+
+                const buffer = await Packer.toBuffer(doc);
+                
+                res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+                res.setHeader('Content-Disposition', `attachment; filename="${certificateType}_${franchiseData.franchiseNumber || 'Summary'}_${Date.now()}.docx"`);
+                
+                return res.send(buffer);
+            }
+
+            // Use existing template with headers and footers
+            const templatePath = path.join(__dirname, '../templates', templateFile);
             
-            return res.send(buffer);
+            try {
+                await fs.access(templatePath);
+            } catch (err) {
+                console.error(`[Certificate] Template not found: ${templatePath}`);
+                return res.status(500).json({ 
+                    error: `Word template not found: ${templateFile}. Please ensure the template is in the server/templates folder.` 
+                });
+            }
+
+            try {
+                // Load the Word template
+                const content = await fs.readFile(templatePath, 'binary');
+                const zip = new PizZip(content);
+                const doc = new Docxtemplater(zip, {
+                    paragraphLoop: true,
+                    linebreaks: true,
+                    nullGetter: () => 'N/A'
+                });
+
+                // Prepare data for template
+                const templateData = {
+                    municipalityName: franchiseData.municipalityName || 'Municipality of Solano, Nueva Vizcaya',
+                    franchiseNumber: franchiseData.franchiseNumber || 'N/A',
+                    operatorName: franchiseData.operatorName || 'N/A',
+                    operatorAddress: franchiseData.operatorAddress || 'N/A',
+                    plateNumber: franchiseData.mvPlateNo || 'N/A',
+                    unitModel: franchiseData.unitModel || 'N/A',
+                    resolutionNumber: franchiseData.sbResolutionNumber || 'N/A',
+                    dateApproved: franchiseData.dateApproved ? new Date(franchiseData.dateApproved).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : 'N/A',
+                    summaryText: franchiseData.summaryText || '',
+                    totalFranchises: franchiseData.statistics?.total || 0,
+                    newFranchises: franchiseData.statistics?.newCount || 0,
+                    renewalFranchises: franchiseData.statistics?.renewalCount || 0,
+                    generatedBy: generatedBy || 'Administrator',
+                    generatedByRole: franchiseData.generatedByRole || 'Municipal Administrator',
+                    dateGenerated: generatedDate ? new Date(generatedDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }),
+                    year: new Date().getFullYear()
+                };
+
+                // Render the document (replace placeholders)
+                doc.render(templateData);
+
+                // Get the filled document as a buffer
+                const buffer = doc.getZip().generate({
+                    type: 'nodebuffer',
+                    compression: 'DEFLATE'
+                });
+
+                res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+                res.setHeader('Content-Disposition', `attachment; filename="${certificateType}_${franchiseData.franchiseNumber || 'Summary'}_${Date.now()}.docx"`);
+                
+                return res.send(buffer);
+
+            } catch (fillError) {
+                console.error('[Certificate] Error filling Word template:', fillError);
+                return res.status(500).json({ 
+                    error: 'Failed to fill Word template. Please check template field names.' 
+                });
+            }
         } else {
             return res.status(400).json({ error: 'Invalid format. Must be pdf or docx' });
         }
     } catch (error) {
         console.error('Error generating certificate:', error);
         return res.status(500).json({ error: error.message || 'Failed to generate certificate' });
+    }
+};
+
+/**
+ * Inspect PDF template fields (for debugging)
+ * GET /api/reports/inspect-pdf-template/:templateName
+ */
+exports.inspectPDFTemplate = async (req, res, next) => {
+    try {
+        const { templateName } = req.params;
+        const { inspectPDFFields } = require('../utils/pdfFieldMapper');
+        const path = require('path');
+        
+        const templateMap = {
+            'approval': 'C.001 - CERT APPROVED - FILLABLE.pdf',
+            'cancellation': 'C.001 - CERT CANCELLED - FILLABLE.pdf',
+            'existing': 'F.008 - CERT EXISTING - FILLABLE.pdf'
+        };
+        
+        const templateFile = templateMap[templateName];
+        if (!templateFile) {
+            return res.status(400).json({ 
+                error: 'Invalid template name. Use: approval, cancellation, or existing' 
+            });
+        }
+        
+        const templatePath = path.join(__dirname, '../templates', templateFile);
+        const fieldInfo = await inspectPDFFields(templatePath);
+        
+        res.json({
+            template: templateFile,
+            ...fieldInfo
+        });
+    } catch (error) {
+        console.error('[PDF Inspector] Error:', error);
+        res.status(500).json({ error: error.message });
     }
 };

@@ -1215,8 +1215,9 @@ exports.sbAdminAcceptNewFranchise = async (req, res, next) => {
     
     // Commit transaction
     await session.commitTransaction();
+    session.endSession();
     
-    // Log franchise creation
+    // Log franchise creation (after transaction is committed)
     if (req.user) {
       await auditLogService.logFranchiseCreation(franchise[0], application, req.user, req).catch(err =>
         console.error('[sbAdminAcceptNewFranchise] Audit log error:', err)
@@ -1256,10 +1257,11 @@ exports.sbAdminAcceptNewFranchise = async (req, res, next) => {
       message: `Franchise record created successfully. Franchise number: ${franchiseNo}` 
     });
   } catch (error) {
-    await session.abortTransaction();
-    next(error);
-  } finally {
+    if (session.inTransaction()) {
+      await session.abortTransaction();
+    }
     session.endSession();
+    next(error);
   }
 };
 
@@ -1424,8 +1426,9 @@ exports.sbAdminAcceptRenewOrAmendment = async (req, res, next) => {
     
     // Commit transaction
     await session.commitTransaction();
+    session.endSession();
     
-    // Log franchise update
+    // Log franchise update (after transaction is committed)
     if (req.user) {
       await auditLogService.logFranchiseUpdate(newFranchise[0], application, application.applicationType, req.user, req).catch(err =>
         console.error('[sbAdminAcceptRenewOrAmendment] Audit log error:', err)
@@ -1462,10 +1465,11 @@ exports.sbAdminAcceptRenewOrAmendment = async (req, res, next) => {
     
     res.status(201).json({ success: true, data: newFranchise[0], message: `${application.applicationType} completed - version ${version} created` });
   } catch (error) {
-    await session.abortTransaction();
-    next(error);
-  } finally {
+    if (session.inTransaction()) {
+      await session.abortTransaction();
+    }
     session.endSession();
+    next(error);
   }
 };
 

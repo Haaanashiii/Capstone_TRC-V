@@ -39,7 +39,9 @@ import VisibilityIcon from '@mui/icons-material/Visibility';
 import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFile';
 import ImageIcon from '@mui/icons-material/Image';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
+import DownloadIcon from '@mui/icons-material/Download';
 import '../../Styles/Administrator_Css/FranchiseeList.css';
+import '../../Styles/Administrator_Css/SharedTable.css';
 
 // Styled components for table
 const StyledTableCell = styled(TableCell)(({ theme }) => ({
@@ -345,7 +347,7 @@ const FranchiseeDetailsModal = ({ open, onClose, franchisee, isEditing, onEdit, 
 function FranchiseeList() {
   const [searchTerm, setSearchTerm] = useState('');
   const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(5);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
   const [isEditing, setIsEditing] = useState(false);
   const [selectedFranchisee, setSelectedFranchisee] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
@@ -757,7 +759,9 @@ function FranchiseeList() {
           const resp = await fetch(path, { mode: 'cors' });
           if (!resp.ok) throw new Error(`Failed to fetch file: ${resp.status}`);
           const blob = await resp.blob();
-          const objectUrl = URL.createObjectURL(blob);
+          // Ensure blob has correct MIME type for PDFs
+          const blobWithType = isPdf && !blob.type ? new Blob([blob], { type: 'application/pdf' }) : blob;
+          const objectUrl = URL.createObjectURL(blobWithType);
           // Revoke previous if any
           if (currentBlobUrlRef.current) URL.revokeObjectURL(currentBlobUrlRef.current);
           currentBlobUrlRef.current = objectUrl;
@@ -884,52 +888,49 @@ function FranchiseeList() {
         )}
 
         {/* Franchisee Records Table */}
-        <Paper className="table-container" elevation={2}>
+        <Paper className="admin-table-container" elevation={2}>
           {loading && (
-            <Box display="flex" justifyContent="center" p={4}>
+            <Box className="admin-table-loading">
               <CircularProgress />
             </Box>
           )}
           
-          <TableContainer sx={{ maxHeight: 500 }}>
-            <Table stickyHeader aria-label="franchisee table">
+          <TableContainer className="admin-table-wrapper">
+            <Table className="admin-table" stickyHeader aria-label="franchisee table">
             <TableHead>
               <TableRow>
-                <StyledTableCell>Record Number</StyledTableCell>
-                <StyledTableCell>Franchisee Name</StyledTableCell>
-                <StyledTableCell>Franchise Number</StyledTableCell>
-                <StyledTableCell>Plate Number</StyledTableCell>
-                <StyledTableCell>Application Type</StyledTableCell>
-                <StyledTableCell>Address</StyledTableCell>
-                <StyledTableCell>Action</StyledTableCell>
+                <TableCell className="admin-table-header-cell col-id">Record Number</TableCell>
+                <TableCell className="admin-table-header-cell col-name" align="left">Franchisee Name</TableCell>
+                <TableCell className="admin-table-header-cell col-id">Franchise Number</TableCell>
+                <TableCell className="admin-table-header-cell col-contact">Plate Number</TableCell>
+                <TableCell className="admin-table-header-cell col-status">Application Type</TableCell>
+                <TableCell className="admin-table-header-cell col-barangay" align="left">Address</TableCell>
+                <TableCell className="admin-table-header-cell col-actions">Action</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {!loading && paginatedFranchisees.length > 0 ? (
                 paginatedFranchisees.map((row) => (
-                  <StyledTableRow 
+                  <TableRow 
                     key={row.id}
+                    className="admin-table-row"
                     onClick={() => handleRowClick(row)}
+                    hover
                   >
-                    <StyledTableCell>{row.recordNumber}</StyledTableCell>
-                    <StyledTableCell>{row.franchiseeName}</StyledTableCell>
-                    <StyledTableCell>{row.franchiseNumber}</StyledTableCell>
-                    <StyledTableCell>{row.plateNumber}</StyledTableCell>
-                    <StyledTableCell>
-                      <Chip 
-                        label={row.applicationType} 
-                        size="small"
-                        className="chip-application-type"
-                        sx={{ 
-                          bgcolor: getApplicationTypeColor(row.applicationType)
-                        }}
-                      />
-                    </StyledTableCell>
-                    <StyledTableCell>{row.address}</StyledTableCell>
-                    <StyledTableCell>
+                    <TableCell className="admin-table-cell">{row.recordNumber}</TableCell>
+                    <TableCell className="admin-table-cell col-name" align="left">{row.franchiseeName}</TableCell>
+                    <TableCell className="admin-table-cell">{row.franchiseNumber}</TableCell>
+                    <TableCell className="admin-table-cell">{row.plateNumber}</TableCell>
+                    <TableCell className="admin-table-cell">
+                      <span className={`status-badge ${row.applicationType === 'new' ? 'status-pending' : 'status-active'}`}>
+                        {row.applicationType}
+                      </span>
+                    </TableCell>
+                    <TableCell className="admin-table-cell col-barangay" align="left">{row.address}</TableCell>
+                    <TableCell className="admin-table-cell">
                       <IconButton 
                         size="small" 
-                        sx={{ color: '#0a3161' }}
+                        className="action-icon-button view"
                         onClick={(e) => {
                           e.stopPropagation();
                           handleRowClick(row);
@@ -937,31 +938,33 @@ function FranchiseeList() {
                       >
                         <VisibilityIcon />
                       </IconButton>
-                    </StyledTableCell>
-                  </StyledTableRow>
+                    </TableCell>
+                  </TableRow>
                 ))
               ) : (
-                <StyledTableRow>
-                  <StyledTableCell colSpan={7} align="center">
-                    <Typography variant="body1" sx={{ py: 4, color: '#999' }}>
+                <TableRow>
+                  <TableCell colSpan={7} className="admin-table-empty">
+                    <Typography className="admin-table-empty-text">
                       {loading ? 'Loading...' : 'No franchisees found'}
                     </Typography>
-                  </StyledTableCell>
-                </StyledTableRow>
+                  </TableCell>
+                </TableRow>
               )}
             </TableBody>
             </Table>
           </TableContainer>
           
-          <TablePagination
-            rowsPerPageOptions={[5, 10, 25]}
-            component="div"
-            count={filteredFranchisees.length}
-            rowsPerPage={rowsPerPage}
-            page={page}
-            onPageChange={handleChangePage}
-            onRowsPerPageChange={handleChangeRowsPerPage}
-          />
+          <div className="admin-table-pagination">
+            <TablePagination
+              rowsPerPageOptions={[10, 15, 25, 50]}
+              component="div"
+              count={filteredFranchisees.length}
+              rowsPerPage={rowsPerPage}
+              page={page}
+              onPageChange={handleChangePage}
+              onRowsPerPageChange={handleChangeRowsPerPage}
+            />
+          </div>
         </Paper>
 
         {/* Franchisee Details Modal */}
@@ -982,53 +985,206 @@ function FranchiseeList() {
           open={openFilePreview}
           onClose={handleCloseFilePreview}
           aria-labelledby="file-preview-modal"
+          slotProps={{
+            backdrop: {
+              sx: {
+                backgroundColor: 'rgba(0, 0, 0, 0.75)',
+                backdropFilter: 'blur(4px)',
+              },
+            },
+          }}
         >
-          <Box className="file-preview-modal">
-            <div className="modal-header">
-              <Typography variant="h6">
-                {previewFile.name}
-              </Typography>
-              <IconButton onClick={handleCloseFilePreview}>
-                <CloseIcon />
-              </IconButton>
-            </div>
-            
-            <div className="file-preview-content">
-              {previewFile.type?.includes('image') || /\.(jpg|jpeg|png|gif|webp)$/i.test(previewFile.name) ? (
-                <img 
-                  src={previewFile.path} 
-                  alt={previewFile.name}
-                  className="preview-image"
-                  onError={(e) => {
-                    console.error('Image preview failed:', e);
-                    e.target.style.display = 'none';
+          <Box 
+            sx={{
+              position: 'absolute',
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -50%)',
+              width: '90%',
+              maxWidth: '900px',
+              height: '85vh',
+              bgcolor: 'background.paper',
+              borderRadius: 2,
+              boxShadow: '0 24px 48px rgba(0, 0, 0, 0.3)',
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden',
+            }}
+          >
+            {/* Header */}
+            <Box 
+              sx={{ 
+                p: 2.5,
+                borderBottom: '1px solid',
+                borderColor: 'divider',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                bgcolor: '#f8f9fa',
+              }}
+            >
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flex: 1, minWidth: 0 }}>
+                {previewFile.type?.includes('image') || /\.(jpg|jpeg|png|gif|webp)$/i.test(previewFile.name) ? (
+                  <ImageIcon sx={{ color: '#2196f3', fontSize: 28 }} />
+                ) : previewFile.type?.includes('pdf') || previewFile.name?.toLowerCase().endsWith('.pdf') ? (
+                  <PictureAsPdfIcon sx={{ color: '#d32f2f', fontSize: 28 }} />
+                ) : (
+                  <InsertDriveFileIcon sx={{ color: '#757575', fontSize: 28 }} />
+                )}
+                <Box sx={{ minWidth: 0, flex: 1 }}>
+                  <Typography 
+                    variant="h6" 
+                    sx={{ 
+                      fontWeight: 600,
+                      fontSize: '1.125rem',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                      color: '#1a1a1a',
+                    }}
+                  >
+                    {previewFile.name}
+                  </Typography>
+                  {previewFile.type && (
+                    <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.75rem' }}>
+                      {previewFile.type}
+                    </Typography>
+                  )}
+                </Box>
+              </Box>
+              <Box sx={{ display: 'flex', gap: 1, flexShrink: 0 }}>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  startIcon={<DownloadIcon />}
+                  onClick={() => {
+                    const link = document.createElement('a');
+                    link.href = previewFile.path;
+                    link.download = previewFile.name;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
                   }}
-                />
+                  sx={{ 
+                    borderColor: '#0A356B',
+                    color: '#0A356B',
+                    textTransform: 'none',
+                    fontWeight: 500,
+                    '&:hover': { 
+                      borderColor: '#082548',
+                      bgcolor: 'rgba(10, 53, 107, 0.04)'
+                    }
+                  }}
+                >
+                  Download
+                </Button>
+                <IconButton
+                  onClick={handleCloseFilePreview}
+                  sx={{ 
+                    color: '#666',
+                    '&:hover': { bgcolor: 'rgba(0, 0, 0, 0.08)' }
+                  }}
+                >
+                  <CloseIcon />
+                </IconButton>
+              </Box>
+            </Box>
+            
+            {/* Preview Content */}
+            <Box 
+              sx={{ 
+                flex: 1,
+                overflow: 'hidden',
+                bgcolor: '#2b2b2b',
+              }}
+            >
+              {previewFile.type?.includes('image') || /\.(jpg|jpeg|png|gif|webp)$/i.test(previewFile.name) ? (
+                <Box
+                  sx={{
+                    width: '100%',
+                    height: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    p: 3,
+                  }}
+                >
+                  <img 
+                    src={previewFile.path} 
+                    alt={previewFile.name}
+                    style={{
+                      maxWidth: '100%',
+                      maxHeight: '100%',
+                      objectFit: 'contain',
+                      boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
+                    }}
+                    onError={(e) => {
+                      console.error('Image preview failed:', e);
+                      e.target.style.display = 'none';
+                    }}
+                  />
+                </Box>
               ) : previewFile.type?.includes('pdf') || previewFile.name?.toLowerCase().endsWith('.pdf') ? (
                 <iframe
                   src={previewFile.path}
                   title={previewFile.name}
-                  className="preview-iframe"
-                  onError={(e) => {
-                    console.error('PDF preview failed:', e);
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    border: 'none',
+                    backgroundColor: '#525252',
                   }}
                 />
               ) : (
-                <div className="file-preview-fallback">
-                  <InsertDriveFileIcon className="file-icon-large" />
-                  <Typography variant="body1" className="mt-2">
-                    This file type cannot be previewed. Download to view.
+                <Box
+                  sx={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 2.5,
+                    p: 4,
+                    textAlign: 'center',
+                    bgcolor: 'background.paper',
+                    borderRadius: 2,
+                    m: 4,
+                    boxShadow: '0 4px 20px rgba(0, 0, 0, 0.1)',
+                  }}
+                >
+                  <InsertDriveFileIcon sx={{ fontSize: 80, color: '#bdbdbd' }} />
+                  <Typography variant="h6" sx={{ color: '#424242', fontWeight: 500 }}>
+                    Preview Not Available
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 400 }}>
+                    This file type cannot be previewed directly in the browser. Please download the file to view its contents.
                   </Typography>
                   <Button
-                    className="mt-2 button-primary"
-                    href={previewFile.path}
-                    download={previewFile.name}
+                    variant="contained"
+                    size="large"
+                    startIcon={<DownloadIcon />}
+                    onClick={() => {
+                      const link = document.createElement('a');
+                      link.href = previewFile.path;
+                      link.download = previewFile.name;
+                      document.body.appendChild(link);
+                      link.click();
+                      document.body.removeChild(link);
+                    }}
+                    sx={{
+                      mt: 1,
+                      bgcolor: '#0A356B',
+                      textTransform: 'none',
+                      fontWeight: 600,
+                      px: 4,
+                      py: 1.5,
+                      '&:hover': { bgcolor: '#082548' }
+                    }}
                   >
                     Download File
                   </Button>
-                </div>
+                </Box>
               )}
-            </div>
+            </Box>
           </Box>
         </Modal>
 

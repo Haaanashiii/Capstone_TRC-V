@@ -22,6 +22,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import '../../Styles/Administrator_Css/Certificate.css';
+import '../../Styles/Administrator_Css/SharedTable.css';
 import Sidebar from './Sidebar';
 import websocketService from '../../services/websocket';
 import { useAuth } from '../../contexts/AuthContext';
@@ -44,7 +45,6 @@ import {
   InputAdornment,
   Chip,
   Alert,
-  tableCellClasses,
   Divider,
   Menu,
   MenuItem,
@@ -72,42 +72,6 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import CancelIcon from '@mui/icons-material/Cancel';
 import ArticleIcon from '@mui/icons-material/Article';
 import AssignmentIcon from '@mui/icons-material/Assignment';
-
-// Styled table components
-const StyledTableCell = styled(TableCell)(({ theme }) => ({
-  [`&.${tableCellClasses.head}`]: {
-    backgroundColor: '#0A356B',
-    color: '#ffffff',
-    fontWeight: 700,
-    textAlign: 'center',
-    padding: '16px 12px',
-    fontSize: '0.875rem',
-    letterSpacing: '0.5px',
-    textTransform: 'uppercase',
-    borderBottom: '3px solid #082a52',
-  },
-  [`&.${tableCellClasses.body}`]: {
-    fontSize: '0.875rem',
-    textAlign: 'center',
-    color: '#333',
-    padding: '14px 12px',
-    borderBottom: '1px solid rgba(224, 224, 224, 1)',
-  },
-}));
-
-const StyledTableRow = styled(TableRow)(({ theme }) => ({
-  '&:nth-of-type(even)': {
-    backgroundColor: '#fafbfc',
-  },
-  '&:hover': {
-    backgroundColor: 'rgba(10, 53, 107, 0.04)',
-    transition: 'background-color 0.2s ease',
-    cursor: 'pointer',
-  },
-  '&:last-child td': {
-    borderBottom: 0,
-  },
-}));
 
 const StyledModal = styled(Modal)({
   display: 'flex',
@@ -400,40 +364,90 @@ function Certificate() {
     }
   }, [filteredFranchises, prepareAndOpenCertModal]);
 
-  const handleGenerateCertificate = useCallback(async (franchise, certType) => {
+  const handleGenerateCertificate = useCallback((franchise, certType) => {
     setSelectedFranchise(franchise);
     setSelectedCertType(certType);
     setOpenCertModal(false);
+    
+    // Prepare preview data
+    const certConfig = Object.values(CERTIFICATE_TYPES).find(c => c.id === certType);
+    if (!certConfig) return;
+
+    const preparedData = {
+      certificateType: certConfig,
+      franchise: franchise,
+      generatedBy: user?.name || 'Administrator',
+      generatedByRole: formatUserRole(user?.role || ''),
+      dateGenerated: new Date().toLocaleDateString('en-US', { 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      }),
+      municipalityName: 'Municipality of Solano, Nueva Vizcaya',
+    };
+
+    setCertificateData(preparedData);
+    setEditableData(preparedData);
+    setOpenPreviewModal(true);
+  }, [user, formatUserRole]);
+
+  const handleDownloadCertificate = useCallback(async () => {
     setGenerating(true);
 
     try {
       const token = getAuthToken();
-      const certConfig = Object.values(CERTIFICATE_TYPES).find(c => c.id === certType);
+      const certConfig = certificateData.certificateType;
       
       if (!certConfig) throw new Error('Invalid certificate type');
 
-      console.log('[Certificate] Generating certificate:', certType);
+      console.log('[Certificate] Generating certificate:', selectedCertType);
       console.log('[Certificate] API URL:', `${API_BASE_URL}/api/reports/generate-certificate`);
 
-      // Prepare franchise data for PDF filling
+      // Prepare franchise data for PDF filling with all necessary fields
       const payload = {
-        certificateType: certType,
+        certificateType: selectedCertType,
         franchiseData: {
-          franchiseNumber: franchise.franchiseNumber,
-          operatorName: franchise.operatorName,
-          operatorAddress: franchise.operatorAddress,
-          mvPlateNo: franchise.mvPlateNo,
-          unitModel: franchise.unitModel,
-          sbResolutionNumber: franchise.sbResolutionNumber,
-          dateApproved: franchise.sbApprovedAt || franchise.createdAt,
-          chassisNumber: franchise.chassisNumber,
-          engineNumber: franchise.engineNumber,
-          makeModel: franchise.makeModel
+          // Core franchise information
+          franchiseNumber: editableData.franchise.franchiseNumber,
+          operatorName: editableData.franchise.operatorName,
+          operatorAddress: editableData.franchise.operatorAddress,
+          operatorBarangay: editableData.franchise.operatorBarangay,
+          barangay: editableData.franchise.operatorBarangay || extractBarangay(editableData.franchise.operatorAddress),
+          
+          // Vehicle information
+          mvPlateNo: editableData.franchise.mvPlateNo,
+          unitModel: editableData.franchise.unitModel,
+          makeModel: editableData.franchise.makeModel || editableData.franchise.unitModel,
+          
+          // Engine and chassis numbers (use actual database field names)
+          motorEngineNo: editableData.franchise.motorEngineNo, // Database field name
+          engineNumber: editableData.franchise.motorEngineNo, // Alternate
+          chasisNo: editableData.franchise.chasisNo, // Database field name (typo in schema)
+          chassisNumber: editableData.franchise.chasisNo, // Alternate
+          
+          // Approval information (use session number if no resolution number)
+          sbResolutionNumber: editableData.franchise.sbResolutionNumber || editableData.franchise.sessionNumber,
+          sessionNumber: editableData.franchise.sessionNumber,
+          sbApprovedAt: editableData.franchise.sbApprovedAt || editableData.franchise.approvedAt || editableData.franchise.createdAt,
+          approvedAt: editableData.franchise.approvedAt,
+          dateApproved: editableData.franchise.sbApprovedAt || editableData.franchise.approvedAt || editableData.franchise.createdAt,
+          
+          // Official receipt
+          officialReceiptNumber: editableData.franchise.officialReceiptNumber || '',
+          officialReceipNumber: editableData.franchise.officialReceiptNumber || '', // Alternate spelling in PDF
+          
+          // Administrative information
+          generatedBy: editableData.generatedBy || user?.name,
+          generatedByRole: editableData.generatedByRole || formatUserRole(user?.role),
+          municipalityName: editableData.municipalityName || 'Municipality of Solano, Nueva Vizcaya',
+          dateGenerated: new Date().toISOString()
         },
         format: certConfig.fileType,
-        generatedBy: user?.name || 'Administrator',
+        generatedBy: editableData.generatedBy || user?.name,
         generatedDate: new Date().toISOString()
       };
+
+      console.log('[Certificate] Payload:', JSON.stringify(payload, null, 2));
 
       const response = await fetch(`${API_BASE_URL}/api/reports/generate-certificate`, {
         method: 'POST',
@@ -467,15 +481,16 @@ function Certificate() {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `${certConfig.code}_${franchise.franchiseNumber}_${Date.now()}.${certConfig.fileType}`;
+      a.download = `${certConfig.code}_${editableData.franchise.franchiseNumber}_${Date.now()}.${certConfig.fileType}`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
 
       setError('');
+      setOpenPreviewModal(false);
       // Show success message
-      alert('Certificate generated successfully!');
+      alert('Certificate downloaded successfully!');
     } catch (err) {
       console.error('[Certificate] Error generating:', err);
       
@@ -488,7 +503,14 @@ function Certificate() {
     } finally {
       setGenerating(false);
     }
-  }, [getAuthToken, user]);
+  }, [getAuthToken, selectedCertType, certificateData, editableData, user, formatUserRole]);
+
+  // Helper function to extract barangay from address
+  const extractBarangay = (address) => {
+    if (!address) return '';
+    const match = address.match(/(?:Brgy\.?|Barangay)\s+([^,]+)/i);
+    return match ? match[1].trim() : '';
+  };
 
   const handleFinalGenerate = async () => {
     setGenerating(true);
@@ -498,12 +520,46 @@ function Certificate() {
       
       if (!certConfig) throw new Error('Invalid certificate type');
 
-      const payload = {
-        certificateType: selectedCertType,
-        data: editableData,
-        format: certConfig.fileType,
-        template: certConfig.template
-      };
+      // Determine if it's a Word document (MTOF reports)
+      const isWordDoc = certConfig.fileType === 'docx';
+
+      let payload;
+      if (isWordDoc) {
+        // For MTOF summary reports with Word documents
+        payload = {
+          certificateType: selectedCertType,
+          franchiseData: {
+            franchiseNumber: 'MTOF-SUMMARY',
+            statistics: editableData.stats || {},
+            summaryText: editableData.summaryText,
+            franchises: editableData.franchises || [],
+            municipalityName: editableData.municipalityName,
+            generatedByRole: editableData.generatedByRole
+          },
+          format: certConfig.fileType,
+          generatedBy: editableData.generatedBy,
+          generatedDate: new Date().toISOString()
+        };
+      } else {
+        // For single franchise PDF certificates
+        payload = {
+          certificateType: selectedCertType,
+          franchiseData: {
+            franchiseNumber: editableData.franchise?.franchiseNumber,
+            operatorName: editableData.franchise?.operatorName,
+            operatorAddress: editableData.franchise?.operatorAddress,
+            mvPlateNo: editableData.franchise?.mvPlateNo,
+            unitModel: editableData.franchise?.unitModel,
+            sbResolutionNumber: editableData.franchise?.sbResolutionNumber,
+            dateApproved: editableData.franchise?.sbApprovedAt || editableData.franchise?.createdAt,
+            municipalityName: editableData.municipalityName,
+            generatedByRole: editableData.generatedByRole
+          },
+          format: certConfig.fileType,
+          generatedBy: editableData.generatedBy,
+          generatedDate: new Date().toISOString()
+        };
+      }
 
       const response = await fetch(`${API_BASE_URL}/api/reports/generate-certificate`, {
         method: 'POST',
@@ -562,9 +618,7 @@ function Certificate() {
           <Typography variant="h4" className="page-title" sx={{ fontWeight: 700, color: '#0A356B' }}>
             Certificate Management
           </Typography>
-          <Typography variant="body2" sx={{ color: '#666', mt: 1 }}>
-            Generate and manage franchise certificates and reports
-          </Typography>
+        
         </Box>
 
         {/* Global Loading Overlay */}
@@ -733,7 +787,7 @@ function Certificate() {
         </Paper>
 
         {/* Franchises Table */}
-        <Paper elevation={0} sx={{ border: '1px solid #e0e0e0', borderRadius: '12px', overflow: 'hidden' }}>
+        <Paper className="admin-table-container">
           {loading && (
             <Box display="flex" justifyContent="center" alignItems="center" py={6}>
               <CircularProgress size={40} sx={{ color: '#0A356B' }} />
@@ -741,16 +795,16 @@ function Certificate() {
           )}
 
           {!loading && (
-            <TableContainer sx={{ maxHeight: 600 }}>
-              <Table stickyHeader>
+            <TableContainer className="admin-table-wrapper">
+              <Table className="admin-table" stickyHeader>
                 <TableHead>
                   <TableRow>
-                    <StyledTableCell>Franchise Number</StyledTableCell>
-                    <StyledTableCell>Operator Name</StyledTableCell>
-                    <StyledTableCell>Plate Number</StyledTableCell>
-                    <StyledTableCell>Date Approved</StyledTableCell>
-                    <StyledTableCell>Resolution Number</StyledTableCell>
-                    <StyledTableCell>Actions</StyledTableCell>
+                    <TableCell className="admin-table-header-cell col-id">Franchise Number</TableCell>
+                    <TableCell className="admin-table-header-cell col-name">Operator Name</TableCell>
+                    <TableCell className="admin-table-header-cell col-contact">Plate Number</TableCell>
+                    <TableCell className="admin-table-header-cell col-date">Date Approved</TableCell>
+                    <TableCell className="admin-table-header-cell col-contact">Resolution Number</TableCell>
+                    <TableCell className="admin-table-header-cell col-actions">Actions</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -758,15 +812,15 @@ function Certificate() {
                     filteredFranchises
                       .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
                       .map((franchise) => (
-                        <StyledTableRow key={franchise._id}>
-                          <StyledTableCell sx={{ fontWeight: 600, color: '#0A356B' }}>
+                        <TableRow className="admin-table-row" hover key={franchise._id}>
+                          <TableCell className="admin-table-cell col-id">
                             {franchise.franchiseNumber}
-                          </StyledTableCell>
-                          <StyledTableCell>{franchise.operatorName}</StyledTableCell>
-                          <StyledTableCell>{franchise.mvPlateNo}</StyledTableCell>
-                          <StyledTableCell>{formatDate(franchise.sbApprovedAt || franchise.createdAt)}</StyledTableCell>
-                          <StyledTableCell>{franchise.sbResolutionNumber || 'N/A'}</StyledTableCell>
-                          <StyledTableCell>
+                          </TableCell>
+                          <TableCell className="admin-table-cell col-name">{franchise.operatorName}</TableCell>
+                          <TableCell className="admin-table-cell col-contact">{franchise.mvPlateNo}</TableCell>
+                          <TableCell className="admin-table-cell col-date">{formatDate(franchise.sbApprovedAt || franchise.createdAt)}</TableCell>
+                          <TableCell className="admin-table-cell col-contact">{franchise.sbResolutionNumber || 'N/A'}</TableCell>
+                          <TableCell className="admin-table-cell col-actions">
                             <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'center' }}>
                               <Tooltip title="View Details">
                                 <IconButton
@@ -787,19 +841,19 @@ function Certificate() {
                                 </IconButton>
                               </Tooltip>
                             </Box>
-                          </StyledTableCell>
-                        </StyledTableRow>
+                          </TableCell>
+                        </TableRow>
                       ))
                   ) : (
-                    <StyledTableRow>
-                      <StyledTableCell colSpan={6} align="center">
+                    <TableRow className="admin-table-row">
+                      <TableCell className="admin-table-cell" colSpan={6} align="center">
                         <Box py={4}>
                           <Typography variant="body1" color="text.secondary">
                             No approved franchises found
                           </Typography>
                         </Box>
-                      </StyledTableCell>
-                    </StyledTableRow>
+                      </TableCell>
+                    </TableRow>
                   )}
                 </TableBody>
               </Table>
@@ -808,14 +862,14 @@ function Certificate() {
 
           {!loading && filteredFranchises.length > 0 && (
             <TablePagination
-              rowsPerPageOptions={[5, 10, 25, 50]}
+              className="admin-table-pagination"
+              rowsPerPageOptions={[10, 15, 25, 50]}
               component="div"
               count={filteredFranchises.length}
               rowsPerPage={rowsPerPage}
               page={page}
               onPageChange={handleChangePage}
               onRowsPerPageChange={handleChangeRowsPerPage}
-              sx={{ borderTop: '1px solid #e0e0e0' }}
             />
           )}
         </Paper>
@@ -898,7 +952,7 @@ function Certificate() {
                     <Typography variant="caption">{selectedFranchise.operatorName} - {selectedFranchise.mvPlateNo}</Typography>
                   </Alert>
                 )}
-                <Grid container spacing={3}>
+                <Grid container spacing={2}>
                   {Object.values(CERTIFICATE_TYPES).filter(cert => 
                     cert.id !== CERTIFICATE_TYPES.MTOF_DATE.id && cert.id !== CERTIFICATE_TYPES.MTOF_SUMMARY.id
                   ).map((cert) => {
@@ -911,56 +965,54 @@ function Certificate() {
                             cursor: 'pointer',
                             transition: 'all 0.3s',
                             border: '2px solid #e0e0e0',
-                            borderRadius: '16px',
+                            borderRadius: '12px',
                             height: '100%',
-                            display: 'flex',
-                            flexDirection: 'column',
                             '&:hover': { 
                               borderColor: cert.color, 
-                              transform: 'translateY(-8px)', 
-                              boxShadow: `0 12px 32px ${cert.color}30` 
+                              transform: 'translateY(-4px)', 
+                              boxShadow: `0 8px 20px ${cert.color}25` 
                             }
                           }}
                           onClick={() => handleGenerateCertificate(selectedFranchise, cert.id)}
                         >
-                          <CardContent sx={{ p: 3, textAlign: 'center', flex: 1, display: 'flex', flexDirection: 'column' }}>
+                          <CardContent sx={{ p: 2.5, textAlign: 'center' }}>
                             <Box 
                               sx={{ 
-                                width: 80, 
-                                height: 80, 
-                                borderRadius: '20px', 
+                                width: 60, 
+                                height: 60, 
+                                borderRadius: '12px', 
                                 bgcolor: `${cert.color}15`, 
                                 display: 'flex', 
                                 alignItems: 'center', 
                                 justifyContent: 'center', 
                                 mx: 'auto',
-                                mb: 2 
+                                mb: 1.5 
                               }}
                             >
-                              <Icon sx={{ fontSize: 44, color: cert.color }} />
+                              <Icon sx={{ fontSize: 32, color: cert.color }} />
                             </Box>
                             <Chip 
                               label={cert.code} 
                               size="small" 
                               sx={{ 
-                                mb: 1.5, 
+                                mb: 1, 
                                 bgcolor: cert.color, 
                                 color: 'white', 
                                 fontWeight: 700, 
-                                height: 24,
-                                mx: 'auto'
+                                height: 20,
+                                fontSize: '0.7rem'
                               }} 
                             />
-                            <Typography variant="h6" sx={{ fontWeight: 700, fontSize: '1.1rem', mb: 1, color: '#0A356B' }}>
+                            <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.5, color: '#0A356B', fontSize: '0.95rem' }}>
                               {cert.name}
                             </Typography>
-                            <Typography variant="body2" color="text.secondary" sx={{ mb: 2, flex: 1 }}>
+                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5, fontSize: '0.75rem', lineHeight: 1.3 }}>
                               {cert.description}
                             </Typography>
-                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
-                              <PictureAsPdfIcon sx={{ fontSize: 18, color: '#666' }} />
-                              <Typography variant="caption" sx={{ fontWeight: 600, color: '#666', textTransform: 'uppercase' }}>
-                                {cert.fileType} Format
+                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
+                              <PictureAsPdfIcon sx={{ fontSize: 14, color: '#666' }} />
+                              <Typography variant="caption" sx={{ fontWeight: 600, color: '#666', textTransform: 'uppercase', fontSize: '0.7rem' }}>
+                                {cert.fileType}
                               </Typography>
                             </Box>
                           </CardContent>
@@ -1000,89 +1052,146 @@ function Certificate() {
                 <IconButton onClick={() => setOpenPreviewModal(false)} sx={{ color: '#666' }}><CloseIcon /></IconButton>
               </Box>
               <Box sx={{ p: 3, overflowY: 'auto', flex: 1 }}>
-                {certificateData && (
+                {certificateData && certificateData.franchise && (
                   <>
-                    <Paper elevation={0} sx={{ p: 3, mb: 3, bgcolor: '#f9f9f9', border: '1px solid #e0e0e0' }}>
+                    {/* Editable Section */}
+                    <Paper elevation={0} sx={{ p: 3, mb: 3, bgcolor: '#f9f9f9', border: '1px solid #e0e0e0', borderRadius: '12px' }}>
                       <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 700, color: '#0A356B', display: 'flex', alignItems: 'center' }}>
-                        <EditIcon sx={{ mr: 1, fontSize: 20 }} />Editable Certificate Data
+                        <EditIcon sx={{ mr: 1, fontSize: 20 }} />Edit Certificate Details
                       </Typography>
                       <Grid container spacing={2}>
                         <Grid item xs={12} md={6}>
-                          <TextField fullWidth label="Generated By" value={editableData.generatedBy || ''} onChange={(e) => handleEditFieldChange('generatedBy', e.target.value)} size="small" />
+                          <TextField 
+                            fullWidth 
+                            label="Generated By" 
+                            value={editableData.generatedBy || ''} 
+                            onChange={(e) => handleEditFieldChange('generatedBy', e.target.value)} 
+                            size="small"
+                            variant="outlined"
+                          />
                         </Grid>
                         <Grid item xs={12} md={6}>
-                          <TextField fullWidth label="Position/Role" value={editableData.generatedByRole || ''} onChange={(e) => handleEditFieldChange('generatedByRole', e.target.value)} size="small" />
-                        </Grid>
-                        <Grid item xs={12} md={6}>
-                          <TextField fullWidth label="Date Generated" value={editableData.dateGenerated || ''} onChange={(e) => handleEditFieldChange('dateGenerated', e.target.value)} size="small" />
-                        </Grid>
-                        <Grid item xs={12} md={6}>
-                          <TextField fullWidth label="Time Generated" value={editableData.timeGenerated || ''} onChange={(e) => handleEditFieldChange('timeGenerated', e.target.value)} size="small" />
+                          <TextField 
+                            fullWidth 
+                            label="Position/Role" 
+                            value={editableData.generatedByRole || ''} 
+                            onChange={(e) => handleEditFieldChange('generatedByRole', e.target.value)} 
+                            size="small"
+                            variant="outlined"
+                          />
                         </Grid>
                         <Grid item xs={12}>
-                          <TextField fullWidth label="Municipality" value={editableData.municipalityName || ''} onChange={(e) => handleEditFieldChange('municipalityName', e.target.value)} size="small" />
+                          <TextField 
+                            fullWidth 
+                            label="Municipality Name" 
+                            value={editableData.municipalityName || ''} 
+                            onChange={(e) => handleEditFieldChange('municipalityName', e.target.value)} 
+                            size="small"
+                            variant="outlined"
+                          />
                         </Grid>
-                        {selectedCertType === CERTIFICATE_TYPES.MTOF_SUMMARY.id && (
-                          <Grid item xs={12}>
-                            <TextField fullWidth multiline rows={4} label="Summary Statement" value={editableData.summaryText || ''} onChange={(e) => handleEditFieldChange('summaryText', e.target.value)} helperText="Edit the certification text as needed" />
-                          </Grid>
-                        )}
                       </Grid>
                     </Paper>
-                    <Paper elevation={2} sx={{ p: 4, border: `3px solid ${certificateData.certificateType.color}`, borderRadius: '8px' }}>
-                      <Typography variant="subtitle1" sx={{ mb: 3, fontWeight: 700, color: '#0A356B', textAlign: 'center' }}>Certificate Preview</Typography>
-                      {editableData.franchise && (
-                        <Box>
-                          <Typography variant="h5" sx={{ textAlign: 'center', mb: 2, fontWeight: 700 }}>{editableData.municipalityName}</Typography>
-                          <Typography variant="h6" sx={{ textAlign: 'center', mb: 4, color: '#666' }}>{certificateData.certificateType?.name}</Typography>
-                          <Grid container spacing={2} sx={{ mb: 4 }}>
-                            <Grid item xs={12} md={6}>
-                              <Typography variant="body2" color="text.secondary">Franchise Number</Typography>
-                              <Typography variant="body1" sx={{ fontWeight: 600 }}>{editableData.franchise.franchiseNumber}</Typography>
-                            </Grid>
-                            <Grid item xs={12} md={6}>
-                              <Typography variant="body2" color="text.secondary">Resolution Number</Typography>
-                              <Typography variant="body1" sx={{ fontWeight: 600 }}>{editableData.franchise.sbResolutionNumber || 'N/A'}</Typography>
-                            </Grid>
-                            <Grid item xs={12}>
-                              <Typography variant="body2" color="text.secondary">Operator Name</Typography>
-                              <Typography variant="body1" sx={{ fontWeight: 600 }}>{editableData.franchise.operatorName}</Typography>
-                            </Grid>
-                            <Grid item xs={12}>
-                              <Typography variant="body2" color="text.secondary">Address</Typography>
-                              <Typography variant="body1">{editableData.franchise.operatorAddress}</Typography>
-                            </Grid>
-                          </Grid>
-                          <Divider sx={{ my: 3 }} />
-                          <Box sx={{ textAlign: 'center' }}>
-                            <Typography variant="body2" sx={{ fontWeight: 600 }}>{editableData.generatedBy}</Typography>
-                            <Typography variant="body2" color="text.secondary">{editableData.generatedByRole}</Typography>
-                            <Typography variant="body2" sx={{ mt: 1 }} color="text.secondary">Date Issued: {editableData.dateGenerated}</Typography>
-                          </Box>
+
+                    {/* Preview Section */}
+                    <Paper elevation={2} sx={{ p: 4, border: `3px solid ${certificateData.certificateType.color}`, borderRadius: '12px', mb: 3 }}>
+                      <Box sx={{ textAlign: 'center', mb: 3 }}>
+                        <Box 
+                          sx={{ 
+                            width: 80, 
+                            height: 80, 
+                            borderRadius: '16px', 
+                            bgcolor: `${certificateData.certificateType.color}15`, 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            justifyContent: 'center', 
+                            mx: 'auto',
+                            mb: 2 
+                          }}
+                        >
+                          {React.createElement(certificateData.certificateType.icon, { 
+                            sx: { fontSize: 44, color: certificateData.certificateType.color } 
+                          })}
                         </Box>
-                      )}
-                      {selectedCertType === CERTIFICATE_TYPES.MTOF_SUMMARY.id && (
-                        <Box sx={{ textAlign: 'center' }}>
-                          <Typography variant="h5" sx={{ mb: 3, fontWeight: 700 }}>{editableData.municipalityName}</Typography>
-                          <Typography variant="h6" sx={{ mb: 3, color: '#666' }}>Certificate of Summary</Typography>
-                          <Typography variant="body1" sx={{ mb: 4, textAlign: 'justify', px: 4 }}>{editableData.summaryText}</Typography>
-                          <Box sx={{ mt: 6 }}>
-                            <Typography variant="body2" sx={{ fontWeight: 600 }}>{editableData.generatedBy}</Typography>
-                            <Typography variant="body2" color="text.secondary">{editableData.generatedByRole}</Typography>
-                            <Typography variant="body2" sx={{ mt: 1 }} color="text.secondary">Date: {editableData.dateGenerated}</Typography>
-                          </Box>
-                        </Box>
-                      )}
+                        <Typography variant="h5" sx={{ fontWeight: 700, color: '#0A356B', mb: 1 }}>
+                          {certificateData.certificateType.name}
+                        </Typography>
+                        <Chip 
+                          label={certificateData.certificateType.code} 
+                          sx={{ bgcolor: certificateData.certificateType.color, color: 'white', fontWeight: 700 }} 
+                        />
+                      </Box>
+                      <Divider sx={{ my: 3 }} />
+                      <Grid container spacing={3}>
+                        <Grid item xs={12} md={6}>
+                          <Typography variant="caption" sx={{ color: '#666', fontWeight: 600, textTransform: 'uppercase', fontSize: '0.7rem' }}>Franchise Number</Typography>
+                          <Typography variant="body1" sx={{ fontWeight: 600, color: '#0A356B' }}>{certificateData.franchise.franchiseNumber}</Typography>
+                        </Grid>
+                        <Grid item xs={12} md={6}>
+                          <Typography variant="caption" sx={{ color: '#666', fontWeight: 600, textTransform: 'uppercase', fontSize: '0.7rem' }}>Resolution Number</Typography>
+                          <Typography variant="body1" sx={{ fontWeight: 600 }}>{certificateData.franchise.sbResolutionNumber || 'N/A'}</Typography>
+                        </Grid>
+                        <Grid item xs={12}>
+                          <Typography variant="caption" sx={{ color: '#666', fontWeight: 600, textTransform: 'uppercase', fontSize: '0.7rem' }}>Operator Name</Typography>
+                          <Typography variant="body1" sx={{ fontWeight: 600 }}>{certificateData.franchise.operatorName}</Typography>
+                        </Grid>
+                        <Grid item xs={12}>
+                          <Typography variant="caption" sx={{ color: '#666', fontWeight: 600, textTransform: 'uppercase', fontSize: '0.7rem' }}>Address</Typography>
+                          <Typography variant="body1">{certificateData.franchise.operatorAddress}</Typography>
+                        </Grid>
+                        <Grid item xs={12} md={6}>
+                          <Typography variant="caption" sx={{ color: '#666', fontWeight: 600, textTransform: 'uppercase', fontSize: '0.7rem' }}>Plate Number</Typography>
+                          <Typography variant="body1">{certificateData.franchise.mvPlateNo}</Typography>
+                        </Grid>
+                        <Grid item xs={12} md={6}>
+                          <Typography variant="caption" sx={{ color: '#666', fontWeight: 600, textTransform: 'uppercase', fontSize: '0.7rem' }}>Unit Model</Typography>
+                          <Typography variant="body1">{certificateData.franchise.unitModel || 'N/A'}</Typography>
+                        </Grid>
+                        <Grid item xs={12} md={6}>
+                          <Typography variant="caption" sx={{ color: '#666', fontWeight: 600, textTransform: 'uppercase', fontSize: '0.7rem' }}>Engine Number</Typography>
+                          <Typography variant="body1">{certificateData.franchise.motorEngineNo || 'N/A'}</Typography>
+                        </Grid>
+                        <Grid item xs={12} md={6}>
+                          <Typography variant="caption" sx={{ color: '#666', fontWeight: 600, textTransform: 'uppercase', fontSize: '0.7rem' }}>Chassis Number</Typography>
+                          <Typography variant="body1">{certificateData.franchise.chasisNo || 'N/A'}</Typography>
+                        </Grid>
+                        <Grid item xs={12} md={6}>
+                          <Typography variant="caption" sx={{ color: '#666', fontWeight: 600, textTransform: 'uppercase', fontSize: '0.7rem' }}>Date Approved</Typography>
+                          <Typography variant="body1">{formatDate(certificateData.franchise.approvedAt || certificateData.franchise.sbApprovedAt || certificateData.franchise.createdAt)}</Typography>
+                        </Grid>
+                        <Grid item xs={12} md={6}>
+                          <Typography variant="caption" sx={{ color: '#666', fontWeight: 600, textTransform: 'uppercase', fontSize: '0.7rem' }}>Session/Resolution Number</Typography>
+                          <Typography variant="body1">{certificateData.franchise.sessionNumber || certificateData.franchise.sbResolutionNumber || 'N/A'}</Typography>
+                        </Grid>
+                      </Grid>
+                      <Divider sx={{ my: 3 }} />
+                      <Box sx={{ textAlign: 'center' }}>
+                        <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>Generated By</Typography>
+                        <Typography variant="body1" sx={{ fontWeight: 600 }}>{editableData.generatedBy}</Typography>
+                        <Typography variant="body2" color="text.secondary">{editableData.generatedByRole}</Typography>
+                        <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>{editableData.dateGenerated}</Typography>
+                      </Box>
                     </Paper>
+                    <Alert severity="info" sx={{ borderRadius: '12px' }}>
+                      <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>📄 Ready to Generate</Typography>
+                      <Typography variant="caption">
+                        Click "Download {certificateData.certificateType.fileType.toUpperCase()}" to generate and download the filled certificate.
+                      </Typography>
+                    </Alert>
                   </>
                 )}
               </Box>
               <Box sx={{ px: 3, py: 2, borderTop: '1px solid #e0e0e0', display: 'flex', justifyContent: 'space-between', gap: 2 }}>
-                <Button variant="outlined" onClick={() => setOpenPreviewModal(false)} sx={{ textTransform: 'none', fontWeight: 600, color: '#666', borderColor: '#e0e0e0' }}>Cancel</Button>
+                <Button variant="outlined" onClick={() => setOpenPreviewModal(false)} disabled={generating} sx={{ textTransform: 'none', fontWeight: 600, color: '#666', borderColor: '#e0e0e0' }}>Cancel</Button>
                 <Box sx={{ display: 'flex', gap: 2 }}>
-                  <Button variant="outlined" startIcon={<PrintIcon />} onClick={handlePrintCertificate} sx={{ textTransform: 'none', fontWeight: 600 }}>Print</Button>
-                  <Button variant="contained" startIcon={generating ? <CircularProgress size={20} color="inherit" /> : <DownloadIcon />} onClick={handleFinalGenerate} disabled={generating} sx={{ bgcolor: '#2e7d32', '&:hover': { bgcolor: '#1b5e20' }, textTransform: 'none', fontWeight: 600 }}>
-                    {generating ? 'Generating...' : `Generate ${certificateData?.certificateType?.fileType.toUpperCase()}`}
+                  <Button 
+                    variant="contained" 
+                    startIcon={generating ? <CircularProgress size={20} color="inherit" /> : <DownloadIcon />} 
+                    onClick={handleDownloadCertificate} 
+                    disabled={generating} 
+                    sx={{ bgcolor: '#2e7d32', '&:hover': { bgcolor: '#1b5e20' }, textTransform: 'none', fontWeight: 600 }}
+                  >
+                    {generating ? 'Generating...' : `Download ${certificateData?.certificateType?.fileType.toUpperCase()}`}
                   </Button>
                 </Box>
               </Box>

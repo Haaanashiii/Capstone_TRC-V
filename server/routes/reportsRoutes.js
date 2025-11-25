@@ -25,6 +25,9 @@ router.get('/date-range', authenticate, authorize(['sb-admin', 'bplo-admin', 'su
 // Certificate generation endpoint (admin only)
 router.post('/generate-certificate', authenticate, authorize(['sb-admin', 'bplo-admin', 'super-admin']), reportsController.generateCertificate);
 
+// PDF Template inspector endpoint (admin only) - for debugging
+router.get('/inspect-pdf-template/:templateName', authenticate, authorize(['sb-admin', 'bplo-admin', 'super-admin']), reportsController.inspectPDFTemplate);
+
 // Individual report operations
 router.get('/:id', authenticate, reportsController.getReportById);
 router.put('/:id', authenticate, authorize(['sb-admin', 'bplo-admin', 'super-admin']), reportsController.updateReport);

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import '../../Styles/Administrator_Css/UserManagement.css';
+import '../../Styles/Administrator_Css/SharedTable.css';
 import Sidebar from './Sidebar';
 import AccountVerificationModal from '../Services/AccountVerificationModal';
 import { authAPI, adminAPI } from '../Services/api';
@@ -24,7 +25,6 @@ import {
   Select,
   MenuItem,
   OutlinedInput,
-  tableCellClasses,
   IconButton,
   CircularProgress,
   Alert,
@@ -38,40 +38,12 @@ import {
   Chip
 } from '@mui/material';
 
-import { styled } from "@mui/material/styles";
 import SearchIcon from '@mui/icons-material/Search';
 import PersonAddIcon from '@mui/icons-material/PersonAdd';
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import LockIcon from "@mui/icons-material/Lock";
 import SecurityIcon from "@mui/icons-material/Security";
-
-// Styled components for table
-const StyledTableCell = styled(TableCell)(() => ({
-  [`&.${tableCellClasses.head}`]: {
-    backgroundColor: '#0A356B',
-    color: '#ffffff',
-    fontWeight: 'bold',
-    textAlign: 'center',
-  },
-  [`&.${tableCellClasses.body}`]: {
-    fontSize: 14,
-    textAlign: 'center',
-    color: '#333',
-  },
-}));
-
-const StyledTableRow = styled(TableRow)(() => ({
-  '&:nth-of-type(odd)': {
-    backgroundColor: '#f9f9f9',
-  },
-  '&:hover': {
-    backgroundColor: 'rgba(10, 53, 107, 0.08)',
-  },
-  '&:last-child td, &:last-child th': {
-    border: 0,
-  },
-}));
 
 const INITIAL_USER_STATE = {
   name: '',
@@ -102,8 +74,7 @@ function UserManagement() {
   const [pendingUserData, setPendingUserData] = useState(null);
   const [permissionsModalOpen, setPermissionsModalOpen] = useState(false);
   const [selectedUserForPermissions, setSelectedUserForPermissions] = useState(null);
-  
-  const rowsPerPage = 5;
+  const [rowsPerPage, setRowsPerPage] = useState(10);
 
   /**
    * Fetch admin accounts from backend
@@ -422,6 +393,11 @@ function UserManagement() {
     setPage(newPage);
   }, []);
 
+  const handleChangeRowsPerPage = useCallback((event) => {
+    setRowsPerPage(parseInt(event.target.value, 10));
+    setPage(0);
+  }, []);
+
   // Get role label
   const getRoleLabel = useCallback((roleValue) => {
     const role = ROLES.find(r => r.value === roleValue);
@@ -524,69 +500,71 @@ function UserManagement() {
           </div>
 
           {loading && !openModal && (
-            <Box display="flex" justifyContent="center" my={4}>
+            <Box className="admin-table-loading">
               <CircularProgress />
             </Box>
           )}
 
-          <Paper className="table-container" elevation={2}>
-            <TableContainer sx={{ maxHeight: 500 }}>
-              <Table stickyHeader>
+          <Paper className="admin-table-container" elevation={2}>
+            <TableContainer className="admin-table-wrapper">
+              <Table className="admin-table" stickyHeader aria-label="user management table">
                 <TableHead>
                 <TableRow>
-                  <StyledTableCell>Name</StyledTableCell>
-                  <StyledTableCell>Username</StyledTableCell>
-                  <StyledTableCell>Email</StyledTableCell>
-                  <StyledTableCell>Role</StyledTableCell>
-                  <StyledTableCell align="center">Actions</StyledTableCell>
+                  <TableCell className="admin-table-header-cell col-name">Name</TableCell>
+                  <TableCell className="admin-table-header-cell col-name">Username</TableCell>
+                  <TableCell className="admin-table-header-cell col-email">Email</TableCell>
+                  <TableCell className="admin-table-header-cell col-status">Role</TableCell>
+                  <TableCell className="admin-table-header-cell col-actions" align="center">Actions</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {paginatedUsers.length > 0 ? (
                   paginatedUsers.map((user) => (
-                    <StyledTableRow key={user.adminId || user._id}>
-                      <StyledTableCell>{user.name}</StyledTableCell>
-                      <StyledTableCell>{user.username}</StyledTableCell>
-                      <StyledTableCell>{user.email}</StyledTableCell>
-                      <StyledTableCell>{getRoleLabel(user.role)}</StyledTableCell>
-                      <StyledTableCell align="center">
+                    <TableRow key={user.adminId || user._id} className="admin-table-row" hover>
+                      <TableCell className="admin-table-cell col-name">{user.name}</TableCell>
+                      <TableCell className="admin-table-cell col-name">{user.username}</TableCell>
+                      <TableCell className="admin-table-cell col-email">{user.email}</TableCell>
+                      <TableCell className="admin-table-cell col-status">{getRoleLabel(user.role)}</TableCell>
+                      <TableCell className="admin-table-cell col-actions" align="center">
                         <IconButton 
+                          className="action-icon-button"
                           size="small"
                           onClick={() => {
                             setSelectedUserForPermissions(user);
                             setPermissionsModalOpen(true);
                           }}
                           title="Manage Permissions"
-                          sx={{ mr: 1 }}
                           disabled={loading}
                         >
                           <SecurityIcon fontSize="small" />
                         </IconButton>
                         <IconButton 
+                          className="action-icon-button edit"
                           size="small"
                           onClick={() => handleOpenModal(user)}
-                          sx={{ mr: 1 }}
                           disabled={loading}
                         >
                           <EditIcon fontSize="small" />
                         </IconButton>
                         <IconButton 
+                          className="action-icon-button delete"
                           size="small"
                           onClick={() => handleDeleteUser(user)}
-                          color="error"
                           disabled={loading}
                         >
                           <DeleteIcon fontSize="small" />
                         </IconButton>
-                      </StyledTableCell>
-                    </StyledTableRow>
+                      </TableCell>
+                    </TableRow>
                   ))
                 ) : (
-                  <StyledTableRow>
-                    <StyledTableCell colSpan={5} align="center">
-                      {loading ? 'Loading...' : 'No users found'}
-                    </StyledTableCell>
-                  </StyledTableRow>
+                  <TableRow>
+                    <TableCell colSpan={5} className="admin-table-empty">
+                      <Typography className="admin-table-empty-text">
+                        {loading ? 'Loading...' : 'No users found'}
+                      </Typography>
+                    </TableCell>
+                  </TableRow>
                 )}
               </TableBody>
               </Table>
@@ -598,7 +576,9 @@ function UserManagement() {
               page={page}
               onPageChange={handleChangePage}
               rowsPerPage={rowsPerPage}
-              rowsPerPageOptions={[]}
+              onRowsPerPageChange={handleChangeRowsPerPage}
+              rowsPerPageOptions={[10, 15, 25, 50]}
+              className="admin-table-pagination"
             />
           </Paper>
 

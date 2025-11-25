@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import '../../Styles/Administrator_Css/Announcement.css';
+import '../../Styles/Administrator_Css/SharedTable.css';
 import Sidebar from './Sidebar';
 import websocketService from '../../services/websocket';
 import {
@@ -21,44 +22,15 @@ import {
   CircularProgress,
   Alert,
   Switch,
-  Snackbar,
-  tableCellClasses
+  Snackbar
 } from '@mui/material';
 
-import { styled } from '@mui/material/styles';
 import SearchIcon from '@mui/icons-material/Search';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170';
-
-// Styled components for table
-const StyledTableCell = styled(TableCell)(({ theme }) => ({
-  [`&.${tableCellClasses.head}`]: {
-    backgroundColor: '#0A356B',
-    color: '#ffffff',
-    fontWeight: 'bold',
-    textAlign: 'center',
-  },
-  [`&.${tableCellClasses.body}`]: {
-    fontSize: 14,
-    textAlign: 'center',
-    color: '#333',
-  },
-}));
-
-const StyledTableRow = styled(TableRow)(({ theme }) => ({
-  '&:nth-of-type(odd)': {
-    backgroundColor: '#f9f9f9',
-  },
-  '&:hover': {
-    backgroundColor: 'rgba(10, 53, 107, 0.08)',
-  },
-  '&:last-child td, &:last-child th': {
-    border: 0,
-  },
-}));
 
 const INITIAL_ANNOUNCEMENT_STATE = {
   title: '',
@@ -80,7 +52,7 @@ function Announcement() {
   const [success, setSuccess] = useState('');
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'info' });
 
-  const rowsPerPage = 5;
+  const [rowsPerPage, setRowsPerPage] = useState(10);
 
   // Fetch announcements from backend
   const fetchAnnouncements = useCallback(async () => {
@@ -357,6 +329,11 @@ function Announcement() {
     setPage(newPage);
   }, []);
 
+  const handleRowsPerPageChange = useCallback((event) => {
+    setRowsPerPage(parseInt(event.target.value, 10));
+    setPage(0);
+  }, []);
+
   const handleFieldChange = useCallback((field, value) => {
     setNewAnnouncement(prev => ({ ...prev, [field]: value }));
   }, []);
@@ -433,39 +410,40 @@ function Announcement() {
           </Box>
         )}
 
-        <Paper className="table-container" elevation={2}>
-          <TableContainer sx={{ maxHeight: 500 }}>
-            <Table stickyHeader>
+        <Paper className="admin-table-container" elevation={2}>
+          <TableContainer className="admin-table-wrapper">
+            <Table className="admin-table" stickyHeader>
               <TableHead>
                 <TableRow>
-                  <StyledTableCell>Title</StyledTableCell>
-                  <StyledTableCell>Description</StyledTableCell>
-                  <StyledTableCell>Date</StyledTableCell>
-                  <StyledTableCell>Published</StyledTableCell>
-                  <StyledTableCell align="center">Actions</StyledTableCell>
+                  <TableCell className="admin-table-header-cell col-name">Title</TableCell>
+                  <TableCell className="admin-table-header-cell">Description</TableCell>
+                  <TableCell className="admin-table-header-cell col-date">Date</TableCell>
+                  <TableCell className="admin-table-header-cell col-status">Published</TableCell>
+                  <TableCell className="admin-table-header-cell col-actions" align="center">Actions</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {paginatedAnnouncements.length > 0 ? (
                   paginatedAnnouncements.map((announcement) => (
-                    <StyledTableRow key={announcement._id}>
-                      <StyledTableCell sx={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    <TableRow className="admin-table-row" hover key={announcement._id}>
+                      <TableCell className="admin-table-cell col-name" sx={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis' }}>
                         {announcement.title}
-                      </StyledTableCell>
-                      <StyledTableCell sx={{ maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      </TableCell>
+                      <TableCell className="admin-table-cell" sx={{ maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis' }}>
                         {announcement.description}
-                      </StyledTableCell>
-                      <StyledTableCell>{formatDate(announcement.date)}</StyledTableCell>
-                      <StyledTableCell>
+                      </TableCell>
+                      <TableCell className="admin-table-cell col-date">{formatDate(announcement.date)}</TableCell>
+                      <TableCell className="admin-table-cell col-status">
                         <Switch
                           checked={announcement.published || false}
                           onChange={() => handleTogglePublished(announcement)}
                           disabled={loading || (!announcement.published && publishedCount >= 3)}
                           color="primary"
                         />
-                      </StyledTableCell>
-                      <StyledTableCell align="center">
+                      </TableCell>
+                      <TableCell className="admin-table-cell col-actions" align="center">
                         <IconButton
+                          className="action-icon-button edit"
                           size="small"
                           onClick={() => handleOpenModal(announcement)}
                           sx={{ mr: 1 }}
@@ -474,6 +452,7 @@ function Announcement() {
                           <EditIcon fontSize="small" />
                         </IconButton>
                         <IconButton
+                          className="action-icon-button delete"
                           size="small"
                           onClick={() => handleDeleteAnnouncement(announcement._id)}
                           color="error"
@@ -481,27 +460,29 @@ function Announcement() {
                         >
                           <DeleteIcon fontSize="small" />
                         </IconButton>
-                      </StyledTableCell>
-                    </StyledTableRow>
+                      </TableCell>
+                    </TableRow>
                   ))
                 ) : (
-                  <StyledTableRow>
-                    <StyledTableCell colSpan={5} align="center">
+                  <TableRow className="admin-table-row">
+                    <TableCell className="admin-table-cell" colSpan={5} align="center">
                       {loading ? 'Loading...' : 'No announcements found'}
-                    </StyledTableCell>
-                  </StyledTableRow>
+                    </TableCell>
+                  </TableRow>
                 )}
               </TableBody>
             </Table>
           </TableContainer>
           
           <TablePagination
+            className="admin-table-pagination"
             component="div"
             count={filteredAnnouncements.length}
             page={page}
             onPageChange={handleChangePage}
             rowsPerPage={rowsPerPage}
-            rowsPerPageOptions={[]}
+            onRowsPerPageChange={handleRowsPerPageChange}
+            rowsPerPageOptions={[10, 15, 25, 50]}
           />
         </Paper>
 

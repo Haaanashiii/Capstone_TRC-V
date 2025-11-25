@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import Sidebar from './Sidebar';
 import KpiCard from '../../components/KpiCard';
 import '../../Styles/Administrator_Css/Analytics.css';
+import '../../Styles/Administrator_Css/SharedTable.css';
 import {
   Paper,
   Typography,
@@ -34,7 +35,7 @@ function Analytics() {
   const [error, setError] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [rowsPerPage, setRowsPerPage] = useState(15);
   
   // Analytics data from API
   const [analyticsData, setAnalyticsData] = useState({
@@ -274,7 +275,7 @@ function Analytics() {
 
             {/* Data Table */}
             <section className="barangay-table-section" aria-labelledby="all-barangays-heading">
-              <Paper elevation={0} className="table-container">
+              <Paper elevation={2} className="admin-table-container">
                 <div className="table-header-section">
                   <Typography variant="h6" className="table-title">
                     All Barangays
@@ -294,23 +295,23 @@ function Analytics() {
                     }}
                   />
                 </div>
-                <TableContainer>
-                  <Table aria-label="Barangay franchise details table">
+                <TableContainer className="admin-table-wrapper">
+                  <Table className="admin-table" stickyHeader aria-label="Barangay franchise details table">
                     <TableHead>
-                      <TableRow className="table-header-row">
-                        <TableCell className="table-header-cell">
+                      <TableRow>
+                        <TableCell className="admin-table-header-cell col-barangay" align="left">
                           Barangay
                         </TableCell>
-                        <TableCell align="center" className="table-header-cell">
+                        <TableCell className="admin-table-header-cell col-status">
                           Active
                         </TableCell>
-                        <TableCell align="center" className="table-header-cell">
+                        <TableCell className="admin-table-header-cell col-status">
                           Expired
                         </TableCell>
-                        <TableCell align="center" className="table-header-cell">
+                        <TableCell className="admin-table-header-cell col-status">
                           Total
                         </TableCell>
-                        <TableCell align="center" className="table-header-cell">
+                        <TableCell className="admin-table-header-cell col-status">
                           Active %
                         </TableCell>
                       </TableRow>
@@ -318,8 +319,8 @@ function Analytics() {
                     <TableBody>
                       {paginatedData.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={5} align="center">
-                            <Typography variant="body2" color="text.secondary" sx={{ py: 4 }}>
+                          <TableCell colSpan={5} className="admin-table-empty">
+                            <Typography className="admin-table-empty-text">
                               {searchQuery ? 'No barangays match your search' : 'No barangay data available'}
                             </Typography>
                           </TableCell>
@@ -330,28 +331,28 @@ function Analytics() {
                           return (
                           <TableRow 
                             key={row.barangay}
-                            className="table-row"
+                            className="admin-table-row"
                             hover
                           >
-                            <TableCell className="table-cell barangay-name-cell">
+                            <TableCell className="admin-table-cell col-barangay" align="left">
                               {row.barangay}
                             </TableCell>
-                            <TableCell align="center" className="table-cell">
-                              <span className="badge badge-active" aria-label={`${row.active} active franchises`}>
+                            <TableCell className="admin-table-cell">
+                              <span className="status-badge status-active">
                                 {row.active}
                               </span>
                             </TableCell>
-                            <TableCell align="center" className="table-cell">
-                              <span className="badge badge-expired" aria-label={`${row.expired} expired franchises`}>
+                            <TableCell className="admin-table-cell">
+                              <span className="status-badge status-expired">
                                 {row.expired}
                               </span>
                             </TableCell>
-                            <TableCell align="center" className="table-cell total-cell">
-                              {row.total}
+                            <TableCell className="admin-table-cell">
+                              <strong>{row.total}</strong>
                             </TableCell>
-                            <TableCell align="center" className="table-cell">
+                            <TableCell className="admin-table-cell">
                               <div className="percentage-cell">
-                                <div className="progress-bar" role="progressbar" aria-valuenow={activePercentage} aria-valuemin="0" aria-valuemax="100" aria-label={`${activePercentage}% active`}>
+                                <div className="progress-bar" role="progressbar" aria-valuenow={activePercentage} aria-valuemin="0" aria-valuemax="100">
                                   <div className="progress-fill" style={{ width: `${activePercentage}%` }}></div>
                                 </div>
                                 <span className="percentage-text">{activePercentage}%</span>
@@ -364,9 +365,9 @@ function Analytics() {
                     </TableBody>
                   </Table>
                 </TableContainer>
-                <div className="table-pagination">
+                <div className="admin-table-pagination">
                   <TablePagination
-                    rowsPerPageOptions={[5, 10, 25]}
+                    rowsPerPageOptions={[10, 15, 25, 50]}
                     component="div"
                     count={filteredData.length}
                     rowsPerPage={rowsPerPage}

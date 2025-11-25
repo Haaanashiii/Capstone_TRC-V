@@ -13,7 +13,7 @@ const DocumentReferenceSchema = new mongoose.Schema({
   operatorPictureObj: { type: String, required: false },
   driverPictureObj: { type: String, required: false },
   qrCodeObj: { type: String, required: false },
-
+  oRTreasurerOfficeObj: { type: String, required: false },
   //added of sb
   individualSessionReportObj: { type: String, required: false },
   resolutionDocumentObj: { type: String, required: false },

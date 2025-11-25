@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import '../../Styles/Administrator_Css/FareReports.css';
+import '../../Styles/Administrator_Css/SharedTable.css';
 import Sidebar from './Sidebar';
 import websocketService from '../../services/websocket';
 import { 
@@ -75,7 +76,7 @@ function Reports() {
   const [open, setOpen] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
   const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(5);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
   const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -119,7 +120,7 @@ function Reports() {
           sortOrder
         });
 
-        const response = await fetch(`${API_BASE_URL}/reports?${queryParams}`, {
+        const response = await fetch(`${API_BASE_URL}/api/reports?${queryParams}`, {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
@@ -177,7 +178,7 @@ function Reports() {
       const month = currentDate.getMonth() + 1;
       const year = currentDate.getFullYear();
 
-      const response = await fetch(`${API_BASE_URL}/reports/monthly?month=${month}&year=${year}&format=csv`, {
+      const response = await fetch(`${API_BASE_URL}/api/reports/monthly?month=${month}&year=${year}&format=csv`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -236,7 +237,7 @@ function Reports() {
         return;
       }
 
-      const response = await fetch(`${API_BASE_URL}/reports/${selectedReport._id}`, {
+      const response = await fetch(`${API_BASE_URL}/api/reports/${selectedReport._id}`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -416,49 +417,45 @@ function Reports() {
         </div>
         
         {/* Reports Table */}
-        <Paper className="table-container" elevation={2}>
+        <Paper className="admin-table-container" elevation={2}>
           {loading && (
-            <Box display="flex" justifyContent="center" p={2}>
+            <Box className="admin-table-loading">
               <CircularProgress />
             </Box>
           )}
           
-          <TableContainer sx={{ maxHeight: 500 }}>
-            <Table stickyHeader aria-label="reports table">
+          <TableContainer className="admin-table-wrapper">
+            <Table className="admin-table" stickyHeader aria-label="reports table">
               <TableHead>
                 <TableRow>
-                  <StyledTableCell>Report ID</StyledTableCell>
-                  <StyledTableCell>Franchisee Name</StyledTableCell>
-                  <StyledTableCell>Date and Time Reported</StyledTableCell>
-                  <StyledTableCell>Status</StyledTableCell>
-                  <StyledTableCell>Action</StyledTableCell>
+                  <TableCell className="admin-table-header-cell col-id">Report ID</TableCell>
+                  <TableCell className="admin-table-header-cell col-name" align="left">Franchisee Name</TableCell>
+                  <TableCell className="admin-table-header-cell col-date">Date and Time Reported</TableCell>
+                  <TableCell className="admin-table-header-cell col-status">Status</TableCell>
+                  <TableCell className="admin-table-header-cell col-actions">Action</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {!loading && reports.length > 0 ? (
                   reports.map((report) => (
-                    <StyledTableRow 
+                    <TableRow 
                       key={report.reportID}
+                      className="admin-table-row"
                       onClick={() => handleOpen(report)}
+                      hover
                     >
-                      <StyledTableCell>{report.reportID}</StyledTableCell>
-                      <StyledTableCell>{report.franchiseeName}</StyledTableCell>
-                      <StyledTableCell>{formatDate(report.dateReported)}</StyledTableCell>
-                      <StyledTableCell>
-                        <Chip 
-                          label={report.status} 
-                          size="small"
-                          sx={{ 
-                            bgcolor: getStatusColor(report.status),
-                            color: 'white',
-                            fontWeight: 'bold'
-                          }}
-                        />
-                      </StyledTableCell>
-                      <StyledTableCell>
+                      <TableCell className="admin-table-cell">{report.reportID}</TableCell>
+                      <TableCell className="admin-table-cell col-name" align="left">{report.franchiseeName}</TableCell>
+                      <TableCell className="admin-table-cell">{formatDate(report.dateReported)}</TableCell>
+                      <TableCell className="admin-table-cell">
+                        <span className={`status-badge status-${report.status}`}>
+                          {report.status}
+                        </span>
+                      </TableCell>
+                      <TableCell className="admin-table-cell">
                         <IconButton 
                           size="small"
-                          sx={{ color: '#0a3161' }}
+                          className="action-icon-button view"
                           onClick={(e) => {
                             e.stopPropagation();
                             handleOpen(report);
@@ -466,29 +463,33 @@ function Reports() {
                         >
                           <VisibilityIcon />
                         </IconButton>
-                      </StyledTableCell>
-                    </StyledTableRow>
+                      </TableCell>
+                    </TableRow>
                   ))
                 ) : (
-                  <StyledTableRow>
-                    <StyledTableCell colSpan={5} align="center">
-                      {loading ? 'Loading...' : 'No reports found'}
-                    </StyledTableCell>
-                  </StyledTableRow>
+                  <TableRow>
+                    <TableCell colSpan={5} className="admin-table-empty">
+                      <Typography className="admin-table-empty-text">
+                        {loading ? 'Loading...' : 'No reports found'}
+                      </Typography>
+                    </TableCell>
+                  </TableRow>
                 )}
               </TableBody>
             </Table>
           </TableContainer>
           
-          <TablePagination
-            rowsPerPageOptions={[5, 10, 25]}
-            component="div"
-            count={totalReports}
-            rowsPerPage={rowsPerPage}
-            page={page}
-            onPageChange={handleChangePage}
-            onRowsPerPageChange={handleChangeRowsPerPage}
-          />
+          <div className="admin-table-pagination">
+            <TablePagination
+              rowsPerPageOptions={[10, 15, 25, 50]}
+              component="div"
+              count={totalReports}
+              rowsPerPage={rowsPerPage}
+              page={page}
+              onPageChange={handleChangePage}
+              onRowsPerPageChange={handleChangeRowsPerPage}
+            />
+          </div>
         </Paper>
         
         {/* Filter Dialog */}
