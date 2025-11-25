@@ -36,7 +36,6 @@ exports.createNewApplication = async (req, res, next) => {
       operatorEmail: body.operatorEmail || '',
       coOwnerName: body.coOwnerName || '',
       coOwnerAddress: body.coOwnerAddress || '',
-      driversID: body.driversID,
       driverName: body.driverName,
       driversAddress: body.driversAddress,
       todaMembership: body.todaMembership || '',
@@ -374,7 +373,6 @@ exports.createRenewOrAmendment = async (req, res, next) => {
         operatorBirthDate: existingFranchise.operatorBirthDate,
         operatorCitizenship: existingFranchise.operatorCitizenship,
         operatorEmail: existingFranchise.operatorEmail,
-        driversID: body.driversID || existingFranchise.driversID,
         driverName: body.driverName || existingFranchise.driverName,
         driversAddress: body.driversAddress || existingFranchise.driversAddress,
         todaMembership: body.todaMembership || existingFranchise.todaMembership,
@@ -396,7 +394,6 @@ exports.createRenewOrAmendment = async (req, res, next) => {
         operatorBirthDate: new Date(body.operatorBirthDate),
         operatorCitizenship: body.operatorCitizenship,
         operatorEmail: body.operatorEmail,
-        driversID: existingFranchise.driversID,
         driverName: existingFranchise.driverName,
         driversAddress: existingFranchise.driversAddress,
         todaMembership: existingFranchise.todaMembership,
@@ -1084,11 +1081,33 @@ exports.sbAdminAcceptNewFranchise = async (req, res, next) => {
       sessionNumber: sessionNumber.trim()
     });
     
+    // Create franchiseChainId early for folder organization
+    const franchiseChainId = `${franchiseNo}-${application.operatorName.toLowerCase().replace(/\s+/g, '-')}`;
+    
     // Check if this franchise number was used before (recycled number)
-    // If yes, reuse the previous QR code; if no, generate a new one
+    // If yes, verify the previous franchise is revoked before allowing reuse
     let qrResult;
+    const latestFranchiseWithNumber = await FranchiseInformation.findOne(
+      { franchiseNumber: franchiseNo, isCurrentVersion: true },
+      { franchiseStatus: 1, qrCode: 1 },
+      { session }
+    );
+    
+    // If a current active franchise exists with this number, cannot reuse it
+    if (latestFranchiseWithNumber && latestFranchiseWithNumber.franchiseStatus !== 'Revoked') {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(400).json({ 
+        error: 'Cannot assign franchise number that is currently in use',
+        franchiseNumber: franchiseNo,
+        currentStatus: latestFranchiseWithNumber.franchiseStatus,
+        message: 'This franchise number is already assigned to an active franchise. It can only be reused after it is revoked.'
+      });
+    }
+    
+    // Check for previous version to reuse QR code (only if the franchise is revoked)
     const previousFranchiseWithSameNumber = await FranchiseInformation.findOne(
-      { franchiseNumber: franchiseNo, isCurrentVersion: false },
+      { franchiseNumber: franchiseNo, isCurrentVersion: false, franchiseStatus: 'Revoked' },
       { qrCode: 1 },
       { sort: { version: -1 }, session }
     );
@@ -1096,14 +1115,14 @@ exports.sbAdminAcceptNewFranchise = async (req, res, next) => {
     if (previousFranchiseWithSameNumber?.qrCode) {
       // Recycled number - reuse previous QR code
       qrResult = { cloudflare: previousFranchiseWithSameNumber.qrCode };
-      console.log('[sbAdminAcceptNewFranchise] Recycled franchise number:', franchiseNo, '- Reusing previous QR code');
+      console.log('[sbAdminAcceptNewFranchise] Recycled revoked franchise number:', franchiseNo, '- Reusing previous QR code');
     } else {
-      // New franchise number - generate new QR code
+      // New franchise number - generate new QR code with hashed franchise number (static)
       const hashedFranchiseNo = generateHashedFranchiseNo(franchiseNo);
       const qrBuffer = await generateQRCodeBuffer(hashedFranchiseNo);
       qrResult = await uploadFile(qrBuffer, `qr-${franchiseNo}.png`, 'image/png',
-        { baseFolder: 'franchiseInformations', subFolder: franchiseNo, category: 'QRCode', customKey: `version-1/QRCode/qr-${franchiseNo}.png` });
-      console.log('[sbAdminAcceptNewFranchise] New franchise number:', franchiseNo, '- Generated new QR code');
+        { baseFolder: 'franchiseInformations', subFolder: franchiseChainId, category: 'QRCode', customKey: `version-1/QRCode/qr-${franchiseNo}.png` });
+      console.log('[sbAdminAcceptNewFranchise] New franchise number:', franchiseNo, '- Generated static QR code with hash:', hashedFranchiseNo);
     }
     
     // Check version with transaction
@@ -1116,14 +1135,14 @@ exports.sbAdminAcceptNewFranchise = async (req, res, next) => {
         const file = files.scannedSignedRegistrationObj[0];
         validateFile(file);
         const result = await uploadFile(file.buffer, file.originalname, file.mimetype,
-          { baseFolder: 'franchiseInformations', subFolder: franchiseNo, category: 'Documentations', customKey: `version-${version}/Documentations/${file.originalname}` });
+          { baseFolder: 'franchiseInformations', subFolder: franchiseChainId, category: 'Documentations', customKey: `version-${version}/Documentations/${file.originalname}` });
         scannedReg = result.cloudflare;
       }
       if (files.individualSessionReportObj) {
         const file = files.individualSessionReportObj[0];
         validateFile(file);
         const result = await uploadFile(file.buffer, file.originalname, file.mimetype,
-          { baseFolder: 'franchiseInformations', subFolder: franchiseNo, category: 'Documentations', customKey: `version-${version}/Documentations/${file.originalname}` });
+          { baseFolder: 'franchiseInformations', subFolder: franchiseChainId, category: 'Documentations', customKey: `version-${version}/Documentations/${file.originalname}` });
         sessionReport = result.cloudflare;
       }
     }
@@ -1131,14 +1150,14 @@ exports.sbAdminAcceptNewFranchise = async (req, res, next) => {
     // Move files from applications → information (both local and cloud)
     const userId = application.operatorInfo || 'pending';
     const appId = String(application._id);
-    await moveFilesToInformation(userId, appId, franchiseNo, version); // Local
-    const urlMapping = await moveFranchiseFiles(userId, appId, franchiseNo); // Cloud
+    await moveFilesToInformation(userId, appId, franchiseChainId, version); // Local
+    const urlMapping = await moveFranchiseFiles(userId, appId, franchiseChainId, version); // Cloud - now handles the version folder
     
     // Create FranchiseInformation record within transaction
     const franchiseData = {
       franchiseNumber: franchiseNo,
       sessionNumber: sessionNumber.trim(),
-      franchiseChainId: `${franchiseNo}-${application.operatorName.toLowerCase().replace(/\s+/g, '-')}`,
+      franchiseChainId: franchiseChainId,
       operatorName: application.operatorName,
       operatorContactNumber: application.operatorContactNumber,
       coOwnerName: application.coOwnerName,
@@ -1150,7 +1169,6 @@ exports.sbAdminAcceptNewFranchise = async (req, res, next) => {
       operatorBirthDate: application.operatorBirthDate,
       operatorCitizenship: application.operatorCitizenship,
       operatorEmail: application.operatorEmail,
-      driversID: application.driversID,
       driverName: application.driverName,
       driversAddress: application.driversAddress,
       todaMembership: application.todaMembership,
@@ -1300,6 +1318,7 @@ exports.sbAdminAcceptRenewOrAmendment = async (req, res, next) => {
     }
     
     const franchiseNo = existingFranchise.franchiseNumber;
+    const franchiseChainId = existingFranchise.franchiseChainId; // Preserve existing chain ID (owner hasn't changed)
     
     // Handle versioning with transaction
     const { version, previousVersion } = await handleVersionControl(franchiseNo, application.applicationType, session);
@@ -1311,14 +1330,14 @@ exports.sbAdminAcceptRenewOrAmendment = async (req, res, next) => {
         const file = files.scannedSignedRegistrationObj[0];
         validateFile(file);
         const result = await uploadFile(file.buffer, file.originalname, file.mimetype,
-          { baseFolder: 'franchiseInformations', subFolder: franchiseNo, category: 'Documentations', customKey: `version-${version}/Documentations/${file.originalname}` });
+          { baseFolder: 'franchiseInformations', subFolder: franchiseChainId, category: 'Documentations', customKey: `version-${version}/Documentations/${file.originalname}` });
         scannedReg = result.cloudflare;
       }
       if (files.individualSessionReportObj) {
         const file = files.individualSessionReportObj[0];
         validateFile(file);
         const result = await uploadFile(file.buffer, file.originalname, file.mimetype,
-          { baseFolder: 'franchiseInformations', subFolder: franchiseNo, category: 'Documentations', customKey: `version-${version}/Documentations/${file.originalname}` });
+          { baseFolder: 'franchiseInformations', subFolder: franchiseChainId, category: 'Documentations', customKey: `version-${version}/Documentations/${file.originalname}` });
         sessionReport = result.cloudflare;
       }
     }
@@ -1335,8 +1354,8 @@ exports.sbAdminAcceptRenewOrAmendment = async (req, res, next) => {
       const hashedFranchiseNo = generateHashedFranchiseNo(franchiseNo);
       const qrBuffer = await generateQRCodeBuffer(hashedFranchiseNo);
       qrResult = await uploadFile(qrBuffer, `qr-${franchiseNo}.png`, 'image/png',
-        { baseFolder: 'franchiseInformations', subFolder: franchiseNo, category: 'QRCode', customKey: `version-${version}/QRCode/qr-${franchiseNo}.png` });
-      console.log('[sbAdminAcceptRenewOrAmendment] Generated new QR code for franchise:', franchiseNo);
+        { baseFolder: 'franchiseInformations', subFolder: franchiseChainId, category: 'QRCode', customKey: `version-${version}/QRCode/qr-${franchiseNo}.png` });
+      console.log('[sbAdminAcceptRenewOrAmendment] Generated static QR code with hash:', hashedFranchiseNo);
     }
     
     // Create new version based on application type
@@ -1382,7 +1401,6 @@ exports.sbAdminAcceptRenewOrAmendment = async (req, res, next) => {
       newVersionData.mvPlateNo = application.mvPlateNo;
       newVersionData.motorEngineNo = application.motorEngineNo;
       newVersionData.chasisNo = application.chasisNo;
-      newVersionData.driversID = application.driversID;
       newVersionData.driverName = application.driverName;
       newVersionData.driversAddress = application.driversAddress;
       newVersionData.todaMembership = application.todaMembership;

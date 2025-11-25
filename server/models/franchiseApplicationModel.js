@@ -30,7 +30,6 @@ const franchiseApplicationSchema = new mongoose.Schema({
   operatorEmail: { type: String, required: false, lowercase: true, trim: true, match: [/^\S+@\S+\.\S+$/, 'Invalid email address'] }, 
   
   // driver details
-  driversID: { type: String, required: true },
   driverName: { type: String, required: true },
   driversAddress: { type: String, required: true },
   todaMembership: { type: String, required: false },
