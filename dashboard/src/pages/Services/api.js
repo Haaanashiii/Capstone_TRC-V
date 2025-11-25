@@ -404,6 +404,19 @@ export const franchiseAPI = {
   },
 
   /**
+   * Create renewal or amendment application (operator submits changes to existing franchise)
+   * @param {FormData} applicationData - Application data as FormData
+   * @returns {Promise} Response with created renewal/amendment application
+   */
+  createRenewAmend: (applicationData) => {
+    const config = {
+      headers: { 'Content-Type': undefined }
+    };
+    console.log('[franchiseAPI] Sending Renewal/Amendment FormData');
+    return api.post('/api/franchise-applications/renew-amend', applicationData, config);
+  },
+
+  /**
    * BPLO approve franchise application
    * @param {string} id - Application ID
    * @returns {Promise} Response with approved application
