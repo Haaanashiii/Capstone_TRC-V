@@ -1203,13 +1203,10 @@ exports.sbAdminAcceptNewFranchise = async (req, res, next) => {
       }
     }
     
-    // Mark application as completed
-    await franchiseApplicationRepository.updateFranchiseApplication(id, {
-      statusOfBPLO: 'completed',
-      franchiseCreated: true,
-      franchiseCreatedAt: new Date(),
-      relatedFranchiseInfo: franchise[0]._id
-    });
+    // Delete application from FranchiseApplication collection (now in FranchiseInformation)
+    // This prevents data redundancy and keeps FranchiseApplication for pending applications only
+    await franchiseApplicationRepository.deleteFranchiseApplication(id);
+    console.log('[sbAdminAcceptNewFranchise] Application deleted from FranchiseApplication collection:', id);
     
     // Commit transaction
     await session.commitTransaction();
@@ -1446,13 +1443,10 @@ exports.sbAdminAcceptRenewOrAmendment = async (req, res, next) => {
       }
     }
     
-    // Mark application as completed
-    await franchiseApplicationRepository.updateFranchiseApplication(id, {
-      statusOfBPLO: 'completed',
-      franchiseCreated: true,
-      franchiseCreatedAt: new Date(),
-      relatedFranchiseInfo: newFranchise[0]._id
-    });
+    // Delete application from FranchiseApplication collection (now in FranchiseInformation)
+    // This prevents data redundancy and keeps FranchiseApplication for pending applications only
+    await franchiseApplicationRepository.deleteFranchiseApplication(id);
+    console.log('[sbAdminAcceptRenewOrAmendment] Application deleted from FranchiseApplication collection:', id);
     
     // Commit transaction
     await session.commitTransaction();
