@@ -143,6 +143,7 @@ function FranchiseeListOperatorSide() {
         setUser(tokenUser);
       }
     
+      // Fetch full user details which will trigger the franchise loading effect
       fetchUserDetails();
     }
     // Check franchise status
@@ -180,7 +181,13 @@ function FranchiseeListOperatorSide() {
 
     // Otherwise, fetch from API (original logic)
     try {
-      if (!user) return;
+      // Wait for user to be loaded before attempting to fetch franchise data
+      if (!user) {
+        console.log('[FranchiseeListOperatorSide] User not loaded yet, waiting...');
+        return;
+      }
+      
+      console.log('[FranchiseeListOperatorSide] User loaded, fetching franchise data for user:', user.id || user._id);
       const storedOwnerUserId = sessionStorage.getItem('franchiseOwnerUserId');
       const userId = user.id;
       if (!storedOwnerUserId || storedOwnerUserId !== userId) {
@@ -562,11 +569,15 @@ function FranchiseeListOperatorSide() {
         console.debug('[FranchiseeListOperatorSide] user sample ->', u);
       }
 
-      // PRIORITY 1: Use profilePhoto from FranchiseInformation (via /mine or /auth/me)
-      // PRIORITY 2: Use documents.picture from FranchiseApplication
-      // PRIORITY 3: Fallback to user-level photos
+      // PRIORITY 1: Use operatorPictureObj from FranchiseInformation documents
+      // PRIORITY 2: Use profilePhoto from FranchiseInformation (via /mine or /auth/me)
+      // PRIORITY 3: Use documents.picture from FranchiseApplication
+      // PRIORITY 4: Fallback to user-level photos
       const candidates = [
-        // Highest priority: FranchiseInformation profilePhoto
+        // Highest priority: FranchiseInformation documents.operatorPictureObj
+        mf?.documents?.operatorPictureObj,
+        u?.franchise?.documents?.operatorPictureObj,
+        // FranchiseInformation profilePhoto
         u?.franchise?.profilePhoto,
         mf?.profilePhoto,
         // FranchiseApplication documents.picture
@@ -713,7 +724,9 @@ function FranchiseeListOperatorSide() {
                 src={
                   idBlobUrl ||
                   resolveServerUrl(
-                    // PRIORITY: FranchiseInformation profilePhoto > FranchiseApplication documents.picture > user photo
+                    // PRIORITY: operatorPictureObj > FranchiseInformation profilePhoto > FranchiseApplication documents.picture > user photo
+                    (matchedFranchise && matchedFranchise.documents && matchedFranchise.documents.operatorPictureObj) ||
+                    (user && user.franchise && user.franchise.documents && user.franchise.documents.operatorPictureObj) ||
                     (user && user.franchise && user.franchise.profilePhoto) ||
                     (matchedFranchise && matchedFranchise.profilePhoto) ||
                     (matchedFranchise && matchedFranchise.documents && matchedFranchise.documents.picture) ||
@@ -737,15 +750,20 @@ function FranchiseeListOperatorSide() {
             </Typography>
             <Typography sx={{ color: '#fff', fontWeight: 500, fontSize: 16 }}>
              
-              {user?.address || matchedFranchise?.address || matchedFranchise?.driverAddress || t.addressNotProvided}
+              {matchedFranchise?.operatorAddress || user?.address || matchedFranchise?.address || matchedFranchise?.driverAddress || t.addressNotProvided}
             </Typography>
             <Typography sx={{ color: '#fff', fontWeight: 500, fontSize: 16 }}>
               
-              { (
+              { 
+                // Check if coOwnerName exists and is not empty
+                (matchedFranchise?.coOwnerName && matchedFranchise.coOwnerName.trim() !== '') ||
+                (user?.franchise?.coOwnerName && user.franchise.coOwnerName.trim() !== '') ?
+                (language === 'en' ? 'WITH CO-OWNER' : 'MAY KASAMA') :
+                (
                   (user && (user.civilStatus || user.civil_status)) ||
-                  (matchedFranchise && (matchedFranchise.civilStatus || matchedFranchise.civil_status))
+                  (matchedFranchise && (matchedFranchise.civilStatus || matchedFranchise.civil_status || matchedFranchise.operatorCivilStatus))
                 ) ?
-                String(user?.civilStatus || user?.civil_status || matchedFranchise?.civilStatus || matchedFranchise?.civil_status).toUpperCase()
+                String(user?.civilStatus || user?.civil_status || matchedFranchise?.civilStatus || matchedFranchise?.civil_status || matchedFranchise?.operatorCivilStatus).toUpperCase()
                 : t.singleNoCoOwner
               }
             </Typography>
@@ -879,15 +897,6 @@ function FranchiseeListOperatorSide() {
             <div className="divider" />
 
             <div className="fields-grid">
-              <div className="field-group">
-                <div className="label">OR NUMBER</div>
-                <div className="value">{fields.orNumber || ''}</div>
-              </div>
-              <div className="field-group">
-                <div className="label">FRANCHISE NUMBER</div>
-                <div className="value">{fields.franchiseNumber || ''}</div>
-              </div>
-
               <div className="field-group">
                 <div className="label">DATE APPROVED</div>
                 <div className="value">{(fields.dateApproved && fields.dateApproved.isValid && fields.dateApproved.isValid()) ? fields.dateApproved.format('MM/DD/YYYY') : (matchedFranchise?.approvedAt ? new Date(matchedFranchise.approvedAt).toLocaleDateString() : '')}</div>
