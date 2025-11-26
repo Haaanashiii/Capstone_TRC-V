@@ -622,7 +622,7 @@ exports.generateCertificate = async (req, res, next) => {
                     operatorAddress: franchiseData.operatorAddress || 'N/A',
                     plateNumber: franchiseData.mvPlateNo || 'N/A',
                     unitModel: franchiseData.unitModel || 'N/A',
-                    resolutionNumber: franchiseData.sbResolutionNumber || 'N/A',
+                    resolutionNumber: franchiseData.resolutionNumber || franchiseData.sbResolutionNumber || 'N/A',
                     dateApproved: franchiseData.dateApproved ? new Date(franchiseData.dateApproved).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : 'N/A',
                     summaryText: franchiseData.summaryText || '',
                     totalFranchises: franchiseData.statistics?.total || 0,

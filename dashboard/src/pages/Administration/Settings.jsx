@@ -38,44 +38,89 @@ const StyledTab = styled(Tab)(({ theme }) => ({
   },
 }));
 
-// Permission Matrix Configuration
-const PERMISSION_CATEGORIES = {
-  franchiseManagement: {
-    label: 'Franchise Management',
-    permissions: [
-      { key: 'view_franchises', label: 'View Franchises', description: 'Access franchise records' },
-      { key: 'create_franchise', label: 'Create Franchise', description: 'Add new franchises' },
-      { key: 'edit_franchise', label: 'Edit Franchise', description: 'Modify franchise details' },
-      { key: 'delete_franchise', label: 'Delete Franchise', description: 'Remove franchise records' },
-      { key: 'approve_franchise', label: 'Approve Applications', description: 'Approve franchise applications' },
+// Page Access Configuration - Based on actual routes in your application
+const PAGE_ACCESS_CONFIG = [
+  {
+    category: 'Core Pages',
+    pages: [
+      { 
+        key: 'dashboard', 
+        label: 'Dashboard', 
+        path: '/dashboard',
+        description: 'View system statistics and KPIs',
+        icon: '📊'
+      },
+      { 
+        key: 'franchisee-list', 
+        label: 'Franchisee List', 
+        path: '/franchisee-list',
+        description: 'View all franchise records',
+        icon: '📋'
+      },
+      { 
+        key: 'franchise-management', 
+        label: 'Franchise Management', 
+        path: '/franchise-management',
+        description: 'Manage franchise applications and approvals',
+        icon: '🏢'
+      },
+      { 
+        key: 'certificate', 
+        label: 'Certificate', 
+        path: '/certificate',
+        description: 'Generate and manage franchise certificates',
+        icon: '📜'
+      },
+      { 
+        key: 'fare-reports', 
+        label: 'Fare Overpricing Report', 
+        path: '/fare-reports',
+        description: 'View and manage fare violation reports',
+        icon: '📝'
+      },
     ],
   },
-  userManagement: {
-    label: 'User Management',
-    permissions: [
-      { key: 'view_users', label: 'View Users', description: 'Access user accounts' },
-      { key: 'create_user', label: 'Create User', description: 'Add new admin users' },
-      { key: 'edit_user', label: 'Edit User', description: 'Modify user accounts' },
-      { key: 'delete_user', label: 'Delete User', description: 'Remove user accounts' },
+  {
+    category: 'Advanced Features',
+    pages: [
+      { 
+        key: 'analytics', 
+        label: 'Analytics', 
+        path: '/analytics',
+        description: 'Advanced analytics and insights',
+        icon: '📈'
+      },
+      { 
+        key: 'announcements', 
+        label: 'Announcements', 
+        path: '/announcements',
+        description: 'Create and manage system announcements',
+        icon: '📢'
+      },
+      { 
+        key: 'audit-trail', 
+        label: 'Audit Trail', 
+        path: '/audit-trail',
+        description: 'View system audit logs and activity',
+        icon: '🕒'
+      },
+      { 
+        key: 'user-management', 
+        label: 'User Management', 
+        path: '/user-management',
+        description: 'Manage admin users and accounts',
+        icon: '👥'
+      },
+      { 
+        key: 'settings', 
+        label: 'Settings', 
+        path: '/settings',
+        description: 'System configuration and permissions',
+        icon: '⚙️'
+      },
     ],
   },
-  analytics: {
-    label: 'Analytics & Reports',
-    permissions: [
-      { key: 'view_analytics', label: 'View Analytics', description: 'Access analytics dashboard' },
-      { key: 'export_reports', label: 'Export Reports', description: 'Download reports' },
-      { key: 'view_audit_logs', label: 'View Audit Logs', description: 'Access system logs' },
-    ],
-  },
-  settings: {
-    label: 'System Settings',
-    permissions: [
-      { key: 'manage_fare', label: 'Manage Fare Matrix', description: 'Update fare rates' },
-      { key: 'manage_permissions', label: 'Manage Permissions', description: 'Configure role permissions' },
-      { key: 'system_config', label: 'System Configuration', description: 'Advanced settings' },
-    ],
-  },
-};
+];
 
 const ROLES = [
   { value: 'super-admin', label: 'Super Admin', color: '#dc2626' },
@@ -96,29 +141,11 @@ function Settings() {
   const [uploadDate, setUploadDate] = useState(null);
   const [currentFileName, setCurrentFileName] = useState('');
 
-  // Permissions State
-  const [permissions, setPermissions] = useState({
-    'super-admin': {
-      franchiseManagement: ['view_franchises', 'create_franchise', 'edit_franchise', 'delete_franchise', 'approve_franchise'],
-      userManagement: ['view_users', 'create_user', 'edit_user', 'delete_user'],
-      analytics: ['view_analytics', 'export_reports', 'view_audit_logs'],
-      settings: ['manage_fare', 'manage_permissions', 'system_config'],
-    },
-    'sb-admin': {
-      franchiseManagement: ['view_franchises', 'edit_franchise', 'approve_franchise'],
-      userManagement: ['view_users'],
-      analytics: ['view_analytics', 'export_reports'],
-      settings: [],
-    },
-    'bplo-admin': {
-      franchiseManagement: ['view_franchises', 'create_franchise', 'edit_franchise'],
-      userManagement: ['view_users'],
-      analytics: ['view_analytics'],
-      settings: [],
-    },
-  });
+  // Page Access State - Which pages each role can access
+  const [pageAccess, setPageAccess] = useState({});
   const [selectedRole, setSelectedRole] = useState('super-admin');
   const [hasPermissionChanges, setHasPermissionChanges] = useState(false);
+  const [loadingPageAccess, setLoadingPageAccess] = useState(true);
 
   // Tab Change Handler
   const handleTabChange = useCallback((event, newValue) => {
@@ -145,6 +172,53 @@ function Settings() {
   const closeNotification = useCallback(() => {
     setNotification({ ...notification, open: false });
   }, [notification]);
+
+  // Fetch all page access configurations from backend
+  const fetchAllPageAccess = useCallback(async () => {
+    setLoadingPageAccess(true);
+    try {
+      const token = getAuthToken();
+      if (!token) {
+        console.warn('[Settings] No auth token available');
+        setLoadingPageAccess(false);
+        return;
+      }
+
+      const response = await fetch(`${API_BASE_URL}/api/role-page-access`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        console.log('[Settings] Fetched page access:', result);
+        
+        if (result.success && result.data && Array.isArray(result.data)) {
+          // Transform array to object format
+          const accessMap = {};
+          result.data.forEach(item => {
+            if (item.role && item.allowedPages) {
+              accessMap[item.role] = item.allowedPages;
+            }
+          });
+          
+          console.log('[Settings] Transformed page access:', accessMap);
+          setPageAccess(accessMap);
+        } else {
+          console.warn('[Settings] Invalid data structure:', result);
+        }
+      } else {
+        console.error('[Settings] Failed to fetch page access, status:', response.status);
+      }
+    } catch (error) {
+      console.error('[Settings] Error fetching page access:', error);
+    } finally {
+      setLoadingPageAccess(false);
+    }
+  }, [getAuthToken]);
 
   // Fetch existing fare matrix from backend
   const fetchFareMatrix = useCallback(async () => {
@@ -325,19 +399,16 @@ function Settings() {
 
   // ==================== Permission Handlers ====================
   
-  const handlePermissionToggle = useCallback((category, permissionKey) => {
-    setPermissions((prev) => {
-      const rolePerms = prev[selectedRole][category] || [];
-      const hasPermission = rolePerms.includes(permissionKey);
+  const handlePageAccessToggle = useCallback((pageKey) => {
+    setPageAccess((prev) => {
+      const rolePages = prev[selectedRole] || [];
+      const hasAccess = rolePages.includes(pageKey);
       
       return {
         ...prev,
-        [selectedRole]: {
-          ...prev[selectedRole],
-          [category]: hasPermission
-            ? rolePerms.filter((p) => p !== permissionKey)
-            : [...rolePerms, permissionKey],
-        },
+        [selectedRole]: hasAccess
+          ? rolePages.filter((p) => p !== pageKey)
+          : [...rolePages, pageKey],
       };
     });
     setHasPermissionChanges(true);
@@ -347,52 +418,136 @@ function Settings() {
     setLoading(true);
     
     try {
-      // TODO: API call to save permissions when backend is ready
-      // await permissionsAPI.update(selectedRole, permissions[selectedRole]);
+      const token = getAuthToken();
       
-      // Simulate API delay
-      await new Promise((resolve) => setTimeout(resolve, 800));
-      
-      showNotification('Permissions saved successfully');
-      setHasPermissionChanges(false);
+      if (!token) {
+        showNotification('Authentication required. Please log in.', 'error');
+        setLoading(false);
+        return;
+      }
+
+      const response = await fetch(`${API_BASE_URL}/api/role-page-access/${selectedRole}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          allowedPages: pageAccess[selectedRole],
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          throw new Error('Session expired. Please log in again.');
+        }
+        if (response.status === 403) {
+          throw new Error(result.error || 'You do not have permission to modify page access.');
+        }
+        throw new Error(result.error || 'Failed to save page access');
+      }
+
+      if (result.success) {
+        showNotification('Page access permissions saved successfully');
+        setHasPermissionChanges(false);
+        // Refresh the data
+        await fetchAllPageAccess();
+      } else {
+        throw new Error('Invalid response from server');
+      }
     } catch (error) {
-      showNotification('Failed to save permissions', 'error');
+      console.error('Save error:', error);
+      showNotification(error.message || 'Failed to save permissions', 'error');
     } finally {
       setLoading(false);
     }
-  }, [selectedRole, permissions, showNotification]);
+  }, [selectedRole, pageAccess, showNotification, getAuthToken, fetchAllPageAccess]);
 
-  const handleResetPermissions = useCallback(() => {
-    if (window.confirm('Reset permissions to default for this role?')) {
-      // TODO: Load default permissions from API when backend is ready
-      showNotification('Permissions reset to default');
-      setHasPermissionChanges(false);
+  const handleResetPermissions = useCallback(async () => {
+    if (!window.confirm('Reset page access to default for this role?')) {
+      return;
     }
-  }, [showNotification]);
 
-  const hasPermission = useCallback((category, permissionKey) => {
-    return permissions[selectedRole]?.[category]?.includes(permissionKey) || false;
-  }, [permissions, selectedRole]);
+    setLoading(true);
+
+    try {
+      const token = getAuthToken();
+      
+      if (!token) {
+        showNotification('Authentication required. Please log in.', 'error');
+        setLoading(false);
+        return;
+      }
+
+      const response = await fetch(`${API_BASE_URL}/api/role-page-access/${selectedRole}/reset`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          throw new Error('Session expired. Please log in again.');
+        }
+        if (response.status === 403) {
+          throw new Error('You do not have permission to reset page access.');
+        }
+        throw new Error(result.error || 'Failed to reset page access');
+      }
+
+      if (result.success && result.data) {
+        setPageAccess((prev) => ({
+          ...prev,
+          [selectedRole]: result.data.allowedPages,
+        }));
+        
+        showNotification('Page access reset to default');
+        setHasPermissionChanges(false);
+      } else {
+        throw new Error('Invalid response from server');
+      }
+    } catch (error) {
+      console.error('Reset error:', error);
+      showNotification(error.message || 'Failed to reset page access', 'error');
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedRole, showNotification, getAuthToken]);
+
+  const hasPageAccess = useCallback((pageKey) => {
+    const rolePages = pageAccess[selectedRole];
+    return Array.isArray(rolePages) && rolePages.includes(pageKey);
+  }, [pageAccess, selectedRole]);
 
   // Load existing fare matrix on mount
   useEffect(() => {
     fetchFareMatrix();
   }, [fetchFareMatrix]);
 
+  // Load page access configuration on mount
+  useEffect(() => {
+    fetchAllPageAccess();
+  }, [fetchAllPageAccess]);
+
   const permissionStats = useMemo(() => {
-    const rolePerms = permissions[selectedRole];
-    if (!rolePerms) {
-      return { granted: 0, total: 0 };
-    }
+    const rolePages = pageAccess[selectedRole] || [];
+    const totalPages = PAGE_ACCESS_CONFIG.reduce((sum, cat) => sum + cat.pages.length, 0);
     
-    const total = Object.values(rolePerms).flat().length;
-    const allPossible = Object.values(PERMISSION_CATEGORIES).reduce(
-      (sum, cat) => sum + cat.permissions.length,
-      0
-    );
+    console.log(`[Settings] Stats for ${selectedRole}:`, {
+      rolePages,
+      count: rolePages.length,
+      totalPages,
+      allPageAccess: pageAccess
+    });
     
-    return { granted: total, total: allPossible };
-  }, [permissions, selectedRole]);
+    return { granted: rolePages.length, total: totalPages };
+  }, [pageAccess, selectedRole]);
 
   return (
     <div className="settings-container">
@@ -560,67 +715,79 @@ function Settings() {
           {/* ==================== Permission Control Tab ==================== */}
           {activeTab === 1 && (
             <div className="permission-control-tab">
-              {/* Role Selector */}
-              <Paper className="role-selector-container" elevation={0}>
-                <Typography variant="h6" className="section-title">
-                  Select Role
-                </Typography>
-                <Box className="role-chips">
-                  {ROLES.map((role) => (
-                    <Chip
-                      key={role.value}
-                      label={role.label}
-                      onClick={() => setSelectedRole(role.value)}
-                      color={selectedRole === role.value ? 'primary' : 'default'}
-                      variant={selectedRole === role.value ? 'filled' : 'outlined'}
-                      className={`role-chip ${selectedRole === role.value ? 'active' : ''}`}
-                      sx={{
-                        borderColor: role.color,
-                        color: selectedRole === role.value ? '#fff' : role.color,
-                        backgroundColor: selectedRole === role.value ? role.color : 'transparent',
-                        fontWeight: 600,
-                        fontSize: '14px',
-                        '&:hover': {
-                          backgroundColor: selectedRole === role.value ? role.color : `${role.color}15`,
-                        },
-                      }}
-                    />
-                  ))}
+              {loadingPageAccess ? (
+                <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
+                  <CircularProgress />
                 </Box>
+              ) : (
+                <>
+                  {/* Role Selector */}
+                  <Paper className="role-selector-container" elevation={0}>
+                    <Typography variant="h6" className="section-title">
+                      Select Role
+                    </Typography>
+                    <Box className="role-chips">
+                      {ROLES.map((role) => (
+                        <Chip
+                          key={role.value}
+                          label={role.label}
+                          onClick={() => setSelectedRole(role.value)}
+                          color={selectedRole === role.value ? 'primary' : 'default'}
+                          variant={selectedRole === role.value ? 'filled' : 'outlined'}
+                          className={`role-chip ${selectedRole === role.value ? 'active' : ''}`}
+                          sx={{
+                            borderColor: role.color,
+                            color: selectedRole === role.value ? '#fff' : role.color,
+                            backgroundColor: selectedRole === role.value ? role.color : 'transparent',
+                            fontWeight: 600,
+                            fontSize: '14px',
+                            '&:hover': {
+                              backgroundColor: selectedRole === role.value ? role.color : `${role.color}15`,
+                            },
+                          }}
+                        />
+                      ))}
+                    </Box>
 
-                {/* Permission Stats */}
-                <Box className="permission-stats">
-                  <Typography variant="body2" color="textSecondary">
-                    Permissions Granted: <strong>{permissionStats.granted}</strong> / {permissionStats.total}
-                  </Typography>
-                </Box>
-              </Paper>
+                    {/* Permission Stats */}
+                    <Box className="permission-stats">
+                      <Typography variant="body2" color="textSecondary">
+                        Pages Accessible: <strong>{permissionStats.granted}</strong> / {permissionStats.total}
+                      </Typography>
+                    </Box>
+                  </Paper>
 
-              {/* Permission Categories */}
+              {/* Page Access Categories */}
               <div className="permission-categories">
-                {Object.entries(PERMISSION_CATEGORIES).map(([categoryKey, category]) => (
-                  <Paper key={categoryKey} className="permission-category" elevation={0}>
+                {PAGE_ACCESS_CONFIG.map((category) => (
+                  <Paper key={category.category} className="permission-category" elevation={0}>
                     <Typography variant="h6" className="category-title">
-                      {category.label}
+                      {category.category}
                     </Typography>
                     
                     <div className="permission-list">
-                      {category.permissions.map((permission) => {
-                        const isEnabled = hasPermission(categoryKey, permission.key);
+                      {category.pages.map((page) => {
+                        const hasAccess = hasPageAccess(page.key);
                         
                         return (
-                          <Box key={permission.key} className="permission-item">
+                          <Box key={page.key} className="permission-item">
                             <Box className="permission-info">
-                              <Typography variant="body1" className="permission-label">
-                                {permission.label}
-                              </Typography>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                <span style={{ fontSize: '20px' }}>{page.icon}</span>
+                                <Typography variant="body1" className="permission-label">
+                                  {page.label}
+                                </Typography>
+                              </Box>
                               <Typography variant="body2" className="permission-description">
-                                {permission.description}
+                                {page.description}
+                              </Typography>
+                              <Typography variant="caption" color="textSecondary" sx={{ fontFamily: 'monospace', mt: 0.5 }}>
+                                Route: {page.path}
                               </Typography>
                             </Box>
                             <Switch
-                              checked={isEnabled}
-                              onChange={() => handlePermissionToggle(categoryKey, permission.key)}
+                              checked={hasAccess}
+                              onChange={() => handlePageAccessToggle(page.key)}
                               color="primary"
                               disabled={selectedRole === 'super-admin'}
                             />
@@ -653,11 +820,17 @@ function Settings() {
                 </Button>
               </Box>
 
-              {/* Info Alert */}
+              {/* Info Alerts */}
               {selectedRole === 'super-admin' && (
                 <Alert severity="warning" className="info-alert">
-                  Super Admin role has all permissions enabled by default and cannot be modified.
+                  Super Admin role has access to all pages by default and cannot be modified.
                 </Alert>
+              )}
+              
+              <Alert severity="info" icon={<InfoIcon />} className="info-alert" sx={{ mt: 2 }}>
+                Page access control determines which routes and pages each admin role can view and use. Changes will affect all users with the selected role.
+              </Alert>
+                </>
               )}
             </div>
           )}

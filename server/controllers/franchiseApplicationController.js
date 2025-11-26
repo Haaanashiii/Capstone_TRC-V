@@ -1134,7 +1134,8 @@ exports.sbAdminAcceptNewFranchise = async (req, res, next) => {
     console.log('[sbAdminAcceptNewFranchise] Processing franchise creation:', {
       applicationId: id,
       franchiseNumber: franchiseNo,
-      operatorName: application.operatorName
+      operatorName: application.operatorName,
+      sbResolutionNumber: application.sbResolutionNumber || 'NOT FOUND'
     });
     
     // Create franchiseChainId early for folder organization
@@ -1237,6 +1238,7 @@ exports.sbAdminAcceptNewFranchise = async (req, res, next) => {
       qrCode: qrResult.cloudflare,
       approvedAt: new Date(),
       expiryDate: new Date(Date.now() + 3 * 365 * 24 * 60 * 60 * 1000), // 3 years
+      resolutionNumber: application.sbResolutionNumber, // Copy resolution number from application
       franchiseStatus: 'Active',
       documents: {
         motorRegistrationObj: urlMapping[application.documents?.motorRegistrationObj] || application.documents?.motorRegistrationObj,
@@ -1264,8 +1266,9 @@ exports.sbAdminAcceptNewFranchise = async (req, res, next) => {
     
     const FranchiseInformationModel = require('../models/franchiseInformationModel');
     const franchise = await FranchiseInformationModel.create([franchiseData], { session });
-    console.log('[sbAdminAcceptNewFranchise] Franchise created with resolution document:', {
+    console.log('[sbAdminAcceptNewFranchise] Franchise created:', {
       franchiseNumber: franchiseNo,
+      resolutionNumber: franchiseData.resolutionNumber || 'NOT SET',
       resolutionDocument: franchiseData.documents?.resolutionDocumentObj ? '✓ Saved' : '✗ Not found'
     });
     
@@ -1448,6 +1451,7 @@ exports.sbAdminAcceptRenewOrAmendment = async (req, res, next) => {
       qrCode: qrResult.cloudflare,
       approvedAt: new Date(),
       expiryDate: new Date(Date.now() + 3 * 365 * 24 * 60 * 60 * 1000),
+      resolutionNumber: application.sbResolutionNumber || existingFranchise.resolutionNumber, // Copy resolution number from application or keep existing
       // Update documents from the application (users upload fresh documents for renewal/amendments)
       documents: {
         motorRegistrationObj: application.documents?.motorRegistrationObj || existingFranchise.documents?.motorRegistrationObj,
@@ -1493,10 +1497,11 @@ exports.sbAdminAcceptRenewOrAmendment = async (req, res, next) => {
     
     const FranchiseInformationModel = require('../models/franchiseInformationModel');
     const newFranchise = await FranchiseInformationModel.create([newVersionData], { session });
-    console.log('[sbAdminAcceptRenewOrAmendment] New franchise version created with resolution document:', {
+    console.log('[sbAdminAcceptRenewOrAmendment] New franchise version created:', {
       franchiseNumber: franchiseNo,
       applicationType: application.applicationType,
       version: newVersionData.version,
+      resolutionNumber: newVersionData.resolutionNumber || 'NOT SET',
       resolutionDocument: newVersionData.documents?.resolutionDocumentObj ? '✓ Saved' : '✗ Not found'
     });
     
