@@ -39,9 +39,9 @@ const franchiseApplicationSchema = new mongoose.Schema({
   colorMotor: { type: String, required: true },
   sideCarColor: { type: String, required: true }, // Default Blue, user can edit to Yellow or other
   sideCarPlateNumber: { type: String, required: false }, // 3months for bplo
-  mvPlateNo: { type: String, required: true, unique: true },
-  motorEngineNo: { type: String, required: true, unique: true },
-  chasisNo: { type: String, required: true, unique: true },
+  mvPlateNo: { type: String, required: true,  },
+  motorEngineNo: { type: String, required: true, },
+  chasisNo: { type: String, required: true, },
 
   // Two-stage approval workflow
   statusOfBPLO: {
