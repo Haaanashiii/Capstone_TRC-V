@@ -15,19 +15,22 @@ import AnalyticsIcon from '@mui/icons-material/Analytics';
 import HistoryIcon from '@mui/icons-material/History';
 import SettingsIcon from '@mui/icons-material/Settings';
 
-// Define all possible menu items with the roles that can access them
-const allMenuItems = [
-  { name: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard', allowedRoles: ['super-admin', 'sb-admin', 'bplo-admin'] },
-  { name: 'Franchisee List', icon: <ListAltIcon />, path: '/franchisee-list', allowedRoles: ['super-admin', 'sb-admin', 'bplo-admin'] },
-  { name: 'Franchise Management', icon: <BusinessIcon />, path: '/franchise-management', allowedRoles: ['super-admin', 'sb-admin', 'bplo-admin'] },
-  { name: 'Certificate', icon: <AssessmentIcon />, path: '/certificate', allowedRoles: ['super-admin', 'sb-admin', 'bplo-admin'] },
-  { name: 'Fare Overpricing Report', icon: <AssessmentIcon />, path: '/fare-reports', allowedRoles: ['super-admin', 'sb-admin', 'bplo-admin'] },
-  { name: 'Analytics', icon: <AnalyticsIcon />, path: '/analytics', allowedRoles: ['super-admin'] },
-  { name: 'Announcements', icon: <CampaignIcon />, path: '/announcements', allowedRoles: ['super-admin'] },
-  { name: 'Audit Trail', icon: <HistoryIcon />, path: '/audit-trail', allowedRoles: ['super-admin'] },
-  { name: 'User Management', icon: <PeopleAltIcon />, path: '/user-management', allowedRoles: ['super-admin'] },
-  { name: 'Settings', icon: <SettingsIcon />, path: '/settings', allowedRoles: ['super-admin'] }
-];
+// API Configuration
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170';
+
+// Map page keys to menu items
+const pageKeyToMenuItem = {
+  'dashboard': { name: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
+  'franchisee-list': { name: 'Franchisee List', icon: <ListAltIcon />, path: '/franchisee-list' },
+  'franchise-management': { name: 'Franchise Management', icon: <BusinessIcon />, path: '/franchise-management' },
+  'certificate': { name: 'Certificate', icon: <AssessmentIcon />, path: '/certificate' },
+  'fare-reports': { name: 'Fare Overpricing Report', icon: <AssessmentIcon />, path: '/fare-reports' },
+  'analytics': { name: 'Analytics', icon: <AnalyticsIcon />, path: '/analytics' },
+  'announcements': { name: 'Announcements', icon: <CampaignIcon />, path: '/announcements' },
+  'audit-trail': { name: 'Audit Trail', icon: <HistoryIcon />, path: '/audit-trail' },
+  'user-management': { name: 'User Management', icon: <PeopleAltIcon />, path: '/user-management' },
+  'settings': { name: 'Settings', icon: <SettingsIcon />, path: '/settings' }
+};
 
 function Sidebar() {
   const location = useLocation();
@@ -35,6 +38,8 @@ function Sidebar() {
   const { user, logout, loading } = useAuth();
   const [currentTime, setCurrentTime] = useState(new Date());
   const [showLogout, setShowLogout] = useState(false);
+  const [allowedPages, setAllowedPages] = useState([]);
+  const [loadingPages, setLoadingPages] = useState(true);
 
   useEffect(() => {
     const timerId = setInterval(() => {
@@ -42,6 +47,60 @@ function Sidebar() {
     }, 1000);
     return () => clearInterval(timerId);
   }, []);
+
+  // Fetch allowed pages for current user's role
+  useEffect(() => {
+    const fetchAllowedPages = async () => {
+      if (!user?.role) {
+        setLoadingPages(false);
+        return;
+      }
+
+      try {
+        const token = sessionStorage.getItem('accessToken') || localStorage.getItem('accessToken');
+        if (!token) {
+          setLoadingPages(false);
+          return;
+        }
+
+        const response = await fetch(`${API_BASE_URL}/api/role-page-access/${user.role}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          if (result.success && result.data) {
+            setAllowedPages(result.data.allowedPages || []);
+          }
+        } else {
+          // If API fails, use default fallback
+          console.warn('[Sidebar] Failed to fetch page access, using defaults');
+          setAllowedPages(getDefaultPages(user.role));
+        }
+      } catch (error) {
+        console.error('[Sidebar] Error fetching page access:', error);
+        // Use default fallback on error
+        setAllowedPages(getDefaultPages(user.role));
+      } finally {
+        setLoadingPages(false);
+      }
+    };
+
+    fetchAllowedPages();
+  }, [user?.role]);
+
+  // Default fallback if API is not available
+  const getDefaultPages = (role) => {
+    const defaults = {
+      'super-admin': ['dashboard', 'franchisee-list', 'franchise-management', 'certificate', 'fare-reports', 'analytics', 'announcements', 'audit-trail', 'user-management', 'settings'],
+      'sb-admin': ['dashboard', 'franchisee-list', 'franchise-management', 'certificate', 'fare-reports'],
+      'bplo-admin': ['dashboard', 'franchisee-list', 'franchise-management', 'certificate', 'fare-reports']
+    };
+    return defaults[role] || [];
+  };
   
   const handleLogout = async () => {
     console.log('[AdminSidebar] Logout initiated');
@@ -74,13 +133,18 @@ function Sidebar() {
     return roleMap[user.role] || user.role;
   }, [user]);
 
-  // Filter menu items based on the current user's role
+  // Build menu items based on allowed pages from database
   const visibleMenuItems = useMemo(() => {
-    // Don't filter while loading - wait for user data
-    if (loading) return [];
+    // Don't show menu while loading
+    if (loading || loadingPages) return [];
     if (!user?.role) return [];
-    return allMenuItems.filter(item => item.allowedRoles.includes(user.role));
-  }, [user, loading]);
+    if (allowedPages.length === 0) return [];
+
+    // Convert allowed page keys to menu items
+    return allowedPages
+      .map(pageKey => pageKeyToMenuItem[pageKey])
+      .filter(item => item !== undefined); // Filter out any undefined items
+  }, [user, loading, loadingPages, allowedPages]);
 
   return (
     <div className="sidebar">

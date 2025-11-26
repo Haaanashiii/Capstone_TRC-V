@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, useNavigate } from 'react-router-dom';
 import ProtectedRoute from './components/ProtectedRoute';
+import PageProtectedRoute from './components/PageProtectedRoute';
 import SignUp from './pages/auth/SignUp';
 import OAuthCallback from './pages/auth/OAuthCallback';
 import './utils/envCheck'; // Check environment variables on app load
@@ -85,85 +86,85 @@ function App() {
           }
         />
         
-        {/* Protected Admin Routes */}
+        {/* Protected Admin Routes - Using database-driven page access */}
         <Route 
           path="/dashboard" 
           element={
-            <ProtectedRoute requiredRole={["bplo-admin", "sb-admin", "super-admin"]}>
+            <PageProtectedRoute pageKey="dashboard">
               <Dashboard />
-            </ProtectedRoute>
+            </PageProtectedRoute>
           } 
         />
         <Route 
           path="/franchisee-list" 
           element={
-            <ProtectedRoute requiredRole={["bplo-admin", "sb-admin", "super-admin"]}>
+            <PageProtectedRoute pageKey="franchisee-list">
               <FranchiseeList />
-            </ProtectedRoute>
+            </PageProtectedRoute>
           } 
         />
         <Route 
           path="/franchise-management" 
           element={
-            <ProtectedRoute requiredRole={["bplo-admin", "sb-admin", "super-admin"]}>
+            <PageProtectedRoute pageKey="franchise-management">
               <FranchiseMgmt />
-            </ProtectedRoute>
+            </PageProtectedRoute>
           } 
         />
         <Route 
           path="/certificate" 
           element={
-            <ProtectedRoute requiredRole={["bplo-admin", "sb-admin", "super-admin"]}>
+            <PageProtectedRoute pageKey="certificate">
               <Certificate />
-            </ProtectedRoute>
+            </PageProtectedRoute>
           } 
         />
         <Route 
           path="/fare-reports" 
           element={
-            <ProtectedRoute requiredRole={["bplo-admin", "sb-admin", "super-admin"]}>
+            <PageProtectedRoute pageKey="fare-reports">
               <FareReports />
-            </ProtectedRoute>
+            </PageProtectedRoute>
           } 
         />
         <Route 
           path="/user-management" 
           element={
-            <ProtectedRoute requiredRole={["super-admin"]}>
+            <PageProtectedRoute pageKey="user-management">
               <UserManagement />
-            </ProtectedRoute>
+            </PageProtectedRoute>
           } 
         />
         <Route 
           path="/announcements" 
           element={
-            <ProtectedRoute requiredRole={["super-admin"]}>
+            <PageProtectedRoute pageKey="announcements">
               <Announcement />
-            </ProtectedRoute>
+            </PageProtectedRoute>
           } 
         />
         <Route 
           path="/analytics" 
           element={
-            <ProtectedRoute requiredRole={["super-admin"]}>
+            <PageProtectedRoute pageKey="analytics">
               <Analytics />
-            </ProtectedRoute>
+            </PageProtectedRoute>
           } 
         />
         <Route 
           path="/audit-trail" 
           element={
-            <ProtectedRoute requiredRole={["super-admin"]}>
+            <PageProtectedRoute pageKey="audit-trail">
               <AuditTrail />
-            </ProtectedRoute>
+            </PageProtectedRoute>
           } 
         />
         <Route 
           path="/settings" 
           element={
-            <ProtectedRoute requiredRole={["super-admin"]}>
+            <PageProtectedRoute pageKey="settings">
               <Settings />
-            </ProtectedRoute>
+            </PageProtectedRoute>
           } 
         />
         
