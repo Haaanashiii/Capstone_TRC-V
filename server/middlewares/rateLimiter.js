@@ -1,12 +1,20 @@
 
 const { rateLimit } = require('express-rate-limit');
 
+// RATE LIMITER DISABLED FOR DEVELOPMENT
+const RATE_LIMITER_ENABLED = false;
+
 /**
  * Creates a rate limiter middleware with configurable options
  * @param {Object} options - Rate limiter configuration options
  * @returns {Function} - Express middleware function
  */
 function createRateLimiter(options = {}) {
+  // Return no-op middleware if rate limiter is disabled
+  if (!RATE_LIMITER_ENABLED) {
+    return (req, res, next) => next();
+  }
+
   const defaultOptions = {
     windowMs: 15 * 60 * 1000, // 15 minutes by default
     max: 100, // Limit each IP to 100 requests per windowMs

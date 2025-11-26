@@ -7,6 +7,9 @@
 
 const rateLimit = require('express-rate-limit');
 
+// RATE LIMITER DISABLED FOR DEVELOPMENT
+const RATE_LIMITER_ENABLED = false;
+
 // In-memory store for per-QR-ID tracking (no Redis dependency needed)
 const qrScanStore = new Map();
 
@@ -24,21 +27,28 @@ setInterval(() => {
  * Per-IP rate limiter for QR verification endpoints
  * Prevents a single IP from making too many requests
  */
-const qrPerIpLimiter = rateLimit({
-  windowMs: 1 * 60 * 1000, // 1 minute window
-  max: 10, // Max 10 QR scans per minute per IP
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: {
-    error: 'Too many QR code scans from this device. Please wait a moment.',
-    code: 'QR_IP_RATE_LIMIT_EXCEEDED'
-  },
-  // Skip rate limiting for local development
-  skip: (req) => {
-    return process.env.NODE_ENV === 'development' && 
-           (req.ip === '::1' || req.ip === '127.0.0.1' || req.ip === 'localhost');
+const qrPerIpLimiter = (req, res, next) => {
+  // Return no-op middleware if rate limiter is disabled
+  if (!RATE_LIMITER_ENABLED) {
+    return next();
   }
-});
+
+  return rateLimit({
+    windowMs: 1 * 60 * 1000, // 1 minute window
+    max: 10, // Max 10 QR scans per minute per IP
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: {
+      error: 'Too many QR code scans from this device. Please wait a moment.',
+      code: 'QR_IP_RATE_LIMIT_EXCEEDED'
+    },
+    // Skip rate limiting for local development
+    skip: (req) => {
+      return process.env.NODE_ENV === 'development' && 
+             (req.ip === '::1' || req.ip === '127.0.0.1' || req.ip === 'localhost');
+    }
+  })(req, res, next);
+};
 
 /**
  * Per-QR-ID rate limiter middleware
@@ -46,6 +56,11 @@ const qrPerIpLimiter = rateLimit({
  * This protects against QR code abuse/sharing
  */
 const qrPerIdLimiter = (req, res, next) => {
+  // Return no-op middleware if rate limiter is disabled
+  if (!RATE_LIMITER_ENABLED) {
+    return next();
+  }
+
   const operatorId = req.params.operatorId;
   
   if (!operatorId) {

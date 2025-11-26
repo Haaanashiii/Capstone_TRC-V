@@ -30,7 +30,6 @@ const rolePageAccessSchema = new mongoose.Schema({
   timestamps: true 
 });
 
-// Indexes
-rolePageAccessSchema.index({ role: 1 });
+// Note: 'unique: true' on role field automatically creates an index, so explicit index() is not needed
 
-module.exports = mongoose.model('RolePageAccess', rolePageAccessSchema);
+module.exports = mongoose.models['RolePageAccess'] || mongoose.model('RolePageAccess', rolePageAccessSchema);
