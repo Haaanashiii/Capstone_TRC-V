@@ -32,7 +32,7 @@ const userAccountSchema = new mongoose.Schema({
         type: String,
         description: 'Franchise chain IDs linked to this user (format: franchiseNumber-operatorName)'
     }]
-    
-});
+}, { collection: 'User Accounts' });
 
-module.exports = mongoose.model('User Accounts', userAccountSchema);
+// Check if model already exists to prevent re-compilation warnings
+module.exports = mongoose.models['User Accounts'] || mongoose.model('User Accounts', userAccountSchema);
