@@ -40,6 +40,21 @@ import DownloadIcon from '@mui/icons-material/Download'
 import GetAppIcon from '@mui/icons-material/GetApp'
 import { previewFilledPDF, downloadFilledPDF, getPdfFieldNames } from '../../utils/pdfFiller'
 
+// Application type constants for better type safety and maintainability
+const APPLICATION_TYPES = {
+  NEW: 'new',
+  RENEWAL: 'renewal',
+  CHANGE_UNIT: 'change-unit',
+  UPDATE_OWNERSHIP: 'update-ownership'
+}
+
+const APPLICATION_TYPE_LABELS = {
+  [APPLICATION_TYPES.NEW]: 'New',
+  [APPLICATION_TYPES.RENEWAL]: 'Renewal',
+  [APPLICATION_TYPES.CHANGE_UNIT]: 'Change Unit',
+  [APPLICATION_TYPES.UPDATE_OWNERSHIP]: 'Update Ownership'
+}
+
 function FranchiseMgmt() {
   const { user } = useAuth() // Get current user for role-based rendering
   const userRole = user?.role || 'bplo-admin' // Default to bplo-admin for backward compatibility
@@ -140,6 +155,13 @@ function FranchiseMgmt() {
       const serverApps = response.data?.data || response.data || []
       
       console.log(`[FranchiseMgmt] Fetched ${userRole === 'sb-admin' ? 'SB approval' : 'pending'} applications:`, Array.isArray(serverApps) ? serverApps.length : 0)
+      console.log('[FranchiseMgmt] Application types breakdown:', 
+        serverApps.reduce((acc, app) => {
+          const type = app.applicationType || 'unknown'
+          acc[type] = (acc[type] || 0) + 1
+          return acc
+        }, {})
+      )
       
       // Map backend fields to frontend format
       // Backend uses operatorName, operatorContactNumber, operatorBirthPlace, etc.
@@ -435,16 +457,28 @@ function FranchiseMgmt() {
 
     websocketService.on(websocketEvent, handleApplicationUpdates)
     
-    // For SB admins, listen for new applications but DON'T refetch immediately
-    // The backend should emit the full updated list via 'approved-applications'
-    const handleNewSBApplication = (application) => {
-      console.log('[FranchiseMgmt] New SB application received:', application?._id)
-      // Don't refetch - wait for the 'approved-applications' event instead
-      // This prevents duplicate fetches
+    // Listen for all application type events - backend should re-emit full list
+    const handleNewApplication = (application) => {
+      const appType = application?.applicationType || 'unknown'
+      console.log(`[FranchiseMgmt] New ${appType} application received:`, {
+        id: application?._id,
+        type: appType,
+        status: application?.statusOfBPLO,
+        role: userRole
+      })
+      // Backend should automatically re-emit full list via main event
+      // No manual refetch needed to prevent duplicate requests
     }
     
+    // Subscribe to all application type events
+    const applicationEvents = ['new-application', 'new-renewal', 'new-amendment']
+    applicationEvents.forEach(event => {
+      websocketService.on(event, handleNewApplication)
+    })
+    
+    // SB Admin specific event
     if (userRole === 'sb-admin') {
-      websocketService.on('new-sb-application', handleNewSBApplication)
+      websocketService.on('new-sb-application', handleNewApplication)
     }
 
     // Polling as fallback (only when modals are closed AND WebSocket is not connected)
@@ -465,9 +499,16 @@ function FranchiseMgmt() {
         clearTimeout(connectionTimeout)
       }
       websocketService.off(websocketEvent, handleApplicationUpdates)
+      
+      // Clean up all application event listeners
+      applicationEvents.forEach(event => {
+        websocketService.off(event, handleNewApplication)
+      })
+      
       if (userRole === 'sb-admin') {
-        websocketService.off('new-sb-application', handleNewSBApplication)
+        websocketService.off('new-sb-application', handleNewApplication)
       }
+      
       if (pollId) clearInterval(pollId)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -486,10 +527,17 @@ function FranchiseMgmt() {
 
 
   const filteredApplications = useMemo(() => {
-    let filtered = pendingApplications.filter(app => 
-      app.name?.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
-      app.franchiseNumber?.toLowerCase().includes(debouncedSearchTerm.toLowerCase())
-    )
+    let filtered = pendingApplications.filter(app => {
+      const searchLower = debouncedSearchTerm.toLowerCase()
+      const appType = APPLICATION_TYPE_LABELS[app.applicationType] || app.applicationType || ''
+      
+      return (
+        app.name?.toLowerCase().includes(searchLower) ||
+        app.franchiseNumber?.toLowerCase().includes(searchLower) ||
+        app.plateNumber?.toLowerCase().includes(searchLower) ||
+        appType.toLowerCase().includes(searchLower)
+      )
+    })
 
     // Apply status filter
     if (statusFilter !== 'all') {
@@ -1239,24 +1287,26 @@ function FranchiseMgmt() {
   /**
    * Get status display information
    */
-  const getStatusInfo = (statusOfBPLO, hasOR) => {
+  const getStatusInfo = (statusOfBPLO, hasOR, applicationType = 'new') => {
+    const typeLabel = APPLICATION_TYPE_LABELS[applicationType] || 'Application'
+    
     switch (statusOfBPLO) {
       case 'pending':
-        return { label: 'For BPLO Verification', color: '#F59E0B', bgColor: '#FEF3C7' }
+        return { label: `${typeLabel} - For BPLO Verification`, color: '#F59E0B', bgColor: '#FEF3C7' }
       case 'bplo-approved':
         // Check if OR is submitted for more accurate status
         if (hasOR) {
-          return { label: 'Ready for SB Final Approval', color: '#059669', bgColor: '#D1FAE5' }
+          return { label: `${typeLabel} - Ready for SB Final Approval`, color: '#059669', bgColor: '#D1FAE5' }
         }
-        return { label: 'Awaiting Client OR Number', color: '#DC8C09', bgColor: '#FFF4E6' }
+        return { label: `${typeLabel} - Awaiting Client OR Number`, color: '#DC8C09', bgColor: '#FFF4E6' }
       case 'awaiting-sb':
-        return { label: 'Ready for SB Final Approval', color: '#0A356B', bgColor: '#DBEAFE' }
+        return { label: `${typeLabel} - Ready for SB Final Approval`, color: '#0A356B', bgColor: '#DBEAFE' }
       case 'sb-approved':
-        return { label: 'Completing Franchise Creation...', color: '#059669', bgColor: '#D1FAE5' }
+        return { label: `${typeLabel} - Completing Franchise Creation...`, color: '#059669', bgColor: '#D1FAE5' }
       case 'bplo-disapproved':
-        return { label: 'Disapproved by BPLO', color: '#DC2626', bgColor: '#FEE2E2' }
+        return { label: `${typeLabel} - Disapproved by BPLO`, color: '#DC2626', bgColor: '#FEE2E2' }
       default:
-        return { label: 'Unknown Status', color: '#6B7280', bgColor: '#F3F4F6' }
+        return { label: `${typeLabel} - Unknown Status`, color: '#6B7280', bgColor: '#F3F4F6' }
     }
   }
 
@@ -1343,7 +1393,7 @@ function FranchiseMgmt() {
                   {filteredApplications.length > 0 ? (
                     filteredApplications.map((application, index) => {
                       const hasOR = !!(application.officialReceiptNumber && application.officialReceiptNumber.trim())
-                      const statusInfo = getStatusInfo(application.statusOfBPLO || 'pending', hasOR)
+                      const statusInfo = getStatusInfo(application.statusOfBPLO || 'pending', hasOR, application.applicationType)
                       return (
                         <TableRow 
                           key={application.id}
@@ -1356,10 +1406,13 @@ function FranchiseMgmt() {
                           <TableCell className="admin-table-cell">{application.make}</TableCell>
                           <TableCell className="admin-table-cell">
                             <span className={`status-badge ${
-                              application.applicationType === 'New' ? 'status-pending' : 
-                              application.applicationType === 'Renewal' ? 'status-active' : 'status-investigating'
+                              application.applicationType === APPLICATION_TYPES.NEW ? 'status-pending' : 
+                              application.applicationType === APPLICATION_TYPES.RENEWAL ? 'status-active' : 
+                              application.applicationType === APPLICATION_TYPES.CHANGE_UNIT ? 'status-investigating' :
+                              application.applicationType === APPLICATION_TYPES.UPDATE_OWNERSHIP ? 'status-warning' :
+                              'status-default'
                             }`}>
-                              {application.applicationType}
+                              {APPLICATION_TYPE_LABELS[application.applicationType] || application.applicationType || 'Unknown'}
                             </span>
                           </TableCell>
                           <TableCell className="admin-table-cell">
