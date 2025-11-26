@@ -143,7 +143,7 @@ async function fillPDFForm(templatePath, franchiseData) {
             sbApprovedAt: franchiseData.sbApprovedAt || franchiseData.approvedAt || franchiseData.dateApproved 
                 ? formatDate(franchiseData.sbApprovedAt || franchiseData.approvedAt || franchiseData.dateApproved) 
                 : '',
-            sbResolutionNumber: franchiseData.sbResolutionNumber || '',
+            sbResolutionNumber: franchiseData.resolutionNumber || franchiseData.sbResolutionNumber || '',
             
             // Vehicle information (using correct database field names)
             unitModel: franchiseData.unitModel || '',
@@ -172,8 +172,8 @@ async function fillPDFForm(templatePath, franchiseData) {
             platenumber: franchiseData.mvPlateNo,
             model: franchiseData.unitModel,
             vehicleModel: franchiseData.unitModel,
-            resolutionNumber: franchiseData.sbResolutionNumber || 'N/A',
-            resolution: franchiseData.sbResolutionNumber || 'N/A',
+            resolutionNumber: franchiseData.resolutionNumber || franchiseData.sbResolutionNumber || 'N/A',
+            resolution: franchiseData.resolutionNumber || franchiseData.sbResolutionNumber || 'N/A',
             dateApproved: franchiseData.dateApproved ? formatDate(franchiseData.dateApproved) : '',
             approvalDate: franchiseData.dateApproved ? formatDate(franchiseData.dateApproved) : '',
             dateIssued: franchiseData.dateApproved ? formatDate(franchiseData.dateApproved) : '',

@@ -220,6 +220,14 @@ function Certificate() {
       );
 
       console.log('[Certificate] Loaded franchises:', approvedFranchises.length);
+      if (approvedFranchises.length > 0) {
+        console.log('[Certificate] Sample franchise data:', {
+          franchiseNumber: approvedFranchises[0].franchiseNumber,
+          resolutionNumber: approvedFranchises[0].resolutionNumber,
+          sbResolutionNumber: approvedFranchises[0].sbResolutionNumber,
+          hasResolution: !!approvedFranchises[0].resolutionNumber
+        });
+      }
       setFranchises(approvedFranchises);
       setTotalFranchises(approvedFranchises.length);
     } catch (err) {
@@ -418,7 +426,8 @@ function Certificate() {
           engineNumber: franchise.motorEngineNo,
           chasisNo: franchise.chasisNo,
           chassisNumber: franchise.chasisNo,
-          sbResolutionNumber: franchise.sbResolutionNumber,
+          resolutionNumber: franchise.resolutionNumber,
+          sbResolutionNumber: franchise.resolutionNumber,
           sbApprovedAt: franchise.sbApprovedAt || franchise.approvedAt || franchise.createdAt,
           approvedAt: franchise.approvedAt,
           dateApproved: franchise.sbApprovedAt || franchise.approvedAt || franchise.createdAt,
@@ -493,7 +502,8 @@ function Certificate() {
           chassisNumber: certificateData.franchise.chasisNo, // Alternate
           
           // Approval information
-          sbResolutionNumber: certificateData.franchise.sbResolutionNumber,
+          resolutionNumber: certificateData.franchise.resolutionNumber,
+          sbResolutionNumber: certificateData.franchise.resolutionNumber,
           sbApprovedAt: certificateData.franchise.sbApprovedAt || certificateData.franchise.approvedAt || certificateData.franchise.createdAt,
           approvedAt: certificateData.franchise.approvedAt,
           dateApproved: certificateData.franchise.sbApprovedAt || certificateData.franchise.approvedAt || certificateData.franchise.createdAt,
@@ -881,7 +891,7 @@ function Certificate() {
                           <TableCell className="admin-table-cell col-name">{franchise.operatorName}</TableCell>
                           <TableCell className="admin-table-cell col-contact">{franchise.mvPlateNo}</TableCell>
                           <TableCell className="admin-table-cell col-date">{formatDate(franchise.sbApprovedAt || franchise.createdAt)}</TableCell>
-                          <TableCell className="admin-table-cell col-contact">{franchise.sbResolutionNumber || 'N/A'}</TableCell>
+                          <TableCell className="admin-table-cell col-contact">{franchise.resolutionNumber || 'N/A'}</TableCell>
                           <TableCell className="admin-table-cell col-actions">
                             <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'center' }}>
                               <Tooltip title="View Details">
@@ -962,7 +972,7 @@ function Certificate() {
                     </Grid>
                     <Grid item xs={12} md={6}>
                       <Typography variant="caption" sx={{ color: '#666', fontWeight: 600, textTransform: 'uppercase', fontSize: '0.7rem' }}>Resolution Number</Typography>
-                      <Typography variant="body1" sx={{ mt: 0.5 }}>{selectedFranchise.sbResolutionNumber || 'N/A'}</Typography>
+                      <Typography variant="body1" sx={{ mt: 0.5 }}>{selectedFranchise.resolutionNumber || 'N/A'}</Typography>
                     </Grid>
                     <Grid item xs={12}>
                       <Typography variant="caption" sx={{ color: '#666', fontWeight: 600, textTransform: 'uppercase', fontSize: '0.7rem' }}>Operator Name</Typography>
