@@ -147,19 +147,46 @@ exports.resetPassword = async (req, res, next) => {
   try {
     const { email, otp, newPassword } = req.body;
     if (!email || !otp || !newPassword) return res.status(400).json({ error: 'Email, OTP, and new password are required' });
+    
+    // Validate password strength (minimum 8 characters)
+    if (newPassword.length < 8) {
+      return res.status(400).json({ error: 'Password must be at least 8 characters long' });
+    }
+    
     let valid = false;
     let user;
+    
     try {
       const entry = require('../middlewares/otpMiddleware').otpStore?.get?.(email);
       if (entry && Date.now() <= entry.expiresAt && constantTimeCompare(entry.otp, otp)) {
         valid = true;
         require('../middlewares/otpMiddleware').otpStore.delete(email);
       }
-      user = await userAccountRepository.findAccountByEmail(email);
+      
+      // Try to find user (both operator/user and admin accounts)
+      user = await userAccountRepository.findAccountByEmail(email).catch(() => null);
+      if (!user) {
+        user = await require('../repositories/adminAccountRepository').findAdminByEmail(email).catch(() => null);
+      }
     } catch (e) {}
+    
     if (!valid || !user) return res.status(400).json({ error: 'Invalid or expired OTP' });
+    
     const hashed = await bcrypt.hash(newPassword, 10);
-  await userAccountRepository.updateUserAccount(user._id, { password: hashed });
+    
+    // Update password based on user type
+    if (user._id && user.email) {
+      const adminRepository = require('../repositories/adminAccountRepository');
+      // Check if it's admin
+      if (user.adminId) {
+        await adminRepository.updateAdmin(user._id, { password: hashed });
+        console.log('[Auth] Admin password reset for:', email);
+      } else {
+        await userAccountRepository.updateUserAccount(user._id, { password: hashed });
+        console.log('[Auth] User password reset for:', email);
+      }
+    }
+    
     res.json({ message: 'Password reset successful' });
   } catch (err) {
     next(err);

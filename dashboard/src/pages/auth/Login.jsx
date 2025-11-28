@@ -34,8 +34,6 @@ const Login = () => {
 
   const navigate = useNavigate();
   const { login } = useAuth();
-  
-  // Check for OAuth error in URL params on mount
   React.useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const errorParam = urlParams.get('error');
@@ -233,8 +231,12 @@ const Login = () => {
                   label={<Typography variant="body2" style={{ fontSize: '0.9rem', fontFamily: 'Poppins, sans-serif' }}>Remember me</Typography>}
                   className="login-remember"
                 />
-                <Typography variant="body2" className="login-forgot">
-                  <a href="#">Forgot Password?</a>
+                <Typography 
+                  variant="body2" 
+                  className="login-forgot"
+                  style={{ cursor: 'pointer' }}
+                >
+                  <a style={{ cursor: 'pointer' }}>Forgot Password?</a>
                 </Typography>
               </Box>
               {error && <Typography color="error">{error}</Typography>}

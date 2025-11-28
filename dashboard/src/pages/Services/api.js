@@ -340,6 +340,22 @@ export const authAPI = {
   verifyOTP: (email, otp) => api.post('/auth/verify-otp', { email, otp }),
 
   /**
+   * Request OTP for password reset (forgot password)
+   * @param {string} email - User email
+   * @returns {Promise} Response
+   */
+  forgotPassword: (email) => api.post('/auth/forgot-password', { email }),
+
+  /**
+   * Reset password using OTP
+   * @param {string} email - User email
+   * @param {string} otp - OTP code sent to email
+   * @param {string} newPassword - New password (minimum 8 characters)
+   * @returns {Promise} Response
+   */
+  resetPassword: (email, otp, newPassword) => api.post('/auth/reset-password', { email, otp, newPassword }),
+
+  /**
    * Google OAuth login (redirects to Google)
    * @returns {void}
    */
