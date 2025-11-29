@@ -10,7 +10,7 @@ const logger = winston.createLogger({
 
 module.exports = errorHandler = (err, req, res, next) => {
   if (err) {
-    // Log the full error with stack trace
+    // Log error details for troubleshooting
     logger.error({
       message: err.message,
       stack: err.stack,
@@ -20,10 +20,10 @@ module.exports = errorHandler = (err, req, res, next) => {
       statusCode: err.statusCode || err.status || 500
     });
 
-    // Determine appropriate status code
+    // Get error status code
     const statusCode = err.statusCode || err.status || 500;
     
-    // Don't expose internal errors in production
+    // Hide technical details in production
     const isDevelopment = process.env.NODE_ENV !== 'production';
     const errorMessage = statusCode === 500 && !isDevelopment 
       ? 'Internal server error' 

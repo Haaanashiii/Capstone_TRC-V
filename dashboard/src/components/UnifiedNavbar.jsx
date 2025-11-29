@@ -130,7 +130,6 @@ const UnifiedNavbar = ({ language, onLanguageToggle, translations }) => {
         return [
           { label: "ANNOUNCEMENTS", path: "/", isActive: location.pathname === "/", disabled: false },
           { label: "MY FRANCHISE", path: "/operator/franchise", isActive: location.pathname === "/operator/franchise", disabled: false },
-          { label: "FRANCHISEE LIST", path: "/operator/franchisee-list", isActive: location.pathname === "/operator/franchisee-list", disabled: false },
         ];
       }
       
@@ -138,7 +137,6 @@ const UnifiedNavbar = ({ language, onLanguageToggle, translations }) => {
         { label: "ANNOUNCEMENTS", path: "/", isActive: location.pathname === "/", disabled: false },
         { label: "MY FRANCHISE", path: "/operator/franchise", isActive: location.pathname === "/operator/franchise", disabled: false },
         { label: "REQUEST FOR AMENDMENT", path: "/operator/request-amendment", isActive: location.pathname === "/operator/request-amendment", disabled: false },
-        { label: "FRANCHISEE LIST", path: "/operator/franchisee-list", isActive: location.pathname === "/operator/franchisee-list", disabled: false },
         { label: "OPERATOR ID", path: "/operator/id", isActive: location.pathname === "/operator/id", disabled: false },
       ];
     }

@@ -1,74 +1,71 @@
 const mongoose = require('mongoose');
 const { getClientIp } = require('../utils/ipHelper');
 
-// Define audit log schema with comprehensive tracking
+// Track all user actions for security and auditing
 const auditLogSchema = new mongoose.Schema({
-  // User Identification (from JWT token)
-  userId: { type: String, required: true, index: true }, // UUID from JWT 'id' field
-  username: { type: String, required: true }, // Username from JWT
-  name: { type: String }, // Actual full name of the user
-  email: { type: String }, // Email from JWT
+  // User information from login token
+  userId: { type: String, required: true, index: true },
+  username: { type: String, required: true },
+  name: { type: String },
+  email: { type: String },
   
-  // Role & Account Type (from JWT)
+  // User role and account type
   role: { type: String, required: true, enum: ['operator', 'sb-admin', 'bplo-admin', 'super-admin'] },
   accountType: { type: String, enum: ['user', 'admin'], default: 'user' },
   
+  adminId: { type: String },
+  department: { type: String },
+  position: { type: String },
   
-  adminId: { type: String }, // Admin UUID from JWT
-  department: { type: String }, // Admin department from JWT
-  position: { type: String }, // Admin position from JWT
-  
-  // Request Information
+  // API request details
   method: { type: String, required: true }, // GET, POST, PUT, DELETE, etc.
-  route: { type: String, required: true }, // Full route path (e.g., /api/franchise-information/qr/hash/xyz)
-  action: { type: String, required: true }, // Human-readable action (e.g., 'USER_LOGIN', 'USER_LOGOUT', 'CREATE_APPLICATION')
-  description: { type: String }, // Simple, readable description for admins
+  route: { type: String, required: true }, // URL path
+  action: { type: String, required: true }, // What user did (e.g. 'LOGIN', 'CREATE_APPLICATION')
+  description: { type: String }, // Human-readable action description
   
-  // Response Information
+  // Response information
   statusCode: { type: Number, required: true },
-  success: { type: Boolean, required: true }, // true if statusCode < 400
+  success: { type: Boolean, required: true }, // true if status code < 400
   
-  // Request Details
-  requestBody: { type: Object }, // Sanitized request body (passwords redacted)
-  responseStatus: { type: String }, // e.g., 'success', 'failure', 'error'
-  errorMessage: { type: String }, // Error message if failed
+  // Request body and response
+  requestBody: { type: Object }, // Sanitized (passwords removed)
+  responseStatus: { type: String }, // 'success', 'failure', 'error'
+  errorMessage: { type: String }, // Error details if failed
   
-  // Resource Being Accessed
-  resourceType: { type: String }, // e.g., 'franchise', 'application', 'user', 'auth'
-  resourceId: { type: String }, // UUID or ID of the resource being accessed
+  // What was accessed
+  resourceType: { type: String }, // 'franchise', 'application', 'user', etc.
+  resourceId: { type: String }, // ID of the resource
   
-  // Network Information
+  // Client information
   ipAddress: { type: String, required: true, index: true },
   userAgent: { type: String },
-  browser: { type: String }, // Parsed browser name
-  device: { type: String }, // Desktop/Mobile/Tablet
+  browser: { type: String }, // Chrome, Firefox, Safari, etc.
+  device: { type: String }, // Desktop, Mobile, Tablet
   
-  // Timestamp
+  // When it happened
   createdAt: { type: Date, default: Date.now, index: true },
   
-  // Additional Context
-  details: { type: Object } // Extra details about the action
+  // Extra context
+  details: { type: Object }
 }, { collection: 'audit_logs' });
 
-// Create indexes for efficient querying
+// Create indexes for fast searching
 auditLogSchema.index({ userId: 1, createdAt: -1 });
 auditLogSchema.index({ role: 1, createdAt: -1 });
 auditLogSchema.index({ route: 1, createdAt: -1 });
 auditLogSchema.index({ success: 1, createdAt: -1 });
 auditLogSchema.index({ ipAddress: 1, createdAt: -1 });
 
-// Create model
+// Create database model
 const AuditLog = mongoose.model('AuditLog', auditLogSchema);
 
 
 class AuditLogService {
-  /**
-   * Helper to parse browser and device from user agent
-   */
+  // Detect browser and device from user agent string
   parseUserAgent(userAgent) {
     if (!userAgent) return { browser: 'Unknown', device: 'Unknown' };
     
-    // Parse browser
+    // Detect browser type
     let browser = 'Unknown';
     if (userAgent.includes('Chrome')) browser = 'Google Chrome';
     else if (userAgent.includes('Firefox')) browser = 'Mozilla Firefox';
@@ -76,7 +73,7 @@ class AuditLogService {
     else if (userAgent.includes('Edge')) browser = 'Microsoft Edge';
     else if (userAgent.includes('Opera')) browser = 'Opera';
     
-    // Parse device
+    // Detect device type
     let device = 'Desktop';
     if (userAgent.includes('Mobile')) device = 'Mobile';
     else if (userAgent.includes('Tablet')) device = 'Tablet';
@@ -84,9 +81,7 @@ class AuditLogService {
     return { browser, device };
   }
 
-  /**
-   * Helper to sanitize sensitive fields in request body
-   */
+  // Remove sensitive information from request (passwords, tokens)
   sanitizeRequestBody(body) {
     if (!body) return null;
     const clone = { ...body };
@@ -97,24 +92,7 @@ class AuditLogService {
     return clone;
   }
 
-  /**
-   * Log a user/admin action based on JWT claims
-   * @param {Object} options - Logging options
-   * @param {Object} options.user - JWT decoded user data (from req.user after auth middleware)
-   * @param {string} options.method - HTTP method (GET, POST, etc.)
-   * @param {string} options.route - Full request route path
-   * @param {string} options.action - Human-readable action name
-   * @param {string} options.description - Simple readable description for admins
-   * @param {number} options.statusCode - HTTP response status code
-   * @param {string} options.ipAddress - Client IP address
-   * @param {string} options.userAgent - Client user agent
-   * @param {Object} options.requestBody - Request body (will be sanitized)
-   * @param {string} options.resourceType - Type of resource being accessed
-   * @param {string} options.resourceId - ID of resource being accessed
-   * @param {string} options.errorMessage - Error message if request failed
-   * @param {Object} options.details - Additional context details
-   * @returns {Promise<Object>} - The created audit log entry
-   */
+  // Save action to audit log from user login token
   async logAction(options) {
     try {
       const {

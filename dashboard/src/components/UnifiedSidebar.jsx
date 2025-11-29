@@ -329,7 +329,6 @@ const UnifiedSidebar = ({ userType = "operator", language, onLanguageToggle, tra
         if (!hasFranchise) {
           return [
             { label: "MY FRANCHISE", path: "/operator/franchise", isActive: location.pathname === "/operator/franchise", disabled: false },
-            { label: "FRANCHISEE LIST", path: "/operator/franchisee-list", isActive: location.pathname === "/operator/franchisee-list", disabled: false },
           ];
         }
         
@@ -337,7 +336,6 @@ const UnifiedSidebar = ({ userType = "operator", language, onLanguageToggle, tra
         return [
           { label: "MY FRANCHISE", path: "/operator/franchise", isActive: location.pathname === "/operator/franchise", disabled: false },
           { label: "REQUEST FOR AMENDMENT", path: "/operator/request-amendment", isActive: location.pathname === "/operator/request-amendment", disabled: false },
-          { label: "FRANCHISEE LIST", path: "/operator/franchisee-list", isActive: location.pathname === "/operator/franchisee-list", disabled: false },
           { label: "OPERATOR ID", path: "/operator/id", isActive: location.pathname === "/operator/id", disabled: false },
         ];
       }

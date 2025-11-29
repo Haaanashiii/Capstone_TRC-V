@@ -1,18 +1,28 @@
 const FranchiseApplication = require('../models/franchiseApplicationModel');
 const FranchiseInformation = require('../models/franchiseInformationModel');
 const Report = require('../models/reportsModel');
+const cacheManager = require('../utils/cache');
 
-/**
- * Get dashboard statistics
- * Optimized aggregation queries for dashboard KPIs
- */
+// Get main dashboard numbers (saved in memory for 5 minutes)
 exports.getDashboardStatistics = async (req, res, next) => {
   try {
+    // Return saved data if available
+    const cacheKey = 'dashboard-stats';
+    const cachedStats = cacheManager.get(cacheKey);
+    
+    if (cachedStats) {
+      return res.status(200).json({
+        success: true,
+        data: cachedStats,
+        cached: true
+      });
+    }
+
     const currentDate = new Date();
     const currentYear = currentDate.getFullYear();
     const currentMonth = currentDate.getMonth();
 
-    // Run all queries in parallel for optimal performance
+    // Run all database queries at the same time (faster)
     const [
       totalRegisteredResult,
       expiredFranchiseResult,
@@ -20,16 +30,16 @@ exports.getDashboardStatistics = async (req, res, next) => {
       pendingReportsResult,
       monthlyTrendResult
     ] = await Promise.all([
-      // Total Registered Units (from FranchiseInformation - actual registered franchises, only current versions)
+      // Count all active franchises
       FranchiseInformation.countDocuments({ isCurrentVersion: true }),
 
-      // Expired Franchises (Registered franchises with past expiry dates, only current versions)
+      // Count expired franchises
       FranchiseInformation.countDocuments({ 
         isCurrentVersion: true,
         expiryDate: { $lt: currentDate }
       }),
 
-      // Pending Verifications (Applications without actionTaken)
+      // Count applications waiting for approval
       FranchiseApplication.countDocuments({
         $or: [
           { actionTaken: { $exists: false } },
@@ -38,23 +48,23 @@ exports.getDashboardStatistics = async (req, res, next) => {
         ]
       }),
 
-      // Pending Reports (Reports with pending status)
+      // Count pending reports from public
       Report.countDocuments({ status: 'pending' }),
 
-      // Monthly Trend Data - Applications processed by month (current year)
+      // Get application numbers by month this year
       FranchiseApplication.aggregate([
         {
           $match: {
             $or: [
               {
                 createdAt: {
-                  $gte: new Date(currentYear, 0, 1), // Start of current year
-                  $lte: new Date(currentYear, 11, 31, 23, 59, 59) // End of current year
+                  $gte: new Date(currentYear, 0, 1),
+                  $lte: new Date(currentYear, 11, 31, 23, 59, 59)
                 }
               },
               {
                 submittedAt: {
-                  $gte: new Date(currentYear, 0, 1), // Fallback to submittedAt for existing records
+                  $gte: new Date(currentYear, 0, 1),
                   $lte: new Date(currentYear, 11, 31, 23, 59, 59)
                 }
               }
@@ -143,28 +153,33 @@ exports.getDashboardStatistics = async (req, res, next) => {
       ? (((currentMonthApplications - prevMonthApplications) / prevMonthApplications) * 100).toFixed(1)
       : 0;
 
+    const statsData = {
+      kpis: {
+        totalRegistered: totalRegisteredResult,
+        expiredFranchise: expiredFranchiseResult,
+        pendingVerifications: pendingVerificationsResult,
+        pendingReports: pendingReportsResult,
+        totalApplications,
+        approvalRate: parseFloat(approvalRate)
+      },
+      trends: {
+        monthly: monthlyTrend,
+        currentMonth: {
+          applications: currentMonthApplications,
+          change: parseFloat(monthlyTrendPercentage),
+          month: monthNames[currentMonth],
+          year: currentYear
+        }
+      },
+      timestamp: currentDate.toISOString()
+    };
+
+    // Cache the stats for 5 minutes to reduce database load
+    cacheManager.set('dashboard-stats', statsData, 300);
+
     res.status(200).json({
       success: true,
-      data: {
-        kpis: {
-          totalRegistered: totalRegisteredResult,
-          expiredFranchise: expiredFranchiseResult,
-          pendingVerifications: pendingVerificationsResult,
-          pendingReports: pendingReportsResult,
-          totalApplications,
-          approvalRate: parseFloat(approvalRate)
-        },
-        trends: {
-          monthly: monthlyTrend,
-          currentMonth: {
-            applications: currentMonthApplications,
-            change: parseFloat(monthlyTrendPercentage),
-            month: monthNames[currentMonth],
-            year: currentYear
-          }
-        },
-        timestamp: currentDate.toISOString()
-      }
+      data: statsData
     });
   } catch (error) {
     console.error('[Dashboard] Error fetching statistics:', error);
@@ -184,7 +199,7 @@ exports.getRecentApplications = async (req, res, next) => {
       .sort({ submittedAt: -1 })
       .limit(limit)
       .select('operatorName actionType submittedAt actionTaken')
-      .lean();
+      .lean(); // Optimization: lean() for read-only queries
 
     res.status(200).json({
       success: true,
@@ -198,10 +213,22 @@ exports.getRecentApplications = async (req, res, next) => {
 
 /**
  * Get quick statistics for admin overview
- * Lightweight endpoint for frequent polling
+ * Lightweight endpoint for frequent polling - cached for 2 minutes
  */
 exports.getQuickStats = async (req, res, next) => {
   try {
+    // Check cache first (TTL: 2 minutes for more frequent updates)
+    const cacheKey = 'quick-stats';
+    const cachedStats = cacheManager.get(cacheKey);
+    
+    if (cachedStats) {
+      return res.status(200).json({
+        success: true,
+        data: cachedStats,
+        cached: true
+      });
+    }
+
     const [totalRegistered, pendingVerifications, expiredFranchise, pendingReports] = await Promise.all([
       FranchiseApplication.countDocuments({ 
         actionTaken: { $exists: true, $ne: null, $ne: '' }
@@ -220,14 +247,19 @@ exports.getQuickStats = async (req, res, next) => {
       Report.countDocuments({ status: 'pending' })
     ]);
 
+    const quickStats = {
+      totalRegistered,
+      pendingVerifications,
+      expiredFranchise,
+      pendingReports
+    };
+
+    // Cache for 2 minutes
+    cacheManager.set('quick-stats', quickStats, 120);
+
     res.status(200).json({
       success: true,
-      data: {
-        totalRegistered,
-        pendingVerifications,
-        expiredFranchise,
-        pendingReports
-      }
+      data: quickStats
     });
   } catch (error) {
     console.error('[Dashboard] Error fetching quick stats:', error);

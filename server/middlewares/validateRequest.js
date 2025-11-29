@@ -1,9 +1,6 @@
 const { validationResult } = require('express-validator');
 
-/**
- * Middleware to validate request data using express-validator
- * Checks for validation errors and returns a standardized error response
- */
+// Check if request data has errors
 function validateRequest(req, res, next) {
   const errors = validationResult(req);
   
@@ -22,37 +19,31 @@ function validateRequest(req, res, next) {
   next();
 }
 
-/**
- * Creates validation schemas for different request types
- */
+// Rules for different types of form submissions
 const validationSchemas = {
-  // Login validation
+  // Login form
   login: [
     { field: 'username', rules: 'required|string|min:3|max:50' },
     { field: 'password', rules: 'required|string|min:8' }
   ],
   
-  // Application submission validation
+  // Application form
   applicationSubmit: [
     { field: 'plateNumber', rules: 'required|string|regex:/^[A-Z0-9]{6,8}$/' },
     { field: 'ssn', rules: 'required|string|min:9|max:12' }
   ],
   
-  // QR code verification validation
+  // QR scanning
   qrVerification: [
     { field: 'data', rules: 'required|string' }
   ]
 };
 
-/**
- * Sanitizes user input to prevent XSS and injection attacks
- * @param {string} input - The user input to sanitize
- * @returns {string} - Sanitized input
- */
+// Clean user input to prevent harmful code
 function sanitizeInput(input) {
   if (typeof input !== 'string') return input;
   
-  // Replace potentially dangerous characters
+  // Convert dangerous characters to safe versions
   return input
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
@@ -62,11 +53,9 @@ function sanitizeInput(input) {
     .replace(/`/g, '&#96;');
 }
 
-/**
- * Middleware to sanitize request body, query and params
- */
+// Clean all user input before processing
 function sanitizeRequest(req, res, next) {
-  // Sanitize body
+  // Clean form data
   if (req.body) {
     Object.keys(req.body).forEach(key => {
       if (typeof req.body[key] === 'string') {
@@ -75,7 +64,7 @@ function sanitizeRequest(req, res, next) {
     });
   }
   
-  // Sanitize query parameters
+  // Clean URL parameters
   if (req.query) {
     Object.keys(req.query).forEach(key => {
       if (typeof req.query[key] === 'string') {

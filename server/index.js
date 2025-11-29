@@ -14,7 +14,7 @@ const { sanitizeRequest } = require('./middlewares/validateRequest');
 const { enforceHttps } = require('./middlewares/securityHeaders');
 const { auditLogService } = require('./services/auditLogService');
   
-// Lazy-load routes (improves startup time)
+// Load all API routes
 console.log('[SERVER] Loading routes...');
 const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userAccountRoutes');
@@ -37,8 +37,7 @@ dotenv.config();
 const app = express();
 const server = http.createServer(app);
 
-// Initialize Socket.IO with CORS configuration
-// Dynamically allows origins from CORS_ORIGIN env variable
+// Setup real-time messaging with allowed websites
 const socketCorsOrigin = process.env.CORS_ORIGIN 
   ? process.env.CORS_ORIGIN.split(',').map(s => s.trim()).filter(Boolean)
   : (process.env.NODE_ENV === 'production' ? false : '*');
@@ -49,17 +48,16 @@ const io = new Server(server, {
     methods: ['GET', 'POST'],
     credentials: true
   },
-  // Engine configuration for WebSocket support
+  // Enable real-time connections
   engine: {
     wsEngine: 'ws'
   },
-  // Additional production-ready settings
   pingTimeout: 60000,
   pingInterval: 25000,
   transports: ['websocket', 'polling']
 });
 
-// Store io instance in app for access in controllers
+// Make Socket.IO available throughout the app
 app.set('io', io);
 
 // Socket.IO error handling
@@ -67,11 +65,11 @@ io.on('error', (error) => {
   console.error('[SOCKET.IO] Server error:', error);
 });
 
-// JWT VALIDATION MIDDLEWARE - Extract user info from token on connection (optional for announcements)
+// Verify user login token when connecting
 io.use((socket, next) => {
   const token = socket.handshake.auth.token;
   
-  // Token is optional - announcements work for everyone
+  // Users without login can still see announcements
   if (!token) {
     // No token = unauthenticated user (can still see announcements)
     socket.userId = 'anonymous-' + Math.random().toString(36).substr(2, 9);
@@ -86,8 +84,7 @@ io.use((socket, next) => {
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     
-    // Store user info on socket object for later use
-    // Token has either 'userId' (operators), 'id', '_id', or 'adminId'
+    // Save user info from login token
     socket.userId = decoded.userId || decoded.id || decoded._id || decoded.adminId;
     socket.userEmail = decoded.email;
     socket.userRole = decoded.role; // 'super-admin', 'sb-admin', 'bplo-admin', 'operator'
@@ -102,24 +99,22 @@ io.use((socket, next) => {
   }
 });
 
-  // Socket.IO connection handling
+// Handle when users connect to real-time system
 io.on('connection', (socket) => {
   console.log(`[SOCKET.IO] Client connected: ${socket.id} - User: ${socket.userId} - Auth: ${socket.isAuthenticated}`);
-  console.log(`[SOCKET.IO] Available transports: websocket, polling`);
-  console.log(`[SOCKET.IO] Connection handshake:', { id: socket.id, connected: socket.connected }`);
   
-  // Auto-join announcements room (everyone can see announcements, authenticated or not)
+  // Add user to announcements room automatically
   socket.join('announcements');
   console.log(`[SOCKET.IO] User ${socket.userId} auto-joined announcements room`);
   
-  // Handle connection errors
+  // Stop connection errors from crashing the app
   socket.on('error', (error) => {
     console.error(`[SOCKET.IO] Socket error for ${socket.id}:`, error);
   });
   
-  // ROOM ACCESS CONTROL - Validate user role before joining rooms
+  // Check user permissions before joining rooms
   socket.on('join-room', async (room) => {
-    // Unauthenticated users can only join announcements room
+    // Only login users can join private rooms
     if (!socket.isAuthenticated) {
       if (room === 'announcements') {
         socket.join(room);
@@ -388,7 +383,8 @@ const startTime = Date.now();
 
 mongoose.connect(process.env.MONGO_URI, {
   serverSelectionTimeoutMS: 10000, // Increase timeout to 10 seconds
-  maxPoolSize: 10,
+  maxPoolSize: 50, // Increased from 10 for handling 100-500 concurrent users
+  minPoolSize: 10, // Maintain minimum pool for faster connection reuse
   socketTimeoutMS: 45000, // Close sockets after 45 seconds of inactivity
   family: 4 // Use IPv4, skip trying IPv6
 })

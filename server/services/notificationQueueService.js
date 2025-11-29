@@ -86,7 +86,7 @@ function getNotificationRecord(userId, notificationType) {
  */
 async function sendOTPNotification(userId, phoneNumber, email, otpCode, deliveryMethod = null) {
   try {
-    console.log(`[Notification] Processing OTP for user: ${userId}`);
+    console.log(`[Notification] Processing OTP for user: ${userId}, deliveryMethod: ${deliveryMethod}`);
     
     const record = getNotificationRecord(userId, 'OTP');
     const rules = NOTIFICATION_RULES.OTP;
@@ -101,8 +101,21 @@ async function sendOTPNotification(userId, phoneNumber, email, otpCode, delivery
 
     record.attempts++;
 
+    // If delivery method is explicitly 'email', send email only
+    if (deliveryMethod === 'email') {
+      if (rules.emailEnabled && email) {
+        const emailText = `Your TRC-V Verification Code is: ${otpCode}. It will expire in 5 minutes. Do not share this code with anyone.`;
+        results.email = await emailService.sendOTPEmail(email, otpCode);
+        
+        if (results.email.success) {
+          record.emailSent++;
+          record.lastEmail = new Date();
+          console.log(`[NotificationQueue] OTP Email sent to ${email}`);
+        }
+      }
+    } 
     // If delivery method is explicitly 'phone', prioritize SMS
-    if (deliveryMethod === 'phone' && phoneNumber) {
+    else if (deliveryMethod === 'phone' && phoneNumber) {
       const smsText = `Your TRC-V OTP is: ${otpCode}. Valid for 5 minutes. Do not share.`;
       results.sms = await smsService.sendSMS(phoneNumber, smsText);
       

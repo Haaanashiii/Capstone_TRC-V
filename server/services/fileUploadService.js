@@ -2,14 +2,9 @@ const { uploadToR2 } = require('./cloudflareService');
 const path = require('path');
 const fs = require('fs').promises;
 
-/**
- * File Upload Service
- * Handles uploading to both local directory (optional) and Cloudflare R2
- * Based on UPLOAD_TO_LOCAL_DIR environment variable
- * Supports TRC-V-DIR structure with baseFolder/subFolder/category
- */
+// Upload files to cloud storage (Cloudflare R2) and optionally to local disk
 
-// Only upload to local if explicitly enabled AND running on localhost
+// Only save files locally in development mode
 const isLocalhost = () => {
   const hostname = process.env.HOSTNAME || process.env.COMPUTERNAME || 'unknown';
   const nodeEnv = process.env.NODE_ENV || 'development';
@@ -19,11 +14,7 @@ const isLocalhost = () => {
 const UPLOAD_TO_LOCAL = process.env.UPLOAD_TO_LOCAL_DIR === 'true' && isLocalhost();
 const LOCAL_BASE_PATH = './TRC-V-DIR';
 
-/**
- * Generate secure filename with hash
- * @param {string} originalname - Original filename
- * @returns {string} Secure filename
- */
+// Create a safe filename with timestamp and random hash
 function generateSecureFilename(originalname) {
   const crypto = require('crypto');
   const timestamp = Date.now();
@@ -37,20 +28,11 @@ function generateSecureFilename(originalname) {
   return `${baseName}-${timestamp}-${randomHash}${ext}`;
 }
 
-/**
- * Upload file to local directory with TRC-V-DIR structure
- * @param {Buffer} buffer - File buffer
- * @param {string} originalname - Original filename
- * @param {Object} metadata - { baseFolder, subFolder, applicationId, category }
- * @returns {Promise<string>} Local file path
- */
+// Save file to local computer disk
 async function uploadToLocalDir(buffer, originalname, metadata) {
   const { baseFolder, subFolder, applicationId, category } = metadata;
   
-  // Structure for franchise applications with applicationId:
-  // TRC-V-DIR/franchiseApplications/{userId}/{applicationId}/{category}/
-  // Structure for franchise informations:
-  // TRC-V-DIR/franchiseInformations/{franchiseNo}/{category}/
+  // Create folder structure
   let uploadDir;
   if (baseFolder === 'franchiseApplications' && applicationId) {
     uploadDir = path.join(LOCAL_BASE_PATH, baseFolder, subFolder, applicationId, category);
@@ -58,11 +40,10 @@ async function uploadToLocalDir(buffer, originalname, metadata) {
     uploadDir = path.join(LOCAL_BASE_PATH, baseFolder, subFolder, category);
   }
   
-  // Lazy directory creation - only create when actually uploading a file
-  // This prevents empty directory creation on server start
+  // Create folders if they don't exist
   await fs.mkdir(uploadDir, { recursive: true });
   
-  // Generate secure filename
+  // Create safe filename
   const filename = generateSecureFilename(originalname);
   const filePath = path.join(uploadDir, filename);
   
@@ -73,30 +54,21 @@ async function uploadToLocalDir(buffer, originalname, metadata) {
   return filePath;
 }
 
-/**
- * Upload file to configured storage(s)
- * Uploads to Cloudflare R2 (always) and local directory (if enabled)
- * 
- * @param {Buffer} buffer - File buffer
- * @param {string} originalname - Original filename
- * @param {string} mimetype - File MIME type
- * @param {Object} metadata - { baseFolder, subFolder, applicationId, category }
- * @returns {Promise<Object>} Upload result with cloudflare and local paths
- */
+// Upload file to cloud and optionally to local disk
 async function uploadFile(buffer, originalname, mimetype, metadata) {
   const results = {
     cloudflare: null,
     local: null
   };
   
-  // Always upload to Cloudflare R2 (for online access)
+  // Upload to cloud storage (always)
   try {
     const cloudflareUrl = await uploadToR2(buffer, originalname, mimetype, metadata);
     results.cloudflare = cloudflareUrl;
-    console.log(`[Upload] Cloudflare OK`);
+    console.log(`[Upload] Cloud OK`);
   } catch (err) {
-    console.error(`[Upload] Cloudflare error:`, err.message);
-    throw new Error(`Failed to upload to Cloudflare: ${err.message}`);
+    console.error(`[Upload] Cloud error:`, err.message);
+    throw new Error(`Failed to upload to cloud: ${err.message}`);
   }
   
   // Conditionally upload to local directory (ONLY on localhost for development/testing)

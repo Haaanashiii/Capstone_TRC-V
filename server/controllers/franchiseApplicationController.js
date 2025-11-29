@@ -844,10 +844,15 @@ exports.disapproveFranchiseByBPLO = async (req, res, next) => {
 exports.editApprovedFranchise = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { officialReceiptNumber } = req.body;
-    const { files } = req;
+    // Get officialReceiptNumber from body or fallback to checking all possible locations
+    let officialReceiptNumber = req.body?.officialReceiptNumber;
     
-    console.log('[editApprovedFranchise] Request:', { id, officialReceiptNumber, hasFiles: !!files });
+    // Debug logging
+    console.log('[editApprovedFranchise] Full Request body:', req.body);
+    console.log('[editApprovedFranchise] Request files:', Object.keys(req.files || {}));
+    console.log('[editApprovedFranchise] Extracted OR number:', officialReceiptNumber);
+    
+    const { files } = req;
     
     const application = await franchiseApplicationRepository.getFranchiseApplicationById(id);
     if (!application) {
@@ -875,6 +880,8 @@ exports.editApprovedFranchise = async (req, res, next) => {
       // Move to next stage - awaiting SB approval
       updateData.statusOfBPLO = 'awaiting-sb';
       console.log('[editApprovedFranchise] Adding OR number:', officialReceiptNumber);
+    } else {
+      console.log('[editApprovedFranchise] WARNING: No OR number provided in request');
     }
     
     // Upload OR document if provided
@@ -885,6 +892,8 @@ exports.editApprovedFranchise = async (req, res, next) => {
         { baseFolder: 'franchiseApplications', subFolder: application.operatorInfo || 'pending', applicationId: id, category: 'Documentations' });
       updateData['documents.oRTreasurerOfficeObj'] = result.cloudflare;
       console.log('[editApprovedFranchise] OR document uploaded:', result.cloudflare);
+    } else {
+      console.log('[editApprovedFranchise] WARNING: No OR document file provided');
     }
     
     // Require at least one field to update
@@ -892,8 +901,11 @@ exports.editApprovedFranchise = async (req, res, next) => {
       return res.status(400).json({ error: 'Please provide officialReceiptNumber or oRTreasurerOfficeObj document' });
     }
     
+    console.log('[editApprovedFranchise] Final updateData to save:', updateData);
     const updated = await franchiseApplicationRepository.updateFranchiseApplication(id, updateData);
-    console.log('[editApprovedFranchise] Application updated successfully, now awaiting SB approval');
+    console.log('[editApprovedFranchise] Application updated successfully');
+    console.log('[editApprovedFranchise] Updated record - officialReceiptNumber:', updated.officialReceiptNumber);
+    console.log('[editApprovedFranchise] Updated record - documents.oRTreasurerOfficeObj:', updated.documents?.oRTreasurerOfficeObj);
     
     // Log operator adding OR
     if (req.user && updateData.officialReceiptNumber) {
@@ -1204,15 +1216,11 @@ exports.sbAdminAcceptNewFranchise = async (req, res, next) => {
       }
     }
     
-    // Move files from applications → information (both local and cloud)
-    const userId = application.operatorInfo || 'pending';
-    const appId = String(application._id);
-    await moveFilesToInformation(userId, appId, franchiseNo, franchiseChainId, version); // Local
-    const urlMapping = await moveFranchiseFiles(userId, appId, franchiseNo, franchiseChainId, version); // Cloud - now handles the version folder
-    
-    // Create FranchiseInformation record within transaction
+    // Create FranchiseInformation record FIRST within transaction (with original document URLs)
+    // File movements will happen asynchronously after transaction commits
     const franchiseData = {
       franchiseNumber: franchiseNo,
+      officialReceiptNumber: application.officialReceiptNumber || '', // Include OR number from application
       franchiseChainId: `${franchiseNo}-${application.operatorName.toLowerCase().replace(/\s+/g, '-')}`,
       operatorName: application.operatorName,
       operatorContactNumber: application.operatorContactNumber,
@@ -1243,17 +1251,18 @@ exports.sbAdminAcceptNewFranchise = async (req, res, next) => {
       officialReceiptNumber: application.officialReceiptNumber, // Copy official receipt number
       franchiseStatus: 'Active',
       documents: {
-        motorRegistrationObj: urlMapping[application.documents?.motorRegistrationObj] || application.documents?.motorRegistrationObj,
-        barangayClearanceObj: urlMapping[application.documents?.barangayClearanceObj] || application.documents?.barangayClearanceObj,
-        cedulaObj: urlMapping[application.documents?.cedulaObj] || application.documents?.cedulaObj,
-        driversLicenseObj: urlMapping[application.documents?.driversLicenseObj] || application.documents?.driversLicenseObj,
-        votersAffidavitObj: urlMapping[application.documents?.votersAffidavitObj] || application.documents?.votersAffidavitObj,
-        motorChassisStencilObj: urlMapping[application.documents?.motorChassisStencilObj] || application.documents?.motorChassisStencilObj,
-        driverPictureObj: urlMapping[application.documents?.driverPictureObj] || application.documents?.driverPictureObj,
-        operatorPictureObj: urlMapping[application.documents?.operatorPictureObj] || application.documents?.operatorPictureObj,
-        oRLTOObj: urlMapping[application.documents?.oRLTOObj] || application.documents?.oRLTOObj,
-        cRLTOObj: urlMapping[application.documents?.cRLTOObj] || application.documents?.cRLTOObj,
-        oRTreasurerOfficeObj: urlMapping[application.documents?.oRTreasurerOfficeObj] || application.documents?.oRTreasurerOfficeObj,
+        // Use original application document URLs - will be updated async after transaction
+        motorRegistrationObj: application.documents?.motorRegistrationObj,
+        barangayClearanceObj: application.documents?.barangayClearanceObj,
+        cedulaObj: application.documents?.cedulaObj,
+        driversLicenseObj: application.documents?.driversLicenseObj,
+        votersAffidavitObj: application.documents?.votersAffidavitObj,
+        motorChassisStencilObj: application.documents?.motorChassisStencilObj,
+        driverPictureObj: application.documents?.driverPictureObj,
+        operatorPictureObj: application.documents?.operatorPictureObj,
+        oRLTOObj: application.documents?.oRLTOObj,
+        cRLTOObj: application.documents?.cRLTOObj,
+        oRTreasurerOfficeObj: application.documents?.oRTreasurerOfficeObj,
         individualSessionReportObj: sessionReport,
         resolutionDocumentObj: application.sbResolutionDocument // Add SB resolution document
       },
@@ -1302,9 +1311,64 @@ exports.sbAdminAcceptNewFranchise = async (req, res, next) => {
       relatedFranchiseInfo: franchise[0]._id
     });
     
-    // Commit transaction
+    // Commit transaction BEFORE file operations (they take time)
     await session.commitTransaction();
     session.endSession();
+    
+    // ASYNC file movements - happens in background, doesn't block response
+    // This solves the timeout issue
+    const userId = application.operatorInfo || 'pending';
+    const appId = String(application._id);
+    const fileMovementPromise = (async () => {
+      try {
+        console.log('[sbAdminAcceptNewFranchise] Starting background file movements for franchise:', franchiseNo);
+        const startTime = Date.now();
+        
+        // Move files from applications → information (both local and cloud)
+        await moveFilesToInformation(userId, appId, franchiseNo, franchiseChainId, version); // Local
+        const urlMapping = await moveFranchiseFiles(userId, appId, franchiseNo, franchiseChainId, version); // Cloud
+        
+        const elapsedTime = Date.now() - startTime;
+        console.log(`[sbAdminAcceptNewFranchise] File movements completed in ${elapsedTime}ms for franchise: ${franchiseNo}`);
+        
+        // Update franchise documents with new URLs from file movement
+        if (Object.keys(urlMapping).length > 0) {
+          const updateDocs = {};
+          for (const [oldUrl, newUrl] of Object.entries(urlMapping)) {
+            // Map each old URL to new URL in documents
+            Object.keys(franchiseData.documents).forEach(key => {
+              if (franchiseData.documents[key] === oldUrl) {
+                updateDocs[`documents.${key}`] = newUrl;
+              }
+            });
+          }
+          
+          if (Object.keys(updateDocs).length > 0) {
+            await FranchiseInformationModel.updateOne(
+              { _id: franchise[0]._id },
+              { $set: updateDocs }
+            );
+            console.log('[sbAdminAcceptNewFranchise] Updated franchise documents with new URLs');
+          }
+        }
+      } catch (fileError) {
+        console.error('[sbAdminAcceptNewFranchise] Async file movement error (franchise still created):', fileError);
+        // Send alert to admin that files need manual review
+        if (req.app.get('io')) {
+          req.app.get('io').to('sb-admins').emit('franchise-file-error', {
+            franchiseNumber: franchiseNo,
+            franchiseId: franchise[0]._id,
+            message: 'Franchise created successfully but file migration encountered an error. Please review and re-migrate files manually.',
+            error: fileError.message
+          });
+        }
+      }
+    })();
+    
+    // Don't await - let it run in background
+    fileMovementPromise.catch(err => 
+      console.error('[sbAdminAcceptNewFranchise] Uncaught file movement error:', err)
+    );
     
     // Log franchise creation (after transaction is committed)
     if (req.user) {
@@ -1453,7 +1517,8 @@ exports.sbAdminAcceptRenewOrAmendment = async (req, res, next) => {
       qrCode: qrResult.cloudflare,
       approvedAt: new Date(),
       expiryDate: new Date(Date.now() + 3 * 365 * 24 * 60 * 60 * 1000),
-      resolutionNumber: application.sbResolutionNumber || existingFranchise.resolutionNumber, // Copy resolution number from application or keep existing
+      officialReceiptNumber: application.officialReceiptNumber || '', // Use new OR number from application (updated data)
+      resolutionNumber: application.sbResolutionNumber, // Use new resolution number from application
       sbApprovedAt: application.sbApprovedAt || new Date(), // Copy SB approval date
       officialReceiptNumber: application.officialReceiptNumber || existingFranchise.officialReceiptNumber, // Copy official receipt number
       // Update documents from the application (users upload fresh documents for renewal/amendments)
@@ -1535,9 +1600,64 @@ exports.sbAdminAcceptRenewOrAmendment = async (req, res, next) => {
     console.log('[sbAdminAcceptRenewOrAmendment] Application deleted from FranchiseApplication collection:', id);
 
     
-    // Commit transaction
+    // Commit transaction BEFORE file operations (they take time)
     await session.commitTransaction();
     session.endSession();
+    
+    // ASYNC file movements - happens in background, doesn't block response
+    // This solves the timeout issue
+    const userId = application.operatorInfo || 'pending';
+    const appId = String(application._id);
+    const fileMovementPromise = (async () => {
+      try {
+        console.log('[sbAdminAcceptRenewOrAmendment] Starting background file movements for franchise:', franchiseNo);
+        const startTime = Date.now();
+        
+        // Move files from applications → information (both local and cloud)
+        await moveFilesToInformation(userId, appId, franchiseNo, newFranchiseChainId, version); // Local
+        const urlMapping = await moveFranchiseFiles(userId, appId, franchiseNo, newFranchiseChainId, version); // Cloud
+        
+        const elapsedTime = Date.now() - startTime;
+        console.log(`[sbAdminAcceptRenewOrAmendment] File movements completed in ${elapsedTime}ms for franchise: ${franchiseNo}`);
+        
+        // Update franchise documents with new URLs from file movement
+        if (Object.keys(urlMapping).length > 0) {
+          const updateDocs = {};
+          for (const [oldUrl, newUrl] of Object.entries(urlMapping)) {
+            // Map each old URL to new URL in documents
+            Object.keys(newVersionData.documents).forEach(key => {
+              if (newVersionData.documents[key] === oldUrl) {
+                updateDocs[`documents.${key}`] = newUrl;
+              }
+            });
+          }
+          
+          if (Object.keys(updateDocs).length > 0) {
+            await FranchiseInformationModel.updateOne(
+              { _id: newFranchise[0]._id },
+              { $set: updateDocs }
+            );
+            console.log('[sbAdminAcceptRenewOrAmendment] Updated franchise documents with new URLs');
+          }
+        }
+      } catch (fileError) {
+        console.error('[sbAdminAcceptRenewOrAmendment] Async file movement error (franchise still created):', fileError);
+        // Send alert to admin that files need manual review
+        if (req.app.get('io')) {
+          req.app.get('io').to('sb-admins').emit('franchise-file-error', {
+            franchiseNumber: franchiseNo,
+            franchiseId: newFranchise[0]._id,
+            message: 'Franchise updated successfully but file migration encountered an error. Please review and re-migrate files manually.',
+            error: fileError.message
+          });
+        }
+      }
+    })();
+    
+    // Don't await - let it run in background
+    fileMovementPromise.catch(err => 
+      console.error('[sbAdminAcceptRenewOrAmendment] Uncaught file movement error:', err)
+    );
     
     // Log franchise update (after transaction is committed)
     if (req.user) {

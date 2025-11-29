@@ -3,6 +3,7 @@ import React from "react";
 import { Box, Button, TextField, Typography, InputAdornment, IconButton, Divider, Paper, ThemeProvider, createTheme, Checkbox, FormControlLabel } from "@mui/material";
 import { Visibility, VisibilityOff } from "@mui/icons-material";
 import AccountVerificationModal from '../Services/AccountVerificationModal';
+import ForgotPasswordModal from '../../components/ForgotPasswordModal';
 import { useNavigate } from 'react-router-dom';
 import api, { TokenManager } from '../Services/api';
 import { useAuth } from '../../contexts/AuthContext';
@@ -30,6 +31,7 @@ const Login = () => {
   const [error, setError] = React.useState("");
   const [success, setSuccess] = React.useState("");
   const [showVerificationModal, setShowVerificationModal] = React.useState(false);
+  const [showForgotPasswordModal, setShowForgotPasswordModal] = React.useState(false);
   const [isLoading, setIsLoading] = React.useState(false);
 
   const navigate = useNavigate();
@@ -235,6 +237,7 @@ const Login = () => {
                   variant="body2" 
                   className="login-forgot"
                   style={{ cursor: 'pointer' }}
+                  onClick={() => setShowForgotPasswordModal(true)}
                 >
                   <a style={{ cursor: 'pointer' }}>Forgot Password?</a>
                 </Typography>
@@ -262,6 +265,11 @@ const Login = () => {
           email={form.email}
           rememberMe={rememberMe}
           onVerificationSuccess={handleVerificationSuccess}
+        />
+        
+        <ForgotPasswordModal
+          open={showForgotPasswordModal}
+          onClose={() => setShowForgotPasswordModal(false)}
         />
       </Box>
     </ThemeProvider>
