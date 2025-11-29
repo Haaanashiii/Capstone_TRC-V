@@ -549,6 +549,8 @@ function FranchiseMgmt() {
           return status === 'bplo-approved'
         } else if (statusFilter === 'awaiting-sb') {
           return status === 'awaiting-sb'
+        } else if (statusFilter === 'sb-approved') {
+          return status === 'sb-approved'
         }
         return true
       })
@@ -1050,24 +1052,34 @@ function FranchiseMgmt() {
       }
       
       // Step 1: SB Approval with resolution
+      console.log('[FranchiseMgmt] Step 1/2: Approving with resolution number...')
       const approvalResponse = await franchiseAPI.approveSBWithDocument(selectedApplication.id, formData)
-      console.log('[FranchiseMgmt] SB approval completed:', approvalResponse.data)
+      console.log('[FranchiseMgmt] Step 1/2 completed - SB approval done:', approvalResponse.data)
+
+      // Small delay to ensure database consistency
+      await new Promise(resolve => setTimeout(resolve, 500))
 
       // Step 2: Immediately create franchise record (FINAL STEP)
-      console.log('[FranchiseMgmt] Creating franchise record in FranchiseList...')
-      const isNew = selectedApplication.applicationType === 'new'
-      const franchiseResponse = await (isNew 
-        ? franchiseAPI.acceptNewFranchise(selectedApplication.id, {})
-        : franchiseAPI.acceptRenewAmend(selectedApplication.id, {}))
+      console.log('[FranchiseMgmt] Step 2/2: Creating franchise record in FranchiseList...')
+      const isNew = selectedApplication.applicationType === 'new' || !selectedApplication.applicationType
       
-      console.log('[FranchiseMgmt] Franchise created successfully:', franchiseResponse.data)
+      let franchiseResponse
+      try {
+        franchiseResponse = await (isNew 
+          ? franchiseAPI.acceptNewFranchise(selectedApplication.id, {})
+          : franchiseAPI.acceptRenewAmend(selectedApplication.id, {}))
+        console.log('[FranchiseMgmt] Step 2/2 completed - Franchise created successfully:', franchiseResponse.data)
+      } catch (acceptError) {
+        console.error('[FranchiseMgmt] Error in Step 2 (franchise creation):', acceptError)
+        throw new Error(`Approval successful but failed to create franchise: ${acceptError.response?.data?.error || acceptError.message}. The application is now in 'sb-approved' status and can be manually accepted from the list.`)
+      }
 
       // Refresh list to remove completed application
       await fetchAllPending()
 
       setNotification({ 
         open: true, 
-        message: 'Franchise approved and created successfully! Now visible in FranchiseList.', 
+        message: 'Franchise approved and created successfully! The franchise is now active in the system.', 
         type: 'success' 
       })
       
@@ -1076,7 +1088,7 @@ function FranchiseMgmt() {
       setResolutionFile(null)
       handleCloseViewModal()
     } catch (error) {
-      console.error('[FranchiseMgmt] Error in SB final approval:', error)
+      console.error('[FranchiseMgmt] Error in SB final approval process:', error)
       
       const errorMessage = error.response?.data?.error || error.response?.data?.message || error.message || 'Failed to complete franchise approval'
       
@@ -1085,6 +1097,9 @@ function FranchiseMgmt() {
         message: errorMessage,
         type: 'error'
       })
+      
+      // Refresh the list in case the approval succeeded but franchise creation failed
+      await fetchAllPending()
     } finally {
       setIsLoading(false)
     }
@@ -1359,6 +1374,9 @@ function FranchiseMgmt() {
               <MenuItem value="pending">For BPLO Verification</MenuItem>
               <MenuItem value="bplo-approved">Approved by BPLO - Awaiting OR</MenuItem>
               <MenuItem value="awaiting-sb">Awaiting SB Resolution</MenuItem>
+              {userRole === 'sb-admin' && (
+                <MenuItem value="sb-approved">Resolution Approved - Completing</MenuItem>
+              )}
             </Select>
           </FormControl>
           <Typography variant="body2" sx={{ color: '#6B7280', ml: 'auto' }}>
@@ -2187,6 +2205,7 @@ function FranchiseMgmt() {
               {userRole === 'sb-admin' && (
                 selectedApplication.statusOfBPLO === 'bplo-approved' ||
                 selectedApplication.statusOfBPLO === 'awaiting-sb' || 
+                selectedApplication.statusOfBPLO === 'sb-approved' ||
                 (selectedApplication.statusOfBPLO === 'approved' && selectedApplication.officialReceiptNumber)
               ) && (
                 <>
@@ -2195,14 +2214,63 @@ function FranchiseMgmt() {
                       Note: Official Receipt has not been submitted yet. You may proceed with approval or wait for OR submission.
                     </Typography>
                   )}
-                  <Button
-                    className="button-success"
-                    onClick={handleApproveApplication}
-                    disabled={isLoading}
-                    fullWidth
-                  >
-                    {isLoading ? <CircularProgress className="circular-progress-small circular-progress-inherit" /> : 'Final Approval - Create Franchise'}
-                  </Button>
+                  
+                  {selectedApplication.statusOfBPLO === 'sb-approved' && (
+                    <>
+                      <Typography variant="body2" className="info-message-box" sx={{ textAlign: 'center', mb: 2, bgcolor: '#FFF4E6', color: '#D97706' }}>
+                        <strong>Resolution Approved:</strong> {selectedApplication.sbResolutionNumber}<br/>
+                        Franchise creation is pending. Click below to complete the process.
+                      </Typography>
+                      <Button
+                        className="button-success"
+                        onClick={async () => {
+                          setIsLoading(true)
+                          try {
+                            const isNew = selectedApplication.applicationType === 'new' || !selectedApplication.applicationType
+                            const franchiseResponse = await (isNew 
+                              ? franchiseAPI.acceptNewFranchise(selectedApplication.id, {})
+                              : franchiseAPI.acceptRenewAmend(selectedApplication.id, {}))
+                            
+                            console.log('[FranchiseMgmt] Franchise created successfully:', franchiseResponse.data)
+                            await fetchAllPending()
+                            
+                            setNotification({ 
+                              open: true, 
+                              message: 'Franchise record created successfully! The franchise is now active in the system.', 
+                              type: 'success' 
+                            })
+                            handleCloseViewModal()
+                          } catch (error) {
+                            console.error('[FranchiseMgmt] Error completing franchise creation:', error)
+                            setNotification({
+                              open: true,
+                              message: error.response?.data?.error || error.message || 'Failed to create franchise record',
+                              type: 'error'
+                            })
+                          } finally {
+                            setIsLoading(false)
+                          }
+                        }}
+                        disabled={isLoading}
+                        fullWidth
+                      >
+                        {isLoading ? <CircularProgress className="circular-progress-small circular-progress-inherit" /> : 'Complete Franchise Creation'}
+                      </Button>
+                    </>
+                  )}
+                  
+                  {(selectedApplication.statusOfBPLO === 'bplo-approved' || 
+                    selectedApplication.statusOfBPLO === 'awaiting-sb' ||
+                    (selectedApplication.statusOfBPLO === 'approved' && selectedApplication.officialReceiptNumber)) && (
+                    <Button
+                      className="button-success"
+                      onClick={handleApproveApplication}
+                      disabled={isLoading}
+                      fullWidth
+                    >
+                      {isLoading ? <CircularProgress className="circular-progress-small circular-progress-inherit" /> : 'Final Approval - Create Franchise'}
+                    </Button>
+                  )}
                 </>
               )}
               
