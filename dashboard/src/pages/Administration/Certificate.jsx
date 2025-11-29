@@ -201,10 +201,21 @@ function Certificate() {
         search: searchTerm,
       });
 
+      // Determine if MTOF mode (date range selected)
+      const isMTOFMode = startDate && endDate;
+      
       if (startDate) queryParams.append('startDate', startDate.toISOString());
       if (endDate) queryParams.append('endDate', endDate.toISOString());
 
-      const response = await fetch(`${API_BASE_URL}/api/franchise-information?${queryParams}`, {
+      // Use franchise-applications endpoint for MTOF (has applicationType field)
+      // Use franchise-information for regular certificate generation
+      const endpoint = isMTOFMode 
+        ? `${API_BASE_URL}/api/franchise-applications?${queryParams}`
+        : `${API_BASE_URL}/api/franchise-information?${queryParams}`;
+
+      console.log(`[Certificate] Loading from ${isMTOFMode ? 'applications' : 'information'} endpoint`);
+
+      const response = await fetch(endpoint, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -215,21 +226,25 @@ function Certificate() {
 
       const result = await response.json();
       const franchiseData = result.data || [];
-      const approvedFranchises = franchiseData.filter(f => 
-        f.franchiseStatus === 'Active' || f.isCurrentVersion === true
-      );
+      
+      // For MTOF mode, don't filter here - let backend or grouping handle it
+      // For regular mode, filter by active franchises
+      const filteredFranchises = isMTOFMode
+        ? franchiseData // Load all applications for MTOF
+        : franchiseData.filter(f => f.franchiseStatus === 'Active' || f.isCurrentVersion === true);
 
-      console.log('[Certificate] Loaded franchises:', approvedFranchises.length);
-      if (approvedFranchises.length > 0) {
+      console.log('[Certificate] Loaded franchises:', filteredFranchises.length);
+      if (filteredFranchises.length > 0) {
         console.log('[Certificate] Sample franchise data:', {
-          franchiseNumber: approvedFranchises[0].franchiseNumber,
-          resolutionNumber: approvedFranchises[0].resolutionNumber,
-          sbResolutionNumber: approvedFranchises[0].sbResolutionNumber,
-          hasResolution: !!approvedFranchises[0].resolutionNumber
+          operatorName: filteredFranchises[0].operatorName,
+          applicationType: filteredFranchises[0]?.applicationType,
+          statusOfBPLO: filteredFranchises[0]?.statusOfBPLO,
+          franchiseStatus: filteredFranchises[0]?.franchiseStatus,
+          createdAt: filteredFranchises[0].createdAt
         });
       }
-      setFranchises(approvedFranchises);
-      setTotalFranchises(approvedFranchises.length);
+      setFranchises(filteredFranchises);
+      setTotalFranchises(filteredFranchises.length);
     } catch (err) {
       console.error('[Certificate] Error:', err);
       setError('Failed to fetch franchises. Please try again.');
@@ -366,11 +381,17 @@ function Certificate() {
     setAnchorEl(null);
     
     if (certType === CERTIFICATE_TYPES.MTOF_DATE.id || certType === CERTIFICATE_TYPES.MTOF_SUMMARY.id) {
+      // Validate that date range is selected for MTOF reports
+      if (!startDate || !endDate) {
+        setError('Please select both Start Date and End Date to generate MTOF Summary Reports.');
+        setTimeout(() => setError(''), 5000);
+        return;
+      }
       prepareAndOpenCertModal(certType, filteredFranchises);
     } else {
       setOpenCertModal(true);
     }
-  }, [filteredFranchises, prepareAndOpenCertModal]);
+  }, [filteredFranchises, prepareAndOpenCertModal, startDate, endDate]);
 
   const handleGenerateCertificate = useCallback(async (franchise, certType) => {
     setSelectedFranchise(franchise);
@@ -426,8 +447,8 @@ function Certificate() {
           engineNumber: franchise.motorEngineNo,
           chasisNo: franchise.chasisNo,
           chassisNumber: franchise.chasisNo,
-          resolutionNumber: franchise.resolutionNumber,
-          sbResolutionNumber: franchise.resolutionNumber,
+          resolutionNumber: franchise.resolutionNumber || franchise.sbResolutionNumber,
+          sbResolutionNumber: franchise.resolutionNumber || franchise.sbResolutionNumber,
           sbApprovedAt: franchise.sbApprovedAt || franchise.approvedAt || franchise.createdAt,
           approvedAt: franchise.approvedAt,
           dateApproved: franchise.sbApprovedAt || franchise.approvedAt || franchise.createdAt,
@@ -443,7 +464,7 @@ function Certificate() {
         generatedDate: new Date().toISOString()
       };
 
-      const response = await fetch(`${API_BASE_URL}/api/reports/generate-certificate`, {
+      const response = await fetch(`${API_BASE_URL}/api/certificates/generate`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -476,8 +497,16 @@ function Certificate() {
       
       if (!certConfig) throw new Error('Invalid certificate type');
 
+      // Check if this is a MTOF report (no single franchise)
+      if (!certificateData.franchise) {
+        console.error('[Certificate] MTOF reports should use handleFinalGenerate');
+        setError('This certificate type requires a different download method');
+        setGenerating(false);
+        return;
+      }
+
       console.log('[Certificate] Generating certificate:', selectedCertType);
-      console.log('[Certificate] API URL:', `${API_BASE_URL}/api/reports/generate-certificate`);
+      console.log('[Certificate] API URL:', `${API_BASE_URL}/api/certificates/generate`);
 
       // Prepare franchise data for PDF filling with all necessary fields
       const payload = {
@@ -502,8 +531,8 @@ function Certificate() {
           chassisNumber: certificateData.franchise.chasisNo, // Alternate
           
           // Approval information
-          resolutionNumber: certificateData.franchise.resolutionNumber,
-          sbResolutionNumber: certificateData.franchise.resolutionNumber,
+          resolutionNumber: certificateData.franchise.resolutionNumber || certificateData.franchise.sbResolutionNumber,
+          sbResolutionNumber: certificateData.franchise.resolutionNumber || certificateData.franchise.sbResolutionNumber,
           sbApprovedAt: certificateData.franchise.sbApprovedAt || certificateData.franchise.approvedAt || certificateData.franchise.createdAt,
           approvedAt: certificateData.franchise.approvedAt,
           dateApproved: certificateData.franchise.sbApprovedAt || certificateData.franchise.approvedAt || certificateData.franchise.createdAt,
@@ -525,7 +554,7 @@ function Certificate() {
 
       console.log('[Certificate] Payload:', JSON.stringify(payload, null, 2));
 
-      const response = await fetch(`${API_BASE_URL}/api/reports/generate-certificate`, {
+      const response = await fetch(`${API_BASE_URL}/api/certificates/generate`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -599,21 +628,43 @@ function Certificate() {
 
       let payload;
       if (isWordDoc) {
-        // For MTOF summary reports with Word documents
-        payload = {
-          certificateType: selectedCertType,
-          franchiseData: {
-            franchiseNumber: 'MTOF-SUMMARY',
-            statistics: certificateData.stats || {},
-            summaryText: certificateData.summaryText,
-            franchises: certificateData.franchises || [],
-            municipalityName: certificateData.municipalityName,
-            generatedByRole: certificateData.generatedByRole
-          },
-          format: certConfig.fileType,
-          generatedBy: certificateData.generatedBy,
-          generatedDate: new Date().toISOString()
-        };
+        // For MTOF reports with Word documents
+        if (selectedCertType === CERTIFICATE_TYPES.MTOF_DATE.id) {
+          // MTOF DATE - Send grouped franchises data
+          payload = {
+            certificateType: selectedCertType,
+            franchiseData: {
+              franchiseNumber: 'MTOF-DATE-REPORT',
+              grouped: certificateData.grouped || {},
+              franchises: certificateData.franchises || [],
+              municipalityName: certificateData.municipalityName,
+              generatedByRole: certificateData.generatedByRole,
+              dateRange: {
+                start: startDate ? startDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : 'N/A',
+                end: endDate ? endDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : 'N/A'
+              }
+            },
+            format: certConfig.fileType,
+            generatedBy: certificateData.generatedBy,
+            generatedDate: new Date().toISOString()
+          };
+        } else {
+          // MTOF SUMMARY
+          payload = {
+            certificateType: selectedCertType,
+            franchiseData: {
+              franchiseNumber: 'MTOF-SUMMARY',
+              statistics: certificateData.stats || {},
+              summaryText: certificateData.summaryText,
+              franchises: certificateData.franchises || [],
+              municipalityName: certificateData.municipalityName,
+              generatedByRole: certificateData.generatedByRole
+            },
+            format: certConfig.fileType,
+            generatedBy: certificateData.generatedBy,
+            generatedDate: new Date().toISOString()
+          };
+        }
       } else {
         // For single franchise PDF certificates
         payload = {
@@ -622,12 +673,26 @@ function Certificate() {
             franchiseNumber: certificateData.franchise?.franchiseNumber,
             operatorName: certificateData.franchise?.operatorName,
             operatorAddress: certificateData.franchise?.operatorAddress,
+            operatorBarangay: certificateData.franchise?.operatorBarangay,
+            barangay: certificateData.franchise?.operatorBarangay || extractBarangay(certificateData.franchise?.operatorAddress),
             mvPlateNo: certificateData.franchise?.mvPlateNo,
             unitModel: certificateData.franchise?.unitModel,
-            sbResolutionNumber: certificateData.franchise?.sbResolutionNumber,
-            dateApproved: certificateData.franchise?.sbApprovedAt || certificateData.franchise?.createdAt,
+            makeModel: certificateData.franchise?.makeModel || certificateData.franchise?.unitModel,
+            motorEngineNo: certificateData.franchise?.motorEngineNo,
+            engineNumber: certificateData.franchise?.motorEngineNo,
+            chasisNo: certificateData.franchise?.chasisNo,
+            chassisNumber: certificateData.franchise?.chasisNo,
+            resolutionNumber: certificateData.franchise?.resolutionNumber || certificateData.franchise?.sbResolutionNumber,
+            sbResolutionNumber: certificateData.franchise?.resolutionNumber || certificateData.franchise?.sbResolutionNumber,
+            sbApprovedAt: certificateData.franchise?.sbApprovedAt || certificateData.franchise?.approvedAt || certificateData.franchise?.createdAt,
+            approvedAt: certificateData.franchise?.approvedAt,
+            dateApproved: certificateData.franchise?.sbApprovedAt || certificateData.franchise?.approvedAt || certificateData.franchise?.createdAt,
+            officialReceiptNumber: certificateData.franchise?.officialReceiptNumber || '',
+            officialReceipNumber: certificateData.franchise?.officialReceiptNumber || '',
+            generatedBy: certificateData.generatedBy || user?.name,
+            generatedByRole: certificateData.generatedByRole || formatUserRole(user?.role),
             municipalityName: certificateData.municipalityName,
-            generatedByRole: certificateData.generatedByRole
+            dateGenerated: new Date().toISOString()
           },
           format: certConfig.fileType,
           generatedBy: certificateData.generatedBy,
@@ -635,7 +700,7 @@ function Certificate() {
         };
       }
 
-      const response = await fetch(`${API_BASE_URL}/api/reports/generate-certificate`, {
+      const response = await fetch(`${API_BASE_URL}/api/certificates/generate`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -791,7 +856,7 @@ function Certificate() {
               onClose={handleCertMenuClose}
               PaperProps={{
                 elevation: 8,
-                sx: { mt: 1, minWidth: '360px', borderRadius: '12px', overflow: 'hidden' }
+                sx: { mt: 1, minWidth: '420px', borderRadius: '12px', overflow: 'hidden' }
               }}
               TransitionComponent={Fade}
             >
@@ -815,17 +880,30 @@ function Certificate() {
                       borderBottom: '1px solid #f5f5f5'
                     }}
                   >
-                    <Box sx={{ display: 'flex', alignItems: 'flex-start', width: '100%' }}>
-                      <Icon sx={{ mr: 2, color: cert.color, fontSize: 28 }} />
-                      <Box sx={{ flex: 1 }}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', width: '100%', gap: 2 }}>
+                      <Box 
+                        sx={{ 
+                          width: 48, 
+                          height: 48, 
+                          borderRadius: '8px', 
+                          bgcolor: `${cert.color}15`, 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          justifyContent: 'center',
+                          flexShrink: 0
+                        }}
+                      >
+                        <Icon sx={{ color: cert.color, fontSize: 24 }} />
+                      </Box>
+                      <Box sx={{ flex: 1, minWidth: 0 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
                           <Typography variant="body2" sx={{ fontWeight: 600, color: '#333' }}>
                             {cert.name}
                           </Typography>
                           <Chip 
                             label={cert.fileType.toUpperCase()} 
                             size="small" 
-                            sx={{ ml: 1, height: 20, fontSize: '0.65rem', bgcolor: cert.color, color: 'white', fontWeight: 600 }}
+                            sx={{ height: 20, fontSize: '0.65rem', bgcolor: cert.color, color: 'white', fontWeight: 600 }}
                           />
                         </Box>
                         <Typography variant="caption" sx={{ color: '#666', display: 'block' }}>
@@ -891,7 +969,7 @@ function Certificate() {
                           <TableCell className="admin-table-cell col-name">{franchise.operatorName}</TableCell>
                           <TableCell className="admin-table-cell col-contact">{franchise.mvPlateNo}</TableCell>
                           <TableCell className="admin-table-cell col-date">{formatDate(franchise.sbApprovedAt || franchise.createdAt)}</TableCell>
-                          <TableCell className="admin-table-cell col-contact">{franchise.resolutionNumber || 'N/A'}</TableCell>
+                          <TableCell className="admin-table-cell col-contact">{franchise.resolutionNumber || franchise.sbResolutionNumber || 'N/A'}</TableCell>
                           <TableCell className="admin-table-cell col-actions">
                             <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'center' }}>
                               <Tooltip title="View Details">
@@ -972,7 +1050,7 @@ function Certificate() {
                     </Grid>
                     <Grid item xs={12} md={6}>
                       <Typography variant="caption" sx={{ color: '#666', fontWeight: 600, textTransform: 'uppercase', fontSize: '0.7rem' }}>Resolution Number</Typography>
-                      <Typography variant="body1" sx={{ mt: 0.5 }}>{selectedFranchise.resolutionNumber || 'N/A'}</Typography>
+                      <Typography variant="body1" sx={{ mt: 0.5 }}>{selectedFranchise.resolutionNumber || selectedFranchise.sbResolutionNumber || 'N/A'}</Typography>
                     </Grid>
                     <Grid item xs={12}>
                       <Typography variant="caption" sx={{ color: '#666', fontWeight: 600, textTransform: 'uppercase', fontSize: '0.7rem' }}>Operator Name</Typography>
@@ -1019,134 +1097,74 @@ function Certificate() {
               </Box>
               <Box sx={{ p: 3, overflowY: 'auto', flex: 1 }}>
                 {selectedFranchise && (
-                  <Alert severity="info" sx={{ mb: 3, borderRadius: '12px' }}>
-                    <Typography variant="body2" sx={{ fontWeight: 600 }}>Selected Franchise: {selectedFranchise.franchiseNumber}</Typography>
-                    <Typography variant="caption">{selectedFranchise.operatorName} - {selectedFranchise.mvPlateNo}</Typography>
+                  <Alert severity="info" sx={{ mb: 3, borderRadius: '8px', border: '1px solid #0288d1', bgcolor: '#e3f2fd' }}>
+                    <Typography variant="body2" sx={{ fontWeight: 600, color: '#01579b' }}>Selected Franchise: {selectedFranchise.franchiseNumber}</Typography>
+                    <Typography variant="caption" sx={{ color: '#0277bd' }}>{selectedFranchise.operatorName} - {selectedFranchise.mvPlateNo}</Typography>
                   </Alert>
                 )}
-                <Grid container spacing={3}>
+                <Grid container spacing={2}>
                   {Object.values(CERTIFICATE_TYPES).filter(cert => 
                     cert.id !== CERTIFICATE_TYPES.MTOF_DATE.id && cert.id !== CERTIFICATE_TYPES.MTOF_SUMMARY.id
                   ).map((cert) => {
                     const Icon = cert.icon;
                     return (
-                      <Grid item xs={12} sm={6} md={4} key={cert.id}>
-                        <Card
-                          className="cert-type-card"
-                          elevation={0}
+                      <Grid item xs={12} key={cert.id}>
+                        <Box
                           sx={{
                             cursor: 'pointer',
-                            transition: 'all 0.3s',
+                            transition: 'all 0.2s',
                             border: '2px solid #e0e0e0',
-                            borderRadius: '12px',
-                            height: '300px',
+                            borderRadius: '8px',
+                            p: 2.5,
                             display: 'flex',
-                            flexDirection: 'column',
+                            alignItems: 'center',
+                            gap: 2.5,
                             '&:hover': { 
-                              borderColor: cert.color, 
-                              transform: 'translateY(-4px)', 
-                              boxShadow: `0 8px 20px ${cert.color}25` 
+                              bgcolor: '#f5f5f5',
+                              borderColor: cert.color,
+                              boxShadow: 1
                             }
                           }}
                           onClick={() => handleGenerateCertificate(selectedFranchise, cert.id)}
                         >
-                          <CardContent sx={{ 
-                            p: 3, 
-                            textAlign: 'center', 
-                            display: 'flex', 
-                            flexDirection: 'column', 
-                            justifyContent: 'space-between',
-                            flex: 1,
-                            '&:last-child': { pb: 3 }
-                          }}>
-                            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
-                              <Box 
-                                sx={{ 
-                                  width: 70, 
-                                  height: 70, 
-                                  borderRadius: '12px', 
-                                  bgcolor: `${cert.color}15`, 
-                                  display: 'flex', 
-                                  alignItems: 'center', 
-                                  justifyContent: 'center'
-                                }}
-                              >
-                                <Icon sx={{ fontSize: 36, color: cert.color }} />
-                              </Box>
-                              <Chip 
-                                label={cert.code} 
-                                size="small" 
-                                sx={{ 
-                                  bgcolor: cert.color, 
-                                  color: 'white', 
-                                  fontWeight: 700, 
-                                  height: 24,
-                                  fontSize: '0.75rem',
-                                  px: 1
-                                }} 
-                              />
-                            </Box>
-                            
-                            <Box sx={{ py: 2, flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                              <Typography 
-                                variant="subtitle1" 
-                                sx={{ 
-                                  fontWeight: 700, 
-                                  color: '#0A356B', 
-                                  fontSize: '1rem',
-                                  mb: 1,
-                                  minHeight: '48px',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  lineHeight: 1.3
-                                }}
-                              >
+                          <Box 
+                            sx={{ 
+                              width: 60, 
+                              height: 60, 
+                              borderRadius: '8px', 
+                              bgcolor: `${cert.color}15`, 
+                              display: 'flex', 
+                              alignItems: 'center', 
+                              justifyContent: 'center',
+                              flexShrink: 0
+                            }}
+                          >
+                            <Icon sx={{ fontSize: 32, color: cert.color }} />
+                          </Box>
+                          <Box sx={{ flex: 1 }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 0.5 }}>
+                              <Typography variant="h6" sx={{ fontWeight: 700, color: '#0A356B' }}>
                                 {cert.name}
                               </Typography>
-                              <Typography 
-                                variant="caption" 
-                                color="text.secondary" 
-                                sx={{ 
-                                  fontSize: '0.8rem', 
-                                  lineHeight: 1.5,
-                                  minHeight: '48px',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  px: 1
-                                }}
-                              >
-                                {cert.description}
-                              </Typography>
+                              <Chip 
+                                label={cert.code} 
+                                size="small"
+                                sx={{ bgcolor: cert.color, color: 'white', fontWeight: 700, height: 22, fontSize: '0.75rem' }} 
+                              />
                             </Box>
-                            
-                            <Box 
-                              sx={{ 
-                                display: 'flex', 
-                                alignItems: 'center', 
-                                justifyContent: 'center', 
-                                gap: 0.75,
-                                pt: 2,
-                                borderTop: '1px solid #f0f0f0'
-                              }}
-                            >
-                              <PictureAsPdfIcon sx={{ fontSize: 16, color: '#666' }} />
-                              <Typography 
-                                variant="caption" 
-                                sx={{ 
-                                  fontWeight: 600, 
-                                  color: '#666', 
-                                  textTransform: 'uppercase', 
-                                  fontSize: '0.75rem',
-                                  letterSpacing: 0.5
-                                }}
-                              >
-                                {cert.fileType}
-                              </Typography>
-                            </Box>
-                          </CardContent>
-                        </Card>
+                            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                              {cert.description}
+                            </Typography>
+                          </Box>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0 }}>
+                            <Chip 
+                              label={cert.fileType.toUpperCase()} 
+                              size="small"
+                              icon={<PictureAsPdfIcon />}
+                              sx={{ fontWeight: 600, fontSize: '0.75rem' }}
+                            />
+                          </Box>
+                        </Box>
                       </Grid>
                     );
                   })}
@@ -1194,6 +1212,205 @@ function Certificate() {
                 }} sx={{ color: '#666' }}><CloseIcon /></IconButton>
               </Box>
               <Box sx={{ p: 3, overflowY: 'auto', flex: 1, display: 'flex', gap: 3 }}>
+                {/* MTOF Reports Preview (DATE and SUMMARY) */}
+                {certificateData && !certificateData.franchise && (certificateData.grouped || certificateData.stats) && (
+                  <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 3 }}>
+                    {/* Header Info */}
+                    <Paper elevation={0} sx={{ p: 3, border: `2px solid ${certificateData.certificateType.color}`, borderRadius: '12px' }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+                        <Box 
+                          sx={{ 
+                            width: 60, 
+                            height: 60, 
+                            borderRadius: '12px', 
+                            bgcolor: `${certificateData.certificateType.color}15`, 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            justifyContent: 'center'
+                          }}
+                        >
+                          {React.createElement(certificateData.certificateType.icon, { 
+                            sx: { fontSize: 32, color: certificateData.certificateType.color } 
+                          })}
+                        </Box>
+                        <Box sx={{ flex: 1 }}>
+                          <Typography variant="h6" sx={{ fontWeight: 700, color: '#0A356B', mb: 0.5 }}>
+                            {certificateData.certificateType.name}
+                          </Typography>
+                          <Chip 
+                            label={certificateData.certificateType.code} 
+                            size="small"
+                            sx={{ bgcolor: certificateData.certificateType.color, color: 'white', fontWeight: 700, height: 22 }} 
+                          />
+                        </Box>
+                      </Box>
+                      <Divider sx={{ my: 2 }} />
+                      <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
+                        <Box>
+                          <Typography variant="caption" sx={{ color: '#666', fontWeight: 600, textTransform: 'uppercase', fontSize: '0.65rem' }}>Generated By</Typography>
+                          <Typography variant="body2" sx={{ fontWeight: 600 }}>{certificateData.generatedBy}</Typography>
+                        </Box>
+                        <Box>
+                          <Typography variant="caption" sx={{ color: '#666', fontWeight: 600, textTransform: 'uppercase', fontSize: '0.65rem' }}>Role</Typography>
+                          <Typography variant="body2" sx={{ fontWeight: 600 }}>{certificateData.generatedByRole}</Typography>
+                        </Box>
+                        <Box>
+                          <Typography variant="caption" sx={{ color: '#666', fontWeight: 600, textTransform: 'uppercase', fontSize: '0.65rem' }}>Date Generated</Typography>
+                          <Typography variant="body2">{certificateData.dateGenerated}</Typography>
+                        </Box>
+                        <Box>
+                          <Typography variant="caption" sx={{ color: '#666', fontWeight: 600, textTransform: 'uppercase', fontSize: '0.65rem' }}>Total Records</Typography>
+                          <Typography variant="body2" sx={{ fontWeight: 700, color: certificateData.certificateType.color }}>
+                            {certificateData.franchises?.length || 0}
+                          </Typography>
+                        </Box>
+                      </Box>
+                    </Paper>
+
+                    {/* MTOF DATE - Grouped Franchises Table */}
+                    {certificateData.grouped && (
+                      <Paper elevation={0} sx={{ p: 3, border: '1px solid #e0e0e0', borderRadius: '12px' }}>
+                        <Typography variant="h6" sx={{ fontWeight: 700, color: '#0A356B', mb: 2 }}>
+                          Franchise Applications by Type
+                        </Typography>
+                        
+                        {/* NEW Applications */}
+                        {certificateData.grouped.new && certificateData.grouped.new.length > 0 && (
+                          <Box sx={{ mb: 3 }}>
+                            <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#2e7d32', mb: 1, bgcolor: '#e8f5e9', p: 1, borderRadius: '4px' }}>
+                              NEW ({certificateData.grouped.new.length})
+                            </Typography>
+                            <TableContainer>
+                              <Table size="small" sx={{ '& td, & th': { borderColor: '#e0e0e0' } }}>
+                                <TableHead>
+                                  <TableRow sx={{ bgcolor: '#f5f5f5' }}>
+                                    <TableCell sx={{ fontWeight: 700, width: '50px' }}>No.</TableCell>
+                                    <TableCell sx={{ fontWeight: 700 }}>Name</TableCell>
+                                    <TableCell sx={{ fontWeight: 700 }}>Franchise No.</TableCell>
+                                    <TableCell sx={{ fontWeight: 700 }}>Address</TableCell>
+                                  </TableRow>
+                                </TableHead>
+                                <TableBody>
+                                  {certificateData.grouped.new.map((franchise, index) => (
+                                    <TableRow key={franchise.id || index}>
+                                      <TableCell>{index + 1}</TableCell>
+                                      <TableCell sx={{ fontWeight: 600 }}>{franchise.operatorName || 'N/A'}</TableCell>
+                                      <TableCell>{franchise.franchiseNumber || 'N/A'}</TableCell>
+                                      <TableCell>{extractBarangay(franchise.operatorAddress) || franchise.operatorAddress || 'N/A'}</TableCell>
+                                    </TableRow>
+                                  ))}
+                                </TableBody>
+                              </Table>
+                            </TableContainer>
+                          </Box>
+                        )}
+
+                        {/* RENEWAL Applications */}
+                        {certificateData.grouped.renewal && certificateData.grouped.renewal.length > 0 && (
+                          <Box sx={{ mb: 3 }}>
+                            <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#1976d2', mb: 1, bgcolor: '#e3f2fd', p: 1, borderRadius: '4px' }}>
+                              RENEW ({certificateData.grouped.renewal.length})
+                            </Typography>
+                            <TableContainer>
+                              <Table size="small" sx={{ '& td, & th': { borderColor: '#e0e0e0' } }}>
+                                <TableHead>
+                                  <TableRow sx={{ bgcolor: '#f5f5f5' }}>
+                                    <TableCell sx={{ fontWeight: 700, width: '50px' }}>No.</TableCell>
+                                    <TableCell sx={{ fontWeight: 700 }}>Name</TableCell>
+                                    <TableCell sx={{ fontWeight: 700 }}>Franchise No.</TableCell>
+                                    <TableCell sx={{ fontWeight: 700 }}>Address</TableCell>
+                                  </TableRow>
+                                </TableHead>
+                                <TableBody>
+                                  {certificateData.grouped.renewal.map((franchise, index) => (
+                                    <TableRow key={franchise.id || index}>
+                                      <TableCell>{index + 1}</TableCell>
+                                      <TableCell sx={{ fontWeight: 600 }}>{franchise.operatorName || 'N/A'}</TableCell>
+                                      <TableCell>{franchise.franchiseNumber || 'N/A'}</TableCell>
+                                      <TableCell>{extractBarangay(franchise.operatorAddress) || franchise.operatorAddress || 'N/A'}</TableCell>
+                                    </TableRow>
+                                  ))}
+                                </TableBody>
+                              </Table>
+                            </TableContainer>
+                          </Box>
+                        )}
+
+                        {/* AMENDMENT/CHANGE MOTOR Applications */}
+                        {certificateData.grouped.amendment && certificateData.grouped.amendment.length > 0 && (
+                          <Box sx={{ mb: 3 }}>
+                            <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#ed6c02', mb: 1, bgcolor: '#fff3e0', p: 1, borderRadius: '4px' }}>
+                              CHANGE MOTOR ({certificateData.grouped.amendment.length})
+                            </Typography>
+                            <TableContainer>
+                              <Table size="small" sx={{ '& td, & th': { borderColor: '#e0e0e0' } }}>
+                                <TableHead>
+                                  <TableRow sx={{ bgcolor: '#f5f5f5' }}>
+                                    <TableCell sx={{ fontWeight: 700, width: '50px' }}>No.</TableCell>
+                                    <TableCell sx={{ fontWeight: 700 }}>Name</TableCell>
+                                    <TableCell sx={{ fontWeight: 700 }}>Franchise No.</TableCell>
+                                    <TableCell sx={{ fontWeight: 700 }}>Address</TableCell>
+                                  </TableRow>
+                                </TableHead>
+                                <TableBody>
+                                  {certificateData.grouped.amendment.map((franchise, index) => (
+                                    <TableRow key={franchise.id || index}>
+                                      <TableCell>{index + 1}</TableCell>
+                                      <TableCell sx={{ fontWeight: 600 }}>{franchise.operatorName || 'N/A'}</TableCell>
+                                      <TableCell>{franchise.franchiseNumber || 'N/A'}</TableCell>
+                                      <TableCell>{extractBarangay(franchise.operatorAddress) || franchise.operatorAddress || 'N/A'}</TableCell>
+                                    </TableRow>
+                                  ))}
+                                </TableBody>
+                              </Table>
+                            </TableContainer>
+                          </Box>
+                        )}
+                      </Paper>
+                    )}
+
+                    {/* MTOF SUMMARY - Statistics */}
+                    {certificateData.stats && (
+                      <Paper elevation={0} sx={{ p: 3, border: '1px solid #e0e0e0', borderRadius: '12px' }}>
+                        <Typography variant="h6" sx={{ fontWeight: 700, color: '#0A356B', mb: 2 }}>
+                          Summary Statistics
+                        </Typography>
+                        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 2 }}>
+                          <Box sx={{ p: 2, bgcolor: '#e8f5e9', borderRadius: '8px' }}>
+                            <Typography variant="caption" sx={{ color: '#666' }}>New Applications</Typography>
+                            <Typography variant="h4" sx={{ fontWeight: 700, color: '#2e7d32' }}>{certificateData.stats.newCount || 0}</Typography>
+                          </Box>
+                          <Box sx={{ p: 2, bgcolor: '#e3f2fd', borderRadius: '8px' }}>
+                            <Typography variant="caption" sx={{ color: '#666' }}>Renewals</Typography>
+                            <Typography variant="h4" sx={{ fontWeight: 700, color: '#1976d2' }}>{certificateData.stats.renewalCount || 0}</Typography>
+                          </Box>
+                          <Box sx={{ p: 2, bgcolor: '#fff3e0', borderRadius: '8px' }}>
+                            <Typography variant="caption" sx={{ color: '#666' }}>Provisional</Typography>
+                            <Typography variant="h4" sx={{ fontWeight: 700, color: '#ed6c02' }}>{certificateData.stats.provisionalCount || 0}</Typography>
+                          </Box>
+                          <Box sx={{ p: 2, bgcolor: '#f3e5f5', borderRadius: '8px' }}>
+                            <Typography variant="caption" sx={{ color: '#666' }}>Total</Typography>
+                            <Typography variant="h4" sx={{ fontWeight: 700, color: '#9c27b0' }}>{certificateData.stats.totalCount || 0}</Typography>
+                          </Box>
+                        </Box>
+                        {certificateData.summaryText && (
+                          <Box sx={{ mt: 3, p: 2, bgcolor: '#f5f5f5', borderRadius: '8px' }}>
+                            <Typography variant="body2" sx={{ lineHeight: 1.8 }}>{certificateData.summaryText}</Typography>
+                          </Box>
+                        )}
+                      </Paper>
+                    )}
+
+                    <Alert severity="info" sx={{ borderRadius: '12px' }}>
+                      <Typography variant="caption" sx={{ fontWeight: 600, display: 'block', mb: 0.5 }}>📄 Word Document</Typography>
+                      <Typography variant="caption" sx={{ fontSize: '0.7rem' }}>
+                        This report will be generated as a Word document (.docx). Click "Download DOCX" to generate and save the file.
+                      </Typography>
+                    </Alert>
+                  </Box>
+                )}
+
+                {/* Single Franchise Certificate Preview */}
                 {certificateData && certificateData.franchise && (
                   <>
                     {/* Left Side: Certificate Info */}
@@ -1324,7 +1541,7 @@ function Certificate() {
                   <Button 
                     variant="contained" 
                     startIcon={generating ? <CircularProgress size={20} color="inherit" /> : <DownloadIcon />} 
-                    onClick={handleDownloadCertificate} 
+                    onClick={certificateData?.certificateType?.fileType === 'docx' ? handleFinalGenerate : handleDownloadCertificate} 
                     disabled={generating} 
                     sx={{ bgcolor: '#2e7d32', '&:hover': { bgcolor: '#1b5e20' }, textTransform: 'none', fontWeight: 600 }}
                   >

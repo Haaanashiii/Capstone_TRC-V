@@ -1239,6 +1239,8 @@ exports.sbAdminAcceptNewFranchise = async (req, res, next) => {
       approvedAt: new Date(),
       expiryDate: new Date(Date.now() + 3 * 365 * 24 * 60 * 60 * 1000), // 3 years
       resolutionNumber: application.sbResolutionNumber, // Copy resolution number from application
+      sbApprovedAt: application.sbApprovedAt || new Date(), // Copy SB approval date
+      officialReceiptNumber: application.officialReceiptNumber, // Copy official receipt number
       franchiseStatus: 'Active',
       documents: {
         motorRegistrationObj: urlMapping[application.documents?.motorRegistrationObj] || application.documents?.motorRegistrationObj,
@@ -1452,6 +1454,8 @@ exports.sbAdminAcceptRenewOrAmendment = async (req, res, next) => {
       approvedAt: new Date(),
       expiryDate: new Date(Date.now() + 3 * 365 * 24 * 60 * 60 * 1000),
       resolutionNumber: application.sbResolutionNumber || existingFranchise.resolutionNumber, // Copy resolution number from application or keep existing
+      sbApprovedAt: application.sbApprovedAt || new Date(), // Copy SB approval date
+      officialReceiptNumber: application.officialReceiptNumber || existingFranchise.officialReceiptNumber, // Copy official receipt number
       // Update documents from the application (users upload fresh documents for renewal/amendments)
       documents: {
         motorRegistrationObj: application.documents?.motorRegistrationObj || existingFranchise.documents?.motorRegistrationObj,

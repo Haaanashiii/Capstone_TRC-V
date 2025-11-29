@@ -94,7 +94,7 @@ const modalStyle = {
 };
 
 // FranchiseeDetailsModal Component
-const FranchiseeDetailsModal = ({ open, onClose, franchisee, isEditing, onEdit, onSave, onFilePreview, getFileIcon, qrBlobUrl }) => {
+const FranchiseeDetailsModal = ({ open, onClose, franchisee, isEditing, onEdit, onSave, onFilePreview, getFileIcon, getDocumentDisplayName, qrBlobUrl }) => {
   if (!franchisee) return null;
 
   return (
@@ -230,6 +230,17 @@ const FranchiseeDetailsModal = ({ open, onClose, franchisee, isEditing, onEdit, 
             </div>
             
             <Typography variant="h6" className="section-header">
+              FRANCHISE INFORMATION
+            </Typography>
+            
+            <div className="info-grid">
+              <Typography variant="subtitle2" className="label">OR Number:</Typography>
+              <Typography sx={{ fontWeight: 'bold', color: franchisee.orNumber ? 'success.main' : 'text.secondary' }}>
+                {franchisee.orNumber || 'N/A'}
+              </Typography>
+            </div>
+            
+            <Typography variant="h6" className="section-header">
               MOTORCYCLE INFORMATION
             </Typography>
             
@@ -304,64 +315,104 @@ const FranchiseeDetailsModal = ({ open, onClose, franchisee, isEditing, onEdit, 
             
             <div className="info-grid">
               <Typography variant="subtitle2" className="label">Registration:</Typography>
-              <Link className="document-link" onClick={() => onFilePreview(franchisee.documentRegistration)}>
-                {getFileIcon(franchisee.documentRegistration?.type)}
-                <span>{franchisee.documentRegistration?.name || 'No file'}</span>
-              </Link>
+              {franchisee.documentRegistration ? (
+                <Link className="document-link" onClick={() => onFilePreview(franchisee.documentRegistration)}>
+                  {getFileIcon(franchisee.documentRegistration?.type)}
+                  <span>{getDocumentDisplayName(franchisee.documentRegistration)}</span>
+                </Link>
+              ) : (
+                <Typography sx={{ color: 'text.secondary', fontStyle: 'italic' }}>Not uploaded</Typography>
+              )}
               
               <Typography variant="subtitle2" className="label">Barangay Clearance:</Typography>
-              <Link className="document-link" onClick={() => onFilePreview(franchisee.documentBarangayClearance)}>
-                {getFileIcon(franchisee.documentBarangayClearance?.type)}
-                <span>{franchisee.documentBarangayClearance?.name || 'No file'}</span>
-              </Link>
+              {franchisee.documentBarangayClearance ? (
+                <Link className="document-link" onClick={() => onFilePreview(franchisee.documentBarangayClearance)}>
+                  {getFileIcon(franchisee.documentBarangayClearance?.type)}
+                  <span>{getDocumentDisplayName(franchisee.documentBarangayClearance)}</span>
+                </Link>
+              ) : (
+                <Typography sx={{ color: 'text.secondary', fontStyle: 'italic' }}>Not uploaded</Typography>
+              )}
               
               <Typography variant="subtitle2" className="label">Cedula:</Typography>
-              <Link className="document-link" onClick={() => onFilePreview(franchisee.documentCedula)}>
-                {getFileIcon(franchisee.documentCedula?.type)}
-                <span>{franchisee.documentCedula?.name || 'No file'}</span>
-              </Link>
+              {franchisee.documentCedula ? (
+                <Link className="document-link" onClick={() => onFilePreview(franchisee.documentCedula)}>
+                  {getFileIcon(franchisee.documentCedula?.type)}
+                  <span>{getDocumentDisplayName(franchisee.documentCedula)}</span>
+                </Link>
+              ) : (
+                <Typography sx={{ color: 'text.secondary', fontStyle: 'italic' }}>Not uploaded</Typography>
+              )}
               
               <Typography variant="subtitle2" className="label">Driver's License:</Typography>
-              <Link className="document-link" onClick={() => onFilePreview(franchisee.documentDriversLicense)}>
-                {getFileIcon(franchisee.documentDriversLicense?.type)}
-                <span>{franchisee.documentDriversLicense?.name || 'No file'}</span>
-              </Link>
+              {franchisee.documentDriversLicense ? (
+                <Link className="document-link" onClick={() => onFilePreview(franchisee.documentDriversLicense)}>
+                  {getFileIcon(franchisee.documentDriversLicense?.type)}
+                  <span>{getDocumentDisplayName(franchisee.documentDriversLicense)}</span>
+                </Link>
+              ) : (
+                <Typography sx={{ color: 'text.secondary', fontStyle: 'italic' }}>Not uploaded</Typography>
+              )}
               
               <Typography variant="subtitle2" className="label">Voter's Affidavit:</Typography>
-              <Link className="document-link" onClick={() => onFilePreview(franchisee.documentVotersAffidavit)}>
-                {getFileIcon(franchisee.documentVotersAffidavit?.type)}
-                <span>{franchisee.documentVotersAffidavit?.name || 'No file'}</span>
-              </Link>
+              {franchisee.documentVotersAffidavit ? (
+                <Link className="document-link" onClick={() => onFilePreview(franchisee.documentVotersAffidavit)}>
+                  {getFileIcon(franchisee.documentVotersAffidavit?.type)}
+                  <span>{getDocumentDisplayName(franchisee.documentVotersAffidavit)}</span>
+                </Link>
+              ) : (
+                <Typography sx={{ color: 'text.secondary', fontStyle: 'italic' }}>Not uploaded</Typography>
+              )}
               
               <Typography variant="subtitle2" className="label">Chassis Stencil:</Typography>
-              <Link className="document-link" onClick={() => onFilePreview(franchisee.documentChassisStencil)}>
-                {getFileIcon(franchisee.documentChassisStencil?.type)}
-                <span>{franchisee.documentChassisStencil?.name || 'No file'}</span>
-              </Link>
+              {franchisee.documentChassisStencil ? (
+                <Link className="document-link" onClick={() => onFilePreview(franchisee.documentChassisStencil)}>
+                  {getFileIcon(franchisee.documentChassisStencil?.type)}
+                  <span>{getDocumentDisplayName(franchisee.documentChassisStencil)}</span>
+                </Link>
+              ) : (
+                <Typography sx={{ color: 'text.secondary', fontStyle: 'italic' }}>Not uploaded</Typography>
+              )}
               
               <Typography variant="subtitle2" className="label">Driver Picture:</Typography>
-              <Link className="document-link" onClick={() => onFilePreview(franchisee.documentPicture)}>
-                {getFileIcon(franchisee.documentPicture?.type)}
-                <span>{franchisee.documentPicture?.name || 'No file'}</span>
-              </Link>
+              {franchisee.documentPicture ? (
+                <Link className="document-link" onClick={() => onFilePreview(franchisee.documentPicture)}>
+                  {getFileIcon(franchisee.documentPicture?.type)}
+                  <span>{getDocumentDisplayName(franchisee.documentPicture)}</span>
+                </Link>
+              ) : (
+                <Typography sx={{ color: 'text.secondary', fontStyle: 'italic' }}>Not uploaded</Typography>
+              )}
               
               <Typography variant="subtitle2" className="label">OR LTO:</Typography>
-              <Link className="document-link" onClick={() => onFilePreview(franchisee.documentORLTO)}>
-                {getFileIcon(franchisee.documentORLTO?.type)}
-                <span>{franchisee.documentORLTO?.name || 'No file'}</span>
-              </Link>
+              {franchisee.documentORLTO ? (
+                <Link className="document-link" onClick={() => onFilePreview(franchisee.documentORLTO)}>
+                  {getFileIcon(franchisee.documentORLTO?.type)}
+                  <span>{getDocumentDisplayName(franchisee.documentORLTO)}</span>
+                </Link>
+              ) : (
+                <Typography sx={{ color: 'text.secondary', fontStyle: 'italic' }}>Not uploaded</Typography>
+              )}
               
               <Typography variant="subtitle2" className="label">CR LTO:</Typography>
-              <Link className="document-link" onClick={() => onFilePreview(franchisee.documentCRLTO)}>
-                {getFileIcon(franchisee.documentCRLTO?.type)}
-                <span>{franchisee.documentCRLTO?.name || 'No file'}</span>
-              </Link>
+              {franchisee.documentCRLTO ? (
+                <Link className="document-link" onClick={() => onFilePreview(franchisee.documentCRLTO)}>
+                  {getFileIcon(franchisee.documentCRLTO?.type)}
+                  <span>{getDocumentDisplayName(franchisee.documentCRLTO)}</span>
+                </Link>
+              ) : (
+                <Typography sx={{ color: 'text.secondary', fontStyle: 'italic' }}>Not uploaded</Typography>
+              )}
               
               <Typography variant="subtitle2" className="label">OR Treasurer:</Typography>
-              <Link className="document-link" onClick={() => onFilePreview(franchisee.documentTreasurerOR)}>
-                {getFileIcon(franchisee.documentTreasurerOR?.type)}
-                <span>{franchisee.documentTreasurerOR?.name || 'No file'}</span>
-              </Link>
+              {franchisee.documentTreasurerOR ? (
+                <Link className="document-link" onClick={() => onFilePreview(franchisee.documentTreasurerOR)}>
+                  {getFileIcon(franchisee.documentTreasurerOR?.type)}
+                  <span>{getDocumentDisplayName(franchisee.documentTreasurerOR)}</span>
+                </Link>
+              ) : (
+                <Typography sx={{ color: 'text.secondary', fontStyle: 'italic' }}>Not uploaded</Typography>
+              )}
             </div>
           </div>
         </Box>
@@ -388,6 +439,42 @@ function FranchiseeList() {
   const [qrBlobUrl, setQrBlobUrl] = useState(null);
   const [selectedBarangay, setSelectedBarangay] = useState('all');
   const [exportMenuAnchor, setExportMenuAnchor] = useState(null);
+
+  // Helper function to get document display name with proper status
+  const getDocumentDisplayName = (document) => {
+    if (!document) return 'Not uploaded';
+    
+    let fileName = '';
+    
+    // Extract filename from document
+    if (typeof document === 'string') {
+      fileName = document.split('/').pop();
+    } else if (document.name) {
+      fileName = document.name;
+    } else if (document.path) {
+      fileName = document.path.split('/').pop();
+    }
+    
+    if (!fileName) return 'Available';
+    
+    // Clean and format the filename
+    // Remove timestamps, UUIDs, and other technical prefixes
+    fileName = fileName
+      .replace(/^\d+[-_]/, '') // Remove leading numbers with dash/underscore
+      .replace(/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}[-_]/i, '') // Remove UUIDs
+      .replace(/[-_]\d{13,}[-_]/, '-') // Remove timestamps (13+ digits)
+      .replace(/[-_]+/g, ' ') // Replace dashes and underscores with spaces
+      .replace(/\s+/g, ' ') // Normalize multiple spaces
+      .trim();
+    
+    // Capitalize first letter of each word for professional appearance
+    fileName = fileName
+      .split(' ')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join(' ');
+    
+    return fileName;
+  };
 
   // Helper function to determine file type from URL extension
   const getFileTypeFromUrl = (url) => {
@@ -459,6 +546,7 @@ function FranchiseeList() {
           expiryDate: app.expiryDate ? new Date(app.expiryDate).toLocaleDateString() : '',
           resolutionNumber: app.resolutionNumber || app.sbResolutionNumber || '',
           resolutionDocument: app.resolutionDocument || app.sbResolutionDocument || null,
+          orNumber: app.orNumber || '',
           qrCode: app.qrCode || null,
           profilePhoto: app.profilePhoto || null,
           // Document files from documents subdocument - normalize to objects with name, path, and type
@@ -1205,6 +1293,7 @@ function FranchiseeList() {
           onSave={handleSave}
           onFilePreview={handleOpenFilePreview}
           getFileIcon={getFileIcon}
+          getDocumentDisplayName={getDocumentDisplayName}
           qrBlobUrl={qrBlobUrl}
         />
 

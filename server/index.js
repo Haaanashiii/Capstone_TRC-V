@@ -30,6 +30,7 @@ const dashboardRoutes = require('./routes/dashboardRoutes');
 const auditLogRoutes = require('./routes/auditLogRoutes');
 const fareMatrixRoutes = require('./routes/fareMatrixRoutes');
 const rolePageAccessRoutes = require('./routes/rolePageAccessRoutes');
+const certificateRoutes = require('./routes/certificateRoutes');
 console.log('[SERVER] ✅ Routes loaded');
 
 dotenv.config();
@@ -342,6 +343,7 @@ app.use('/api/scheduler', apiLimiter, require('./routes/schedulerRoutes'));
 app.use('/api/audit-logs', apiLimiter, auditLogRoutes);
 app.use('/api/fare-matrix', apiLimiter, fareMatrixRoutes);
 app.use('/api/role-page-access', apiLimiter, rolePageAccessRoutes);
+app.use('/api/certificates', apiLimiter, certificateRoutes);
 
 
 // Health check endpoint

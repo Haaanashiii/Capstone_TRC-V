@@ -82,7 +82,8 @@ function findMatchingField(fieldName, dataMap) {
         'franchise': ['franchiseNumber', 'franchiseNo'],
         'address': ['operatorAddress', 'address', 'barangay'],
         'generated': ['dateGenerated', 'dateGenerated_2', 'currentDate'],
-        'receipt': ['officialReceipNumber', 'officialReceiptNumber'],
+        'receipt': ['officialReceiptNumber', 'officialReceipNumber', 'receiptNumber', 'orNumber'],
+        'official': ['officialReceiptNumber', 'officialReceipNumber'],
         'user': ['user.name', 'generatedBy', 'preparedBy']
     };
     
@@ -155,9 +156,11 @@ async function fillPDFForm(templatePath, franchiseData) {
             dateGenerated: franchiseData.dateGenerated ? formatDate(franchiseData.dateGenerated) : formatDate(new Date()),
             dateGenerated_2: franchiseData.dateGenerated ? formatDate(franchiseData.dateGenerated) : formatDate(new Date()),
             
-            // Receipt information
-            officialReceipNumber: franchiseData.officialReceiptNumber || franchiseData.officialReceipNumber || '',
-            officialReceiptNumber: franchiseData.officialReceiptNumber || franchiseData.officialReceipNumber || '',
+            // Receipt information - support multiple variations
+            officialReceipNumber: franchiseData.officialReceiptNumber || '',  // Missing 't' variation (C.001 Approval)
+            officialReceiptNumber: franchiseData.officialReceiptNumber || '', // With 't' variation (C.001 Cancellation)
+            receiptNumber: franchiseData.officialReceiptNumber || '',
+            orNumber: franchiseData.officialReceiptNumber || '',
             
             // Franchise number
             franchiseNumber: franchiseData.franchiseNumber || '',

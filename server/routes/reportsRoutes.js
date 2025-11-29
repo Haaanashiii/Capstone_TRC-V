@@ -22,11 +22,8 @@ router.get('/monthly', authenticate, authorize(['sb-admin', 'bplo-admin', 'super
 // Date range reports with CSV export (admin only)
 router.get('/date-range', authenticate, authorize(['sb-admin', 'bplo-admin', 'super-admin']), reportsController.getReportsByDateRange);
 
-// Certificate generation endpoint (admin only)
-router.post('/generate-certificate', authenticate, authorize(['sb-admin', 'bplo-admin', 'super-admin']), reportsController.generateCertificate);
-
-// PDF Template inspector endpoint (admin only) - for debugging
-router.get('/inspect-pdf-template/:templateName', authenticate, authorize(['sb-admin', 'bplo-admin', 'super-admin']), reportsController.inspectPDFTemplate);
+// Note: Certificate endpoints have been moved to /api/certificates/*
+// See certificateRoutes.js for certificate generation functionality
 
 // Individual report operations
 router.get('/:id', authenticate, reportsController.getReportById);

@@ -66,6 +66,11 @@ const franchiseInformationSchema = new mongoose.Schema({
   // SB Resolution Information
   resolutionNumber: { type: String, required: false },
   resolutionDocument: { type: String, required: false },
+  sbApprovedAt: { type: Date, required: false },
+  
+  // Official Receipt Information
+  officialReceiptNumber: { type: String, required: false },
+  officialReceiptDocument: { type: String, required: false },
 
   //rate
   rate:{type: String, enum: ['Old Rate', 'New Rate',], required: true , default: 'New Rate' },
