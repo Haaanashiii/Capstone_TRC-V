@@ -1,8 +1,6 @@
 const crypto = require('crypto');
 
-// Use a small wrapper so callers can use otpStore.get(email) even if they pass
-// an unnormalized email. This keeps callers (controllers/tests) simple while
-// ensuring keys are stored in a normalized form.
+// Store OTP codes with automatic case/space normalization
 class OTPStore {
   constructor() {
     this._map = new Map();
@@ -22,15 +20,15 @@ class OTPStore {
   has(k) {
     return this._map.has(this._key(k));
   }
-  // Expose for diagnostics if needed
+  // Get all stored OTP entries
   entries() {
     return Array.from(this._map.entries());
   }
 }
 
-const otpStore = new OTPStore(); // For production, replace this with Redis or DB-backed store
+const otpStore = new OTPStore(); // For production, use Redis or database
 
-// Rate limiting store for OTP requests
+// Track OTP request limits per email address
 class RateLimitStore {
   constructor() {
     this._map = new Map();
@@ -51,25 +49,25 @@ class RateLimitStore {
 
 const rateLimitStore = new RateLimitStore();
 
-// Configurable limits
+// Configuration values
 const DEFAULT_OTP_LENGTH = 6;
-const DEFAULT_EXPIRES_MS = 5 * 60 * 1000; // 5 minutes
-const MAX_VERIFICATION_ATTEMPTS = 5; // Max attempts to verify OTP
-const MAX_REQUEST_ATTEMPTS = 10; // Max OTP generation requests per window
-const RATE_LIMIT_WINDOW_MS = 5 * 60 * 1000; // 5 minutes window for rate limiting
-const COOLDOWN_BETWEEN_REQUESTS_MS = 60 * 1000; // 1 minute cooldown between individual requests
+const DEFAULT_EXPIRES_MS = 5 * 60 * 1000; // OTP valid for 5 minutes
+const MAX_VERIFICATION_ATTEMPTS = 5; // Attempts to verify OTP
+const MAX_REQUEST_ATTEMPTS = 10; // Max OTP requests per 5 minutes
+const RATE_LIMIT_WINDOW_MS = 5 * 60 * 1000; // 5 minute time window
+const COOLDOWN_BETWEEN_REQUESTS_MS = 60 * 1000; // Wait 1 minute between requests
 
 function generateOTP(length = DEFAULT_OTP_LENGTH) {
   if (!Number.isInteger(length) || length < 4 || length > 14) {
     throw new RangeError('OTP length must be an integer between 4 and 14');
   }
-  const maxExclusive = 10 ** length; // safe for lengths up to 14
-  // crypto.randomInt is exclusive of the max value
+  const maxExclusive = 10 ** length;
+  // Generate random number and pad with zeros
   return crypto.randomInt(0, maxExclusive).toString().padStart(length, '0');
 }
 
 function setOTP(email, otp, expiresIn = DEFAULT_EXPIRES_MS) {
-  // Always use DEFAULT_EXPIRES_MS (5 minutes) for OTP expiry
+  // Save OTP with expiration time
   const otpExpiresIn = DEFAULT_EXPIRES_MS;
   
   const value = {

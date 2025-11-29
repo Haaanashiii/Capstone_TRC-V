@@ -1,25 +1,21 @@
 
 const { rateLimit } = require('express-rate-limit');
 
-// RATE LIMITER DISABLED FOR DEVELOPMENT
+// Rate limiting disabled in development, enable in production
 const RATE_LIMITER_ENABLED = false;
 
-/**
- * Creates a rate limiter middleware with configurable options
- * @param {Object} options - Rate limiter configuration options
- * @returns {Function} - Express middleware function
- */
+// Create a rate limiter with custom settings
 function createRateLimiter(options = {}) {
-  // Return no-op middleware if rate limiter is disabled
+  // Skip if rate limiting is disabled
   if (!RATE_LIMITER_ENABLED) {
     return (req, res, next) => next();
   }
 
   const defaultOptions = {
-    windowMs: 15 * 60 * 1000, // 15 minutes by default
-    max: 100, // Limit each IP to 100 requests per windowMs
-    standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
-    legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+    windowMs: 15 * 60 * 1000, // 15 minute time window
+    max: 100, // Max 100 requests per window
+    standardHeaders: true, // Send limit info in response headers
+    legacyHeaders: false, // Disable old header format
     message: {
       error: 'Too many requests, please try again later.',
       code: 'RATE_LIMIT_EXCEEDED'
@@ -31,9 +27,9 @@ function createRateLimiter(options = {}) {
   });
 }
 
-// OTP limiter: 5 requests per 15 minutes per IP
+// OTP: Max 5 attempts per 15 minutes
 const otpLimiter = createRateLimiter({
-  windowMs: 15 * 60 * 1000, // 15 minutes
+  windowMs: 15 * 60 * 1000,
   max: 5,
   message: {
     error: 'Too many OTP requests, please try again after 15 minutes',
@@ -41,10 +37,10 @@ const otpLimiter = createRateLimiter({
   }
 });
 
-// Create specific rate limiters for different routes
+// Login attempts: Max 10 per 15 minutes
 const authLimiter = createRateLimiter({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10, // number of allowed attempts
+  windowMs: 15 * 60 * 1000,
+  max: 10,
   skipSuccessfulRequests: true,
   message: {
     error: 'Too many login attempts from this network, please try again after 15 minutes',
@@ -52,12 +48,10 @@ const authLimiter = createRateLimiter({
   }
 });
 
-// Rate limit by IP - Stricter per-account limits
-// Note: Per-account limiting is better handled at application level
-// to avoid IPv6 bypass issues with custom keyGenerators
+// Account actions: Max 5 per 15 minutes
 const accountLimiter = createRateLimiter({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 5, // 5 attempts per IP
+  windowMs: 15 * 60 * 1000,
+  max: 5,
   skipSuccessfulRequests: true,
   message: {
     error: 'Too many login attempts, please try again after 15 minutes',
@@ -65,20 +59,22 @@ const accountLimiter = createRateLimiter({
   }
 });
 
+// General API: Max 60 requests per minute
 const apiLimiter = createRateLimiter({
-  windowMs: 60 * 1000, // 1 minute
-  max: 60, // 60 requests per minute
+  windowMs: 60 * 1000,
+  max: 60,
 });
 
+// QR scanning: Max 30 scans per minute
 const qrVerificationLimiter = createRateLimiter({
-  windowMs: 60 * 1000, // 1 minute
-  max: 30, // 30 verifications per minute
+  windowMs: 60 * 1000,
+  max: 30,
 });
 
-// Public report submission limiter - Strict to prevent spam/DDoS
+// Report submissions: Max 5 per hour (prevent spam)
 const publicReportLimiter = createRateLimiter({
-  windowMs: 60 * 60 * 1000, // 1 hour
-  max: 5, // Only 5 reports per hour per IP
+  windowMs: 60 * 60 * 1000,
+  max: 5,
   message: {
     error: 'Too many reports submitted. Please try again after 1 hour.',
     code: 'REPORT_RATE_LIMIT_EXCEEDED'

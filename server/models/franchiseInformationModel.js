@@ -21,7 +21,7 @@ const DocumentReferenceSchema = new mongoose.Schema({
 const franchiseInformationSchema = new mongoose.Schema({
 
   franchiseNumber: { type: String, required: true }, // Can be reused after revoke
-  
+  officialReceiptNumber: { type: String, required: false }, // OR number after BPLO approval
   // CRITICAL: Tracks the lineage/chain of this franchise
   // When franchise #001 expires and is given to another user, they get a NEW franchiseChainId
   // This prevents data mixing between User A's history and User B's history

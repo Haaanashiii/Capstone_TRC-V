@@ -3,28 +3,10 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 
-/**
- * CONSOLIDATED SECURE UPLOAD MIDDLEWARE
- * 
- * This middleware handles all file uploads with:
- * - Memory storage (for Cloudflare R2 upload)
- * - File type validation (MIME type + extension matching)
- * - File size limits (10MB max, compressed to ~300KB on server)
- * - Security checks (prevents file spoofing)
- * 
- * Files are organized in Cloudflare R2 as:
- * TRC-V/
- *   └── franchise-applications/
- *       └── {applicationId}/
- *           ├── profile/
- *           │   └── 1x1-picture.jpg
- *           └── documents/
- *               ├── registration.pdf
- *               ├── barangay-clearance.pdf
- *               └── ... (other documents)
- */
+// File upload handler for documents and photos
+// Files are temporarily stored in memory, then uploaded to Cloudflare R2 cloud storage
 
-// Create upload directories if they don't exist (for backward compatibility/local backups)
+// Create local backup folders if they don't exist
 const uploadDirs = {
   profilePhotos: 'uploads/operators/profiles',
   documents: 'uploads/operators/documents',
@@ -37,11 +19,10 @@ Object.values(uploadDirs).forEach(dir => {
   }
 });
 
-// Use memory storage for Cloudflare R2 uploads
-// Files will be stored in memory temporarily and uploaded to Cloudflare
+// Store files in memory before uploading to cloud
 const memoryStorage = multer.memoryStorage();
 
-// File filter for images (profile photos)
+// Only allow image files (profile photos)
 const imageFileFilter = (req, file, cb) => {
   const allowedMimes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
   
@@ -52,9 +33,9 @@ const imageFileFilter = (req, file, cb) => {
   }
 };
 
-// File filter for documents (images and PDFs) - STRICT for security
+// Only allow documents (PDF and images) - prevent harmful files
 const documentFileFilter = (req, file, cb) => {
-  // Only allow specific MIME types for franchise documents
+  // Allowed file types
   const allowedMimes = {
     'image/jpeg': ['.jpg', '.jpeg'],
     'image/png': ['.png'],
@@ -67,7 +48,7 @@ const documentFileFilter = (req, file, cb) => {
     return cb(new Error('Invalid file type. Only JPEG, PNG, and PDF files are allowed.'), false);
   }
   
-  // Verify file extension matches MIME type (prevent spoofing)
+  // Check file extension matches the actual file type (prevent fake files)
   const fileExt = path.extname(file.originalname).toLowerCase();
   if (!allowedExtensions.includes(fileExt)) {
     return cb(new Error('File extension does not match file type. Possible file spoofing detected.'), false);
@@ -76,25 +57,24 @@ const documentFileFilter = (req, file, cb) => {
   cb(null, true);
 };
 
-// Profile photo upload (single file)
+// Profile photo upload (single image)
 const uploadProfilePhoto = multer({
   storage: memoryStorage,
   fileFilter: imageFileFilter,
   limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB limit (will be compressed to 300KB)
+    fileSize: 10 * 1024 * 1024, // Max 10MB (compressed to 300KB before saving)
   }
 }).single('profilePhoto');
 
-// Document upload (multiple fields)
-// These files will be compressed to under 300KB and uploaded to Cloudflare R2
+// Document upload (multiple files)
 const uploadOperatorDocuments = multer({
   storage: memoryStorage,
   fileFilter: documentFileFilter,
   limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB per file (will be compressed to 300KB)
+    fileSize: 10 * 1024 * 1024, // Max 10MB per file (compressed to 300KB)
   }
 }).fields([
-  // Legacy field names (for backward compatibility)
+  // Form field names for document uploads
   { name: 'documentRegistration', maxCount: 1 },
   { name: 'documentBarangayClearance', maxCount: 1 },
   { name: 'documentCedula', maxCount: 1 },

@@ -1,4 +1,4 @@
-// Role-based access control middleware
+// Check if user has the right role to access this route
 module.exports = function authorize(roles = []) {
   if (typeof roles === 'string') roles = [roles];
   return (req, res, next) => {
@@ -9,4 +9,4 @@ module.exports = function authorize(roles = []) {
       return next();
     }
     return res.status(403).json({ error: 'Forbidden: insufficient privileges' });
-  };}
+  };};

@@ -1,4 +1,4 @@
-// OTP/2FA and Forgot Password
+// Two-factor authentication and password recovery
 const { generateOTP, setOTP, verifyOTP, checkRateLimit, DEFAULT_EXPIRES_MS } = require('../middlewares/otpMiddleware');
 const { sendOTPEmail } = require('../services/emailService');
 const { auditLogService } = require('../services/auditLogService');
@@ -16,7 +16,7 @@ async function handleOtpRequest(email, phoneNumber, userId, res, next, message, 
   try {
     if (!email) return res.status(400).json({ error: 'Email is required' });
     
-    // Check rate limiting FIRST (max 10 requests per 5 minutes, 1 minute cooldown between requests)
+    // Check if too many OTP requests (max 10 per 5 minutes)
     const rateLimitCheck = checkRateLimit(email);
     if (!rateLimitCheck.allowed) {
       return res.status(429).json({ 
@@ -25,21 +25,18 @@ async function handleOtpRequest(email, phoneNumber, userId, res, next, message, 
       });
     }
     
-    // Always respond with success to prevent email enumeration
+    // Always say success (don't reveal if email exists or not)
     let user;
     try {
       user = await userAccountRepository.findAccountByEmail(email);
     } catch (e) {}
 
-    // For pre-signup flows we want to be able to send an OTP even when the
-    // account doesn't exist yet. Generate and store an OTP regardless. The
-    // response stays generic to avoid leaking whether the account exists.
+    // Send OTP even if account doesn't exist yet (for signup flows)
     try {
       const otp = generateOTP();
-      setOTP(email, otp); // OTP will expire in 5 minutes (DEFAULT_EXPIRES_MS)
+      setOTP(email, otp); // OTP expires in 5 minutes
       
-      // Use notification queue for smart SMS + Email delivery
-      // SMS: Max 2 attempts (initial + resend), Email: Always
+      // Send OTP via SMS or Email (smart routing)
       await sendOTPNotification(
         userId || email,
         phoneNumber || (user && user.phoneNumber),
@@ -50,7 +47,7 @@ async function handleOtpRequest(email, phoneNumber, userId, res, next, message, 
       
       console.log(`[OTP] Generated and sent OTP for ${email} - Valid for 5 minutes`);
     } catch (e) {
-      // Log the error for server operators (do not expose to client)
+      // Log error but don't expose to user
       console.error('Failed to generate/send OTP for', email, e && e.message ? e.message : e);
     }
     res.json({ message });
@@ -59,19 +56,20 @@ async function handleOtpRequest(email, phoneNumber, userId, res, next, message, 
   }
 }
 
-// Request OTP for 2FA
+// Send OTP for login verification
 exports.requestOtp = async (req, res, next) => {
   const { email, phoneNumber, deliveryMethod } = req.body;
   return handleOtpRequest(email, phoneNumber, null, res, next, 'If the email exists, an OTP has been sent.', deliveryMethod);
 };
 
-// Forgot password: send OTP
+// Send OTP for password reset (email only)
 exports.forgotPassword = async (req, res, next) => {
-  const { email, phoneNumber } = req.body;
-  return handleOtpRequest(email, phoneNumber, null, res, next, 'If the email exists, an OTP has been sent for password reset.');
+  const { email } = req.body;
+  // Force email-only delivery for password reset
+  return handleOtpRequest(email, null, null, res, next, 'If the email exists, an OTP has been sent for password reset.', 'email');
 };
 
-// Constant-time OTP verification
+// Compare OTP values safely (prevent timing attacks)
 function constantTimeCompare(a, b) {
   if (typeof a !== 'string' || typeof b !== 'string' || a.length !== b.length) return false;
   let result = 0;
@@ -81,26 +79,27 @@ function constantTimeCompare(a, b) {
   return result === 0;
 }
 
-// Secure OTP verification for 2FA or forgot password
+// Verify OTP code from user
 exports.verifyOtp = async (req, res, next) => {
   try {
     const { email, otp, rememberMe } = req.body;
     if (!email || !otp) return res.status(400).json({ error: 'Email and OTP are required' });
-    // Get stored OTP (do not reveal if email exists)
+    // Check if OTP is correct
     let valid = false;
     try {
       const entry = require('../middlewares/otpMiddleware').otpStore?.get?.(email);
       if (entry && Date.now() <= entry.expiresAt && constantTimeCompare(entry.otp, otp)) {
         valid = true;
-        require('../middlewares/otpMiddleware').otpStore.delete(email);
+        // DO NOT delete OTP here - it will be needed for reset-password step
+        // Only verify that it exists and is valid
       }
     } catch (e) {}
     if (!valid) return res.status(400).json({ error: 'Invalid or expired OTP' });
     
-    // If rememberMe was checked, create a trusted device token
+    // If remember device was checked, create a trusted device token
     if (rememberMe) {
       try {
-        // Find user to get their ID for trusted device token
+        // Get user ID for trusted device token
         const userAccountRepository = require('../repositories/userAccountRepository');
         const adminAccountRepository = require('../repositories/adminAccountRepository');
         
@@ -174,15 +173,23 @@ exports.resetPassword = async (req, res, next) => {
     
     const hashed = await bcrypt.hash(newPassword, 10);
     
-    // Update password based on user type
+    // Update password based on user type - pass isRawPassword flag to prevent double-hashing
     if (user._id && user.email) {
       const adminRepository = require('../repositories/adminAccountRepository');
       // Check if it's admin
       if (user.adminId) {
-        await adminRepository.updateAdmin(user._id, { password: hashed });
+        // Directly update the user document to avoid re-hashing
+        await require('../models/adminAccountModel').updateOne(
+          { _id: user._id },
+          { password: hashed }
+        );
         console.log('[Auth] Admin password reset for:', email);
       } else {
-        await userAccountRepository.updateUserAccount(user._id, { password: hashed });
+        // Directly update the user document to avoid re-hashing
+        await require('../models/userAccountModel').updateOne(
+          { _id: user._id },
+          { password: hashed }
+        );
         console.log('[Auth] User password reset for:', email);
       }
     }

@@ -16,7 +16,13 @@ const reportSchema = new mongoose.Schema({
     }
 }, { timestamps: true });
 
-// Pre-save middleware to auto-generate RPT-XXXX format ID
+// Indexes for performance optimization
+reportSchema.index({ status: 1 }); // Query reports by status
+reportSchema.index({ franchiseeName: 1 }); // Query reports by franchise name
+reportSchema.index({ dateReported: -1 }); // Sort by date reported
+reportSchema.index({ status: 1, dateReported: -1 }); // Compound index for common queries
+
+module.exports = mongoose.model('Report', reportSchema);
 reportSchema.pre('save', async function(next) {
   if (this.isNew && !this.reportID) {
     try {

@@ -3,7 +3,6 @@ import {
   Dialog,
   DialogTitle,
   DialogContent,
-  DialogActions,
   TextField,
   Button,
   Typography,
@@ -11,15 +10,17 @@ import {
   IconButton,
   Alert,
   CircularProgress,
-  InputAdornment
+  InputAdornment,
+  Stepper,
+  Step,
+  StepLabel
 } from '@mui/material';
-import { Close, Visibility, VisibilityOff } from '@mui/icons-material';
+import { Close, Visibility, VisibilityOff, CheckCircle } from '@mui/icons-material';
 import api from '../pages/Services/api';
 
 const ForgotPasswordModal = ({ open, onClose }) => {
-  const [step, setStep] = useState(1); // 1: Email/Phone, 2: OTP & New Password
+  const [step, setStep] = useState(1); // 1: Email, 2: OTP Verification, 3: New Password
   const [email, setEmail] = useState('');
-  const [phoneNumber, setPhoneNumber] = useState('');
   const [otp, setOtp] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -28,12 +29,12 @@ const ForgotPasswordModal = ({ open, onClose }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [originalPassword, setOriginalPassword] = useState(''); // Store for comparison
 
   const handleClose = () => {
     // Reset all states
     setStep(1);
     setEmail('');
-    setPhoneNumber('');
     setOtp('');
     setNewPassword('');
     setConfirmPassword('');
@@ -41,30 +42,37 @@ const ForgotPasswordModal = ({ open, onClose }) => {
     setShowConfirmPassword(false);
     setError('');
     setSuccess('');
+    setOriginalPassword('');
     onClose();
   };
 
-  const handleRequestOTP = async (e) => {
+  const handleStep1Submit = async (e) => {
     e.preventDefault();
     setError('');
     setSuccess('');
 
-    // Validate that at least one field is filled
-    if (!email && !phoneNumber) {
-      setError('Please enter either an email address or phone number.');
+    // Validate email
+    if (!email || email.trim() === '') {
+      setError('Please enter your email address.');
+      return;
+    }
+
+    // Simple email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      setError('Please enter a valid email address.');
       return;
     }
 
     setLoading(true);
 
     try {
-      const payload = {};
-      if (email) payload.email = email;
-      if (phoneNumber) payload.phoneNumber = phoneNumber;
-
-      const response = await api.post('/auth/forgot-password', payload);
-      setSuccess(response.data.message || 'OTP sent successfully!');
-      setStep(2);
+      const response = await api.post('/auth/forgot-password', { email, deliveryMethod: 'email' });
+      setSuccess('OTP sent successfully to your email!');
+      setTimeout(() => {
+        setSuccess('');
+        setStep(2);
+      }, 1500);
     } catch (err) {
       setError(err.response?.data?.error || err.response?.data?.message || 'Failed to send OTP. Please try again.');
     } finally {
@@ -72,10 +80,66 @@ const ForgotPasswordModal = ({ open, onClose }) => {
     }
   };
 
-  const handleResetPassword = async (e) => {
+  const handleStep2Submit = async (e) => {
     e.preventDefault();
     setError('');
     setSuccess('');
+
+    // Validate OTP
+    if (!otp || otp.trim() === '') {
+      setError('Please enter the OTP code.');
+      return;
+    }
+
+    if (otp.length !== 6) {
+      setError('OTP must be exactly 6 digits.');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      // Just verify the OTP, don't reset password yet
+      const response = await api.post('/auth/verify-otp', { email, otp });
+      setSuccess('OTP verified successfully!');
+      setTimeout(() => {
+        setSuccess('');
+        setStep(3);
+      }, 1500);
+    } catch (err) {
+      setError(err.response?.data?.error || err.response?.data?.message || 'Invalid or expired OTP. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleStep3Submit = async (e) => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+
+    // Validate new password is provided
+    if (!newPassword || newPassword.trim() === '') {
+      setError('Please enter a new password.');
+      return;
+    }
+
+    if (!confirmPassword || confirmPassword.trim() === '') {
+      setError('Please confirm your password.');
+      return;
+    }
+
+    // Validate password strength
+    if (newPassword.length < 8) {
+      setError('Password must be at least 8 characters long.');
+      return;
+    }
+
+    // Check if new password is the same as previous password
+    if (newPassword === originalPassword) {
+      setError('Your new password cannot be the same as your old password.');
+      return;
+    }
 
     // Validate passwords match
     if (newPassword !== confirmPassword) {
@@ -83,23 +147,14 @@ const ForgotPasswordModal = ({ open, onClose }) => {
       return;
     }
 
-    // Validate password strength
-    if (newPassword.length < 8) {
-      setError('Password must be at least 8 characters long!');
-      return;
-    }
-
     setLoading(true);
 
     try {
-      const payload = {
+      const response = await api.post('/auth/reset-password', {
+        email,
         otp,
         newPassword
-      };
-      if (email) payload.email = email;
-      if (phoneNumber) payload.phoneNumber = phoneNumber;
-
-      const response = await api.post('/auth/reset-password', payload);
+      });
       setSuccess(response.data.message || 'Password reset successfully!');
       
       // Close modal after 2 seconds
@@ -129,7 +184,7 @@ const ForgotPasswordModal = ({ open, onClose }) => {
       <DialogTitle sx={{ fontFamily: 'Poppins, sans-serif', fontWeight: 600, pb: 1 }}>
         <Box display="flex" justifyContent="space-between" alignItems="center">
           <Typography variant="h6" component="span" sx={{ fontFamily: 'Poppins, sans-serif', fontWeight: 600 }}>
-            Forgot Password
+            Reset Password
           </Typography>
           <IconButton onClick={handleClose} size="small">
             <Close />
@@ -138,11 +193,24 @@ const ForgotPasswordModal = ({ open, onClose }) => {
       </DialogTitle>
 
       <DialogContent>
-        {step === 1 ? (
-          // Step 1: Request OTP
-          <Box component="form" onSubmit={handleRequestOTP}>
+        {/* Stepper */}
+        <Stepper activeStep={step - 1} sx={{ mb: 3 }}>
+          <Step>
+            <StepLabel>Email</StepLabel>
+          </Step>
+          <Step>
+            <StepLabel>Verify OTP</StepLabel>
+          </Step>
+          <Step>
+            <StepLabel>New Password</StepLabel>
+          </Step>
+        </Stepper>
+
+        {/* Step 1: Email Input */}
+        {step === 1 && (
+          <Box component="form" onSubmit={handleStep1Submit}>
             <Typography variant="body2" sx={{ mb: 2, color: 'text.secondary', fontFamily: 'Poppins, sans-serif' }}>
-              Enter your email address or phone number and we'll send you an OTP to reset your password.
+              Enter your email address to receive an OTP code.
             </Typography>
 
             {error && (
@@ -158,14 +226,16 @@ const ForgotPasswordModal = ({ open, onClose }) => {
             )}
 
             <TextField
-              label="Email Address *"
+              label="Email Address"
               placeholder="example@gmail.com"
               type="email"
               fullWidth
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               disabled={loading}
-              sx={{ mb: 2, fontFamily: 'Poppins, sans-serif' }}
+              required
+              autoFocus
+              sx={{ mb: 3, fontFamily: 'Poppins, sans-serif' }}
               InputProps={{
                 sx: { fontFamily: 'Poppins, sans-serif' }
               }}
@@ -173,31 +243,6 @@ const ForgotPasswordModal = ({ open, onClose }) => {
                 sx: { fontFamily: 'Poppins, sans-serif' }
               }}
             />
-
-            <Typography variant="body2" sx={{ mb: 1, textAlign: 'center', color: 'text.secondary', fontFamily: 'Poppins, sans-serif', fontStyle: 'italic' }}>
-              OR
-            </Typography>
-
-            <TextField
-              label="Phone Number *"
-              placeholder="09XX XXX XXXX"
-              type="tel"
-              fullWidth
-              value={phoneNumber}
-              onChange={(e) => setPhoneNumber(e.target.value)}
-              disabled={loading}
-              sx={{ mb: 1, fontFamily: 'Poppins, sans-serif' }}
-              InputProps={{
-                sx: { fontFamily: 'Poppins, sans-serif' }
-              }}
-              InputLabelProps={{
-                sx: { fontFamily: 'Poppins, sans-serif' }
-              }}
-            />
-
-            <Typography variant="caption" sx={{ display: 'block', mb: 2, color: 'text.secondary', fontFamily: 'Poppins, sans-serif', fontStyle: 'italic' }}>
-              * At least one field is required
-            </Typography>
 
             <Button
               type="submit"
@@ -205,7 +250,6 @@ const ForgotPasswordModal = ({ open, onClose }) => {
               fullWidth
               disabled={loading}
               sx={{
-                mt: 1,
                 py: 1.2,
                 textTransform: 'none',
                 fontFamily: 'Poppins, sans-serif',
@@ -216,11 +260,13 @@ const ForgotPasswordModal = ({ open, onClose }) => {
               {loading ? <CircularProgress size={24} color="inherit" /> : 'Send OTP'}
             </Button>
           </Box>
-        ) : (
-          // Step 2: Verify OTP and Reset Password
-          <Box component="form" onSubmit={handleResetPassword}>
+        )}
+
+        {/* Step 2: OTP Verification */}
+        {step === 2 && (
+          <Box component="form" onSubmit={handleStep2Submit}>
             <Typography variant="body2" sx={{ mb: 2, color: 'text.secondary', fontFamily: 'Poppins, sans-serif' }}>
-              Enter the OTP sent to {email ? 'your email' : 'your phone'} and your new password.
+              Enter the 6-digit OTP sent to <strong>{email}</strong>
             </Typography>
 
             {error && (
@@ -237,19 +283,76 @@ const ForgotPasswordModal = ({ open, onClose }) => {
 
             <TextField
               label="OTP Code"
+              placeholder="000000"
               fullWidth
               value={otp}
-              onChange={(e) => setOtp(e.target.value)}
+              onChange={(e) => setOtp(e.target.value.replace(/[^0-9]/g, '').slice(0, 6))}
               required
               disabled={loading}
-              sx={{ mb: 2, fontFamily: 'Poppins, sans-serif' }}
-              InputProps={{
-                sx: { fontFamily: 'Poppins, sans-serif' }
-              }}
+              autoFocus
+              inputProps={{ maxLength: 6, style: { textAlign: 'center', fontSize: '1.5rem', letterSpacing: '0.5rem' } }}
+              sx={{ mb: 3, fontFamily: 'Poppins, sans-serif' }}
               InputLabelProps={{
                 sx: { fontFamily: 'Poppins, sans-serif' }
               }}
             />
+
+            <Box sx={{ display: 'flex', gap: 2 }}>
+              <Button
+                variant="outlined"
+                fullWidth
+                onClick={() => {
+                  setStep(1);
+                  setError('');
+                  setSuccess('');
+                  setOtp('');
+                }}
+                disabled={loading}
+                sx={{
+                  py: 1.2,
+                  textTransform: 'none',
+                  fontFamily: 'Poppins, sans-serif',
+                  fontWeight: 500
+                }}
+              >
+                Back
+              </Button>
+              <Button
+                type="submit"
+                variant="contained"
+                fullWidth
+                disabled={loading}
+                sx={{
+                  py: 1.2,
+                  textTransform: 'none',
+                  fontFamily: 'Poppins, sans-serif',
+                  fontWeight: 500
+                }}
+              >
+                {loading ? <CircularProgress size={24} color="inherit" /> : 'Verify OTP'}
+              </Button>
+            </Box>
+          </Box>
+        )}
+
+        {/* Step 3: New Password */}
+        {step === 3 && (
+          <Box component="form" onSubmit={handleStep3Submit}>
+            <Typography variant="body2" sx={{ mb: 2, color: 'text.secondary', fontFamily: 'Poppins, sans-serif' }}>
+              Create a new password for your account.
+            </Typography>
+
+            {error && (
+              <Alert severity="error" sx={{ mb: 2, fontFamily: 'Poppins, sans-serif' }}>
+                {error}
+              </Alert>
+            )}
+
+            {success && (
+              <Alert severity="success" sx={{ mb: 2, fontFamily: 'Poppins, sans-serif' }}>
+                {success}
+              </Alert>
+            )}
 
             <TextField
               label="New Password"
@@ -259,6 +362,7 @@ const ForgotPasswordModal = ({ open, onClose }) => {
               onChange={(e) => setNewPassword(e.target.value)}
               required
               disabled={loading}
+              autoFocus
               sx={{ mb: 2, fontFamily: 'Poppins, sans-serif' }}
               InputProps={{
                 sx: { fontFamily: 'Poppins, sans-serif' },
@@ -268,6 +372,7 @@ const ForgotPasswordModal = ({ open, onClose }) => {
                       onClick={() => setShowPassword(!showPassword)}
                       edge="end"
                       size="small"
+                      tabIndex={-1}
                     >
                       {showPassword ? <VisibilityOff /> : <Visibility />}
                     </IconButton>
@@ -280,14 +385,14 @@ const ForgotPasswordModal = ({ open, onClose }) => {
             />
 
             <TextField
-              label="Confirm New Password"
+              label="Confirm Password"
               type={showConfirmPassword ? 'text' : 'password'}
               fullWidth
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               required
               disabled={loading}
-              sx={{ mb: 2, fontFamily: 'Poppins, sans-serif' }}
+              sx={{ mb: 3, fontFamily: 'Poppins, sans-serif' }}
               InputProps={{
                 sx: { fontFamily: 'Poppins, sans-serif' },
                 endAdornment: (
@@ -296,6 +401,7 @@ const ForgotPasswordModal = ({ open, onClose }) => {
                       onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                       edge="end"
                       size="small"
+                      tabIndex={-1}
                     >
                       {showConfirmPassword ? <VisibilityOff /> : <Visibility />}
                     </IconButton>
@@ -307,11 +413,23 @@ const ForgotPasswordModal = ({ open, onClose }) => {
               }}
             />
 
+            <Typography variant="caption" sx={{ display: 'block', mb: 2, color: 'text.secondary', fontFamily: 'Poppins, sans-serif' }}>
+              ✓ Password must be at least 8 characters
+              <br />
+              ✓ Cannot be the same as your old password
+            </Typography>
+
             <Box sx={{ display: 'flex', gap: 2 }}>
               <Button
                 variant="outlined"
                 fullWidth
-                onClick={() => setStep(1)}
+                onClick={() => {
+                  setStep(2);
+                  setError('');
+                  setSuccess('');
+                  setNewPassword('');
+                  setConfirmPassword('');
+                }}
                 disabled={loading}
                 sx={{
                   py: 1.2,

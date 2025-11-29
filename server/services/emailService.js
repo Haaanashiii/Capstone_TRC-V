@@ -74,13 +74,17 @@ async function sendViaGmailApi({ from, to, subject, text, html, attachments }) {
   const rawMessage = Buffer.from(messageParts.join('\r\n')).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
   
   try {
+    console.log('[Gmail API] Attempting to send email to:', to);
     const response = await gmail.users.messages.send({
       userId: 'me',
       requestBody: { raw: rawMessage }
     });
+    console.log('[Gmail API] Email sent successfully, messageId:', response.data.id);
     return { messageId: response.data.id || 'gmail-api' };
   } catch (error) {
     console.error('[EmailService] Gmail API send failed:', error.message);
+    console.error('[EmailService] Error code:', error.code);
+    console.error('[EmailService] Full error:', error);
     if (error.code === 401 || error.code === 403) {
       throw new Error('Gmail API authentication failed. Please check your refresh token.');
     }
@@ -210,10 +214,11 @@ async function sendOTPEmail(to, otp) {
     if (process.env.NODE_ENV !== 'production') {
       console.log('sendMail info:', info && info.messageId ? info.messageId : info);
     }
-    return info;
+    return { success: true, messageId: info.messageId || info };
   } catch (err) {
     const errMsg = err && err.message ? err.message : String(err);
-    throw new Error(`Failed to send email: ${errMsg}`);
+    console.error('[sendOTPEmail] Error:', errMsg);
+    return { success: false, error: errMsg };
   }
 }
 
@@ -407,10 +412,11 @@ async function sendFranchiseExpiryEmail(to, operatorName, mtopNumber, expiryDate
     if (process.env.NODE_ENV !== 'production') {
       console.log('Franchise expiry email sent:', info && info.messageId ? info.messageId : info);
     }
-    return info;
+    return { success: true, messageId: info.messageId || info };
   } catch (err) {
     const errMsg = err && err.message ? err.message : String(err);
-    throw new Error(`Failed to send franchise expiry email: ${errMsg}`);
+    console.error('[sendFranchiseExpiryEmail] Error:', errMsg);
+    return { success: false, error: errMsg };
   }
 }
 
@@ -536,12 +542,13 @@ async function sendFranchiseCreatedEmail(to, operatorName, franchiseNumber) {
   try {
     const info = await sendViaGmailApi(mailOptions);
     if (process.env.NODE_ENV !== 'production') {
-      console.log('[EmailService] Franchise created email sent:', info && info.messageId ? info.messageId : info);
+      console.log('Franchise created email sent:', info && info.messageId ? info.messageId : info);
     }
-    return info;
+    return { success: true, messageId: info.messageId || info };
   } catch (err) {
     const errMsg = err && err.message ? err.message : String(err);
-    throw new Error(`Failed to send franchise created email: ${errMsg}`);
+    console.error('[sendFranchiseCreatedEmail] Error:', errMsg);
+    return { success: false, error: errMsg };
   }
 }
 
@@ -666,12 +673,13 @@ async function sendFranchiseUpdatedEmail(to, operatorName, franchiseNumber, upda
   try {
     const info = await sendViaGmailApi(mailOptions);
     if (process.env.NODE_ENV !== 'production') {
-      console.log('[EmailService] Franchise updated email sent:', info && info.messageId ? info.messageId : info);
+      console.log('Franchise updated email sent:', info && info.messageId ? info.messageId : info);
     }
-    return info;
+    return { success: true, messageId: info.messageId || info };
   } catch (err) {
     const errMsg = err && err.message ? err.message : String(err);
-    throw new Error(`Failed to send franchise updated email: ${errMsg}`);
+    console.error('[sendFranchiseUpdatedEmail] Error:', errMsg);
+    return { success: false, error: errMsg };
   }
 }
 
@@ -796,12 +804,13 @@ async function sendFranchiseDisapprovalEmail(to, operatorName, reason) {
   try {
     const info = await sendViaGmailApi(mailOptions);
     if (process.env.NODE_ENV !== 'production') {
-      console.log('[EmailService] Franchise disapproval email sent:', info && info.messageId ? info.messageId : info);
+      console.log('Franchise disapproval email sent:', info && info.messageId ? info.messageId : info);
     }
-    return info;
+    return { success: true, messageId: info.messageId || info };
   } catch (err) {
     const errMsg = err && err.message ? err.message : String(err);
-    throw new Error(`Failed to send franchise disapproval email: ${errMsg}`);
+    console.error('[sendFranchiseDisapprovalEmail] Error:', errMsg);
+    return { success: false, error: errMsg };
   }
 }
 
