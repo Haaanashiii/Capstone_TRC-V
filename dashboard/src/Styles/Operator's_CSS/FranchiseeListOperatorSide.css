@@ -23,7 +23,213 @@
   }
 }
 
-/* wrapper that centers the card and allows the badge to be absolutely positioned relative to the wrapper */
+/* ===== RESPONSIVE HEADER SECTION ===== */
+/* Ensure header never crops content */
+.MuiBox-root[style*="background: rgb(8, 61, 119)"],
+.MuiBox-root[style*="background:#083d77"] {
+  overflow: visible !important;
+  min-height: auto !important;
+}
+
+/* Header container responsive behavior */
+.MuiBox-root[style*="background: rgb(8, 61, 119)"] > .MuiBox-root,
+.MuiBox-root[style*="background:#083d77"] > .MuiBox-root {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  align-items: center !important;
+  gap: clamp(12px, 2vw, 24px) !important;
+  padding: clamp(12px, 3vw, 24px) !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+/* Profile avatar container - flexible sizing */
+.MuiBox-root[style*="background: rgb(8, 61, 119)"] .MuiAvatar-root,
+.MuiBox-root[style*="background:#083d77"] .MuiAvatar-root {
+  width: clamp(80px, 15vw, 140px) !important;
+  height: clamp(80px, 15vw, 140px) !important;
+  flex-shrink: 0 !important;
+}
+
+/* Text content container - allow wrapping */
+.MuiBox-root[style*="background: rgb(8, 61, 119)"] .MuiTypography-root,
+.MuiBox-root[style*="background:#083d77"] .MuiTypography-root {
+  white-space: normal !important;
+  word-wrap: break-word !important;
+  overflow-wrap: break-word !important;
+  overflow: visible !important;
+  max-width: 100% !important;
+}
+
+/* Name heading responsive sizing */
+.MuiBox-root[style*="background: rgb(8, 61, 119)"] .MuiTypography-h4,
+.MuiBox-root[style*="background:#083d77"] .MuiTypography-h4 {
+  font-size: clamp(1.25rem, 4vw, 2rem) !important;
+  line-height: 1.3 !important;
+  margin-bottom: clamp(4px, 1vw, 8px) !important;
+}
+
+/* Address and details text */
+.MuiBox-root[style*="background: rgb(8, 61, 119)"] .MuiTypography-body1,
+.MuiBox-root[style*="background:#083d77"] .MuiTypography-body1 {
+  font-size: clamp(12px, 2.5vw, 16px) !important;
+  line-height: 1.5 !important;
+}
+
+/* Tablet breakpoint */
+@media (max-width: 1024px) {
+  .MuiBox-root[style*="background: rgb(8, 61, 119)"] > .MuiBox-root,
+  .MuiBox-root[style*="background:#083d77"] > .MuiBox-root {
+    gap: 16px !important;
+    padding: 16px !important;
+    justify-content: flex-start !important;
+  }
+}
+
+/* Mobile stacked layout */
+@media (max-width: 768px) {
+  .MuiBox-root[style*="background: rgb(8, 61, 119)"],
+  .MuiBox-root[style*="background:#083d77"] {
+    padding: 16px 12px !important;
+    min-height: auto !important;
+  }
+
+  .MuiBox-root[style*="background: rgb(8, 61, 119)"] > .MuiBox-root,
+  .MuiBox-root[style*="background:#083d77"] > .MuiBox-root {
+    flex-direction: column !important;
+    align-items: center !important;
+    text-align: center !important;
+    gap: 12px !important;
+    padding: 12px !important;
+  }
+
+  /* Center avatar on mobile */
+  .MuiBox-root[style*="background: rgb(8, 61, 119)"] .MuiAvatar-root,
+  .MuiBox-root[style*="background:#083d77"] .MuiAvatar-root {
+    margin: 0 auto !important;
+  }
+
+  /* Ensure buttons stay visible */
+  .MuiBox-root[style*="background: rgb(8, 61, 119)"] .MuiButton-root,
+  .MuiBox-root[style*="background:#083d77"] .MuiButton-root {
+    width: 100% !important;
+    max-width: 300px !important;
+    margin: 8px auto !important;
+  }
+}
+
+/* Extra small screens */
+@media (max-width: 480px) {
+  .MuiBox-root[style*="background: rgb(8, 61, 119)"],
+  .MuiBox-root[style*="background:#083d77"] {
+    padding: 12px 8px !important;
+  }
+
+  .MuiBox-root[style*="background: rgb(8, 61, 119)"] > .MuiBox-root,
+  .MuiBox-root[style*="background:#083d77"] > .MuiBox-root {
+    padding: 8px !important;
+    gap: 8px !important;
+  }
+
+  .MuiBox-root[style*="background: rgb(8, 61, 119)"] .MuiTypography-h4,
+  .MuiBox-root[style*="background:#083d77"] .MuiTypography-h4 {
+    font-size: 1.25rem !important;
+  }
+}
+
+/* Navigation bar responsiveness */
+.MuiAppBar-root,
+.unified-navbar {
+  overflow-x: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+}
+
+.MuiToolbar-root {
+  flex-wrap: wrap !important;
+  gap: 8px !important;
+  min-height: 64px !important;
+  padding: 8px 16px !important;
+}
+
+@media (max-width: 768px) {
+  .MuiToolbar-root {
+    flex-direction: row !important;
+    justify-content: space-between !important;
+    overflow-x: auto !important;
+  }
+  
+  .MuiToolbar-root > * {
+    flex-shrink: 0 !important;
+  }
+}
+
+/* ===== END RESPONSIVE HEADER SECTION ===== */
+
+/* New 3-section responsive layout */
+.franchise-layout {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 20px !important;
+  width: 100% !important;
+  max-width: 1400px !important;
+  margin: 0 auto !important;
+  align-items: flex-start !important;
+}
+
+.layout-left {
+  flex: 1 1 280px !important;
+  min-width: 280px !important;
+  max-width: 350px !important;
+}
+
+.layout-center {
+  flex: 2 1 400px !important;
+  min-width: 0 !important;
+}
+
+.layout-right {
+  flex: 1 1 280px !important;
+  min-width: 280px !important;
+  max-width: 350px !important;
+}
+
+/* Ensure input fields scale */
+.layout-center input {
+  width: 100% !important;
+}
+
+/* Ensure text never gets cut off */
+.layout-left *,
+.layout-center *,
+.layout-right * {
+  white-space: normal !important;
+  overflow: visible !important;
+}
+
+/* Tablet breakpoint - allow center to shrink */
+@media (max-width: 1200px) {
+  .layout-center {
+    flex: 1 1 100% !important;
+    max-width: 100% !important;
+  }
+}
+
+/* Mobile view stacks them vertically */
+@media (max-width: 768px) {
+  .franchise-layout {
+    flex-direction: column !important;
+  }
+  .layout-left,
+  .layout-center,
+  .layout-right {
+    flex: 1 1 100% !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 100% !important;
+  }
+}
+
+/* Legacy styles kept for compatibility */
 .driver-id-wrapper{
   display:flex;
   justify-content:center;
@@ -47,12 +253,10 @@
   box-sizing:border-box;
   animation: slideInCard 0.5s ease-out;
   transition: transform 0.3s ease, box-shadow 0.3s ease;
-  /* Mobile optimizations */
   -webkit-tap-highlight-color: transparent;
   user-select: none;
 }
 
-/* Desktop hover only */
 @media (hover: hover) and (pointer: fine) {
   .driver-id-card:hover {
     transform: translateY(-4px);
@@ -60,7 +264,6 @@
   }
 }
 
-/* Mobile touch feedback */
 .driver-id-card:active {
   transform: scale(0.98);
   transition: transform 0.15s ease;
@@ -83,7 +286,6 @@
   box-sizing:border-box;
 }
 
-/* REVERTED: center the badge over the card boundary like the first screenshot */
 .driver-id-badge{
   position:absolute;
   right:clamp(20px, 4vw, 40px);
@@ -99,12 +301,10 @@
   z-index:60;
   animation: badgePulse 0.6s ease-out 0.3s backwards;
   transition: transform 0.3s ease, box-shadow 0.3s ease;
-  /* Mobile touch optimization */
   -webkit-tap-highlight-color: transparent;
   user-select: none;
 }
 
-/* Desktop hover only */
 @media (hover: hover) and (pointer: fine) {
   .driver-id-badge:hover {
     transform: scale(1.05);
@@ -112,14 +312,12 @@
   }
 }
 
-/* Mobile touch feedback */
 .driver-id-badge:active {
   transform: scale(0.95);
   transition: transform 0.1s ease;
 }
 
 @media (max-width: 900px){
-  /* keep badge centered on smaller screens */
   .driver-id-badge{ top:-44px; padding:8px 14px; font-size:12px; left:50%; transform:translateX(-50%); right:auto; }
 }
 
