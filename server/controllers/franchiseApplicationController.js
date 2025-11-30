@@ -1333,8 +1333,10 @@ exports.sbAdminAcceptNewFranchise = async (req, res, next) => {
       approvedAt: new Date(),
       expiryDate: new Date(Date.now() + 3 * 365 * 24 * 60 * 60 * 1000), // 3 years
       resolutionNumber: application.sbResolutionNumber, // Copy resolution number from application
+      resolutionDocument: application.sbResolutionDocument, // Copy resolution document from application (root level)
       sbApprovedAt: application.sbApprovedAt || new Date(), // Copy SB approval date
       officialReceiptNumber: application.officialReceiptNumber, // Copy official receipt number
+      officialReceiptDocument: application.documents?.oRTreasurerOfficeObj, // Copy OR document from application
       franchiseStatus: 'Active',
       documents: {
         // Use original application document URLs - will be updated async after transaction
@@ -1389,13 +1391,9 @@ exports.sbAdminAcceptNewFranchise = async (req, res, next) => {
       }
     }
     
-    // Mark application as completed
-    await franchiseApplicationRepository.updateFranchiseApplication(id, {
-      statusOfBPLO: 'completed',
-      franchiseCreated: true,
-      franchiseCreatedAt: new Date(),
-      relatedFranchiseInfo: franchise[0]._id
-    });
+    // Delete the application after successful franchise creation (cleanup)
+    // This maintains consistency with renewal/amendment workflow
+    await franchiseApplicationRepository.deleteFranchiseApplication(id);
     
     // Commit transaction BEFORE file operations (they take time)
     await session.commitTransaction();

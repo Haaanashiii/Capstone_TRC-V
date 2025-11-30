@@ -381,7 +381,7 @@ function Dashboard() {
                 value={dashboardData.kpiData.pendingReports}
                 icon={ReportIcon}
                 iconColor="#EF4444"
-                route="/reports"
+                route="/fare-reports"
               />
             </Box>
 
