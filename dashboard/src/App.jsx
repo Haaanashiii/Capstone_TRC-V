@@ -25,64 +25,80 @@ import Analytics from './pages/Administration/Analytics';
 import AuditTrail from './pages/Administration/AuditTrail';
 import Settings from './pages/Administration/Settings';
 import QROperatorID from './pages/Driver/QROperatorID';
+import { I18nProvider } from './contexts/I18nContext';
 
 function LandingPageWithNav() {
   const navigate = useNavigate();
   return <LandingPage onLoginClick={() => navigate('/signup')} />;
 }
 
+// Wrapper for user/driver/operator routes with i18n support
+function UserRoutesWrapper({ children }) {
+  return <I18nProvider>{children}</I18nProvider>;
+}
+
 function App() {
   return (
     <Router>
       <Routes>
-        <Route path="/" element={<LandingPage />} />
-        <Route path="/signup" element={<SignUp />} />
-        <Route path="/login" element={<Login />} />
+        <Route path="/" element={<UserRoutesWrapper><LandingPage /></UserRoutesWrapper>} />
+        <Route path="/signup" element={<UserRoutesWrapper><SignUp /></UserRoutesWrapper>} />
+        <Route path="/login" element={<UserRoutesWrapper><Login /></UserRoutesWrapper>} />
         <Route path="/oauth-callback" element={<OAuthCallback />} />
         <Route path="/maintenance" element={<MaintenancePage />} />
         
         {/* Public QR Code Route - No authentication required */}
-        <Route path="/operator/id/:operatorId" element={<QROperatorID />} />
+        <Route path="/operator/id/:operatorId" element={<UserRoutesWrapper><QROperatorID /></UserRoutesWrapper>} />
         
-        {/* Protected Driver/Operator Routes */}
+        {/* Protected Driver/Operator Routes with i18n */}
         <Route 
           path="/operator/franchisee-list" 
           element={
-            <ProtectedRoute requiredRole={["user", "operator"]}>
-              <FranchiseeListOperatorSide />
-            </ProtectedRoute>
+            <UserRoutesWrapper>
+              <ProtectedRoute requiredRole={["user", "operator"]}>
+                <FranchiseeListOperatorSide />
+              </ProtectedRoute>
+            </UserRoutesWrapper>
           } 
         />
         <Route 
           path="/operator/id" 
           element={
-            <ProtectedRoute requiredRole={["user", "operator"]}>
-              <FranchiseeListOperatorSide />
-            </ProtectedRoute>
+            <UserRoutesWrapper>
+              <ProtectedRoute requiredRole={["user", "operator"]}>
+                <FranchiseeListOperatorSide />
+              </ProtectedRoute>
+            </UserRoutesWrapper>
           } 
         />
         <Route 
           path="/operator/franchise" 
           element={
-            <ProtectedRoute requiredRole={["user", "operator"]}>
-              <OperatorHomePage />
-            </ProtectedRoute>
+            <UserRoutesWrapper>
+              <ProtectedRoute requiredRole={["user", "operator"]}>
+                <OperatorHomePage />
+              </ProtectedRoute>
+            </UserRoutesWrapper>
           } 
         />
         <Route 
           path="/operator/franchise/application" 
           element={
-            <ProtectedRoute requiredRole={["user", "operator"]}>
-              <FranchiseApplication />
-            </ProtectedRoute>
+            <UserRoutesWrapper>
+              <ProtectedRoute requiredRole={["user", "operator"]}>
+                <FranchiseApplication />
+              </ProtectedRoute>
+            </UserRoutesWrapper>
           } 
         />
         <Route 
           path="/operator/request-amendment"
           element={
-            <ProtectedRoute requiredRole={["user", "operator"]}>
-              <RequestAmendment />
-            </ProtectedRoute>
+            <UserRoutesWrapper>
+              <ProtectedRoute requiredRole={["user", "operator"]}>
+                <RequestAmendment />
+              </ProtectedRoute>
+            </UserRoutesWrapper>
           }
         />
         

@@ -28,12 +28,14 @@ import WarningIcon from '@mui/icons-material/Warning';
 import MenuIcon from '@mui/icons-material/Menu';
 import CloseIcon from '@mui/icons-material/Close';
 import { useAuth } from "../contexts/AuthContext";
+import { useTranslation } from "../hooks/useTranslation";
 import "../Styles/UnifiedNavbar.css";
 
-const UnifiedNavbar = ({ language, onLanguageToggle, translations }) => {
+const UnifiedNavbar = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { user: authUser, logout, loading } = useAuth();
+  const { t, language, toggleLanguage } = useTranslation();
   const [anchorEl, setAnchorEl] = useState(null);
   const [activeFranchiseDialogOpen, setActiveFranchiseDialogOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -118,26 +120,37 @@ const UnifiedNavbar = ({ language, onLanguageToggle, translations }) => {
   // Get navigation items based on mode
   const getNavigationItems = () => {
     if (isLandingPage) {
-      // Landing page mode - only show HOME, ANNOUNCEMENTS, and NEW APPLICATION
-      return [
-        { label: "HOME", path: "/", isActive: true, disabled: false },
-        { label: "ANNOUNCEMENTS", path: "/", isActive: false, disabled: false },
-        { label: "NEW APPLICATION", path: "/operator/franchise/application", isActive: false, disabled: false }
-      ];
+      // Landing page mode
+      if (displayName && displayName !== 'Loading...') {
+        // User is logged in - show HOME, ANNOUNCEMENTS, MY FRANCHISE, NEW APPLICATION
+        return [
+          { label: t("navbar.home"), path: "/", isActive: true, disabled: false },
+          { label: t("navbar.announcements"), path: "/", isActive: false, disabled: false },
+          { label: t("navbar.myFranchise"), path: "/operator/franchise", isActive: false, disabled: false },
+          { label: t("navbar.newApplication"), path: "/operator/franchise/application", isActive: false, disabled: false }
+        ];
+      } else {
+        // User is not logged in - show HOME, ANNOUNCEMENTS, NEW APPLICATION
+        return [
+          { label: t("navbar.home"), path: "/", isActive: true, disabled: false },
+          { label: t("navbar.announcements"), path: "/", isActive: false, disabled: false },
+          { label: t("navbar.newApplication"), path: "/operator/franchise/application", isActive: false, disabled: false }
+        ];
+      }
     } else {
       // Logged in operator mode
       if (!userHasFranchise) {
         return [
-          { label: "ANNOUNCEMENTS", path: "/", isActive: location.pathname === "/", disabled: false },
-          { label: "MY FRANCHISE", path: "/operator/franchise", isActive: location.pathname === "/operator/franchise", disabled: false },
+          { label: t("navbar.announcements"), path: "/", isActive: location.pathname === "/", disabled: false },
+          { label: t("navbar.myFranchise"), path: "/operator/franchise", isActive: location.pathname === "/operator/franchise", disabled: false },
         ];
       }
       
       return [
-        { label: "ANNOUNCEMENTS", path: "/", isActive: location.pathname === "/", disabled: false },
-        { label: "MY FRANCHISE", path: "/operator/franchise", isActive: location.pathname === "/operator/franchise", disabled: false },
-        { label: "REQUEST FOR AMENDMENT", path: "/operator/request-amendment", isActive: location.pathname === "/operator/request-amendment", disabled: false },
-        { label: "OPERATOR ID", path: "/operator/id", isActive: location.pathname === "/operator/id", disabled: false },
+        { label: t("navbar.announcements"), path: "/", isActive: location.pathname === "/", disabled: false },
+        { label: t("navbar.myFranchise"), path: "/operator/franchise", isActive: location.pathname === "/operator/franchise", disabled: false },
+        { label: t("navbar.requestAmendment"), path: "/operator/request-amendment", isActive: location.pathname === "/operator/request-amendment", disabled: false },
+        { label: t("navbar.operatorId"), path: "/operator/id", isActive: location.pathname === "/operator/id", disabled: false },
       ];
     }
   };
@@ -245,7 +258,7 @@ const UnifiedNavbar = ({ language, onLanguageToggle, translations }) => {
                           <ListItemIcon sx={{ minWidth: 40 }}>
                             <LogoutIcon fontSize="small" />
                           </ListItemIcon>
-                          Logout
+                          {t("navbar.logout")}
                         </MenuItem>
                       </Menu>
                     </>
@@ -260,23 +273,21 @@ const UnifiedNavbar = ({ language, onLanguageToggle, translations }) => {
                 </Box>
               </Box>
 
-              {/* Language Toggle (if provided) */}
-              {onLanguageToggle && (
-                <Box className="unified-navbar-lang-group" title={translations?.toggleLanguage || 'Language'}>
-                  <Button
-                    className={`unified-navbar-lang-button ${(language || 'en').toString().toLowerCase() === 'en' ? 'active' : ''}`}
-                    onClick={() => onLanguageToggle('en')}
-                  >
-                    EN
-                  </Button>
-                  <Button
-                    className={`unified-navbar-lang-button ${(language || 'en').toString().toLowerCase() === 'tag' || (language || 'en').toString().toLowerCase() === 'tl' ? 'active' : ''}`}
-                    onClick={() => onLanguageToggle('tag')}
-                  >
-                    TAG
-                  </Button>
-                </Box>
-              )}
+              {/* Language Toggle */}
+              <Box className="unified-navbar-lang-group" title={t("navbar.toggleLanguage")}>
+                <Button
+                  className={`unified-navbar-lang-button ${language === 'en' ? 'active' : ''}`}
+                  onClick={() => toggleLanguage()}
+                >
+                  EN
+                </Button>
+                <Button
+                  className={`unified-navbar-lang-button ${language === 'tl' ? 'active' : ''}`}
+                  onClick={() => toggleLanguage()}
+                >
+                  TAG
+                </Button>
+              </Box>
             </Box>
           )}
         </Toolbar>
@@ -365,7 +376,7 @@ const UnifiedNavbar = ({ language, onLanguageToggle, translations }) => {
                   }
                 }}
               >
-                Logout
+                {t("navbar.logout")}
               </Button>
             </>
           ) : (
@@ -391,53 +402,51 @@ const UnifiedNavbar = ({ language, onLanguageToggle, translations }) => {
         </Box>
 
         {/* Mobile Language Toggle */}
-        {onLanguageToggle && (
-          <Box sx={{ p: 3, pt: 0 }}>
-            <Typography variant="body2" sx={{ mb: 1, color: '#ffe066', fontWeight: 600 }}>
-              Language:
-            </Typography>
-            <Box sx={{ display: 'flex', gap: 1 }}>
-              <Button
-                fullWidth
-                variant={language === 'en' ? 'contained' : 'outlined'}
-                onClick={() => {
-                  onLanguageToggle('en');
-                  handleMobileMenuClose();
-                }}
-                sx={{
-                  backgroundColor: language === 'en' ? '#ffe066' : 'transparent',
-                  color: language === 'en' ? '#083d77' : 'white',
-                  borderColor: 'white',
-                  fontWeight: 700,
-                  '&:hover': {
-                    backgroundColor: language === 'en' ? '#ffd633' : 'rgba(255,255,255,0.1)'
-                  }
-                }}
-              >
-                EN
-              </Button>
-              <Button
-                fullWidth
-                variant={language === 'tag' || language === 'tl' ? 'contained' : 'outlined'}
-                onClick={() => {
-                  onLanguageToggle('tag');
-                  handleMobileMenuClose();
-                }}
-                sx={{
-                  backgroundColor: language === 'tag' || language === 'tl' ? '#ffe066' : 'transparent',
-                  color: language === 'tag' || language === 'tl' ? '#083d77' : 'white',
-                  borderColor: 'white',
-                  fontWeight: 700,
-                  '&:hover': {
-                    backgroundColor: language === 'tag' || language === 'tl' ? '#ffd633' : 'rgba(255,255,255,0.1)'
-                  }
-                }}
-              >
-                TAG
-              </Button>
-            </Box>
+        <Box sx={{ p: 3, pt: 0 }}>
+          <Typography variant="body2" sx={{ mb: 1, color: '#ffe066', fontWeight: 600 }}>
+            Language:
+          </Typography>
+          <Box sx={{ display: 'flex', gap: 1 }}>
+            <Button
+              fullWidth
+              variant={language === 'en' ? 'contained' : 'outlined'}
+              onClick={() => {
+                toggleLanguage();
+                handleMobileMenuClose();
+              }}
+              sx={{
+                backgroundColor: language === 'en' ? '#ffe066' : 'transparent',
+                color: language === 'en' ? '#083d77' : 'white',
+                borderColor: 'white',
+                fontWeight: 700,
+                '&:hover': {
+                  backgroundColor: language === 'en' ? '#ffd633' : 'rgba(255,255,255,0.1)'
+                }
+              }}
+            >
+              EN
+            </Button>
+            <Button
+              fullWidth
+              variant={language === 'tl' ? 'contained' : 'outlined'}
+              onClick={() => {
+                toggleLanguage();
+                handleMobileMenuClose();
+              }}
+              sx={{
+                backgroundColor: language === 'tl' ? '#ffe066' : 'transparent',
+                color: language === 'tl' ? '#083d77' : 'white',
+                borderColor: 'white',
+                fontWeight: 700,
+                '&:hover': {
+                  backgroundColor: language === 'tl' ? '#ffd633' : 'rgba(255,255,255,0.1)'
+                }
+              }}
+            >
+              TAG
+            </Button>
           </Box>
-        )}
+        </Box>
       </Drawer>
 
       {/* Active Franchise Dialog */}

@@ -482,7 +482,7 @@ export const franchiseAPI = {
    * @param {string} id - Application ID
    * @returns {Promise} Response with application data
    */
-  getById: (id) => api.get(`/api/franchise-applications/${id}`),
+  getById: (id) => api.get(`/api/franchise-applications/pending/${id}`),
 
   /**
    * Submit OR document and number after BPLO approval
@@ -758,6 +758,27 @@ export const franchiseInformationAPI = {
    * @returns {Promise} Response with user's franchises array
    */
   getByUser: (userId) => api.get(`/api/franchise-information/by-user/${userId}`),
+
+  /**
+   * Link existing franchise to operator account
+   * @param {object} data - { franchiseNumber, mtofDocument (optional) }
+   * @returns {Promise} Response with linked franchise
+   */
+  linkFranchise: (data) => {
+    // If mtofDocument is a file, use FormData
+    if (data.mtofDocument instanceof File) {
+      const formData = new FormData();
+      formData.append('franchiseNumber', data.franchiseNumber);
+      formData.append('mtofDocument', data.mtofDocument);
+      
+      return api.post('/api/franchise-information/link', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+    }
+    
+    // Otherwise send as JSON
+    return api.post('/api/franchise-information/link', data);
+  },
 
   /**
    * Update franchise information

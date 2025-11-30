@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
-import { useNavigate } from 'react-router-dom';
 import '../../Styles/LandingCss/LandingPage.css';
 import { useAuth } from '../../contexts/AuthContext';
+import { useTranslation } from '../../hooks/useTranslation';
 import websocketService from '../../services/websocket';
 import UnifiedNavbar from '../../components/UnifiedNavbar';
 import { Button, Typography, Box, useMediaQuery, useTheme, MobileStepper, Accordion, AccordionSummary, AccordionDetails } from '@mui/material';
@@ -21,8 +21,8 @@ const Card = ({ children, className }) => (
 );
 
 const LandingPage = () => {
-  const navigate = useNavigate();
-  const { user, login } = useAuth();
+  const { login } = useAuth();
+  const { t } = useTranslation();
   const [announcements, setAnnouncements] = useState([]);
   const [loadingAnnouncements, setLoadingAnnouncements] = useState(true);
   
@@ -31,63 +31,6 @@ const LandingPage = () => {
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [activeAnnouncementStep, setActiveAnnouncementStep] = useState(0);
   const [activeFeatureStep, setActiveFeatureStep] = useState(0);
-  
-  // Get display name from AuthContext user or fallback to token decode
-  const getDisplayName = () => {
-    if (user?.name) {
-      const parts = String(user.name).trim().split(/\s+/);
-      const first = parts[0];
-      const last = parts.slice(1).join(' ');
-      return last ? `${first} ${String(last).charAt(0).toUpperCase()}` : first;
-    }
-    
-    // Fallback: decode token directly from sessionStorage
-    try {
-      const token = sessionStorage.getItem('accessToken');
-      if (token) {
-        const decoded = JSON.parse(atob(token.split('.')[1]));
-        if (decoded?.name) {
-          const parts = String(decoded.name).trim().split(/\s+/);
-          const first = parts[0];
-          const last = parts.slice(1).join(' ');
-          return last ? `${first} ${String(last).charAt(0).toUpperCase()}` : first;
-        }
-      }
-    } catch (error) {
-      console.error('[LandingPage] Error decoding token:', error);
-    }
-    
-    return null;
-  };
-  
-  const displayName = getDisplayName();
-  
-  // Check if user has franchise (for enabling REQUEST FOR AMENDMENT)
-  const checkHasFranchise = () => {
-    try {
-      const token = sessionStorage.getItem('accessToken');
-      if (token) {
-        const decoded = JSON.parse(atob(token.split('.')[1]));
-        return decoded.hasFranchise === true;
-      }
-    } catch {
-      return false;
-    }
-    return false;
-  };
-  
-  const userHasFranchise = checkHasFranchise();
-
-  const handleRenewFranchise = () => {
-    if (displayName && userHasFranchise) {
-      // User is logged in and has an active franchise - show message or navigate
-      // For now, just navigate to login (can be enhanced later)
-      navigate('/login');
-    } else {
-      // User is not logged in or doesn't have a franchise
-      navigate('/login');
-    }
-  };
   
   // Fetch published announcements
   useEffect(() => {
@@ -228,22 +171,22 @@ const LandingPage = () => {
     setActiveFeatureStep(step);
   };
   
-  // --- Features data (keeping existing content)
+  // --- Features data
   const features = [
     {
       icon: '/Logos/2.png',
-      title: 'TRICYCLE VERIFICATION',
-      description: 'Instantly check if a tricycle is registered and franchised by scanning its QR code.'
+      title: t("landing.feature1Title"),
+      description: t("landing.feature1Description")
     },
     {
       icon: '/Logos/4.png',
-      title: 'FRANCHISE APPLICATION AND RENEWAL',
-      description: 'Submit new franchise applications or renew your existing one online with ease.'
+      title: t("landing.feature2Title"),
+      description: t("landing.feature2Description")
     },
     {
       icon: '/Logos/6.png',
-      title: 'REPORTING FUNCTION',
-      description: 'Report instances of overpricing or fare disputes, ensuring passengers are charged fairly.'
+      title: t("landing.feature3Title"),
+      description: t("landing.feature3Description")
     }
   ];
 
@@ -257,11 +200,7 @@ const LandingPage = () => {
       <main className="landing-main">
         
         <div className="main-content">
-          <h1>Tricycle Verification and<br />Hassle-Free Online<br />Franchise in Solano</h1>
-           {/* For button  */}
-          <div className="main-buttons">
-            <button className="main-btn yellow" onClick={handleRenewFranchise}>RENEW A FRANCHISE</button>
-          </div>
+          <h1 dangerouslySetInnerHTML={{ __html: t("landing.heroSubtitle") }}></h1>
         </div>
         <div className="main-image" style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', height: '100%' }}>
           <img
@@ -285,18 +224,18 @@ const LandingPage = () => {
               fontFamily: 'Poppins, sans-serif'
             }}
           >
-            Frequently Asked Questions
+            {t("landing.faqTitle")}
           </Typography>
           
           <Accordion sx={{ mb: 2, boxShadow: '0 2px 8px rgba(0,0,0,0.1)', borderRadius: '8px !important', '&:before': { display: 'none' } }}>
             <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ background: '#f5f5f5' }}>
               <Typography sx={{ fontWeight: 600, fontFamily: 'Poppins, sans-serif' }}>
-                How do I apply for a tricycle franchise?
+                {t("landing.faq1Question")}
               </Typography>
             </AccordionSummary>
             <AccordionDetails>
               <Typography sx={{ fontFamily: 'Poppins, sans-serif' }}>
-                To apply for a tricycle franchise, register an account on our platform, complete the online application form with all required documents, and submit it for BPLO review. You'll be notified of the approval status through the system.
+                {t("landing.faq1Answer")}
               </Typography>
             </AccordionDetails>
           </Accordion>
@@ -304,12 +243,12 @@ const LandingPage = () => {
           <Accordion sx={{ mb: 2, boxShadow: '0 2px 8px rgba(0,0,0,0.1)', borderRadius: '8px !important', '&:before': { display: 'none' } }}>
             <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ background: '#f5f5f5' }}>
               <Typography sx={{ fontWeight: 600, fontFamily: 'Poppins, sans-serif' }}>
-                What documents are required for franchise application?
+                {t("landing.faq2Question")}
               </Typography>
             </AccordionSummary>
             <AccordionDetails>
-              <Typography sx={{ fontFamily: 'Poppins, sans-serif' }}>
-                Required documents include: Motor registration (OR/CR), Barangay clearance, Cedula, Driver's license, Motor chassis stencil rubbing, and operator/driver photos (1x1). All documents can be uploaded directly through the online form.
+              <Typography sx={{ fontFamily: 'Poppins, sans-serif', whiteSpace: 'pre-line' }}>
+                {t("landing.faq2Answer")}
               </Typography>
             </AccordionDetails>
           </Accordion>
@@ -317,12 +256,12 @@ const LandingPage = () => {
           <Accordion sx={{ mb: 2, boxShadow: '0 2px 8px rgba(0,0,0,0.1)', borderRadius: '8px !important', '&:before': { display: 'none' } }}>
             <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ background: '#f5f5f5' }}>
               <Typography sx={{ fontWeight: 600, fontFamily: 'Poppins, sans-serif' }}>
-                How long does the approval process take?
+                {t("landing.faq3Question")}
               </Typography>
             </AccordionSummary>
             <AccordionDetails>
               <Typography sx={{ fontFamily: 'Poppins, sans-serif' }}>
-                The approval process typically takes A week. First, BPLO reviews your application, then it's forwarded to the Sangguniang Bayan for final approval. You can track your application status in real-time through your dashboard.
+                {t("landing.faq3Answer")}
               </Typography>
             </AccordionDetails>
           </Accordion>
@@ -330,12 +269,12 @@ const LandingPage = () => {
           <Accordion sx={{ mb: 2, boxShadow: '0 2px 8px rgba(0,0,0,0.1)', borderRadius: '8px !important', '&:before': { display: 'none' } }}>
             <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ background: '#f5f5f5' }}>
               <Typography sx={{ fontWeight: 600, fontFamily: 'Poppins, sans-serif' }}>
-                How does the QR code verification system work?
+                {t("landing.faq4Question")}
               </Typography>
             </AccordionSummary>
             <AccordionDetails>
               <Typography sx={{ fontFamily: 'Poppins, sans-serif' }}>
-                Once your franchise is approved, a unique QR code is generated for your tricycle. Passengers can scan this code to instantly verify your franchise status, view driver information, and confirm that your vehicle is legally registered and compliant.
+                {t("landing.faq4Answer")}
               </Typography>
             </AccordionDetails>
           </Accordion>
@@ -343,21 +282,21 @@ const LandingPage = () => {
           <Accordion sx={{ mb: 2, boxShadow: '0 2px 8px rgba(0,0,0,0.1)', borderRadius: '8px !important', '&:before': { display: 'none' } }}>
             <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ background: '#f5f5f5' }}>
               <Typography sx={{ fontWeight: 600, fontFamily: 'Poppins, sans-serif' }}>
-                What if my application is disapproved?
+                {t("landing.faq5Question")}
               </Typography>
             </AccordionSummary>
             <AccordionDetails>
               <Typography sx={{ fontFamily: 'Poppins, sans-serif' }}>
-                If your application is disapproved, you'll receive a notification with the specific reason. You can then edit and resubmit your application with the necessary corrections through your operator dashboard. All your previous data will be prefilled for easy editing.
+                {t("landing.faq5Answer")}
               </Typography>
             </AccordionDetails>
           </Accordion>
         </Box>
       </section>
 
-            {/* Announcements Section - Dynamic with Mobile Carousel */}
+      {/* Announcements Section - Dynamic with Mobile Carousel */}
       <section className="announcements-section">
-        <div className="announcements-title">ANNOUNCEMENTS</div>
+        <div className="announcements-title">{t("landing.announcementsTitle")}</div>
         
         {/* --- Mobile carousel wrapper (< md breakpoint) */}
         {isMobile ? (
@@ -430,7 +369,7 @@ const LandingPage = () => {
             {loadingAnnouncements ? (
               <div className="announcement-card">
                 <div className="announcement-card-body" style={{ textAlign: 'center', padding: '40px' }}>
-                  Loading announcements...
+                  {t("landing.loadingAnnouncements")}
                 </div>
               </div>
             ) : announcements.length > 0 ? (
@@ -446,7 +385,7 @@ const LandingPage = () => {
             ) : (
               <div className="announcement-card">
                 <div className="announcement-card-body" style={{ textAlign: 'center', padding: '40px' }}>
-                  No announcements at this time.
+                  {t("landing.noAnnouncements")}
                 </div>
               </div>
             )}
@@ -465,7 +404,7 @@ const LandingPage = () => {
         {/* FEATURES Section with Mobile Carousel */}
         <div style={{ background: '#F4D77E', padding: '40px 0' }}>
           <div style={{ background: '#1B4B75', color: '#F4D77E', display: 'inline-block', padding: '10px 50px', borderRadius: '2px', fontWeight: 'bold', fontSize: '28px', boxShadow: '2px 2px 6px #b3a04a', fontFamily: 'Poppins, sans-serif' }}>
-            FEATURES
+            {t("landing.featuresTitle")}
           </div>
           
           {/* --- Mobile carousel wrapper (< md breakpoint) */}
@@ -602,7 +541,7 @@ const LandingPage = () => {
               fontFamily: 'Poppins, sans-serif',
             }}
           >
-            SANGGUNIANG BAYAN OF SOLANO
+            {t("landing.footerTitle")}
           </Typography>
           <Typography
             sx={{
@@ -612,7 +551,7 @@ const LandingPage = () => {
               fontFamily: 'Poppins, sans-serif',
             }}
           >
-            All content is in the public domain unless otherwise stated.
+            {t("landing.footerDisclaimer")}
           </Typography>
           <Typography
             variant="h6"
@@ -624,7 +563,7 @@ const LandingPage = () => {
               fontFamily: 'Poppins, sans-serif',
             }}
           >
-            ABOUT SB-SOLANO
+            {t("landing.aboutTitle")}
           </Typography>
           <Typography
             sx={{
@@ -633,7 +572,7 @@ const LandingPage = () => {
               fontFamily: 'Poppins, sans-serif',
             }}
           >
-            Learn more about the Sangguniang Bayan of Solano, its structure, how legislative works and the people behind it.
+            {t("landing.aboutDescription")}
           </Typography>
         </Box>
 
@@ -649,7 +588,7 @@ const LandingPage = () => {
               fontFamily: 'Poppins, sans-serif',
             }}
           >
-            GOVERNMENT HOTLINE NUMBERS
+            {t("landing.hotlineTitle")}
           </Typography>
           <Box
             sx={{
@@ -667,12 +606,12 @@ const LandingPage = () => {
               }
             }}
           >
-            Police Department - <a href="tel:09274008033">0927 400 8033</a><br />
-            MSWDO - <a href="tel:09162840885">0916 284 0885</a><br />
-            Fire Department - <a href="tel:09360620305">0936 062 0305</a><br />
-            DILG Solano - <a href="tel:0906188086">0906 188 086</a><br />
-            MDRRMO - <a href="tel:09263833744">0926 383 3744</a><br />
-            R2TMC - <a href="tel:09068195569">0906 819 5569</a>
+            {t("landing.policeLabel")} - <a href="tel:09274008033">0927 400 8033</a><br />
+            {t("landing.mswdoLabel")} - <a href="tel:09162840885">0916 284 0885</a><br />
+            {t("landing.fireLabel")} - <a href="tel:09360620305">0936 062 0305</a><br />
+            {t("landing.dilgLabel")} - <a href="tel:0906188086">0906 188 086</a><br />
+            {t("landing.mdrrmoLabel")} - <a href="tel:09263833744">0926 383 3744</a><br />
+            {t("landing.r2tmcLabel")} - <a href="tel:09068195569">0906 819 5569</a>
           </Box>
         </Box>
       </Box>

@@ -13,6 +13,7 @@ import {
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import dayjs from 'dayjs';
+import swal from '../../utils/sweetAlert';
 
 function QROperatorID() {
   const { operatorId } = useParams();
@@ -708,20 +709,20 @@ function QROperatorID() {
                   if (!reportData.fullName || !reportData.contactNumber || 
                       !reportData.amountCharged || !reportData.expectedFare || 
                       !reportData.description) {
-                    alert('Please fill in all fields');
+                    swal.warning('Please fill in all fields');
                     return;
                   }
 
                   // Validate name format
                   if (!/^[a-zA-Z\s\-.']+$/.test(reportData.fullName)) {
-                    alert('Please enter a valid name (letters only)');
+                    swal.warning('Please enter a valid name (letters only)');
                     return;
                   }
 
                   // Validate phone number (Philippine format)
                   const phoneClean = reportData.contactNumber.replace(/[\s\-]/g, '');
                   if (!/^(\+63|0)?9\d{9}$/.test(phoneClean)) {
-                    alert('Please enter a valid Philippine mobile number (e.g., 09123456789)');
+                    swal.warning('Please enter a valid Philippine mobile number (e.g., 09123456789)');
                     return;
                   }
 
@@ -730,24 +731,24 @@ function QROperatorID() {
                   const expected = parseFloat(reportData.expectedFare);
 
                   if (isNaN(charged) || charged <= 0 || charged > 10000) {
-                    alert('Please enter a valid amount charged (1-10000)');
+                    swal.warning('Please enter a valid amount charged (1-10000)');
                     return;
                   }
 
                   if (isNaN(expected) || expected <= 0 || expected > 10000) {
-                    alert('Please enter a valid expected fare (1-10000)');
+                    swal.warning('Please enter a valid expected fare (1-10000)');
                     return;
                   }
 
                   // Validate that it's actually overpricing
                   if (charged <= expected) {
-                    alert('Amount charged must be higher than expected fare to report overpricing');
+                    swal.warning('Amount charged must be higher than expected fare to report overpricing');
                     return;
                   }
 
                   // Validate description length
                   if (reportData.description.length > 1000) {
-                    alert('Description is too long (max 1000 characters)');
+                    swal.warning('Description is too long (max 1000 characters)');
                     return;
                   }
 
@@ -786,11 +787,11 @@ function QROperatorID() {
                         });
                       }, 2000);
                     } else {
-                      alert(result.error || 'Failed to submit report. Please try again.');
+                      swal.error(result.error || 'Failed to submit report. Please try again.');
                     }
                   } catch (error) {
                     console.error('Error submitting report:', error);
-                    alert('Failed to submit report. Please check your connection and try again.');
+                    swal.error('Failed to submit report. Please check your connection and try again.');
                   } finally {
                     setSubmittingReport(false);
                   }

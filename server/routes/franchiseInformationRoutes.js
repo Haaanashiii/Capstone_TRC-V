@@ -151,6 +151,25 @@ router.get(
 );
 
 /**
+ * POST /franchise-information/link
+ * Link existing franchise to operator account
+ * PROTECTED - Operator only
+ * 
+ * Body:
+ * - franchiseNumber: Franchise number to link
+ * - mtofDocument: (Optional) MTOF document file
+ * 
+ * Returns:
+ * - Linked franchise information
+ */
+router.post(
+  '/link',
+  authenticate,
+  authorize(['operator']),
+  franchiseInformationController.linkFranchise
+);
+
+/**
  * GET /franchise-information/:id
  * Get specific franchise by ID (any version)
  * PROTECTED - Admin only

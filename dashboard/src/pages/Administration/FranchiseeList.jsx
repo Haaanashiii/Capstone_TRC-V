@@ -194,6 +194,16 @@ const FranchiseeDetailsModal = ({ open, onClose, franchisee, isEditing, onEdit, 
               <Typography variant="subtitle2" className="label">Approved Date:</Typography>
               <Typography>{franchisee.approvedAt || 'N/A'}</Typography>
               
+              <Typography variant="subtitle2" className="label">Driver Picture:</Typography>
+              {franchisee.documentPicture ? (
+                <Link className="document-link" onClick={() => onFilePreview(franchisee.documentPicture)}>
+                  {getFileIcon(franchisee.documentPicture?.type)}
+                  <span>{getDocumentDisplayName(franchisee.documentPicture)}</span>
+                </Link>
+              ) : (
+                <Typography sx={{ color: 'text.secondary', fontStyle: 'italic' }}>Not uploaded</Typography>
+              )}
+              
               <Typography variant="subtitle2" className="label">Expiry Date:</Typography>
               <Typography>{franchisee.expiryDate || 'N/A'}</Typography>
               
@@ -265,6 +275,9 @@ const FranchiseeDetailsModal = ({ open, onClose, franchisee, isEditing, onEdit, 
               
               <Typography variant="subtitle2" className="label">Sidecar Plate Number:</Typography>
               <Typography>{franchisee.sidecarPlateNumber || 'N/A'}</Typography>
+              
+              <Typography variant="subtitle2" className="label">Driver Name:</Typography>
+              <Typography>{franchisee.driverName || 'N/A'}</Typography>
               
               <Typography variant="subtitle2" className="label">Make:</Typography>
               <Typography>{franchisee.make}</Typography>
@@ -374,11 +387,11 @@ const FranchiseeDetailsModal = ({ open, onClose, franchisee, isEditing, onEdit, 
                 <Typography sx={{ color: 'text.secondary', fontStyle: 'italic' }}>Not uploaded</Typography>
               )}
               
-              <Typography variant="subtitle2" className="label">Driver Picture:</Typography>
-              {franchisee.documentPicture ? (
-                <Link className="document-link" onClick={() => onFilePreview(franchisee.documentPicture)}>
-                  {getFileIcon(franchisee.documentPicture?.type)}
-                  <span>{getDocumentDisplayName(franchisee.documentPicture)}</span>
+              <Typography variant="subtitle2" className="label">Operator Picture:</Typography>
+              {franchisee.documentOperatorPicture ? (
+                <Link className="document-link" onClick={() => onFilePreview(franchisee.documentOperatorPicture)}>
+                  {getFileIcon(franchisee.documentOperatorPicture?.type)}
+                  <span>{getDocumentDisplayName(franchisee.documentOperatorPicture)}</span>
                 </Link>
               ) : (
                 <Typography sx={{ color: 'text.secondary', fontStyle: 'italic' }}>Not uploaded</Typography>
@@ -593,6 +606,11 @@ function FranchiseeList() {
             name: docs.driverPictureObj.split('/').pop(),
             path: docs.driverPictureObj,
             type: getFileTypeFromUrl(docs.driverPictureObj)
+          } : null,
+          documentOperatorPicture: docs.operatorPictureObj ? {
+            name: docs.operatorPictureObj.split('/').pop(),
+            path: docs.operatorPictureObj,
+            type: getFileTypeFromUrl(docs.operatorPictureObj)
           } : null,
           documentTreasurerOR: docs.oRTreasurerOfficeObj ? {
             name: docs.oRTreasurerOfficeObj.split('/').pop(),
