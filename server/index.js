@@ -37,6 +37,30 @@ dotenv.config();
 const app = express();
 const server = http.createServer(app);
 
+// Socket.IO logging configuration (control verbosity in development/production)
+const SOCKET_LOG_LEVEL = process.env.SOCKET_LOG_LEVEL || 'info'; // 'debug', 'info', 'warn', 'error'
+const shouldLog = {
+  debug: () => SOCKET_LOG_LEVEL === 'debug',
+  info: () => ['debug', 'info'].includes(SOCKET_LOG_LEVEL),
+  warn: () => ['debug', 'info', 'warn'].includes(SOCKET_LOG_LEVEL),
+  error: () => true // Always log errors
+};
+
+// JWT token caching for faster verification (1 minute TTL)
+const tokenCache = new Map();
+const TOKEN_CACHE_TTL = 60 * 1000;
+
+const getCachedToken = (token) => {
+  const cached = tokenCache.get(token);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.decoded;
+  }
+  tokenCache.delete(token);
+  return null;
+};
+
+const cacheManager = require('./utils/cache'); // Already exists in your project
+
 // Setup real-time messaging with allowed websites
 const socketCorsOrigin = process.env.CORS_ORIGIN 
   ? process.env.CORS_ORIGIN.split(',').map(s => s.trim()).filter(Boolean)
@@ -65,7 +89,7 @@ io.on('error', (error) => {
   console.error('[SOCKET.IO] Server error:', error);
 });
 
-// Verify user login token when connecting
+// Verify user login token when connecting (with caching for performance)
 io.use((socket, next) => {
   const token = socket.handshake.auth.token;
   
@@ -77,12 +101,25 @@ io.use((socket, next) => {
     socket.userRole = null;
     socket.isAuthenticated = false;
     
-    console.log(`[SOCKET.IO] Anonymous connection: ${socket.userId}`);
+    if (shouldLog.debug()) console.log(`[SOCKET.IO] Anonymous connection: ${socket.userId}`);
     return next();
   }
   
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    // Try cache first (instant, no CPU)
+    let decoded = getCachedToken(token);
+    
+    if (decoded) {
+      if (shouldLog.debug()) console.log(`[SOCKET.IO] Token from cache: ${decoded.userId || decoded.adminId}`);
+    } else {
+      // Not cached, verify (CPU intensive)
+      decoded = jwt.verify(token, process.env.JWT_SECRET);
+      tokenCache.set(token, {
+        decoded,
+        expiresAt: Date.now() + TOKEN_CACHE_TTL
+      });
+      if (shouldLog.debug()) console.log(`[SOCKET.IO] Token verified and cached: ${decoded.userId || decoded.adminId}`);
+    }
     
     // Save user info from login token
     socket.userId = decoded.userId || decoded.id || decoded._id || decoded.adminId;
@@ -90,7 +127,7 @@ io.use((socket, next) => {
     socket.userRole = decoded.role; // 'super-admin', 'sb-admin', 'bplo-admin', 'operator'
     socket.isAuthenticated = true;
     
-    console.log(`[SOCKET.IO] Authenticated: ${socket.userId} (${decoded.role})`);
+    if (shouldLog.info()) console.log(`[SOCKET.IO] Authenticated: ${socket.userId} (${decoded.role})`);
     next();
   } catch (err) {
     console.error('[SOCKET.IO] Token verification failed:', err.message);
@@ -101,15 +138,15 @@ io.use((socket, next) => {
 
 // Handle when users connect to real-time system
 io.on('connection', (socket) => {
-  console.log(`[SOCKET.IO] Client connected: ${socket.id} - User: ${socket.userId} - Auth: ${socket.isAuthenticated}`);
+  if (shouldLog.info()) console.log(`[SOCKET.IO] Client connected: ${socket.id} - User: ${socket.userId} - Auth: ${socket.isAuthenticated}`);
   
   // Add user to announcements room automatically
   socket.join('announcements');
-  console.log(`[SOCKET.IO] User ${socket.userId} auto-joined announcements room`);
+  if (shouldLog.debug()) console.log(`[SOCKET.IO] User ${socket.userId} auto-joined announcements room`);
   
   // Stop connection errors from crashing the app
   socket.on('error', (error) => {
-    console.error(`[SOCKET.IO] Socket error for ${socket.id}:`, error);
+    if (shouldLog.warn()) console.error(`[SOCKET.IO] Socket error for ${socket.id}:`, error);
   });
   
   // Check user permissions before joining rooms
@@ -118,7 +155,7 @@ io.on('connection', (socket) => {
     if (!socket.isAuthenticated) {
       if (room === 'announcements') {
         socket.join(room);
-        console.log(`[SOCKET.IO] Anonymous user ${socket.userId} joined announcements room`);
+        if (shouldLog.debug()) console.log(`[SOCKET.IO] Anonymous user ${socket.userId} joined announcements room`);
         return;
       }
       socket.emit('error', { message: 'Authentication required for this room' });
@@ -175,37 +212,69 @@ io.on('connection', (socket) => {
     
     // Check if user is authorized
     if (!canAccessRoom()) {
-      console.warn(`[SOCKET.IO] UNAUTHORIZED: User ${socket.userId} (${socket.userRole}) tried to join ${room}`);
+      if (shouldLog.warn()) console.warn(`[SOCKET.IO] UNAUTHORIZED: User ${socket.userId} (${socket.userRole}) tried to join ${room}`);
       socket.emit('error', { message: `Not authorized to join room: ${room}` });
       return;
     }
     
     // User is authorized - join the room
     socket.join(room);
-    console.log(`[SOCKET.IO] ✅ User ${socket.userId} (${socket.userRole}) joined room: ${room}`);
+    if (shouldLog.info()) console.log(`[SOCKET.IO] ✅ User ${socket.userId} (${socket.userRole}) joined room: ${room}`);
     
-    // Send initial state based on room
+    // Send initial state based on room (with pagination and caching)
     try {
       const FranchiseApplication = require('./models/franchiseApplicationModel');
       const AdminAccount = require('./models/adminAccountModel');
       
       if (room === 'sb-admins') {
-        const applications = await FranchiseApplication.find({
-          statusOfBPLO: 'awaiting-sb'
-        }).sort({ submittedAt: -1 });
+        // Use cache to avoid database hit for every connection
+        const cacheKey = 'socket-initial-sb-admins';
+        let applications = cacheManager.get(cacheKey);
+        
+        if (!applications) {
+          // Not cached, query database with pagination
+          applications = await FranchiseApplication
+            .find({ statusOfBPLO: 'awaiting-sb' })
+            .sort({ submittedAt: -1 })
+            .limit(50)  // Only fetch latest 50 to prevent memory overload
+            .lean();     // Remove Mongoose wrapper for speed
+          
+          // Cache for 5 seconds
+          cacheManager.set(cacheKey, applications, 5);
+          if (shouldLog.debug()) console.log(`[SOCKET.IO] Fetched from DB and cached sb-admins data`);
+        } else {
+          if (shouldLog.debug()) console.log(`[SOCKET.IO] Using cached sb-admins data`);
+        }
+        
         socket.emit('approved-applications', applications);
-        console.log(`[SOCKET.IO] Sent ${applications.length} awaiting-sb applications to SB admin`);
+        if (shouldLog.info()) console.log(`[SOCKET.IO] Sent ${applications.length} awaiting-sb applications to SB admin`);
       } else if (room === 'bplo-admins') {
-        const applications = await FranchiseApplication.find({
-          statusOfBPLO: 'pending'
-        }).sort({ submittedAt: -1 });
+        // Use cache to avoid database hit for every connection
+        const cacheKey = 'socket-initial-bplo-admins';
+        let applications = cacheManager.get(cacheKey);
+        
+        if (!applications) {
+          // Not cached, query database with pagination
+          applications = await FranchiseApplication
+            .find({ statusOfBPLO: 'pending' })
+            .sort({ submittedAt: -1 })
+            .limit(50)  // Only fetch latest 50 to prevent memory overload
+            .lean();     // Remove Mongoose wrapper for speed
+          
+          // Cache for 5 seconds
+          cacheManager.set(cacheKey, applications, 5);
+          if (shouldLog.debug()) console.log(`[SOCKET.IO] Fetched from DB and cached bplo-admins data`);
+        } else {
+          if (shouldLog.debug()) console.log(`[SOCKET.IO] Using cached bplo-admins data`);
+        }
+        
         socket.emit('pending-applications', applications);
-        console.log(`[SOCKET.IO] Sent ${applications.length} pending applications to BPLO admin`);
+        if (shouldLog.info()) console.log(`[SOCKET.IO] Sent ${applications.length} pending applications to BPLO admin`);
       } else if (room.startsWith('user-')) {
         // Personal room - no initial state needed
-        console.log(`[SOCKET.IO] User ${socket.userId} joined personal room`);
+        if (shouldLog.debug()) console.log(`[SOCKET.IO] User ${socket.userId} joined personal room`);
       } else if (room === 'operators-room') {
-        console.log(`[SOCKET.IO] Operator ${socket.userId} joined operators-room`);
+        if (shouldLog.debug()) console.log(`[SOCKET.IO] Operator ${socket.userId} joined operators-room`);
       }
     } catch (error) {
       console.error(`[SOCKET.IO] Error fetching initial data for ${room}:`, error.message);
@@ -217,12 +286,12 @@ io.on('connection', (socket) => {
     if (data?.userId) {
       const userRoom = `user-${data.userId}`;
       socket.join(userRoom);
-      console.log(`[SOCKET.IO] User ${data.userId} joined personal room: ${userRoom}`);
+      if (shouldLog.debug()) console.log(`[SOCKET.IO] User ${data.userId} joined personal room: ${userRoom}`);
     }
   });
   
   socket.on('disconnect', () => {
-    console.log(`[SOCKET.IO] Client disconnected: ${socket.id}`);
+    if (shouldLog.debug()) console.log(`[SOCKET.IO] Client disconnected: ${socket.id}`);
   });
 });
 
@@ -230,16 +299,28 @@ io.on('connection', (socket) => {
 app.set('trust proxy', 1);
 
 // Performance-optimized middleware order Essential security middleware first
-app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
+// CSP: Different policies for dev vs production
+const cspDirectives = process.env.NODE_ENV === 'production'
+  ? {
       defaultSrc: ["'self'"],
       scriptSrc: ["'self'"],
       imgSrc: ["'self'", "data:", "https://pub-422a490d7e024793bffa369b66dfae83.r2.dev"],
       styleSrc: ["'self'", "'unsafe-inline'"],
       fontSrc: ["'self'"],
-      connectSrc: ["'self'", "https://trc-v.vercel.app", "https://*.vercel.app", "https://*.workers.dev", "ws://localhost:5170", "ws://localhost:*"]
+      connectSrc: ["'self'", "https://trc-v.vercel.app"]  // Production: only HTTPS
     }
+  : {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'"],
+      imgSrc: ["'self'", "data:", "https://pub-422a490d7e024793bffa369b66dfae83.r2.dev"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      fontSrc: ["'self'"],
+      connectSrc: ["'self'", "https://trc-v.vercel.app", "https://*.vercel.app", "https://*.workers.dev", "ws://localhost:5170", "ws://localhost:*"]  // Dev: allow localhost
+    };
+
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: cspDirectives
   },
   referrerPolicy: { policy: 'same-origin' },
   xssFilter: true,
@@ -383,7 +464,7 @@ const startTime = Date.now();
 
 mongoose.connect(process.env.MONGO_URI, {
   serverSelectionTimeoutMS: 10000, // Increase timeout to 10 seconds
-  maxPoolSize: 50, // Increased from 10 for handling 100-500 concurrent users
+  maxPoolSize: 75, // Increased from 10 for handling 100-500 concurrent users
   minPoolSize: 10, // Maintain minimum pool for faster connection reuse
   socketTimeoutMS: 45000, // Close sockets after 45 seconds of inactivity
   family: 4 // Use IPv4, skip trying IPv6
@@ -398,6 +479,8 @@ mongoose.connect(process.env.MONGO_URI, {
       console.log(`[SERVER] ✅ Server running on port ${PORT} (${totalBootTime}ms)`);
       console.log(`[SERVER] ✅ Socket.IO enabled on ws://0.0.0.0:${PORT}/socket.io/`);
       console.log(`[SERVER] ✅ Socket.IO CORS enabled for origins: ${socketCorsOrigin}`);
+      console.log(`[SERVER] ℹ️  Socket.IO log level: ${SOCKET_LOG_LEVEL} (set SOCKET_LOG_LEVEL=debug for verbose logs)`);
+      console.log(`[SERVER] ℹ️  Optimizations enabled: JWT caching, pagination (50 items), 5s cache for room data`);
       
       // Initialize scheduler AFTER server starts (non-blocking)
       setImmediate(() => {
