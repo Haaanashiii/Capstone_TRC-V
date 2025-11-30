@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from "react";
+import Swal from 'sweetalert2';
 import { useNavigate } from 'react-router-dom';
 import UnifiedNavbar from "../../components/UnifiedNavbar";
-import { TextField, Button, Snackbar, Alert, CircularProgress, Select, MenuItem, FormControl, InputLabel, FormHelperText, Accordion, AccordionSummary, AccordionDetails, Typography } from "@mui/material";
+import { TextField, Button, CircularProgress, Select, MenuItem, FormControl, InputLabel, FormHelperText, Accordion, AccordionSummary, AccordionDetails, Typography } from "@mui/material";
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
@@ -11,6 +12,64 @@ import api, { franchiseAPI, TokenManager } from '../Services/api';
 import { validateFile, formatFileSize } from '../../utils/fileValidation';
 import { compressFile } from '../../utils/compressFile';
 import "../../Styles/Operator's_CSS/FranchiseApplication.css";
+
+// SweetAlert styling utility
+const alertStyle = {
+  successAlert: {
+    icon: 'success',
+    iconColor: '#10b981',
+    confirmButtonColor: '#174D7A',
+    customClass: {
+      container: 'swal-container',
+      popup: 'swal-popup',
+      title: 'swal-title',
+      htmlContainer: 'swal-text',
+      confirmButton: 'swal-confirm-btn'
+    },
+    showConfirmButton: true,
+    confirmButtonText: 'OK',
+    didOpen: (modal) => {
+      modal.style.borderRadius = '12px';
+      modal.style.boxShadow = '0 10px 40px rgba(0, 0, 0, 0.15)';
+    }
+  },
+  errorAlert: {
+    icon: 'error',
+    iconColor: '#ef4444',
+    confirmButtonColor: '#174D7A',
+    customClass: {
+      container: 'swal-container',
+      popup: 'swal-popup',
+      title: 'swal-title',
+      htmlContainer: 'swal-text',
+      confirmButton: 'swal-confirm-btn'
+    },
+    showConfirmButton: true,
+    confirmButtonText: 'OK',
+    didOpen: (modal) => {
+      modal.style.borderRadius = '12px';
+      modal.style.boxShadow = '0 10px 40px rgba(0, 0, 0, 0.15)';
+    }
+  },
+  warningAlert: {
+    icon: 'warning',
+    iconColor: '#f59e0b',
+    confirmButtonColor: '#174D7A',
+    customClass: {
+      container: 'swal-container',
+      popup: 'swal-popup',
+      title: 'swal-title',
+      htmlContainer: 'swal-text',
+      confirmButton: 'swal-confirm-btn'
+    },
+    showConfirmButton: true,
+    confirmButtonText: 'OK',
+    didOpen: (modal) => {
+      modal.style.borderRadius = '12px';
+      modal.style.boxShadow = '0 10px 40px rgba(0, 0, 0, 0.15)';
+    }
+  }
+};
 
 export default function FranchiseApplication() {
   // Language state
@@ -427,8 +486,6 @@ export default function FranchiseApplication() {
     picture: null,
   });
 
-  const [toast, setToast] = useState({ open: false, message: '', severity: 'success' });
-
   // Prevent multiple submissions / spamming
   const [isSubmitting, setIsSubmitting] = useState(false);
   // Field-level errors map
@@ -441,21 +498,6 @@ export default function FranchiseApplication() {
   }, [errors]);
 
   const navigate = useNavigate();
-
-  const handleToastClose = (event, reason) => {
-    if (reason === 'clickaway') return;
-    setToast(t => ({ ...t, open: false }));
-  };
-
-  // Auto-close toast after 3 seconds
-  React.useEffect(() => {
-    if (toast.open) {
-      const timer = setTimeout(() => {
-        setToast(t => ({ ...t, open: false }));
-      }, 6000);
-      return () => clearTimeout(timer);
-    }
-  }, [toast.open]);
 
   const _handleFileChange = (key) => (e) => {
     setUploads({ ...uploads, [key]: e.target.files[0] });
@@ -532,7 +574,11 @@ export default function FranchiseApplication() {
         return k.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase());
       }).join(', ');
       const message = missingCount > 6 ? `Please fill required fields: ${preview} and ${missingCount - 6} more.` : `Please fill required fields: ${preview}.`;
-      setToast({ open: true, message, severity: 'error' });
+      Swal.fire({
+        ...alertStyle.errorAlert,
+        title: 'Validation Error',
+        text: message
+      });
       return false;
     }
 
@@ -938,16 +984,28 @@ export default function FranchiseApplication() {
                   if (file) {
                     const validation = validateFile(file);
                     if (!validation.success) {
-                      setToast({ open: true, message: validation.message, severity: 'error' });
+                      Swal.fire({
+                        ...alertStyle.errorAlert,
+                        title: 'Invalid File',
+                        text: validation.message
+                      });
                       return;
                     }
                     try {
                       const processedFile = await compressFile(file);
                       setFields({ ...fields, operatorPicture: processedFile });
-                      setToast({ open: true, message: 'Picture uploaded successfully', severity: 'success' });
+                      Swal.fire({
+                        ...alertStyle.successAlert,
+                        title: 'Success!',
+                        text: 'Picture uploaded successfully'
+                      });
                     } catch {
                       setFields({ ...fields, operatorPicture: file });
-                      setToast({ open: true, message: 'Picture uploaded', severity: 'success' });
+                      Swal.fire({
+                        ...alertStyle.successAlert,
+                        title: 'Success!',
+                        text: 'Picture uploaded'
+                      });
                     }
                   }
                 };
@@ -1048,7 +1106,11 @@ export default function FranchiseApplication() {
                       setBarangayError('');
                     }
                     if (hasError) {
-                      setToast({ open: true, message: 'Please fix form errors before submitting.', severity: 'error' });
+                      Swal.fire({
+                        ...alertStyle.errorAlert,
+                        title: 'Form Error',
+                        text: 'Please fix form errors before submitting.'
+                      });
                       return;
                     }
 
@@ -1181,7 +1243,11 @@ export default function FranchiseApplication() {
                       const token = sessionStorage.getItem('accessToken');
                       
                       if (!token) {
-                        setToast({ open: true, message: 'Session expired. Please log in again.', severity: 'error' });
+                        Swal.fire({
+                          ...alertStyle.errorAlert,
+                          title: 'Session Expired',
+                          text: 'Please log in again.'
+                        });
                         setTimeout(() => navigate('/login'), 2000);
                         return;
                       }
@@ -1251,7 +1317,11 @@ export default function FranchiseApplication() {
                         }
                       } catch { /* ignore */ }
 
-                      setToast({ open: true, message: 'Application submitted successfully. Administrators will be able to review it shortly.', severity: 'success' })
+                      Swal.fire({
+                        ...alertStyle.successAlert,
+                        title: 'Success!',
+                        text: 'Application submitted successfully. Administrators will be able to review it shortly.'
+                      })
 
                       
                       try {
@@ -1266,11 +1336,23 @@ export default function FranchiseApplication() {
                       const status = err.response?.status;
                       const serverMessage = err.response?.data?.error || err.response?.data?.message || err.message;
                       if (status === 409) {
-                        setToast({ open: true, message: serverMessage || 'An application already exists.', severity: 'error' });
+                        Swal.fire({
+                          ...alertStyle.errorAlert,
+                          title: 'Error',
+                          text: serverMessage || 'An application already exists.'
+                        });
                       } else if (status === 400) {
-                        setToast({ open: true, message: serverMessage || 'Bad request. Please check your input.', severity: 'error' });
+                        Swal.fire({
+                          ...alertStyle.errorAlert,
+                          title: 'Error',
+                          text: serverMessage || 'Bad request. Please check your input.'
+                        });
                       } else {
-                        setToast({ open: true, message: serverMessage || 'Failed to submit application. Please try again later.', severity: 'error' });
+                        Swal.fire({
+                          ...alertStyle.errorAlert,
+                          title: 'Error',
+                          text: serverMessage || 'Failed to submit application. Please try again later.'
+                        });
                       }
                       // Allow user to try again
                       setIsSubmitting(false);
@@ -1464,17 +1546,6 @@ export default function FranchiseApplication() {
               </ol>
             </AccordionDetails>
           </Accordion>
-          {/* Snackbar for toast notifications */}
-          <Snackbar
-            open={toast.open}
-            autoHideDuration={6000}
-            onClose={handleToastClose}
-            anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-          >
-            <Alert onClose={handleToastClose} severity={toast.severity} sx={{ width: '100%' }}>
-              {toast.message}
-            </Alert>
-          </Snackbar>
 
         </div>
       </div>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import Swal from 'sweetalert2';
 import { useNavigate } from "react-router-dom";
 import UnifiedNavbar from "../../components/UnifiedNavbar";
 import { useAuth } from "../../contexts/AuthContext";
@@ -22,13 +23,69 @@ import {
   Button,
   Dialog,
   DialogContent,
-  TextField,
-  Snackbar,
-  Alert
+  TextField
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import { franchiseAPI, franchiseInformationAPI } from '../Services/api';
+
+// SweetAlert styling utility
+const alertStyle = {
+  successAlert: {
+    icon: 'success',
+    iconColor: '#10b981',
+    confirmButtonColor: '#174D7A',
+    customClass: {
+      container: 'swal-container',
+      popup: 'swal-popup',
+      title: 'swal-title',
+      htmlContainer: 'swal-text',
+      confirmButton: 'swal-confirm-btn'
+    },
+    showConfirmButton: true,
+    confirmButtonText: 'OK',
+    didOpen: (modal) => {
+      modal.style.borderRadius = '12px';
+      modal.style.boxShadow = '0 10px 40px rgba(0, 0, 0, 0.15)';
+    }
+  },
+  errorAlert: {
+    icon: 'error',
+    iconColor: '#ef4444',
+    confirmButtonColor: '#174D7A',
+    customClass: {
+      container: 'swal-container',
+      popup: 'swal-popup',
+      title: 'swal-title',
+      htmlContainer: 'swal-text',
+      confirmButton: 'swal-confirm-btn'
+    },
+    showConfirmButton: true,
+    confirmButtonText: 'OK',
+    didOpen: (modal) => {
+      modal.style.borderRadius = '12px';
+      modal.style.boxShadow = '0 10px 40px rgba(0, 0, 0, 0.15)';
+    }
+  },
+  warningAlert: {
+    icon: 'warning',
+    iconColor: '#f59e0b',
+    confirmButtonColor: '#174D7A',
+    customClass: {
+      container: 'swal-container',
+      popup: 'swal-popup',
+      title: 'swal-title',
+      htmlContainer: 'swal-text',
+      confirmButton: 'swal-confirm-btn'
+    },
+    showConfirmButton: true,
+    confirmButtonText: 'OK',
+    didOpen: (modal) => {
+      modal.style.borderRadius = '12px';
+      modal.style.boxShadow = '0 10px 40px rgba(0, 0, 0, 0.15)';
+    }
+  }
+};
 
 const OperatorHomePage = () => {
   // Use AuthContext for user data (consistent with UnifiedSidebar)
@@ -213,7 +270,6 @@ const OperatorHomePage = () => {
   const [orNumberInput, setOrNumberInput] = useState('');
   const [orFileInput, setOrFileInput] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [notificationAlert, setNotificationAlert] = useState({ open: false, message: '', type: 'info' });
   const [activeFranchises, setActiveFranchises] = useState([]);
   const [loadingFranchises, setLoadingFranchises] = useState(true);
   const navigate = useNavigate();
@@ -326,10 +382,10 @@ const OperatorHomePage = () => {
     // Listen for BPLO disapproval notifications
     socket.on('bplo-disapproval', (data) => {
       console.log('[OperatorHomePage] Received BPLO disapproval:', data);
-      setNotificationAlert({
-        open: true,
-        message: `Your application has been disapproved. Reason: ${data.reason}`,
-        type: 'error'
+      Swal.fire({
+        ...alertStyle.errorAlert,
+        title: 'Application Disapproved',
+        text: `Your application has been disapproved. Reason: ${data.reason}`
       });
       // Refresh applications list
       const fetchApplications = async () => {
@@ -348,10 +404,10 @@ const OperatorHomePage = () => {
     // Listen for BPLO approval notifications
     socket.on('bplo-approval', (data) => {
       console.log('[OperatorHomePage] Received BPLO approval:', data);
-      setNotificationAlert({
-        open: true,
-        message: 'Your application has been approved by BPLO. Please submit your Official Receipt.',
-        type: 'success'
+      Swal.fire({
+        ...alertStyle.successAlert,
+        title: 'BPLO Approved!',
+        text: 'Your application has been approved by BPLO. Please submit your Official Receipt.'
       });
       // Refresh applications list
       const fetchApplications = async () => {
@@ -370,10 +426,10 @@ const OperatorHomePage = () => {
     // Listen for SB approval notifications
     socket.on('sb-approval', (data) => {
       console.log('[OperatorHomePage] Received SB approval:', data);
-      setNotificationAlert({
-        open: true,
-        message: 'Congratulations! Your application has been finally approved. You can now claim your certificate.',
-        type: 'success'
+      Swal.fire({
+        ...alertStyle.successAlert,
+        title: 'Congratulations!',
+        text: 'Your application has been finally approved. You can now claim your certificate.'
       });
       // Refresh applications list
       const fetchApplications = async () => {
@@ -556,10 +612,10 @@ const OperatorHomePage = () => {
 
   const handleSubmitOR = async () => {
     if (!orNumberInput.trim() || !orFileInput) {
-      setNotificationAlert({ 
-        open: true, 
-        message: 'Please provide both OR Number and OR Document', 
-        type: 'warning' 
+      Swal.fire({
+        ...alertStyle.warningAlert,
+        title: 'Missing Information',
+        text: 'Please provide both OR Number and OR Document'
       });
       return;
     }
@@ -573,10 +629,10 @@ const OperatorHomePage = () => {
 
       await franchiseAPI.submitOR(selectedAppForOR._id, formData);
 
-      setNotificationAlert({ 
-        open: true, 
-        message: 'OR submitted successfully! Your application will now proceed to SB for final approval.', 
-        type: 'success' 
+      Swal.fire({
+        ...alertStyle.successAlert,
+        title: 'Success!',
+        text: 'OR submitted successfully! Your application will now proceed to SB for final approval.'
       });
       
       // Refresh applications
@@ -588,10 +644,10 @@ const OperatorHomePage = () => {
       handleCloseORModal();
     } catch (error) {
       console.error('Error submitting OR:', error);
-      setNotificationAlert({ 
-        open: true, 
-        message: error.response?.data?.error || 'Failed to submit OR. Please try again.', 
-        type: 'error' 
+      Swal.fire({
+        ...alertStyle.errorAlert,
+        title: 'Error',
+        text: error.response?.data?.error || 'Failed to submit OR. Please try again.'
       });
     } finally {
       setIsSubmitting(false);
@@ -2051,22 +2107,6 @@ const OperatorHomePage = () => {
           </Box>
         </Box>
       </Modal>
-
-      {/* Notification Snackbar */}
-      <Snackbar
-        open={notificationAlert.open}
-        autoHideDuration={6000}
-        onClose={() => setNotificationAlert({ ...notificationAlert, open: false })}
-        anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
-      >
-        <Alert
-          onClose={() => setNotificationAlert({ ...notificationAlert, open: false })}
-          severity={notificationAlert.type}
-          sx={{ width: '100%' }}
-        >
-          {notificationAlert.message}
-        </Alert>
-      </Snackbar>
     </div>
   );
 };
