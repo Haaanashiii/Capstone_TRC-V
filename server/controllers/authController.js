@@ -203,7 +203,7 @@ exports.resetPassword = async (req, res, next) => {
       // Continue if comparison fails - better to let user reset than block them
     }
     
-    const hashed = await bcrypt.hash(newPassword, 10);
+    const hashed = await bcrypt.hash(newPassword, 12);  // Increased from 10 to 12 for better security
     
     // Update password based on user type - pass isRawPassword flag to prevent double-hashing
     if (user._id && user.email) {

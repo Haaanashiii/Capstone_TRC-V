@@ -19,6 +19,27 @@ function validateRequest(req, res, next) {
   next();
 }
 
+// Helper to safely parse and validate pagination parameters
+function getPaginationParams(req, maxLimit = 50) {
+  const page = Math.max(1, parseInt(req.query.page) || 1);
+  const limit = Math.min(Math.max(1, parseInt(req.query.limit) || 20), maxLimit);
+  const skip = (page - 1) * limit;
+  return { page, limit, skip };
+}
+
+// Sanitize URL query parameters for search/filter
+function sanitizeQuery(query) {
+  if (!query || typeof query !== 'string') return '';
+  
+  // Remove dangerous MongoDB operators
+  let sanitized = query
+    .replace(/[\$\{\}]/g, '') // Remove $ { }
+    .trim()
+    .substring(0, 200); // Max 200 chars
+  
+  return sanitized;
+}
+
 // Rules for different types of form submissions
 const validationSchemas = {
   // Login form
@@ -88,5 +109,7 @@ function sanitizeRequest(req, res, next) {
 module.exports = {
   validateRequest,
   validationSchemas,
-  sanitizeRequest
+  sanitizeRequest,
+  getPaginationParams,
+  sanitizeQuery
 };

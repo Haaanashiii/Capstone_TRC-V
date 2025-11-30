@@ -47,8 +47,37 @@ const shouldLog = {
 };
 
 // JWT token caching for faster verification (1 minute TTL)
-const tokenCache = new Map();
+// Using ExpiringMap to prevent unbounded memory growth
 const TOKEN_CACHE_TTL = 60 * 1000;
+
+class ExpiringMap {
+  constructor(ttl) {
+    this.ttl = ttl;
+    this.map = new Map();
+  }
+  
+  set(key, value) {
+    if (this.map.has(key)) {
+      const old = this.map.get(key);
+      if (old && old.timeout) clearTimeout(old.timeout);
+    }
+    const timeout = setTimeout(() => this.map.delete(key), this.ttl);
+    this.map.set(key, { value, timeout });
+  }
+  
+  get(key) {
+    const entry = this.map.get(key);
+    return entry?.value || null;
+  }
+  
+  delete(key) {
+    const entry = this.map.get(key);
+    if (entry && entry.timeout) clearTimeout(entry.timeout);
+    return this.map.delete(key);
+  }
+}
+
+const tokenCache = new ExpiringMap(TOKEN_CACHE_TTL);
 
 const getCachedToken = (token) => {
   const cached = tokenCache.get(token);
@@ -151,6 +180,12 @@ io.on('connection', (socket) => {
   
   // Check user permissions before joining rooms
   socket.on('join-room', async (room) => {
+    // Validate room name format to prevent injection attacks
+    if (typeof room !== 'string' || room.length > 100 || !/^[a-z0-9\-]*$/.test(room)) {
+      socket.emit('error', { message: 'Invalid room name' });
+      return;
+    }
+    
     // Only login users can join private rooms
     if (!socket.isAuthenticated) {
       if (room === 'announcements') {
@@ -162,8 +197,18 @@ io.on('connection', (socket) => {
       return;
     }
     
-    const isPersonalRoom = room.startsWith('user-');
-    const requestedUserId = isPersonalRoom ? room.replace('user-', '') : null;
+    // Whitelist allowed room prefixes and exact room names
+    const allowedRooms = ['general', 'announcements', 'operators-room', 'bplo-admins', 'sb-admins'];
+    const isWhitelistedRoom = allowedRooms.includes(room);
+    const isPersonalRoom = room.startsWith('user-') && room.length < 50;
+    
+    if (!isWhitelistedRoom && !isPersonalRoom) {
+      if (shouldLog.warn()) console.warn(`[SOCKET.IO] BLOCKED: User ${socket.userId} tried to join unlisted room: ${room}`);
+      socket.emit('error', { message: 'Room does not exist' });
+      return;
+    }
+    
+    const requestedUserId = isPersonalRoom ? room.slice(5) : null; // Remove 'user-' prefix safely
     
     // Define which roles can access which rooms
     const canAccessRoom = () => {
