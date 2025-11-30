@@ -127,7 +127,6 @@ const franchiseApplicationSchema = new mongoose.Schema({
 });
 
 // Indexes for performance optimization
-franchiseApplicationSchema.index({ statusOfBPLO: 1 });
 franchiseApplicationSchema.index({ operatorInfo: 1 });
 franchiseApplicationSchema.index({ applicationType: 1 });
 franchiseApplicationSchema.index({ relatedFranchise: 1 });
