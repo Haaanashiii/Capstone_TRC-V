@@ -29,7 +29,6 @@ const ForgotPasswordModal = ({ open, onClose }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [originalPassword, setOriginalPassword] = useState(''); // Store for comparison
 
   const handleClose = () => {
     // Reset all states
@@ -42,7 +41,6 @@ const ForgotPasswordModal = ({ open, onClose }) => {
     setShowConfirmPassword(false);
     setError('');
     setSuccess('');
-    setOriginalPassword('');
     onClose();
   };
 
@@ -74,7 +72,9 @@ const ForgotPasswordModal = ({ open, onClose }) => {
         setStep(2);
       }, 1500);
     } catch (err) {
-      setError(err.response?.data?.error || err.response?.data?.message || 'Failed to send OTP. Please try again.');
+      const errorMsg = err.response?.data?.error || err.response?.data?.message || 'Failed to send OTP. Please try again.';
+      setError(errorMsg);
+      console.error('[Forgot Password] Step 1 error:', errorMsg);
     } finally {
       setLoading(false);
     }
@@ -135,12 +135,6 @@ const ForgotPasswordModal = ({ open, onClose }) => {
       return;
     }
 
-    // Check if new password is the same as previous password
-    if (newPassword === originalPassword) {
-      setError('Your new password cannot be the same as your old password.');
-      return;
-    }
-
     // Validate passwords match
     if (newPassword !== confirmPassword) {
       setError('Passwords do not match!');
@@ -162,7 +156,9 @@ const ForgotPasswordModal = ({ open, onClose }) => {
         handleClose();
       }, 2000);
     } catch (err) {
-      setError(err.response?.data?.error || err.response?.data?.message || 'Failed to reset password. Please try again.');
+      const errorMsg = err.response?.data?.error || err.response?.data?.message || 'Failed to reset password. Please try again.';
+      setError(errorMsg);
+      console.error('[Forgot Password] Step 3 error:', errorMsg);
     } finally {
       setLoading(false);
     }

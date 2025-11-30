@@ -64,9 +64,30 @@ exports.requestOtp = async (req, res, next) => {
 
 // Send OTP for password reset (email only)
 exports.forgotPassword = async (req, res, next) => {
-  const { email } = req.body;
-  // Force email-only delivery for password reset
-  return handleOtpRequest(email, null, null, res, next, 'If the email exists, an OTP has been sent for password reset.', 'email');
+  try {
+    const { email } = req.body;
+    
+    if (!email || email.trim() === '') {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+    
+    // Check if email exists in user or admin accounts
+    let user = await userAccountRepository.findAccountByEmail(email).catch(() => null);
+    if (!user) {
+      user = await require('../repositories/adminAccountRepository').findAdminByEmail(email).catch(() => null);
+    }
+    
+    if (!user) {
+      // Don't reveal if email exists or not (security best practice)
+      console.log('[Auth] Forgot password attempt for non-existent email:', email);
+      return res.status(400).json({ error: 'Email not found in our system' });
+    }
+    
+    // Force email-only delivery for password reset
+    return handleOtpRequest(email, null, null, res, next, 'OTP has been sent to your email for password reset.', 'email');
+  } catch (err) {
+    next(err);
+  }
 };
 
 // Compare OTP values safely (prevent timing attacks)
@@ -170,6 +191,17 @@ exports.resetPassword = async (req, res, next) => {
     } catch (e) {}
     
     if (!valid || !user) return res.status(400).json({ error: 'Invalid or expired OTP' });
+    
+    // Check if new password is same as old password
+    try {
+      const passwordMatches = await bcrypt.compare(newPassword, user.password);
+      if (passwordMatches) {
+        return res.status(400).json({ error: 'Your new password cannot be the same as your current password. Please choose a different password.' });
+      }
+    } catch (compareErr) {
+      console.error('[Auth] Error comparing passwords:', compareErr.message);
+      // Continue if comparison fails - better to let user reset than block them
+    }
     
     const hashed = await bcrypt.hash(newPassword, 10);
     
