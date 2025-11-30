@@ -286,10 +286,11 @@ html, body {
     gap: clamp(16px, 4vw, 24px);
     grid-template-columns: 1fr;
   }
-  /* Ensure modals also fit on screen */
+  /* Ensure modals are always 500px on mobile too */
   .franchise-modal {
-    max-width: calc(100vw - 32px) !important;
-    margin: 0 16px;
+    max-width: 500px !important;
+    width: 100% !important;
+    margin: 0 16px !important;
   }
   /* Make text inputs and buttons responsive */
   input[type="text"],

@@ -607,25 +607,25 @@ exports.franchiseQRLookupByHash = async (req, res, next) => {
     
     // Log QR scan
     const ipAddress = getClientIp(req);
-    console.log(`[QR Scan] Franchise: ${franchiseInformation.franchiseNumber}, Driver: ${franchiseInformation.driverName}`);
+    console.log(`[QR Scan] Franchise: ${franchiseInformation.franchiseNumber}, Operator: ${franchiseInformation.operatorName}`);
     
-    // Get driver picture URL (proxy for image access)
-    let driverPictureUrl = null;
-    if (franchiseInformation.documents?.driverPictureObj) {
+    // Get operator picture URL (proxy for image access)
+    let operatorPictureUrl = null;
+    if (franchiseInformation.documents?.operatorPictureObj) {
       const API_BASE_URL = process.env.VITE_API_BASE_URL || process.env.API_BASE_URL || '';
-      driverPictureUrl = `${API_BASE_URL.replace(/\/$/, '')}/api/franchise-information/proxy-file?url=${encodeURIComponent(franchiseInformation.documents.driverPictureObj)}`;
+      operatorPictureUrl = `${API_BASE_URL.replace(/\/$/, '')}/api/franchise-information/proxy-file?url=${encodeURIComponent(franchiseInformation.documents.operatorPictureObj)}`;
     }
-    
-    // Build response with driver information
+
+    // Build response with operator information
     const publicData = {
       franchiseNumber: franchiseInformation.franchiseNumber,
       franchiseChainId: franchiseInformation.franchiseChainId,
       franchiseVersion: franchiseInformation.version,
       franchiseStatus: franchiseInformation.franchiseStatus,
-      driverName: franchiseInformation.driverName,
-      driversAddress: franchiseInformation.driversAddress,
-      driverPicture: driverPictureUrl,
-      driverPictureObj: franchiseInformation.documents?.driverPictureObj || null,
+      operatorName: franchiseInformation.operatorName,
+      operatorAddress: franchiseInformation.operatorAddress,
+      operatorPicture: operatorPictureUrl,
+      operatorPictureObj: franchiseInformation.documents?.operatorPictureObj || null,
       todaMembership: franchiseInformation.todaMembership,
       isCurrentVersion: franchiseInformation.isCurrentVersion,
       expiryDate: franchiseInformation.expiryDate

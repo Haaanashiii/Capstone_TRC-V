@@ -14,11 +14,13 @@ import {
 import CloseIcon from '@mui/icons-material/Close';
 import dayjs from 'dayjs';
 import swal from '../../utils/sweetAlert';
+import SBFareImage from '../../assets/SB Fare.jpeg';
 
 function QROperatorID() {
   const { operatorId } = useParams();
   const [user, setUser] = useState(null);
   const [matchedFranchise, setMatchedFranchise] = useState(null);
+  const [storedFranchiseNumber, setStoredFranchiseNumber] = useState(null);
   const [loading, setLoading] = useState(true);
   const [fareMatrixOpen, setFareMatrixOpen] = useState(false);
   const [reportModalOpen, setReportModalOpen] = useState(false);
@@ -37,11 +39,11 @@ function QROperatorID() {
     if (!operatorId) return;
     setLoading(true);
     const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170';
-    fetch(`${API_BASE_URL}/api/franchise-information/mtop-hash/${operatorId}`)
+    fetch(`${API_BASE_URL}/api/franchise-information/qr/hash/${operatorId}`)
       .then(res => res.json())
       .then(data => {
         console.log('[QROperatorID] API response:', data);
-        if (data.error) {
+        if (data.error || !data.data) {
           setUser(null);
           setMatchedFranchise({
             address: '',
@@ -51,10 +53,11 @@ function QROperatorID() {
             message: data.message || 'Franchise not linked'
           });
         } else {
-          // Parse name into first/middle/last if possible
+          const franchiseData = data.data;
+          // Parse operator name into first/middle/last if possible
           let firstName = '', middleName = '', lastName = '';
-          if (data.name) {
-            const parts = data.name.split(' ');
+          if (franchiseData.operatorName) {
+            const parts = franchiseData.operatorName.split(' ');
             firstName = parts.shift() || '';
             lastName = parts.pop() || '';
             middleName = parts.join(' ');
@@ -63,24 +66,33 @@ function QROperatorID() {
             firstName,
             middleName,
             lastName,
-            operatorId: data.mtopNumber,
-            address: data.address,
-            profilePhoto: data.profilePhoto
+            operatorId: franchiseData.franchiseNumber,
+            address: franchiseData.operatorAddress,
+            profilePhoto: franchiseData.operatorPictureObj,
+            operatorPictureObj: franchiseData.operatorPictureObj
           });
           setMatchedFranchise({
-            address: data.address,
-            expiryDate: '', 
-            status: data.franchiseStatus,
-            statusColor: data.statusColor,
-            notLinked: !data.linked,
-            message: data.message,
-            profilePhoto: data.profilePhoto
+            franchiseNumber: franchiseData.franchiseNumber,
+            franchiseChainId: franchiseData.franchiseChainId,
+            address: franchiseData.operatorAddress,
+            expiryDate: franchiseData.expiryDate || '', 
+            status: franchiseData.franchiseStatus,
+            notLinked: !franchiseData.franchiseNumber,
+            message: !franchiseData.franchiseNumber ? 'Franchise not linked' : '',
+            profilePhoto: franchiseData.operatorPictureObj,
+            operatorPictureObj: franchiseData.operatorPictureObj,
+            documents: {
+              operatorPictureObj: franchiseData.operatorPictureObj
+            }
           });
-          console.log('[QROperatorID] Profile photo URL:', data.profilePhoto);
+          setStoredFranchiseNumber(franchiseData.franchiseNumber);
+          console.log('[QROperatorID] Operator picture URL:', franchiseData.operatorPictureObj);
+          console.log('[QROperatorID] Franchise Number:', franchiseData.franchiseNumber);
         }
         setLoading(false);
       })
       .catch((err) => {
+        console.error('[QROperatorID] Fetch error:', err);
         setUser(null);
         setMatchedFranchise({
           address: '',
@@ -117,32 +129,14 @@ function QROperatorID() {
   const profilePhotoBlobRef = React.useRef(null);
   const [profilePhotoIsPdf, setProfilePhotoIsPdf] = useState(false);
 
-  // Candidate list for possible photo fields (like DriverID.jsx)
+  // Candidate list for possible photo fields - ONLY operatorPictureObj
   const pickProfilePhotoCandidate = () => {
     const mf = matchedFranchise || {};
-    const u = user || {};
     const candidates = [
-      mf?.profilePhoto,
-      mf?.profile_photo,
-      mf?.picture,
-      mf?.photoUrl,
-      mf?.photo_url,
-      mf?.image,
-      mf?.avatar,
-      mf?.documents?.picture,
-      mf?.documents?.picture?.path,
-      mf?.documents?.picture?.url,
-      mf?.documents?.photo,
-      mf?.documents?.photo?.path,
-      mf?.documentPicture,
-      mf?.documentPicture?.path,
-      u?.profilePicture,
-      u?.profile_picture,
-      u?.photoUrl,
-      u?.photo_url,
-      u?.avatar,
-      u?.image,
-      u?.picture,
+      // ONLY operatorPictureObj
+      mf?.documents?.operatorPictureObj,
+      mf?.operatorPictureObj,
+      mf?.profilePhoto
     ];
     for (const c of candidates) {
       if (!c) continue;
@@ -383,7 +377,7 @@ function QROperatorID() {
                 minWidth: '220px'
               }}
               >
-              ID NO: {user?.operatorId || storedOperatorId}
+              ID NO: {storedFranchiseNumber || storedOperatorId}
             </Box>
           </Box>
 
@@ -429,7 +423,7 @@ function QROperatorID() {
               >
                 {matchedFranchise.message || 'Franchise not linked'}
               </Box>
-            ) : matchedFranchise?.status === 'active' ? (
+            ) : matchedFranchise?.status === 'Active' ? (
               <Box
                 sx={{ 
                   bgcolor: '#43a047', // Green
@@ -448,7 +442,7 @@ function QROperatorID() {
               >
                 ACTIVE FRANCHISE
               </Box>
-            ) : matchedFranchise?.status === 'expired' ? (
+            ) : matchedFranchise?.status === 'Expired' ? (
               <Box
                 sx={{ 
                   bgcolor: '#d32f2f', // Red for expired
@@ -869,7 +863,7 @@ function QROperatorID() {
             >
               <Box
                 component="img"
-                src="/fare-matrix.jpg"
+                src={SBFareImage}
                 alt="Tricycle Fare Matrix"
                 sx={{
                   maxWidth: '100%',
