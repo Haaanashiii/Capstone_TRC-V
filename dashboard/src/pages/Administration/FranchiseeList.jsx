@@ -1205,7 +1205,7 @@ function FranchiseeList() {
                         fontSize: '0.7rem',
                       }}
                     >
-                      TRC
+                      TRC-V
                     </Typography>
                   </Box>
                 </Box>
