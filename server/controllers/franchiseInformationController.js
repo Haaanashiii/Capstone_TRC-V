@@ -462,6 +462,98 @@ exports.getFranchisesByUser = async (req, res, next) => {
 };
 
 // ========================================
+// FRANCHISE LINKING - OPERATOR LINKING EXISTING FRANCHISE
+// ========================================
+
+/**
+ * POST /franchise-information/link
+ * Link existing franchise to operator account
+ * 
+ * Purpose: Allow operators to link their approved franchise to their account
+ * Body: { franchiseNumber, mtofDocument }
+ * Returns: Updated franchise with linkedUser set
+ */
+exports.linkFranchise = async (req, res, next) => {
+  try {
+    const { franchiseNumber } = req.body;
+    const userId = req.user.id; // From authenticate middleware
+    
+    console.log('[linkFranchise] Request to link franchise:', franchiseNumber, 'to user:', userId);
+    
+    if (!franchiseNumber || franchiseNumber.trim().length === 0) {
+      return res.status(400).json({ 
+        success: false,
+        error: 'Franchise number is required',
+        message: 'Please provide a valid franchise number' 
+      });
+    }
+    
+    const FranchiseInformation = require('../models/franchiseInformationModel');
+    const UserAccount = require('../models/userAccountModel');
+    
+    // Find the franchise by franchise number (current version only, active status)
+    const franchise = await FranchiseInformation.findOne({
+      franchiseNumber: franchiseNumber.trim(),
+      isCurrentVersion: true,
+      franchiseStatus: 'Active'
+    });
+    
+    if (!franchise) {
+      return res.status(404).json({ 
+        success: false,
+        error: 'Franchise not found',
+        message: 'No active franchise found with this number. Please verify your franchise number.' 
+      });
+    }
+    
+    // Check if franchise is already linked to another user
+    if (franchise.linkedUser && franchise.linkedUser.toString() !== userId) {
+      return res.status(400).json({ 
+        success: false,
+        error: 'Franchise already linked',
+        message: 'This franchise is already linked to another account.' 
+      });
+    }
+    
+    // Check if franchise is already linked to this user
+    if (franchise.linkedUser && franchise.linkedUser.toString() === userId) {
+      return res.status(200).json({ 
+        success: true,
+        message: 'Franchise is already linked to your account',
+        data: franchise
+      });
+    }
+    
+    // Link the franchise to the user
+    franchise.linkedUser = userId;
+    await franchise.save();
+    
+    // Update user's franchiseChainIds array if not already present
+    const user = await UserAccount.findById(userId);
+    if (user && !user.franchiseChainIds.includes(franchise.franchiseChainId)) {
+      user.franchiseChainIds.push(franchise.franchiseChainId);
+      await user.save();
+      console.log('[linkFranchise] Franchise chain ID added to user:', franchise.franchiseChainId);
+    }
+    
+    console.log('[linkFranchise] Successfully linked franchise:', franchiseNumber, 'to user:', userId);
+    
+    // Populate linked user data before returning
+    await franchise.populate('linkedUser', 'username email _id');
+    
+    return res.status(200).json({
+      success: true,
+      message: 'Franchise successfully linked to your account',
+      data: franchise
+    });
+    
+  } catch (error) {
+    console.error('[linkFranchise] Error:', error);
+    return next(error);
+  }
+};
+
+// ========================================
 // QR CODE LOOKUP - DRIVER VERIFICATION
 // ========================================
 

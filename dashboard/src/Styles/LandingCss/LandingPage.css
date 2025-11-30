@@ -241,13 +241,13 @@
   border-color: #ffe066;
 }
 .landing-main {
-  flex: 1;
   display: flex;
-  /* anchor content to the top of the main area so it sits closer under the header */
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   padding: 0 90px 0 260px;
   width: 100%;
+  height: calc(100vh - 80px);
+  max-height: 660px;
   box-sizing: border-box;
   gap: 40px;
 }
@@ -305,11 +305,12 @@
 .main-content {
   max-width: 520px;
 }
+/*  For the header  Tricy kenemerut */
 .main-content h1 {
   font-size: 3.7rem;
   font-weight: 600;
   margin-top: 60px;
-  margin-bottom: 48px;
+  margin-bottom: 98px;
   line-height: 1.2;
   margin-left: -100px;
 }

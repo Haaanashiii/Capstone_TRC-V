@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import Swal from 'sweetalert2';
 import { 
   TextField, 
   Button, 
@@ -6,8 +7,6 @@ import {
   MenuItem, 
   FormControl, 
   FormHelperText,
-  Alert, 
-  Snackbar, 
   CircularProgress,
   InputLabel
 } from '@mui/material';
@@ -21,6 +20,64 @@ import { franchiseAPI, API_BASE_URL } from '../Services/api';
 import { validateFile } from '../../utils/fileValidation';
 import { compressFile } from '../../utils/compressFile';
 import "../../Styles/Operator's_CSS/FranchiseApplication.css";
+
+// SweetAlert styling utility
+const alertStyle = {
+  successAlert: {
+    icon: 'success',
+    iconColor: '#10b981',
+    confirmButtonColor: '#174D7A',
+    customClass: {
+      container: 'swal-container',
+      popup: 'swal-popup',
+      title: 'swal-title',
+      htmlContainer: 'swal-text',
+      confirmButton: 'swal-confirm-btn'
+    },
+    showConfirmButton: true,
+    confirmButtonText: 'OK',
+    didOpen: (modal) => {
+      modal.style.borderRadius = '12px';
+      modal.style.boxShadow = '0 10px 40px rgba(0, 0, 0, 0.15)';
+    }
+  },
+  errorAlert: {
+    icon: 'error',
+    iconColor: '#ef4444',
+    confirmButtonColor: '#174D7A',
+    customClass: {
+      container: 'swal-container',
+      popup: 'swal-popup',
+      title: 'swal-title',
+      htmlContainer: 'swal-text',
+      confirmButton: 'swal-confirm-btn'
+    },
+    showConfirmButton: true,
+    confirmButtonText: 'OK',
+    didOpen: (modal) => {
+      modal.style.borderRadius = '12px';
+      modal.style.boxShadow = '0 10px 40px rgba(0, 0, 0, 0.15)';
+    }
+  },
+  warningAlert: {
+    icon: 'warning',
+    iconColor: '#f59e0b',
+    confirmButtonColor: '#174D7A',
+    customClass: {
+      container: 'swal-container',
+      popup: 'swal-popup',
+      title: 'swal-title',
+      htmlContainer: 'swal-text',
+      confirmButton: 'swal-confirm-btn'
+    },
+    showConfirmButton: true,
+    confirmButtonText: 'OK',
+    didOpen: (modal) => {
+      modal.style.borderRadius = '12px';
+      modal.style.boxShadow = '0 10px 40px rgba(0, 0, 0, 0.15)';
+    }
+  }
+};
 
 // Constants
 const CIVIL_STATUS_OPTIONS = ['Single', 'Married', 'Widowed', 'Divorced', 'Separated'];
@@ -95,7 +152,6 @@ export default function RequestAmendment() {
   const location = useLocation();
   const [language, setLanguage] = useState('en');
   const [errors, setErrors] = useState({});
-  const [toast, setToast] = useState({ open: false, message: '', severity: 'error' });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [formData, setFormData] = useState(INITIAL_FORM_STATE);
@@ -198,10 +254,6 @@ export default function RequestAmendment() {
       ...prev,
       [name]: ''
     }));
-  }, []);
-
-  const handleCloseToast = useCallback(() => {
-    setToast(prev => ({ ...prev, open: false }));
   }, []);
 
   // Fetch existing franchise data on component mount
@@ -500,10 +552,10 @@ export default function RequestAmendment() {
       const token = sessionStorage.getItem('accessToken');
       
       if (!token) {
-        setToast({ 
-          open: true, 
-          message: 'Session expired. Please log in again.', 
-          severity: 'error' 
+        Swal.fire({
+          ...alertStyle.errorAlert,
+          title: 'Session Expired',
+          text: 'Please log in again.'
         });
         setTimeout(() => navigate('/login'), 2000);
         setIsSubmitting(false);
@@ -588,10 +640,10 @@ export default function RequestAmendment() {
       console.log('[RequestAmendment] Amendment submitted successfully:', response.data);
       
       // Show success message
-      setToast({ 
-        open: true, 
-        message: 'Amendment request submitted successfully!', 
-        severity: 'success' 
+      Swal.fire({
+        ...alertStyle.successAlert,
+        title: 'Success!',
+        text: 'Amendment request submitted successfully!'
       });
       
       // Reset form
@@ -629,10 +681,10 @@ export default function RequestAmendment() {
       
       console.error('[RequestAmendment] Error message:', errorMessage);
       
-      setToast({ 
-        open: true, 
-        message: errorMessage, 
-        severity: 'error' 
+      Swal.fire({
+        ...alertStyle.errorAlert,
+        title: 'Error',
+        text: errorMessage
       });
     } finally {
       setIsSubmitting(false);
@@ -1075,16 +1127,28 @@ export default function RequestAmendment() {
                       if (file) {
                         const validation = validateFile(file);
                         if (!validation.success) {
-                          setToast({ open: true, message: validation.message, severity: 'error' });
+                          Swal.fire({
+                            ...alertStyle.errorAlert,
+                            title: 'Invalid File',
+                            text: validation.message
+                          });
                           return;
                         }
                         try {
                           const processedFile = await compressFile(file);
                           setFormData({ ...formData, operatorPicture: processedFile });
-                          setToast({ open: true, message: 'Picture uploaded successfully', severity: 'success' });
+                          Swal.fire({
+                            ...alertStyle.successAlert,
+                            title: 'Success!',
+                            text: 'Picture uploaded successfully'
+                          });
                         } catch {
                           setFormData({ ...formData, operatorPicture: file });
-                          setToast({ open: true, message: 'Picture uploaded', severity: 'success' });
+                          Swal.fire({
+                            ...alertStyle.successAlert,
+                            title: 'Success!',
+                            text: 'Picture uploaded'
+                          });
                         }
                       }
                     };
@@ -1159,16 +1223,28 @@ export default function RequestAmendment() {
                                 if (file) {
                                   const validation = validateFile(file);
                                   if (!validation.success) {
-                                    setToast({ open: true, message: validation.message, severity: 'error' });
+                                    Swal.fire({
+                                      ...alertStyle.errorAlert,
+                                      title: 'Invalid File',
+                                      text: validation.message
+                                    });
                                     return;
                                   }
                                   try {
                                     const processedFile = await compressFile(file);
                                     setUploads({ ...uploads, [doc.key]: processedFile });
-                                    setToast({ open: true, message: 'File uploaded successfully', severity: 'success' });
+                                    Swal.fire({
+                                      ...alertStyle.successAlert,
+                                      title: 'Success!',
+                                      text: 'File uploaded successfully'
+                                    });
                                   } catch {
                                     setUploads({ ...uploads, [doc.key]: file });
-                                    setToast({ open: true, message: 'File uploaded', severity: 'success' });
+                                    Swal.fire({
+                                      ...alertStyle.successAlert,
+                                      title: 'Success!',
+                                      text: 'File uploaded'
+                                    });
                                   }
                                 }
                               }}
@@ -1221,26 +1297,6 @@ export default function RequestAmendment() {
           )}
         </div>
       </div>
-
-      {/* Toast Notification */}
-      <Snackbar
-        open={toast.open}
-        autoHideDuration={4000}
-        onClose={handleCloseToast}
-        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
-      >
-        <Alert 
-          onClose={handleCloseToast} 
-          severity={toast.severity || 'error'}
-          variant="filled"
-          sx={{ 
-            width: '100%',
-            boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
-          }}
-        >
-          {toast.message}
-        </Alert>
-      </Snackbar>
     </div>
   );
 }
