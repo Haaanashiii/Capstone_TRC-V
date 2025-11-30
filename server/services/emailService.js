@@ -439,7 +439,7 @@ async function sendFranchiseCreatedEmail(to, operatorName, franchiseNumber) {
     from: `${fromName} <${fromAddress}>`,
     to: email,
     subject: `Franchise Approved - License #${franchiseNumber} Ready to Claim`,
-    text: `Dear ${operatorName},\n\nCongratulations! Your franchise application has been approved. Your franchise license number is ${franchiseNumber}.\n\nPlease login to your TRC-V account to view your franchise details and download your certificate.`,
+    text: `Dear ${operatorName},\n\nCongratulations! Your franchise application has been approved. Your franchise license number is ${franchiseNumber}.`,
     html: `
       <!DOCTYPE html>
       <html lang="en">
@@ -814,11 +814,173 @@ async function sendFranchiseDisapprovalEmail(to, operatorName, reason) {
   }
 }
 
+/**
+ * Send BPLO approval notification email
+ * @param {Object} application - Application object with operator details
+ */
+async function sendBPLOApprovalNotification(application) {
+  const email = String(application.operatorEmail || '').trim();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    throw new Error('Invalid email address');
+  }
+  
+  const fromName = process.env.EMAIL_FROM_NAME || 'TRC-V';
+  const fromAddress = process.env.EMAIL_FROM || process.env.EMAIL_USER;
+  if (!fromAddress) {
+    throw new Error('Email service not configured');
+  }
+  
+  const operatorName = application.operatorName || 'Operator';
+  const franchiseNumber = application.franchiseNumber || 'PENDING';
+  
+  const mailOptions = {
+    from: `${fromName} <${fromAddress}>`,
+    to: email,
+    subject: `Documentary Requirements Approved - Inspection Required`,
+    text: `Dear ${operatorName},\n\nGood news! Your franchise application documents have been reviewed and approved by the BPLO office.\n\nApplication Number: ${franchiseNumber}\n\nNext Steps:\n1. Visit the BPLO office for tricycle inspection\n2. Bring your tricycle and all required documents\n3. After passing inspection, submit your Official Receipt (OR) number\n\nPlease complete these steps as soon as possible to proceed with your application.\n\nBest regards,\nTRC-V System`,
+    html: `
+      <!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>BPLO Approval - Inspection Required</title>
+        <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+      </head>
+      <body style="margin: 0; padding: 0; font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f5f5f5;">
+        <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f5f5f5;">
+          <tr>
+            <td style="padding: 40px 20px;">
+              <table role="presentation" style="max-width: 600px; width: 100%; margin: 0 auto; background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.07); overflow: hidden;">
+                
+                <!-- Header with Logo -->
+                <tr>
+                  <td style="background: linear-gradient(135deg, #10b981 0%, #34d399 100%); padding: 35px 40px;">
+                    <table role="presentation" style="width: 100%;">
+                      <tr>
+                        <td style="width: 80px; vertical-align: middle;">
+                          <img src="cid:logo" alt="TRC-V Logo" style="width: 70px; height: 70px; display: block;" />
+                        </td>
+                        <td style="vertical-align: middle; padding-left: 20px;">
+                          <h1 style="color: #ffffff; margin: 0; font-size: 32px; font-weight: 700; letter-spacing: 1px; font-family: 'Poppins', sans-serif;">TRC-V</h1>
+                          <p style="color: #d1fae5; margin: 5px 0 0 0; font-size: 14px; font-family: 'Poppins', sans-serif; font-weight: 400;">Tricycle Verification System</p>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+                
+                <!-- Status Banner -->
+                <tr>
+                  <td style="background-color: #10b981; padding: 15px 40px; text-align: center;">
+                    <p style="color: #ffffff; margin: 0; font-size: 16px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; font-family: 'Poppins', sans-serif;">
+                      ✓ DOCUMENTS APPROVED BY BPLO
+                    </p>
+                  </td>
+                </tr>
+                
+                <!-- Main Content -->
+                <tr>
+                  <td style="padding: 45px 40px;">
+                    <h2 style="color: #1e293b; margin: 0 0 15px 0; font-size: 24px; font-weight: 600; text-align: center; font-family: 'Poppins', sans-serif;">Inspection Required</h2>
+                    
+                    <p style="color: #64748b; font-size: 16px; line-height: 1.6; margin: 0 0 20px 0; font-family: 'Poppins', sans-serif;">
+                      Dear <strong>${operatorName}</strong>,
+                    </p>
+                    
+                    <p style="color: #1e293b; font-size: 16px; line-height: 1.6; margin: 0 0 30px 0; font-family: 'Poppins', sans-serif;">
+                      Good news! Your franchise application documents have been reviewed and <strong style="color: #10b981;">approved</strong> by the BPLO office.
+                    </p>
+                    
+                    <!-- Application Details Box -->
+                    <div style="background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%); border: 2px solid #10b981; border-radius: 10px; padding: 25px; margin: 25px 0;">
+                      <table role="presentation" style="width: 100%;">
+                        <tr>
+                          <td style="padding: 8px 0; color: #64748b; font-size: 14px; font-family: 'Poppins', sans-serif;">Application Number:</td>
+                          <td style="padding: 8px 0; color: #1e293b; font-size: 16px; font-weight: 600; text-align: right; font-family: 'Poppins', sans-serif;">${franchiseNumber}</td>
+                        </tr>
+                        <tr>
+                          <td style="padding: 8px 0; color: #64748b; font-size: 14px; font-family: 'Poppins', sans-serif;">Status:</td>
+                          <td style="padding: 8px 0; color: #10b981; font-size: 16px; font-weight: 700; text-align: right; font-family: 'Poppins', sans-serif;">APPROVED FOR INSPECTION</td>
+                        </tr>
+                      </table>
+                    </div>
+                    
+                    <!-- Next Steps -->
+                    <div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 20px; margin: 30px 0; border-radius: 6px;">
+                      <h3 style="color: #1e293b; margin: 0 0 15px 0; font-size: 18px; font-weight: 600; font-family: 'Poppins', sans-serif;">📋 Next Steps:</h3>
+                      <ol style="color: #64748b; font-size: 14px; line-height: 1.8; margin: 0; padding-left: 20px; font-family: 'Poppins', sans-serif;">
+                        <li><strong>Visit the BPLO office</strong> for tricycle inspection</li>
+                        <li><strong>Bring your tricycle</strong> and all required documents</li>
+                        <li><strong>Complete the inspection</strong> process</li>
+                        <li><strong>Submit your Official Receipt (OR)</strong> number through your TRC-V account</li>
+                      </ol>
+                    </div>
+                    
+                    <div style="background-color: #dbeafe; border-left: 4px solid #3b82f6; padding: 16px 20px; margin: 25px 0; border-radius: 6px;">
+                      <p style="color: #1e3a8a; font-size: 14px; margin: 0; line-height: 1.6; font-family: 'Poppins', sans-serif;">
+                        <strong style="display: block; margin-bottom: 8px;">💡 Important Reminder</strong>
+                        Please complete the inspection and OR submission as soon as possible. Your application will proceed to SB (Sangguniang Bayan) approval after these steps are completed.
+                      </p>
+                    </div>
+                    
+                    <div style="text-align: center; margin: 30px 0;">
+                      <a href="${process.env.BASE_URL || 'http://localhost:5173'}/operator/franchise" style="display: inline-block; background: linear-gradient(135deg, #10b981 0%, #34d399 100%); color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 16px; font-family: 'Poppins', sans-serif;">
+                        View Application Status
+                      </a>
+                    </div>
+                    
+                    <p style="color: #94a3b8; font-size: 13px; text-align: center; margin: 25px 0 0 0; line-height: 1.5; font-family: 'Poppins', sans-serif;">
+                      If you have any questions, please contact the BPLO office.
+                    </p>
+                  </td>
+                </tr>
+                
+                <!-- Footer -->
+                <tr>
+                  <td style="background-color: #f8fafc; padding: 30px 40px; text-align: center; border-top: 1px solid #e2e8f0;">
+                    <p style="color: #94a3b8; font-size: 13px; margin: 0 0 8px 0; line-height: 1.5; font-family: 'Poppins', sans-serif;">
+                      <strong style="color: #64748b;">TRC-V System</strong><br>
+                      Tricycle Regulatory Compliance & Verification
+                    </p>
+                    <p style="color: #cbd5e1; font-size: 12px; margin: 5px 0; font-family: 'Poppins', sans-serif;">
+                      © ${new Date().getFullYear()} TRC-V. All rights reserved.
+                    </p>
+                    <p style="color: #cbd5e1; font-size: 11px; margin: 5px 0 0 0; font-family: 'Poppins', sans-serif;">
+                      This is an automated notification. Please do not reply to this email.
+                    </p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </body>
+      </html>
+    `,
+    attachments: [{
+      filename: 'TRC-vLogo.png',
+      path: path.join(__dirname, '..', '..', 'dashboard', 'src', 'assets', 'TRC-vLogo.png'),
+      cid: 'logo'
+    }]
+  };
+  
+  try {
+    await sendViaGmailApi(mailOptions);
+    console.log('[emailService] BPLO approval email sent to:', email);
+    return { success: true, email };
+  } catch (err) {
+    console.error('[emailService] Failed to send BPLO approval email:', err.message);
+    throw err;
+  }
+}
+
 module.exports = { 
   sendOTPEmail, 
   sendFranchiseExpiryEmail, 
   sendFranchiseCreatedEmail,
   sendFranchiseUpdatedEmail,
   sendFranchiseDisapprovalEmail,
+  sendBPLOApprovalNotification,
   sendViaGmailApi 
 };

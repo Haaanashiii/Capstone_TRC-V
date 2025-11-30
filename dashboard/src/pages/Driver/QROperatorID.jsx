@@ -584,6 +584,28 @@ function QROperatorID() {
               Help maintain fair fare practices in Solano. Please provide accurate details of your overpricing experience.
             </Typography>
 
+            {/* HIDDEN HONEYPOT FIELDS - for bot detection */}
+            <TextField
+              id="honeypot_email"
+              type="email"
+              placeholder="Leave blank"
+              sx={{ 
+                display: 'none'
+              }}
+              tabIndex="-1"
+              autoComplete="off"
+            />
+            <TextField
+              id="honeypot_phone"
+              type="tel"
+              placeholder="Leave blank"
+              sx={{ 
+                display: 'none'
+              }}
+              tabIndex="-1"
+              autoComplete="off"
+            />
+
             {/* Your Contact Information */}
             <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 2 }}>
               Your Contact Information
@@ -699,6 +721,18 @@ function QROperatorID() {
                 variant="contained"
                 disabled={submittingReport}
                 onClick={async () => {
+                  // ANTI-BOT: Check honeypot fields (should remain empty)
+                  const honeypotEmail = document.getElementById('honeypot_email')?.value;
+                  const honeypotPhone = document.getElementById('honeypot_phone')?.value;
+                  
+                  if (honeypotEmail || honeypotPhone) {
+                    console.warn('[FRAUD] Honeypot triggered - suspected bot submission');
+                    // Silently fail to confuse attackers
+                    swal.success('Thank you! Your report has been submitted.');
+                    setReportModalOpen(false);
+                    return;
+                  }
+
                   // Validate all fields
                   if (!reportData.fullName || !reportData.contactNumber || 
                       !reportData.amountCharged || !reportData.expectedFare || 
@@ -750,7 +784,7 @@ function QROperatorID() {
 
                   try {
                     const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170';
-                    const response = await fetch(`${API_BASE_URL}/reports/public`, {
+                    const response = await fetch(`${API_BASE_URL}/api/reports/public`, {
                       method: 'POST',
                       headers: {
                         'Content-Type': 'application/json'
@@ -769,6 +803,7 @@ function QROperatorID() {
 
                     if (response.ok && result.success) {
                       setReportSuccess(true);
+                      swal.success('Thank you! Your report has been submitted successfully.');
                       setTimeout(() => {
                         setReportModalOpen(false);
                         setReportSuccess(false);

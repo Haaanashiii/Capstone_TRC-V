@@ -216,26 +216,14 @@ const FranchiseeDetailsModal = ({ open, onClose, franchisee, isEditing, onEdit, 
               {franchisee.resolutionDocument ? (
                 <Link 
                   className="document-link" 
-                  onClick={() => onFilePreview({
-                    name: typeof franchisee.resolutionDocument === 'string' 
-                      ? franchisee.resolutionDocument.split('/').pop() 
-                      : franchisee.resolutionDocument.name || 'Resolution Document',
-                    path: typeof franchisee.resolutionDocument === 'string' 
-                      ? franchisee.resolutionDocument 
-                      : franchisee.resolutionDocument.path,
-                    type: typeof franchisee.resolutionDocument === 'string'
-                      ? getFileIcon(franchisee.resolutionDocument)
-                      : franchisee.resolutionDocument.type
-                  })}
+                  onClick={() => onFilePreview(franchisee.resolutionDocument)}
                   sx={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 0.5 }}
                 >
-                  {getFileIcon(typeof franchisee.resolutionDocument === 'string' 
-                    ? franchisee.resolutionDocument 
-                    : franchisee.resolutionDocument.type)}
-                  <span>View Resolution Document</span>
+                  {getFileIcon(franchisee.resolutionDocument?.type)}
+                  <span>{getDocumentDisplayName(franchisee.resolutionDocument)}</span>
                 </Link>
               ) : (
-                <Typography sx={{ color: 'text.secondary' }}>N/A</Typography>
+                <Typography sx={{ color: 'text.secondary', fontStyle: 'italic' }}>Not uploaded</Typography>
               )}
             </div>
             
@@ -557,8 +545,17 @@ function FranchiseeList() {
           approvedAt: app.approvedAt ? new Date(app.approvedAt).toLocaleDateString() : '',
           expiryDate: app.expiryDate ? new Date(app.expiryDate).toLocaleDateString() : '',
           resolutionNumber: app.resolutionNumber || app.sbResolutionNumber || '',
-          resolutionDocument: app.resolutionDocument || app.sbResolutionDocument || null,
-          orNumber: app.orNumber || '',
+          resolutionDocument: (app.resolutionDocument || app.sbResolutionDocument || docs.resolutionDocumentObj) ? {
+            name: (app.resolutionDocument || app.sbResolutionDocument || docs.resolutionDocumentObj).split('/').pop(),
+            path: app.resolutionDocument || app.sbResolutionDocument || docs.resolutionDocumentObj,
+            type: getFileTypeFromUrl(app.resolutionDocument || app.sbResolutionDocument || docs.resolutionDocumentObj)
+          } : null,
+          orNumber: app.officialReceiptNumber || '',
+          orDocument: (app.officialReceiptDocument || docs.oRTreasurerOfficeObj) ? {
+            name: (app.officialReceiptDocument || docs.oRTreasurerOfficeObj).split('/').pop(),
+            path: app.officialReceiptDocument || docs.oRTreasurerOfficeObj,
+            type: getFileTypeFromUrl(app.officialReceiptDocument || docs.oRTreasurerOfficeObj)
+          } : null,
           qrCode: app.qrCode || null,
           profilePhoto: app.profilePhoto || null,
           // Document files from documents subdocument - normalize to objects with name, path, and type
