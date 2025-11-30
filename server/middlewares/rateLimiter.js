@@ -1,8 +1,8 @@
 
 const { rateLimit } = require('express-rate-limit');
 
-// Rate limiting disabled in development, enable in production
-const RATE_LIMITER_ENABLED = false;
+// Rate limiting disabled in development, enable in production for security
+const RATE_LIMITER_ENABLED = process.env.NODE_ENV === 'production' ? true : false;
 
 // Create a rate limiter with custom settings
 function createRateLimiter(options = {}) {

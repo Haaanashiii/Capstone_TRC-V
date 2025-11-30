@@ -22,7 +22,8 @@ const adminAccountSchema = new mongoose.Schema({
     required: true, 
     lowercase: true, 
     trim: true, 
-    match: [/^\S+@\S+\.\S+$/, 'Please use a valid email address'] 
+    match: [/^\S+@\S+\.\S+$/, 'Please use a valid email address'],
+    index: true  // Index for fast email lookups during auth
   },
   password: { 
     type: String, 

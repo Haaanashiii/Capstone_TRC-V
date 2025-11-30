@@ -56,7 +56,8 @@ const franchiseApplicationSchema = new mongoose.Schema({
       'rejected'              // Permanently rejected
     ], 
     required: true,
-    default: 'pending' 
+    default: 'pending',
+    index: true  // Index for fast filtering by status
   },
   
   // BPLO Approval Stage
@@ -87,7 +88,7 @@ const franchiseApplicationSchema = new mongoose.Schema({
   
   // Legacy fields
   approvedAt: { type: Date },                                // Kept for backward compatibility
-  submittedAt: { type: Date, default: Date.now },
+  submittedAt: { type: Date, default: Date.now, index: true }, // Index for sorting/filtering
 
   documents: DocumentReferenceSchema,
 

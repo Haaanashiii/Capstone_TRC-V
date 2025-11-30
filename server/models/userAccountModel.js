@@ -6,7 +6,8 @@ const userAccountSchema = new mongoose.Schema({
     name: { type: String, required: true },
     username: { 
         type: String,
-        required: true
+        required: true,
+        index: true  // Index for fast username lookups
     },
     phoneNumber: { type: String },
     email: { 
@@ -15,7 +16,8 @@ const userAccountSchema = new mongoose.Schema({
         unique: true,
         lowercase: true,
         trim: true,
-        match: [/^\S+@\S+\.\S+$/, 'Please use a valid email address']
+        match: [/^\S+@\S+\.\S+$/, 'Please use a valid email address'],
+        index: true  // Index for fast email lookups during auth
     },
     password: { type: String, required: true, minlength: 8, select: false },
     role: { 

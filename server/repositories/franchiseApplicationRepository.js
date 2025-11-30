@@ -9,10 +9,23 @@ exports.createFranchiseApplication = async (data) => {
     return await application.save();
 };
 
-exports.getAllFranchiseApplications = async (query = {}) => {
-    
+exports.getAllFranchiseApplications = async (query = {}, options = {}) => {
+    const { skip = 0, limit = 20 } = options;
     const q = query && Object.keys(query).length ? query : {};
-    return await franchiseApplication.find(q).sort({ submittedAt: -1 }).lean();
+    
+    if (limit > 0) {
+      // Paginated query
+      return await franchiseApplication
+        .find(q)
+        .sort({ submittedAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean();
+    } else {
+      // No pagination - return all (for backward compatibility, but not recommended for large datasets)
+      console.warn('[getAllFranchiseApplications] No limit specified - loading all results');
+      return await franchiseApplication.find(q).sort({ submittedAt: -1 }).lean();
+    }
 };
 
 exports.getFranchiseApplicationById = async (id) => {

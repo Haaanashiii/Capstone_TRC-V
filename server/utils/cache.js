@@ -83,4 +83,13 @@ setInterval(() => {
   cacheManager.cleanup();
 }, 5 * 60 * 1000);
 
+// Pagination helper for large datasets - prevents memory overload from loading all records
+const getPaginationParams = (page = 1, limit = 20) => {
+  const pageNum = Math.max(1, parseInt(page) || 1);
+  const limitNum = Math.min(100, Math.max(1, parseInt(limit) || 20)); // Cap at 100 items per page
+  const skip = (pageNum - 1) * limitNum;
+  return { page: pageNum, limit: limitNum, skip };
+};
+
 module.exports = cacheManager;
+module.exports.getPaginationParams = getPaginationParams;

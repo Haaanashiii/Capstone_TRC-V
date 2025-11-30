@@ -89,46 +89,80 @@ exports.createNewApplication = async (req, res, next) => {
     }
     
     // Upload documents if provided - application ID is automatically the application._id
+    // ASYNC: Don't block response - upload in background
     if (files && Object.keys(files).length > 0) {
-      const uploadHelper = async (fieldName, category) => {
-        const fileArray = files[fieldName];
-        if (!fileArray?.[0]) return null;
-        
-        validateFile(fileArray[0]);
-        const result = await uploadFile(
-          fileArray[0].buffer,
-          fileArray[0].originalname,
-          fileArray[0].mimetype,
-          { baseFolder: 'franchiseApplications', subFolder: userId, applicationId: appId, category }
-        );
-        return result.cloudflare;
-      };
+      // Don't await this - start upload in background
+      const uploadAsync = (async () => {
+        try {
+          console.log('[createNewApplication] Starting background file uploads for application:', appId);
+          const startTime = Date.now();
+          
+          const uploadHelper = async (fieldName, category) => {
+            const fileArray = files[fieldName];
+            if (!fileArray?.[0]) return null;
+            
+            validateFile(fileArray[0]);
+            const result = await uploadFile(
+              fileArray[0].buffer,
+              fileArray[0].originalname,
+              fileArray[0].mimetype,
+              { baseFolder: 'franchiseApplications', subFolder: userId, applicationId: appId, category }
+            );
+            return result.cloudflare;
+          };
+          
+          const [motorReg, barangay, cedula, license, affidavit, stencil, driverPic, operatorPic, orLTO, crLTO] = await Promise.all([
+            uploadHelper('motorRegistrationObj', 'Documentations'),
+            uploadHelper('barangayClearanceObj', 'Documentations'),
+            uploadHelper('cedulaObj', 'Documentations'),
+            uploadHelper('driversLicenseObj', 'Documentations'),
+            uploadHelper('votersAffidavitObj', 'Documentations'),
+            uploadHelper('motorChassisStencilObj', 'Documentations'),
+            uploadHelper('driverPictureObj', 'ProfilePictures'),
+            uploadHelper('operatorPictureObj', 'ProfilePictures'),
+            uploadHelper('oRLTOObj', 'Documentations'),
+            uploadHelper('cRLTOObj', 'Documentations')
+          ]);
+          
+          const updateData = {};
+          if (motorReg) updateData['documents.motorRegistrationObj'] = motorReg;
+          if (barangay) updateData['documents.barangayClearanceObj'] = barangay;
+          if (cedula) updateData['documents.cedulaObj'] = cedula;
+          if (license) updateData['documents.driversLicenseObj'] = license;
+          if (affidavit) updateData['documents.votersAffidavitObj'] = affidavit;
+          if (stencil) updateData['documents.motorChassisStencilObj'] = stencil;
+          if (driverPic) updateData['documents.driverPictureObj'] = driverPic;
+          if (operatorPic) updateData['documents.operatorPictureObj'] = operatorPic;
+          if (orLTO) updateData['documents.oRLTOObj'] = orLTO;
+          if (crLTO) updateData['documents.cRLTOObj'] = crLTO;
+          
+          if (Object.keys(updateData).length > 0) {
+            await franchiseApplicationRepository.updateFranchiseApplication(appId, updateData);
+          }
+          
+          const elapsedTime = Date.now() - startTime;
+          console.log(`[createNewApplication] File uploads completed in ${elapsedTime}ms for application: ${appId}`);
+        } catch (uploadError) {
+          console.error('[createNewApplication] Async file upload error:', uploadError.message);
+          // Notify user of failure via WebSocket (non-blocking)
+          if (req.app.get('io') && userId) {
+            try {
+              req.app.get('io').to(`user-${userId}`).emit('file-upload-error', {
+                applicationId: appId,
+                message: 'Some documents failed to upload. Please try re-uploading them.',
+                error: uploadError.message
+              });
+            } catch (wsError) {
+              console.error('[createNewApplication] Failed to notify user of upload error:', wsError.message);
+            }
+          }
+        }
+      })();
       
-      const [motorReg, barangay, cedula, license, affidavit, stencil, driverPic, operatorPic, orLTO, crLTO] = await Promise.all([
-        uploadHelper('motorRegistrationObj', 'Documentations'),
-        uploadHelper('barangayClearanceObj', 'Documentations'),
-        uploadHelper('cedulaObj', 'Documentations'),
-        uploadHelper('driversLicenseObj', 'Documentations'),
-        uploadHelper('votersAffidavitObj', 'Documentations'),
-        uploadHelper('motorChassisStencilObj', 'Documentations'),
-        uploadHelper('driverPictureObj', 'ProfilePictures'),
-        uploadHelper('operatorPictureObj', 'ProfilePictures'),
-        uploadHelper('oRLTOObj', 'Documentations'),
-        uploadHelper('cRLTOObj', 'Documentations')
-      ]);
-      
-      await franchiseApplicationRepository.updateFranchiseApplication(appId, {
-        'documents.motorRegistrationObj': motorReg,
-        'documents.barangayClearanceObj': barangay,
-        'documents.cedulaObj': cedula,
-        'documents.driversLicenseObj': license,
-        'documents.votersAffidavitObj': affidavit,
-        'documents.motorChassisStencilObj': stencil,
-        'documents.driverPictureObj': driverPic,
-        'documents.operatorPictureObj': operatorPic,
-        'documents.oRLTOObj': orLTO,
-        'documents.cRLTOObj': crLTO
-      });
+      // Don't await - let it run in background
+      uploadAsync.catch(err => 
+        console.error('[createNewApplication] Uncaught async upload error:', err)
+      );
     }
     
     // Fetch updated application with all details for audit logging
@@ -172,11 +206,14 @@ exports.createNewApplication = async (req, res, next) => {
 // 2) GET PENDING FRANCHISES (All statuses for user)
 exports.getPendingFranchises = async (req, res, next) => {
   try {
+    const { getPaginationParams } = require('../utils/cache');
+    const { page, limit, status } = req.query;
+    const { skip, limit: pageLimit, page: pageNum } = getPaginationParams(page, limit);
+    
     const userId = req.user?._id?.toString() || req.user?.userId || String(req.user?.id);
     const userEmail = req.user?.email;
-    const { status } = req.query;
     
-    console.log('[getPendingFranchises] User ID:', userId, 'Email:', userEmail, 'Status filter:', status);
+    console.log('[getPendingFranchises] User ID:', userId, 'Page:', pageNum, 'Limit:', pageLimit);
     
     // Build filter to match either operatorInfo (preferred) or operatorEmail (fallback for old applications)
     const filter = {
@@ -194,9 +231,30 @@ exports.getPendingFranchises = async (req, res, next) => {
     }
     
     console.log('[getPendingFranchises] Filter:', JSON.stringify(filter));
-    const applications = await FranchiseApplication.find(filter).sort({ submittedAt: -1 });
-    console.log('[getPendingFranchises] Found applications:', applications.length);
-    res.json({ success: true, data: applications });
+    
+    // Get total count for pagination info
+    const total = await FranchiseApplication.countDocuments(filter);
+    
+    // Fetch paginated results
+    const applications = await FranchiseApplication
+      .find(filter)
+      .sort({ submittedAt: -1 })
+      .skip(skip)
+      .limit(pageLimit)
+      .lean();
+    
+    console.log('[getPendingFranchises] Found applications:', applications.length, 'of', total);
+    
+    res.json({ 
+      success: true, 
+      data: applications,
+      pagination: {
+        page: pageNum,
+        limit: pageLimit,
+        total,
+        pages: Math.ceil(total / pageLimit)
+      }
+    });
   } catch (error) {
     console.error('[getPendingFranchises] Error:', error);
     next(error);
@@ -264,59 +322,87 @@ exports.editPendingFranchise = async (req, res, next) => {
     }
     
     // Handle file uploads if provided
+    // ASYNC: Don't block response - upload in background
     if (files && Object.keys(files).length > 0) {
-      const { uploadFile, validateFile } = require('../services/fileUploadService');
+      // Don't await this - start upload in background
+      const uploadAsync = (async () => {
+        try {
+          console.log('[editPendingFranchise] Starting background file uploads for application:', id);
+          const startTime = Date.now();
+          
+          const { uploadFile, validateFile } = require('../services/fileUploadService');
+          
+          const uploadHelper = async (fieldName, category) => {
+            const fileArray = files[fieldName];
+            if (!fileArray?.[0]) return null;
+            
+            validateFile(fileArray[0]);
+            const result = await uploadFile(
+              fileArray[0].buffer,
+              fileArray[0].originalname,
+              fileArray[0].mimetype,
+              { baseFolder: 'franchiseApplications', subFolder: userId, applicationId: id, category }
+            );
+            return result.cloudflare;
+          };
+          
+          // Upload all provided documents
+          const [motorReg, barangay, cedula, license, affidavit, stencil, driverPic, operatorPic, orLTO, crLTO] = await Promise.all([
+            uploadHelper('motorRegistrationObj', 'Documentations'),
+            uploadHelper('barangayClearanceObj', 'Documentations'),
+            uploadHelper('cedulaObj', 'Documentations'),
+            uploadHelper('driversLicenseObj', 'Documentations'),
+            uploadHelper('votersAffidavitObj', 'Documentations'),
+            uploadHelper('motorChassisStencilObj', 'Documentations'),
+            uploadHelper('driverPictureObj', 'ProfilePictures'),
+            uploadHelper('operatorPictureObj', 'ProfilePictures'),
+            uploadHelper('oRLTOObj', 'Documentations'),
+            uploadHelper('cRLTOObj', 'Documentations')
+          ]);
+          
+          // Build update data for uploaded files
+          const fileUpdateData = {};
+          if (motorReg) fileUpdateData['documents.motorRegistrationObj'] = motorReg;
+          if (barangay) fileUpdateData['documents.barangayClearanceObj'] = barangay;
+          if (cedula) fileUpdateData['documents.cedulaObj'] = cedula;
+          if (license) fileUpdateData['documents.driversLicenseObj'] = license;
+          if (affidavit) fileUpdateData['documents.votersAffidavitObj'] = affidavit;
+          if (stencil) fileUpdateData['documents.motorChassisStencilObj'] = stencil;
+          if (driverPic) fileUpdateData['documents.driverPictureObj'] = driverPic;
+          if (operatorPic) fileUpdateData['documents.operatorPictureObj'] = operatorPic;
+          if (orLTO) fileUpdateData['documents.oRLTOObj'] = orLTO;
+          if (crLTO) fileUpdateData['documents.cRLTOObj'] = crLTO;
+          
+          // Update application with file URLs
+          if (Object.keys(fileUpdateData).length > 0) {
+            await franchiseApplicationRepository.updateFranchiseApplication(id, fileUpdateData);
+            console.log('[editPendingFranchise] Files updated for application:', id);
+          }
+          
+          const elapsedTime = Date.now() - startTime;
+          console.log(`[editPendingFranchise] File uploads completed in ${elapsedTime}ms for application: ${id}`);
+        } catch (uploadError) {
+          console.error('[editPendingFranchise] Async file upload error:', uploadError.message);
+          // Notify user of failure via WebSocket (non-blocking)
+          if (req.app.get('io') && userId) {
+            try {
+              req.app.get('io').to(`user-${userId}`).emit('file-upload-error', {
+                applicationId: id,
+                message: 'Some documents failed to upload. Please try re-uploading them.',
+                error: uploadError.message
+              });
+            } catch (wsError) {
+              console.error('[editPendingFranchise] Failed to notify user of upload error:', wsError.message);
+            }
+          }
+        }
+      })();
       
-      const uploadHelper = async (fieldName, category) => {
-        const fileArray = files[fieldName];
-        if (!fileArray?.[0]) return null;
-        
-        validateFile(fileArray[0]);
-        const result = await uploadFile(
-          fileArray[0].buffer,
-          fileArray[0].originalname,
-          fileArray[0].mimetype,
-          { baseFolder: 'franchiseApplications', subFolder: userId, applicationId: id, category }
-        );
-        return result.cloudflare;
-      };
-      
-      // Upload all provided documents
-      const [motorReg, barangay, cedula, license, affidavit, stencil, driverPic, operatorPic, orLTO, crLTO] = await Promise.all([
-        uploadHelper('motorRegistrationObj', 'Documentations'),
-        uploadHelper('barangayClearanceObj', 'Documentations'),
-        uploadHelper('cedulaObj', 'Documentations'),
-        uploadHelper('driversLicenseObj', 'Documentations'),
-        uploadHelper('votersAffidavitObj', 'Documentations'),
-        uploadHelper('motorChassisStencilObj', 'Documentations'),
-        uploadHelper('driverPictureObj', 'ProfilePictures'),
-        uploadHelper('operatorPictureObj', 'ProfilePictures'),
-        uploadHelper('oRLTOObj', 'Documentations'),
-        uploadHelper('cRLTOObj', 'Documentations')
-      ]);
-      
-      // Only update documents that were uploaded
-      if (motorReg) updateData['documents.motorRegistrationObj'] = motorReg;
-      if (barangay) updateData['documents.barangayClearanceObj'] = barangay;
-      if (cedula) updateData['documents.cedulaObj'] = cedula;
-      if (license) updateData['documents.driversLicenseObj'] = license;
-      if (affidavit) updateData['documents.votersAffidavitObj'] = affidavit;
-      if (stencil) updateData['documents.motorChassisStencilObj'] = stencil;
-      if (driverPic) updateData['documents.driverPictureObj'] = driverPic;
-      if (operatorPic) updateData['documents.operatorPictureObj'] = operatorPic;
-      if (orLTO) updateData['documents.oRLTOObj'] = orLTO;
-      if (crLTO) updateData['documents.cRLTOObj'] = crLTO;
+      // Don't await - let it run in background
+      uploadAsync.catch(err => 
+        console.error('[editPendingFranchise] Uncaught async upload error:', err)
+      );
     }
-    
-    // Preserve existing documents if no new file uploaded
-    if (body.existingMotorRegistration) updateData['documents.motorRegistrationObj'] = body.existingMotorRegistration;
-    if (body.existingBarangayClearance) updateData['documents.barangayClearanceObj'] = body.existingBarangayClearance;
-    if (body.existingCedula) updateData['documents.cedulaObj'] = body.existingCedula;
-    if (body.existingDriversLicense) updateData['documents.driversLicenseObj'] = body.existingDriversLicense;
-    if (body.existingMotorChassisStencil) updateData['documents.motorChassisStencilObj'] = body.existingMotorChassisStencil;
-    if (body.existingVotersAffidavit) updateData['documents.votersAffidavitObj'] = body.existingVotersAffidavit;
-    if (body.existingDriverPicture) updateData['documents.driverPictureObj'] = body.existingDriverPicture;
-    if (body.existingOperatorPicture) updateData['documents.operatorPictureObj'] = body.existingOperatorPicture;
     
     const updated = await franchiseApplicationRepository.updateFranchiseApplication(id, updateData);
     
@@ -1707,8 +1793,32 @@ exports.sbAdminAcceptRenewOrAmendment = async (req, res, next) => {
 exports.createFranchiseApplication = exports.createNewApplication;
 exports.getAllFranchiseApplications = async (req, res, next) => {
   try {
-    const applications = await franchiseApplicationRepository.getAllFranchiseApplications();
-    res.json({ success: true, data: applications });
+    const { getPaginationParams } = require('../utils/cache');
+    const { page, limit, status } = req.query;
+    const { skip, limit: pageLimit, page: pageNum } = getPaginationParams(page, limit);
+    
+    // Only admins can fetch all applications
+    const filter = status ? { statusOfBPLO: status } : {};
+    
+    // Get total count
+    const total = await FranchiseApplication.countDocuments(filter);
+    
+    // Fetch paginated results
+    const applications = await franchiseApplicationRepository.getAllFranchiseApplications(
+      filter, 
+      { skip, limit: pageLimit }
+    );
+    
+    res.json({ 
+      success: true, 
+      data: applications,
+      pagination: {
+        page: pageNum,
+        limit: pageLimit,
+        total,
+        pages: Math.ceil(total / pageLimit)
+      }
+    });
   } catch (error) {
     next(error);
   }
