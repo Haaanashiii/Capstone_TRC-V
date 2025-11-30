@@ -42,7 +42,7 @@ function App() {
         <Route path="/maintenance" element={<MaintenancePage />} />
         
         {/* Public QR Code Route - No authentication required */}
-        <Route path="/operator/id/:operatorId" element={<QROperatorID />} />
+        <Route path="/verify/franchise/:operatorId" element={<QROperatorID />} />
         
         {/* Protected Driver/Operator Routes */}
         <Route 
