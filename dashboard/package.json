@@ -29,7 +29,8 @@
     "react-swipeable-views": "^0.14.1",
     "react-swipeable-views-utils": "^0.14.1",
     "recharts": "^3.4.1",
-    "socket.io-client": "^4.8.1"
+    "socket.io-client": "^4.8.1",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@eslint/js": "^9.30.1",

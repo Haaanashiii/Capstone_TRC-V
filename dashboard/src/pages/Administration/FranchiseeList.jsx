@@ -33,7 +33,6 @@ import {
   Select,
   FormControl,
   InputLabel,
-  Menu,
 } from '@mui/material';
 import { styled } from "@mui/material/styles";
 import SearchIcon from '@mui/icons-material/Search';
@@ -47,6 +46,7 @@ import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import DownloadIcon from '@mui/icons-material/Download';
 import FileDownloadIcon from '@mui/icons-material/FileDownload';
 import FilterListIcon from '@mui/icons-material/FilterList';
+import * as XLSX from 'xlsx';
 import '../../Styles/Administrator_Css/FranchiseeList.css';
 import '../../Styles/Administrator_Css/SharedTable.css';
 
@@ -438,7 +438,6 @@ function FranchiseeList() {
   const qrBlobUrlRef = useRef(null);
   const [qrBlobUrl, setQrBlobUrl] = useState(null);
   const [selectedBarangay, setSelectedBarangay] = useState('all');
-  const [exportMenuAnchor, setExportMenuAnchor] = useState(null);
 
   // Helper function to get document display name with proper status
   const getDocumentDisplayName = (document) => {
@@ -958,17 +957,9 @@ function FranchiseeList() {
     setPage(0); // Reset to first page when filter changes
   }, []);
 
-  const handleExportMenuOpen = useCallback((event) => {
-    setExportMenuAnchor(event.currentTarget);
-  }, []);
-
-  const handleExportMenuClose = useCallback(() => {
-    setExportMenuAnchor(null);
-  }, []);
-
-  const exportToCSV = useCallback(() => {
+  const exportToXLSX = useCallback(() => {
     try {
-      // Prepare data for export
+      // Prepare data for export with comprehensive information
       const dataToExport = filteredFranchisees.map(f => ({
         'Record Number': f.recordNumber,
         'Franchise Number': f.franchiseNumber,
@@ -979,114 +970,87 @@ function FranchiseeList() {
         'Address': f.address,
         'Contact Number': f.contactNumber || 'N/A',
         'Email': f.email || 'N/A',
+        'Birth Date': f.birthDate || 'N/A',
+        'Birth Place': f.birthPlace || 'N/A',
+        'Civil Status': f.civilStatus || 'N/A',
+        'Citizenship': f.citizenship || 'N/A',
+        'TODA Membership': f.todaMembership || 'N/A',
+        'Co-Owner Name': f.coOwnerName || 'N/A',
+        'Co-Owner Address': f.coOwnerAddress || 'N/A',
         'Unit Model': f.unitModel || 'N/A',
         'Make': f.make,
         'MV Plate': f.mvPlate || 'N/A',
+        'Motor/Engine Number': f.motorEngineNumber || 'N/A',
+        'Chassis Number': f.chassisNumber || 'N/A',
+        'Color (Motor)': f.colorMotor || 'N/A',
+        'Color (Sidecar)': f.colorSidecar || 'N/A',
+        'Sidecar Plate Number': f.sidecarPlateNumber || 'N/A',
         'Driver Name': f.driverName || 'N/A',
+        'Driver Address': f.driversAddress || 'N/A',
         'Franchise Status': f.franchiseStatus || 'N/A',
         'Rate': f.rate || 'N/A',
         'Approved Date': f.approvedAt || 'N/A',
         'Expiry Date': f.expiryDate || 'N/A',
+        'Resolution Number': f.resolutionNumber || 'N/A',
+        'OR Number': f.orNumber || 'N/A',
       }));
 
-      // Create CSV content
-      const headers = Object.keys(dataToExport[0] || {});
-      const csvContent = [
-        headers.join(','),
-        ...dataToExport.map(row => 
-          headers.map(header => {
-            const value = String(row[header] || '');
-            // Escape quotes and wrap in quotes if contains comma, quote, or newline
-            return value.includes(',') || value.includes('"') || value.includes('\n')
-              ? `"${value.replace(/"/g, '""')}"`
-              : value;
-          }).join(',')
-        )
-      ].join('\n');
-
-      // Create and download file
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      const link = document.createElement('a');
-      const url = URL.createObjectURL(blob);
-      const filename = `franchisee_list_${selectedBarangay !== 'all' ? selectedBarangay + '_' : ''}${new Date().toISOString().split('T')[0]}.csv`;
+      // Create worksheet from data
+      const worksheet = XLSX.utils.json_to_sheet(dataToExport);
       
-      link.setAttribute('href', url);
-      link.setAttribute('download', filename);
-      link.style.visibility = 'hidden';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
+      // Set column widths for better readability
+      const columnWidths = [
+        { wch: 15 }, // Record Number
+        { wch: 18 }, // Franchise Number
+        { wch: 25 }, // Franchisee Name
+        { wch: 15 }, // Plate Number
+        { wch: 15 }, // Application Type
+        { wch: 20 }, // Barangay
+        { wch: 35 }, // Address
+        { wch: 18 }, // Contact Number
+        { wch: 25 }, // Email
+        { wch: 15 }, // Birth Date
+        { wch: 20 }, // Birth Place
+        { wch: 15 }, // Civil Status
+        { wch: 15 }, // Citizenship
+        { wch: 18 }, // TODA Membership
+        { wch: 25 }, // Co-Owner Name
+        { wch: 35 }, // Co-Owner Address
+        { wch: 20 }, // Unit Model
+        { wch: 15 }, // Make
+        { wch: 15 }, // MV Plate
+        { wch: 20 }, // Motor/Engine Number
+        { wch: 20 }, // Chassis Number
+        { wch: 15 }, // Color (Motor)
+        { wch: 15 }, // Color (Sidecar)
+        { wch: 20 }, // Sidecar Plate Number
+        { wch: 25 }, // Driver Name
+        { wch: 35 }, // Driver Address
+        { wch: 18 }, // Franchise Status
+        { wch: 12 }, // Rate
+        { wch: 15 }, // Approved Date
+        { wch: 15 }, // Expiry Date
+        { wch: 18 }, // Resolution Number
+        { wch: 18 }, // OR Number
+      ];
+      worksheet['!cols'] = columnWidths;
 
-      setNotification({ open: true, message: 'Data exported successfully', type: 'success' });
+      // Create workbook and add worksheet
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Franchisee List');
+
+      // Generate filename with date and optional barangay filter
+      const filename = `franchisee_list_${selectedBarangay !== 'all' ? selectedBarangay + '_' : ''}${new Date().toISOString().split('T')[0]}.xlsx`;
+
+      // Export file
+      XLSX.writeFile(workbook, filename);
+
+      setNotification({ open: true, message: 'Data exported successfully to Excel', type: 'success' });
     } catch (error) {
       console.error('Export error:', error);
       setNotification({ open: true, message: 'Failed to export data', type: 'error' });
     }
-    handleExportMenuClose();
-  }, [filteredFranchisees, selectedBarangay, handleExportMenuClose]);
-
-  const exportToJSON = useCallback(() => {
-    try {
-      // Prepare data for export (full data)
-      const dataToExport = filteredFranchisees.map(f => ({
-        recordNumber: f.recordNumber,
-        franchiseNumber: f.franchiseNumber,
-        franchiseeName: f.franchiseeName,
-        plateNumber: f.plateNumber,
-        applicationType: f.applicationType,
-        barangay: f.barangay,
-        address: f.address,
-        contactNumber: f.contactNumber,
-        email: f.email,
-        unitModel: f.unitModel,
-        make: f.make,
-        mvPlate: f.mvPlate,
-        motorEngineNumber: f.motorEngineNumber,
-        chassisNumber: f.chassisNumber,
-        colorMotor: f.colorMotor,
-        colorSidecar: f.colorSidecar,
-        sidecarPlateNumber: f.sidecarPlateNumber,
-        driverName: f.driverName,
-        driversID: f.driversID,
-        driversAddress: f.driversAddress,
-        franchiseStatus: f.franchiseStatus,
-        rate: f.rate,
-        approvedAt: f.approvedAt,
-        expiryDate: f.expiryDate,
-        civilStatus: f.civilStatus,
-        birthPlace: f.birthPlace,
-        birthDate: f.birthDate,
-        citizenship: f.citizenship,
-        todaMembership: f.todaMembership,
-        coOwnerName: f.coOwnerName,
-        coOwnerAddress: f.coOwnerAddress,
-      }));
-
-      // Create JSON content
-      const jsonContent = JSON.stringify(dataToExport, null, 2);
-
-      // Create and download file
-      const blob = new Blob([jsonContent], { type: 'application/json' });
-      const link = document.createElement('a');
-      const url = URL.createObjectURL(blob);
-      const filename = `franchisee_list_${selectedBarangay !== 'all' ? selectedBarangay + '_' : ''}${new Date().toISOString().split('T')[0]}.json`;
-      
-      link.setAttribute('href', url);
-      link.setAttribute('download', filename);
-      link.style.visibility = 'hidden';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-
-      setNotification({ open: true, message: 'Data exported successfully', type: 'success' });
-    } catch (error) {
-      console.error('Export error:', error);
-      setNotification({ open: true, message: 'Failed to export data', type: 'error' });
-    }
-    handleExportMenuClose();
-  }, [filteredFranchisees, selectedBarangay, handleExportMenuClose]);
+  }, [filteredFranchisees, selectedBarangay]);
 
   const getApplicationTypeColor = (type) => {
     switch (type) {
@@ -1168,7 +1132,7 @@ function FranchiseeList() {
           <Button
             variant="contained"
             startIcon={<FileDownloadIcon />}
-            onClick={handleExportMenuOpen}
+            onClick={exportToXLSX}
             sx={{
               bgcolor: '#0A356B',
               '&:hover': { bgcolor: '#082548' },
@@ -1177,22 +1141,8 @@ function FranchiseeList() {
               px: 3,
             }}
           >
-            Export
+            Export to Excel
           </Button>
-          <Menu
-            anchorEl={exportMenuAnchor}
-            open={Boolean(exportMenuAnchor)}
-            onClose={handleExportMenuClose}
-          >
-            <MenuItem onClick={exportToCSV}>
-              <FileDownloadIcon sx={{ mr: 1, fontSize: 20 }} />
-              Export as CSV
-            </MenuItem>
-            <MenuItem onClick={exportToJSON}>
-              <FileDownloadIcon sx={{ mr: 1, fontSize: 20 }} />
-              Export as JSON
-            </MenuItem>
-          </Menu>
         </Box>
 
         {/* Results count */}
@@ -1206,8 +1156,115 @@ function FranchiseeList() {
         {/* Franchisee Records Table */}
         <Paper className="admin-table-container" elevation={2}>
           {loading && (
-            <Box className="admin-table-loading">
-              <CircularProgress />
+            <Box 
+              sx={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                zIndex: 10,
+                backdropFilter: 'blur(4px)',
+              }}
+            >
+              <Box
+                sx={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: 2,
+                }}
+              >
+                <Box sx={{ position: 'relative' }}>
+                  <CircularProgress 
+                    size={60}
+                    thickness={4}
+                    sx={{ 
+                      color: '#0A356B',
+                      animationDuration: '1s'
+                    }}
+                  />
+                  <Box
+                    sx={{
+                      position: 'absolute',
+                      top: '50%',
+                      left: '50%',
+                      transform: 'translate(-50%, -50%)',
+                    }}
+                  >
+                    <Typography
+                      variant="caption"
+                      sx={{
+                        color: '#0A356B',
+                        fontWeight: 600,
+                        fontSize: '0.7rem',
+                      }}
+                    >
+                      TRC
+                    </Typography>
+                  </Box>
+                </Box>
+                <Typography
+                  variant="body1"
+                  sx={{
+                    color: '#0A356B',
+                    fontWeight: 500,
+                    fontSize: '1rem',
+                    letterSpacing: '0.5px',
+                  }}
+                >
+                  Loading franchisees...
+                </Typography>
+                <Box sx={{ display: 'flex', gap: 0.5, mt: 1 }}>
+                  <Box
+                    sx={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: '50%',
+                      backgroundColor: '#0A356B',
+                      animation: 'pulse 1.5s ease-in-out infinite',
+                      animationDelay: '0s',
+                      '@keyframes pulse': {
+                        '0%, 100%': { opacity: 0.3, transform: 'scale(0.8)' },
+                        '50%': { opacity: 1, transform: 'scale(1.2)' },
+                      },
+                    }}
+                  />
+                  <Box
+                    sx={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: '50%',
+                      backgroundColor: '#0A356B',
+                      animation: 'pulse 1.5s ease-in-out infinite',
+                      animationDelay: '0.3s',
+                      '@keyframes pulse': {
+                        '0%, 100%': { opacity: 0.3, transform: 'scale(0.8)' },
+                        '50%': { opacity: 1, transform: 'scale(1.2)' },
+                      },
+                    }}
+                  />
+                  <Box
+                    sx={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: '50%',
+                      backgroundColor: '#0A356B',
+                      animation: 'pulse 1.5s ease-in-out infinite',
+                      animationDelay: '0.6s',
+                      '@keyframes pulse': {
+                        '0%, 100%': { opacity: 0.3, transform: 'scale(0.8)' },
+                        '50%': { opacity: 1, transform: 'scale(1.2)' },
+                      },
+                    }}
+                  />
+                </Box>
+              </Box>
             </Box>
           )}
           
