@@ -4,12 +4,14 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useTranslation } from '../../hooks/useTranslation';
 import websocketService from '../../services/websocket';
 import UnifiedNavbar from '../../components/UnifiedNavbar';
-import { Button, Typography, Box, useMediaQuery, useTheme, MobileStepper, Accordion, AccordionSummary, AccordionDetails } from '@mui/material';
+import { Button, Typography, Box, useMediaQuery, useTheme, MobileStepper, Accordion, AccordionSummary, AccordionDetails, Dialog, DialogContent, IconButton } from '@mui/material';
+import CloseIcon from '@mui/icons-material/Close';
 import SwipeableViews from 'react-swipeable-views';
 import { autoPlay } from 'react-swipeable-views-utils';
 import KeyboardArrowLeft from '@mui/icons-material/KeyboardArrowLeft';
 import KeyboardArrowRight from '@mui/icons-material/KeyboardArrowRight';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import SBFareImage from '../../assets/SB Fare.jpeg';
 
 // --- Added for mobile carousel auto-play
 const AutoPlaySwipeableViews = autoPlay(SwipeableViews);
@@ -25,6 +27,7 @@ const LandingPage = () => {
   const { t } = useTranslation();
   const [announcements, setAnnouncements] = useState([]);
   const [loadingAnnouncements, setLoadingAnnouncements] = useState(true);
+  const [openFareModal, setOpenFareModal] = useState(false);
   
   // --- Added for responsiveness and carousel
   const theme = useTheme();
@@ -201,6 +204,24 @@ const LandingPage = () => {
         
         <div className="main-content">
           <h1 dangerouslySetInnerHTML={{ __html: t("landing.heroSubtitle") }}></h1>
+          <Button 
+            variant="contained" 
+            sx={{ 
+              mt: 3, 
+              backgroundColor: '#1B4B75',
+              color: '#F4D77E',
+              fontWeight: 'bold',
+              padding: '12px 30px',
+              fontSize: '16px',
+              fontFamily: 'Poppins, sans-serif',
+              '&:hover': {
+                backgroundColor: '#143c6e'
+              }
+            }}
+            onClick={() => setOpenFareModal(true)}
+          >
+            View Fare Matrix
+          </Button>
         </div>
         <div className="main-image" style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', height: '100%' }}>
           <img
@@ -616,6 +637,112 @@ const LandingPage = () => {
         </Box>
       </Box>
     </Box>
+
+    {/* Fare Matrix Modal */}
+    <Dialog 
+      open={openFareModal} 
+      onClose={() => setOpenFareModal(false)}
+      maxWidth="sm"
+      fullWidth
+      PaperProps={{
+        sx: {
+          borderRadius: '16px',
+          boxShadow: '0 12px 48px rgba(0,0,0,0.25)',
+          backgroundColor: '#f8f9fa',
+          maxHeight: '90vh'
+        }
+      }}
+    >
+      <DialogContent 
+        sx={{
+          position: 'relative',
+          p: 0,
+          backgroundColor: '#f8f9fa',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          maxHeight: '90vh',
+          overflow: 'hidden'
+        }}
+      >
+        {/* Header Section */}
+        <Box sx={{ 
+          width: '100%',
+          background: 'linear-gradient(135deg, #1B4B75 0%, #143c6e 100%)',
+          p: 3,
+          textAlign: 'center',
+          position: 'relative',
+          borderRadius: '16px 16px 0 0',
+          flexShrink: 0
+        }}>
+          <Typography 
+            variant="h5" 
+            sx={{ 
+              fontWeight: 'bold', 
+              color: '#F4D77E',
+              fontFamily: 'Poppins, sans-serif',
+              fontSize: { xs: '18px', sm: '22px' },
+              mb: 0.5
+            }}
+          >
+            TRICYCLE FARE MATRIX
+          </Typography>
+          <Typography 
+            sx={{ 
+              color: '#E8E0D0',
+              fontFamily: 'Poppins, sans-serif',
+              fontSize: '14px'
+            }}
+          >
+            Municipality of Solano
+          </Typography>
+          
+          {/* Close Button */}
+          <IconButton
+            onClick={() => setOpenFareModal(false)}
+            sx={{
+              position: 'absolute',
+              right: 12,
+              top: 12,
+              backgroundColor: 'rgba(255, 255, 255, 0.15)',
+              color: '#F4D77E',
+              '&:hover': {
+                backgroundColor: 'rgba(255, 255, 255, 0.25)'
+              }
+            }}
+          >
+            <CloseIcon />
+          </IconButton>
+        </Box>
+
+        {/* Image Container - Scrollable */}
+        <Box sx={{ 
+          width: '100%',
+          p: { xs: 2, sm: 3 },
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'flex-start',
+          backgroundColor: '#fff',
+          borderRadius: '0 0 16px 16px',
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          flex: 1
+        }}>
+          <Box
+            component="img"
+            src={SBFareImage}
+            alt="SB Fare Matrix"
+            sx={{
+              width: '100%',
+              height: 'auto',
+              objectFit: 'contain',
+              borderRadius: '8px',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+            }}
+          />
+        </Box>
+      </DialogContent>
+    </Dialog>
 
   </div> 
 );
