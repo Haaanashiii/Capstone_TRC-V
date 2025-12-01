@@ -6,11 +6,26 @@ const cacheManager = require('../utils/cache');
 // Get main dashboard numbers (saved in memory for 5 minutes)
 exports.getDashboardStatistics = async (req, res, next) => {
   try {
-    // Return saved data if available
-    const cacheKey = 'dashboard-stats';
+    // Get date range from query parameters, default to current week
+    const startDate = req.query.startDate ? new Date(req.query.startDate) : (() => {
+      const today = new Date();
+      const day = today.getDay();
+      const diff = today.getDate() - day + (day === 0 ? -6 : 1); // Adjust to Monday
+      return new Date(today.setDate(diff));
+    })();
+    
+    const endDate = req.query.endDate ? new Date(req.query.endDate) : new Date();
+    
+    // Set start date to beginning of day and end date to end of day
+    startDate.setHours(0, 0, 0, 0);
+    endDate.setHours(23, 59, 59, 999);
+    
+    // Create cache key based on date range
+    const cacheKey = `dashboard-stats-${startDate.toISOString().split('T')[0]}-${endDate.toISOString().split('T')[0]}`;
     const cachedStats = cacheManager.get(cacheKey);
     
     if (cachedStats) {
+      console.log('[Dashboard] Returning cached data');
       return res.status(200).json({
         success: true,
         data: cachedStats,
@@ -19,8 +34,8 @@ exports.getDashboardStatistics = async (req, res, next) => {
     }
 
     const currentDate = new Date();
-    const currentYear = currentDate.getFullYear();
-    const currentMonth = currentDate.getMonth();
+    
+    console.log('[Dashboard] Querying data from', startDate.toISOString(), 'to', endDate.toISOString());
 
     // Run all database queries at the same time (faster)
     const [
@@ -28,15 +43,17 @@ exports.getDashboardStatistics = async (req, res, next) => {
       expiredFranchiseResult,
       pendingVerificationsResult,
       pendingReportsResult,
-      monthlyTrendResult
+      allFranchises
     ] = await Promise.all([
-      // Count all active franchises
-      FranchiseInformation.countDocuments({ isCurrentVersion: true }),
+      // Count all franchises (current versions only)
+      FranchiseInformation.countDocuments({ 
+        isCurrentVersion: true 
+      }),
 
-      // Count expired franchises
+      // Count expired franchises using franchiseStatus field
       FranchiseInformation.countDocuments({ 
         isCurrentVersion: true,
-        expiryDate: { $lt: currentDate }
+        franchiseStatus: 'Expired'
       }),
 
       // Count applications waiting for approval
@@ -51,55 +68,74 @@ exports.getDashboardStatistics = async (req, res, next) => {
       // Count pending reports from public
       Report.countDocuments({ status: 'pending' }),
 
-      // Get application numbers by month this year
-      FranchiseApplication.aggregate([
-        {
-          $match: {
-            $or: [
-              {
-                createdAt: {
-                  $gte: new Date(currentYear, 0, 1),
-                  $lte: new Date(currentYear, 11, 31, 23, 59, 59)
-                }
-              },
-              {
-                submittedAt: {
-                  $gte: new Date(currentYear, 0, 1),
-                  $lte: new Date(currentYear, 11, 31, 23, 59, 59)
-                }
-              }
-            ]
-          }
-        },
-        {
-          $group: {
-            _id: { 
-              $month: { 
-                $cond: [
-                  { $ifNull: ['$createdAt', null] },
-                  '$createdAt',
-                  '$submittedAt'
-                ]
-              }
-            },
-            count: { $sum: 1 }
-          }
-        },
-        {
-          $sort: { _id: 1 }
-        }
-      ])
+      // Get ALL current franchises
+      FranchiseInformation.find({
+        isCurrentVersion: true
+      }).select('approvedAt createdAt operatorName franchiseStatus').lean()
     ]);
 
-    // Transform monthly trend data to array format
-    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    const monthlyTrend = monthNames.map((month, index) => {
-      const monthData = monthlyTrendResult.find(m => m._id === index + 1);
-      return {
-        month,
-        verifications: monthData ? monthData.count : 0
-      };
+    console.log('[Dashboard] Total franchises found:', allFranchises.length);
+    
+    // Log all franchises to see what we have
+    allFranchises.forEach((f, i) => {
+      console.log(`[Dashboard] Franchise ${i + 1}:`, {
+        name: f.operatorName,
+        status: f.franchiseStatus,
+        approvedAt: f.approvedAt,
+        createdAt: f.createdAt
+      });
     });
+
+    // Filter franchises by createdAt date within range
+    const franchisesInRange = allFranchises.filter(franchise => {
+      // Use createdAt as the reference date (it always exists from timestamps)
+      const referenceDate = new Date(franchise.createdAt);
+      return referenceDate >= startDate && referenceDate <= endDate;
+    });
+    
+    console.log('[Dashboard] Franchises in date range:', franchisesInRange.length);
+
+    // Group franchises by date
+    const franchisesByDate = {};
+    
+    franchisesInRange.forEach(franchise => {
+      const dateKey = new Date(franchise.createdAt).toISOString().split('T')[0]; // YYYY-MM-DD
+      
+      if (!franchisesByDate[dateKey]) {
+        franchisesByDate[dateKey] = {
+          active: 0,
+          expired: 0,
+          revoked: 0,
+          total: 0
+        };
+      }
+      
+      // Use franchiseStatus field to determine status
+      const status = franchise.franchiseStatus;
+      console.log(`[Dashboard] Franchise ${franchise.operatorName} has status: "${status}"`);
+      
+      if (status === 'Active') {
+        franchisesByDate[dateKey].active++;
+      } else if (status === 'Expired') {
+        franchisesByDate[dateKey].expired++;
+      } else if (status === 'Revoked') {
+        franchisesByDate[dateKey].revoked++;
+      }
+      franchisesByDate[dateKey].total++;
+    });
+    
+    // Convert to array and sort by date
+    const trendData = Object.keys(franchisesByDate)
+      .sort()
+      .map(date => ({
+        date,
+        active: franchisesByDate[date].active,
+        expired: franchisesByDate[date].expired,
+        revoked: franchisesByDate[date].revoked || 0,
+        total: franchisesByDate[date].total
+      }));
+    
+    console.log('[Dashboard] Final trend data:', JSON.stringify(trendData, null, 2));
 
     // Calculate additional statistics
     const totalApplications = await FranchiseApplication.countDocuments();
@@ -107,51 +143,9 @@ exports.getDashboardStatistics = async (req, res, next) => {
       ? ((totalRegisteredResult / totalApplications) * 100).toFixed(1)
       : 0;
 
-    // Get current month statistics for comparison (from FranchiseApplication)
-    const currentMonthStart = new Date(currentYear, currentMonth, 1);
-    const currentMonthEnd = new Date(currentYear, currentMonth + 1, 0, 23, 59, 59);
-    
-    const currentMonthApplications = await FranchiseApplication.countDocuments({
-      $or: [
-        {
-          createdAt: {
-            $gte: currentMonthStart,
-            $lte: currentMonthEnd
-          }
-        },
-        {
-          submittedAt: {
-            $gte: currentMonthStart,
-            $lte: currentMonthEnd
-          }
-        }
-      ]
-    });
-
-    // Previous month for trend calculation
-    const prevMonthStart = new Date(currentYear, currentMonth - 1, 1);
-    const prevMonthEnd = new Date(currentYear, currentMonth, 0, 23, 59, 59);
-    
-    const prevMonthApplications = await FranchiseApplication.countDocuments({
-      $or: [
-        {
-          createdAt: {
-            $gte: prevMonthStart,
-            $lte: prevMonthEnd
-          }
-        },
-        {
-          submittedAt: {
-            $gte: prevMonthStart,
-            $lte: prevMonthEnd
-          }
-        }
-      ]
-    });
-
-    const monthlyTrendPercentage = prevMonthApplications > 0
-      ? (((currentMonthApplications - prevMonthApplications) / prevMonthApplications) * 100).toFixed(1)
-      : 0;
+    // Get total active and expired in the selected range
+    const totalActive = trendData.reduce((sum, item) => sum + item.active, 0);
+    const totalExpired = trendData.reduce((sum, item) => sum + item.expired, 0);
 
     const statsData = {
       kpis: {
@@ -163,19 +157,29 @@ exports.getDashboardStatistics = async (req, res, next) => {
         approvalRate: parseFloat(approvalRate)
       },
       trends: {
-        monthly: monthlyTrend,
+        monthly: trendData,
         currentMonth: {
-          applications: currentMonthApplications,
-          change: parseFloat(monthlyTrendPercentage),
-          month: monthNames[currentMonth],
-          year: currentYear
+          active: totalActive,
+          expired: totalExpired,
+          total: totalActive + totalExpired,
+          change: 0
         }
       },
-      timestamp: currentDate.toISOString()
+      timestamp: currentDate.toISOString(),
+      dateRange: {
+        start: startDate.toISOString(),
+        end: endDate.toISOString()
+      }
     };
+    
+    console.log('[Dashboard] Returning stats:', {
+      kpis: statsData.kpis,
+      trendDataCount: statsData.trends.monthly.length,
+      currentPeriod: statsData.trends.currentMonth
+    });
 
     // Cache the stats for 5 minutes to reduce database load
-    cacheManager.set('dashboard-stats', statsData, 300);
+    cacheManager.set(cacheKey, statsData, 300);
 
     res.status(200).json({
       success: true,

@@ -51,7 +51,6 @@ const franchiseInformationSchema = new mongoose.Schema({
   unitModel: { type: String, required: true },
   colorMotor: { type: String, required: true },
   sideCarColor: { type: String, required: true }, // User can specify Blue, Yellow, or other colors
-  sideCarPlateNumber: { type: String, required: true },
   mvPlateNo: { type: String, required: true },
   motorEngineNo: { type: String, required: true },
   chasisNo: { type: String, required: true},

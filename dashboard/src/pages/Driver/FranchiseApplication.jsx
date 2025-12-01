@@ -1146,7 +1146,6 @@ export default function FranchiseApplication() {
                       formDataToSend.append('unitModel', fields.unitModel || '');
                       formDataToSend.append('colorMotor', fields.colorMotor || '');
                       formDataToSend.append('sideCarColor', fields.colorSidecar || '');
-                      formDataToSend.append('sideCarPlateNumber', fields.mvPlateNo || ''); // FIXED: Added this field
                       formDataToSend.append('mvPlateNo', fields.mvPlateNo || ''); 
                       formDataToSend.append('motorEngineNo', fields.motorEngineNumber || ''); 
                       formDataToSend.append('chasisNo', fields.chassisNumber || '');

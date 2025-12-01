@@ -8,7 +8,16 @@ import {
   CircularProgress,
   Alert,
   Chip,
+  Divider,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel,
 } from '@mui/material';
+import { DatePicker } from '@mui/x-date-pickers/DatePicker';
+import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
+import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
+import dayjs from 'dayjs';
 import {
   Assessment as AssessmentIcon,
   EventBusy as EventBusyIcon,
@@ -18,6 +27,8 @@ import {
 import {
   LineChart,
   Line,
+  AreaChart,
+  Area,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -40,6 +51,115 @@ function Dashboard() {
   const [error, setError] = useState(null);
   const [retryCount, setRetryCount] = useState(0);
   const [isAuthorized, setIsAuthorized] = useState(true);
+  
+  // Default to current week (Monday to Sunday)
+  const getWeekRange = useCallback(() => {
+    const today = dayjs();
+    const startOfWeek = today.startOf('week'); // Monday
+    const endOfWeek = today.endOf('week'); // Sunday
+    return { start: startOfWeek, end: endOfWeek };
+  }, []);
+  
+  const weekRange = getWeekRange();
+  const [startDate, setStartDate] = useState(weekRange.start);
+  const [endDate, setEndDate] = useState(weekRange.end);
+
+  // Quick date range buttons
+  const handleQuickRange = useCallback((range) => {
+    const today = dayjs();
+    switch (range) {
+      case 'thisWeek':
+        const thisWeek = getWeekRange();
+        setStartDate(thisWeek.start);
+        setEndDate(thisWeek.end);
+        break;
+      case 'lastWeek':
+        setStartDate(today.subtract(1, 'week').startOf('week'));
+        setEndDate(today.subtract(1, 'week').endOf('week'));
+        break;
+      case 'thisMonth':
+        setStartDate(today.startOf('month'));
+        setEndDate(today.endOf('month'));
+        break;
+      case 'lastMonth':
+        setStartDate(today.subtract(1, 'month').startOf('month'));
+        setEndDate(today.subtract(1, 'month').endOf('month'));
+        break;
+      case 'thisYear':
+        setStartDate(today.startOf('year'));
+        setEndDate(today);
+        break;
+    }
+  }, [getWeekRange]);
+
+  // Memoize chart data for optimal performance
+  const chartData = useMemo(() => {
+    if (!dashboardData?.trendData || dashboardData.trendData.length === 0) {
+      console.log('[Dashboard] No trend data:', dashboardData?.trendData);
+      return [];
+    }
+    console.log('[Dashboard] Chart data:', dashboardData.trendData);
+    return dashboardData.trendData;
+  }, [dashboardData?.trendData]);
+
+  // Custom tooltip for better UX
+  const CustomTooltip = useCallback(({ active, payload, label }) => {
+    if (!active || !payload || payload.length === 0) return null;
+
+    const data = payload[0].payload;
+    const year = dashboardData?.currentMonthInfo?.year || new Date().getFullYear();
+    
+    return (
+      <Paper
+        elevation={3}
+        sx={{
+          p: 2,
+          backgroundColor: '#ffffff',
+          border: '1px solid #E5E7EB',
+          borderRadius: '8px',
+        }}
+      >
+        <Typography
+          variant="subtitle2"
+          sx={{ fontWeight: 700, color: '#0A356B', mb: 1 }}
+        >
+          {label} {year}
+        </Typography>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Box
+              sx={{
+                width: 12,
+                height: 12,
+                borderRadius: '50%',
+                backgroundColor: '#10B981',
+              }}
+            />
+            <Typography variant="body2" sx={{ color: '#374151' }}>
+              Active: <strong>{data.active}</strong>
+            </Typography>
+          </Box>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Box
+              sx={{
+                width: 12,
+                height: 12,
+                borderRadius: '50%',
+                backgroundColor: '#EF4444',
+              }}
+            />
+            <Typography variant="body2" sx={{ color: '#374151' }}>
+              Expired: <strong>{data.expired}</strong>
+            </Typography>
+          </Box>
+          <Divider sx={{ my: 0.5 }} />
+          <Typography variant="body2" sx={{ color: '#6B7280', fontWeight: 600 }}>
+            Total: {data.total}
+          </Typography>
+        </Box>
+      </Paper>
+    );
+  }, [dashboardData?.currentMonthInfo?.year]);
 
   // Memoized user info and greeting
   const { userName, greeting } = useMemo(() => {
@@ -97,15 +217,20 @@ function Dashboard() {
       setTimeout(() => navigate('/login'), 2000);
     }
   }, [navigate]);
+  
   const fetchDashboardData = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
 
-      console.log('[Dashboard] Fetching statistics from API...');
+      const params = {
+        startDate: startDate.format('YYYY-MM-DD'),
+        endDate: endDate.format('YYYY-MM-DD')
+      };
+
+      console.log(`[Dashboard] Fetching statistics from ${params.startDate} to ${params.endDate}`);
       
-      // Single optimized API call that returns all dashboard data
-      const response = await dashboardAPI.getStatistics();
+      const response = await dashboardAPI.getStatistics(params);
       
       if (response?.data?.success && response.data.data) {
         const { kpis, trends } = response.data.data;
@@ -113,6 +238,7 @@ function Dashboard() {
         console.log('[Dashboard] Raw API Response:', {
           kpis,
           trends,
+          trendsMonthly: trends?.monthly,
           timestamp: response.data.data.timestamp
         });
         
@@ -135,7 +261,9 @@ function Dashboard() {
           pendingVerifications: kpis.pendingVerifications,
           expiredFranchise: kpis.expiredFranchise,
           trendDataLength: trends?.monthly?.length || 0,
-          trendData: trends?.monthly || []
+          trendData: trends?.monthly || [],
+          currentMonthInfo: trends?.currentMonth,
+          fullTrends: trends
         });
         
         setRetryCount(0); // Reset retry count on success
@@ -177,7 +305,7 @@ function Dashboard() {
     }
   }, [navigate]);
 
-  // Fetch data on component mount and setup WebSocket
+  // Fetch data on component mount and when date range changes
   useEffect(() => {
     fetchDashboardData();
 
@@ -202,7 +330,7 @@ function Dashboard() {
       websocketService.off('franchise-updated', handleDashboardUpdates);
       websocketService.off('application-updated', handleDashboardUpdates);
     };
-  }, [fetchDashboardData]);
+  }, [fetchDashboardData, startDate, endDate]);
 
   // Manual retry handler
   const handleRetry = useCallback(() => {
@@ -394,7 +522,7 @@ function Dashboard() {
                 backgroundColor: '#ffffff',
               }}
             >
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 3, flexWrap: 'wrap', gap: 2 }}>
                 <Typography
                   variant="h6"
                   sx={{
@@ -403,30 +531,110 @@ function Dashboard() {
                     fontSize: '1.25rem',
                   }}
                 >
-                  Verification Processing Trend
+                  Franchise Health Over Time
                 </Typography>
-                {dashboardData.currentMonthInfo && (
-                  <Chip
-                    label={`${dashboardData.currentMonthInfo.month}: ${dashboardData.currentMonthInfo.applications} applications`}
-                    sx={{
-                      backgroundColor: '#0A356B',
-                      color: '#ffffff',
-                      fontWeight: 600,
-                    }}
-                  />
-                )}
+                
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, alignItems: 'flex-end' }}>
+                  {/* Date Range and Quick Select */}
+                  <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <FormControl size="small" sx={{ minWidth: 150 }}>
+                      <InputLabel id="date-range-label" sx={{ color: '#0A356B' }}>Quick Select</InputLabel>
+                      <Select
+                        labelId="date-range-label"
+                        label="Quick Select"
+                        value=""
+                        onChange={(e) => handleQuickRange(e.target.value)}
+                        sx={{
+                          backgroundColor: '#ffffff',
+                          '& .MuiOutlinedInput-notchedOutline': {
+                            borderColor: '#0A356B',
+                          },
+                          '&:hover .MuiOutlinedInput-notchedOutline': {
+                            borderColor: '#0A356B',
+                          },
+                          '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                            borderColor: '#0A356B',
+                          },
+                        }}
+                      >
+                        <MenuItem value="thisWeek">This Week</MenuItem>
+                        <MenuItem value="lastWeek">Last Week</MenuItem>
+                        <MenuItem value="thisMonth">This Month</MenuItem>
+                        <MenuItem value="lastMonth">Last Month</MenuItem>
+                        <MenuItem value="thisYear">This Year</MenuItem>
+                      </Select>
+                    </FormControl>
+                    
+                    <LocalizationProvider dateAdapter={AdapterDayjs}>
+                      <DatePicker
+                        label="Start Date"
+                        value={startDate}
+                        onChange={(newValue) => setStartDate(newValue)}
+                        slotProps={{
+                          textField: {
+                            size: 'small',
+                            sx: { minWidth: 150 }
+                          }
+                        }}
+                      />
+                      <DatePicker
+                        label="End Date"
+                        value={endDate}
+                        onChange={(newValue) => setEndDate(newValue)}
+                        minDate={startDate}
+                        slotProps={{
+                          textField: {
+                            size: 'small',
+                            sx: { minWidth: 150 }
+                          }
+                        }}
+                      />
+                    </LocalizationProvider>
+                    
+                    {dashboardData?.trends?.currentMonth && (
+                      <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                        <Chip
+                          label={`Active: ${dashboardData.trends.currentMonth.active}`}
+                          sx={{
+                            backgroundColor: '#10B981',
+                            color: '#ffffff',
+                            fontWeight: 600,
+                          }}
+                        />
+                        <Chip
+                          label={`Expired: ${dashboardData.trends.currentMonth.expired}`}
+                          sx={{
+                            backgroundColor: '#EF4444',
+                            color: '#ffffff',
+                            fontWeight: 600,
+                          }}
+                        />
+                      </Box>
+                    )}
+                  </Box>
+                </Box>
               </Box>
               
-              {dashboardData.trendData && dashboardData.trendData.length > 0 ? (
-                <Box sx={{ width: '100%', height: 400 }}>
-                  <ResponsiveContainer width="100%" height={400}>
-                    <LineChart
-                      data={dashboardData.trendData}
-                      margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+              {chartData.length > 0 ? (
+                <Box sx={{ width: '100%', height: 400, minHeight: 400 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart
+                      data={chartData}
+                      margin={{ top: 10, right: 30, left: 0, bottom: 20 }}
                     >
+                      <defs>
+                        <linearGradient id="colorActive" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#10B981" stopOpacity={0.8}/>
+                          <stop offset="95%" stopColor="#10B981" stopOpacity={0.1}/>
+                        </linearGradient>
+                        <linearGradient id="colorExpired" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#EF4444" stopOpacity={0.8}/>
+                          <stop offset="95%" stopColor="#EF4444" stopOpacity={0.1}/>
+                        </linearGradient>
+                      </defs>
                       <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
                       <XAxis
-                        dataKey="month"
+                        dataKey="date"
                         stroke="#6B7280"
                         style={{ fontSize: '0.875rem', fontFamily: 'Poppins, sans-serif' }}
                       />
@@ -435,47 +643,32 @@ function Dashboard() {
                         style={{ fontSize: '0.875rem', fontFamily: 'Poppins, sans-serif' }}
                         allowDecimals={false}
                       />
-                      <Tooltip
-                        contentStyle={{
-                          backgroundColor: '#ffffff',
-                          border: '1px solid #E5E7EB',
-                          borderRadius: '8px',
-                          padding: '12px',
-                          boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
-                        }}
-                        labelStyle={{
-                          color: '#0A356B',
-                          fontWeight: 600,
-                          fontFamily: 'Poppins, sans-serif',
-                        }}
-                        itemStyle={{
-                          color: '#0A356B',
-                          fontFamily: 'Poppins, sans-serif',
-                        }}
-                      />
+                      <Tooltip content={<CustomTooltip />} />
                       <Legend
                         wrapperStyle={{
                           paddingTop: '20px',
                           fontFamily: 'Poppins, sans-serif',
                         }}
                       />
-                      <Line
+                      <Area
                         type="monotone"
-                        dataKey="verifications"
-                        stroke="#0A356B"
-                        strokeWidth={3}
-                        dot={{
-                          fill: '#0A356B',
-                          strokeWidth: 2,
-                          r: 5,
-                        }}
-                        activeDot={{
-                          r: 7,
-                          fill: '#0A356B',
-                        }}
-                        name="Verifications Processed"
+                        dataKey="active"
+                        stroke="#10B981"
+                        strokeWidth={2}
+                        fillOpacity={1}
+                        fill="url(#colorActive)"
+                        name="Active Franchises"
                       />
-                    </LineChart>
+                      <Area
+                        type="monotone"
+                        dataKey="expired"
+                        stroke="#EF4444"
+                        strokeWidth={2}
+                        fillOpacity={1}
+                        fill="url(#colorExpired)"
+                        name="Expired Franchises"
+                      />
+                    </AreaChart>
                   </ResponsiveContainer>
                 </Box>
               ) : (
@@ -490,9 +683,9 @@ function Dashboard() {
                     gap: 1,
                   }}
                 >
-                  <Typography>No trend data available for this year</Typography>
-                  <Typography variant="caption" sx={{ fontSize: '0.75rem', opacity: 0.7 }}>
-                    Trend data will appear once franchises are registered
+                  <Typography variant="h6" sx={{ fontWeight: 600 }}>No franchise data available for this date range</Typography>
+                  <Typography variant="caption" sx={{ fontSize: '0.875rem', opacity: 0.7 }}>
+                    Try selecting a different date range or check if franchises have been registered
                   </Typography>
                 </Box>
               )}

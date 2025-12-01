@@ -48,7 +48,7 @@ exports.createNewApplication = async (req, res, next) => {
       operatorBirthPlace: body.operatorBirthPlace,
       operatorBirthDate: body.operatorBirthDate ? new Date(body.operatorBirthDate) : null,
       operatorCitizenship: body.operatorCitizenship,
-      operatorEmail: userEmail,
+      operatorEmail: body.operatorEmail || userEmail,
       coOwnerName: body.coOwnerName || '',
       coOwnerAddress: body.coOwnerAddress || '',
       driverName: body.driverName,
@@ -57,13 +57,16 @@ exports.createNewApplication = async (req, res, next) => {
       unitModel: body.unitModel,
       colorMotor: body.colorMotor,
       sideCarColor: body.sideCarColor,
-      sideCarPlateNumber: body.sideCarPlateNumber || '',
       mvPlateNo: body.mvPlateNo,
       motorEngineNo: body.motorEngineNo,
       chasisNo: body.chasisNo,
       applicationType: 'new',
       statusOfBPLO: 'pending',
-      operatorInfo: userId
+      operatorInfo: userId,
+      // Walk-in specific fields
+      isWalkIn: body.isWalkIn === 'true' || body.isWalkIn === true,
+      officialReceiptNumber: body.officialReceiptNumber || '',
+      orSubmittedAt: body.orSubmittedAt ? new Date(body.orSubmittedAt) : null
     };
     
     console.log('[createNewApplication] Creating application with operatorInfo:', userId);
@@ -111,7 +114,7 @@ exports.createNewApplication = async (req, res, next) => {
             return result.cloudflare;
           };
           
-          const [motorReg, barangay, cedula, license, affidavit, stencil, driverPic, operatorPic, orLTO, crLTO] = await Promise.all([
+          const [motorReg, barangay, cedula, license, affidavit, stencil, driverPic, operatorPic, orLTO, crLTO, orTreasurer] = await Promise.all([
             uploadHelper('motorRegistrationObj', 'Documentations'),
             uploadHelper('barangayClearanceObj', 'Documentations'),
             uploadHelper('cedulaObj', 'Documentations'),
@@ -121,7 +124,8 @@ exports.createNewApplication = async (req, res, next) => {
             uploadHelper('driverPictureObj', 'ProfilePictures'),
             uploadHelper('operatorPictureObj', 'ProfilePictures'),
             uploadHelper('oRLTOObj', 'Documentations'),
-            uploadHelper('cRLTOObj', 'Documentations')
+            uploadHelper('cRLTOObj', 'Documentations'),
+            uploadHelper('oRTreasurerOfficeObj', 'Documentations') // OR document for walk-in
           ]);
           
           const updateData = {};
@@ -135,6 +139,7 @@ exports.createNewApplication = async (req, res, next) => {
           if (operatorPic) updateData['documents.operatorPictureObj'] = operatorPic;
           if (orLTO) updateData['documents.oRLTOObj'] = orLTO;
           if (crLTO) updateData['documents.cRLTOObj'] = crLTO;
+          if (orTreasurer) updateData['documents.oRTreasurerOfficeObj'] = orTreasurer;
           
           if (Object.keys(updateData).length > 0) {
             await franchiseApplicationRepository.updateFranchiseApplication(appId, updateData);
@@ -185,6 +190,19 @@ exports.createNewApplication = async (req, res, next) => {
       }
     } catch (wsError) {
       console.error('[createNewApplication] WebSocket broadcast error:', wsError.message);
+    }
+    
+    // Send notification for walk-in applications
+    if (finalApplication.isWalkIn) {
+      console.log('[createNewApplication] Walk-in application detected - sending notification');
+      try {
+        const { sendWalkInApplicationNotification } = require('../services/notificationQueueService');
+        await sendWalkInApplicationNotification(finalApplication).catch(err => {
+          console.error('[createNewApplication] Walk-in notification error:', err);
+        });
+      } catch (notifError) {
+        console.error('[createNewApplication] Failed to import or send walk-in notification:', notifError);
+      }
     }
     
     res.status(201).json({ success: true, data: finalApplication });
@@ -520,9 +538,7 @@ exports.createRenewOrAmendment = async (req, res, next) => {
         unitModel: body.unitModel || existingFranchise.unitModel,
         colorMotor: body.colorMotor || existingFranchise.colorMotor,
         sideCarColor: body.sideCarColor || existingFranchise.sideCarColor,
-        sideCarPlateNumber: body.sideCarPlateNumber || existingFranchise.sideCarPlateNumber,
-        mvPlateNo: body.mvPlateNo || existingFranchise.mvPlateNo,
-        motorEngineNo: body.motorEngineNo || existingFranchise.motorEngineNo,
+        mvPlateNo: body.mvPlateNo || existingFranchise.mvPlateNo,torEngineNo,
         chasisNo: body.chasisNo || existingFranchise.chasisNo
       } : appType === 'update_ownership' ? {
         // Update operator, keep motor + driver
@@ -541,7 +557,6 @@ exports.createRenewOrAmendment = async (req, res, next) => {
         unitModel: existingFranchise.unitModel,
         colorMotor: existingFranchise.colorMotor,
         sideCarColor: existingFranchise.sideCarColor,
-        sideCarPlateNumber: existingFranchise.sideCarPlateNumber,
         mvPlateNo: existingFranchise.mvPlateNo,
         motorEngineNo: existingFranchise.motorEngineNo,
         chasisNo: existingFranchise.chasisNo
@@ -1325,7 +1340,6 @@ exports.sbAdminAcceptNewFranchise = async (req, res, next) => {
       unitModel: application.unitModel,
       colorMotor: application.colorMotor,
       sideCarColor: application.sideCarColor,
-      sideCarPlateNumber: application.sideCarPlateNumber,
       mvPlateNo: application.mvPlateNo,
       motorEngineNo: application.motorEngineNo,
       chasisNo: application.chasisNo,
@@ -1628,7 +1642,6 @@ exports.sbAdminAcceptRenewOrAmendment = async (req, res, next) => {
       newVersionData.unitModel = application.unitModel;
       newVersionData.colorMotor = application.colorMotor;
       newVersionData.sideCarColor = application.sideCarColor;
-      newVersionData.sideCarPlateNumber = application.sideCarPlateNumber;
       newVersionData.mvPlateNo = application.mvPlateNo;
       newVersionData.motorEngineNo = application.motorEngineNo;
       newVersionData.chasisNo = application.chasisNo;

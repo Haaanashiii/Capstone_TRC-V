@@ -261,9 +261,6 @@ const FranchiseeDetailsModal = ({ open, onClose, franchisee, isEditing, onEdit, 
               <Typography variant="subtitle2" className="label">Chassis Number:</Typography>
               <Typography>{franchisee.chassisNumber || 'N/A'}</Typography>
               
-              <Typography variant="subtitle2" className="label">Sidecar Plate Number:</Typography>
-              <Typography>{franchisee.sidecarPlateNumber || 'N/A'}</Typography>
-              
               <Typography variant="subtitle2" className="label">Driver Name:</Typography>
               <Typography>{franchisee.driverName || 'N/A'}</Typography>
               
@@ -533,7 +530,6 @@ function FranchiseeList() {
           unitModel: app.unitModel || '',
           colorMotor: app.colorMotor || '',
           colorSidecar: app.sideCarColor || '',
-          sidecarPlateNumber: app.sideCarPlateNumber || '',
           mvPlate: app.mvPlateNo || '',
           motorEngineNumber: app.motorEngineNo || '',
           chassisNumber: app.chasisNo || '',
@@ -999,7 +995,6 @@ function FranchiseeList() {
         'Chassis Number': f.chassisNumber || 'N/A',
         'Color (Motor)': f.colorMotor || 'N/A',
         'Color (Sidecar)': f.colorSidecar || 'N/A',
-        'Sidecar Plate Number': f.sidecarPlateNumber || 'N/A',
         'Driver Name': f.driverName || 'N/A',
         'Driver Address': f.driversAddress || 'N/A',
         'Franchise Status': f.franchiseStatus || 'N/A',

@@ -64,7 +64,6 @@ router.post('/', (req, res) => {
       applicationType: payload.applicationType || 'New',
       address: payload.address || '',
       contactNumber: payload.contactNumber || '',
-      sidecarPlateNumber: payload.sidecarPlateNumber || '',
       birthPlace: payload.birthPlace || '',
       birthDate: payload.birthDate || '',
       civilStatus: payload.civilStatus || '',

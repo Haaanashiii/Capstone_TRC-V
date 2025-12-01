@@ -38,7 +38,6 @@ const franchiseApplicationSchema = new mongoose.Schema({
   unitModel: { type: String, required: true },
   colorMotor: { type: String, required: true },
   sideCarColor: { type: String, required: true }, // Default Blue, user can edit to Yellow or other
-  sideCarPlateNumber: { type: String, required: false }, // 3months for bplo
   mvPlateNo: { type: String, required: true,  },
   motorEngineNo: { type: String, required: true, },
   chasisNo: { type: String, required: true, },
@@ -70,6 +69,9 @@ const franchiseApplicationSchema = new mongoose.Schema({
   officialReceiptNumber: { type: String, required: false },
   officialReceiptDocument: { type: String, required: false }, // URL to OR document
   orSubmittedAt: { type: Date, required: false },
+  
+  // Walk-in application flag
+  isWalkIn: { type: Boolean, default: false }, // True if submitted by admin on behalf of operator
   
   // SB Approval Stage (final)
   sbApprovedBy: { type: String, required: false },           // SB admin username

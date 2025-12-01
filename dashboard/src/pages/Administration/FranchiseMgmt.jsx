@@ -116,7 +116,14 @@ function FranchiseMgmt() {
     documentCedula: null,
     documentDriversLicense: null,
     documentVotersAffidavit: null,
+    documentMotorChassisStencil: null,
+    documentOrLTO: null,
+    documentCR: null,
     documentPicture: null,
+    documentOperatorPicture: null,
+    // Walk-in specific fields (OR submitted during walk-in application)
+    officialReceiptNumber: '',
+    documentOfficialReceipt: null,
   })
 
  
@@ -835,11 +842,36 @@ function FranchiseMgmt() {
   }, [])
   
   /**
-   * Submit new application (auto-approved by admin)
+   * Submit new application (walk-in - admin-submitted)
    * Uses secure franchiseAPI.create() with FormData for file uploads
+   * 
+   * WALK-IN PROCESS:
+   * 1. Admin enters applicant's information including email/phone
+   * 2. Admin can optionally enter OR number and upload OR document
+   * 3. Application is marked as walk-in (isWalkIn: true)
+   * 4. Backend sends notification to applicant via email or SMS
+   * 5. Application goes through normal BPLO/SB approval process
+   * 6. Franchise number is generated and linked when SB accepts the application
+   * 
+   * Note: The franchise number is NOT assigned at submission time.
+   * It will be generated and linked when the SB admin accepts the application
+   * after final approval (handleAcceptFranchise or handleSBApproval)
    */
   const handleSubmitApplication = async (e) => {
     e.preventDefault()
+    
+    // Validate that at least email OR contact number is provided
+    const hasEmail = formData.operatorEmail && formData.operatorEmail.trim() !== ''
+    const hasContact = formData.contactNumber && formData.contactNumber.trim() !== ''
+    
+    if (!hasEmail && !hasContact) {
+      setNotification({
+        open: true,
+        message: 'Please provide either an Email Address OR Contact Number for notifications',
+        type: 'error'
+      })
+      return
+    }
     
     setIsLoading(true)
     
@@ -859,7 +891,6 @@ function FranchiseMgmt() {
         civilStatus: 'operatorCivilStatus',
         citizenship: 'operatorCitizenship',
         todaMembership: 'todaMembership',
-        sidecarPlateNumber: 'sideCarPlateNumber',
         colorSidecar: 'sideCarColor',
         mvPlate: 'mvPlateNo',
         motorEngineNumber: 'motorEngineNo',
@@ -874,12 +905,22 @@ function FranchiseMgmt() {
         documentCedula: 'cedulaObj',
         documentDriversLicense: 'driversLicenseObj',
         documentVotersAffidavit: 'votersAffidavitObj',
-        documentPicture: 'driverPictureObj'
+        documentMotorChassisStencil: 'motorChassisStencilObj',
+        documentPicture: 'driverPictureObj',
+        documentOperatorPicture: 'operatorPictureObj',
+        documentOrLTO: 'oRLTOObj',
+        documentCR: 'cRLTOObj',
+        documentOfficialReceipt: 'oRTreasurerOfficeObj'
       }
       
       // Add form fields with correct backend names
       Object.keys(formData).forEach(key => {
         const backendKey = fieldMapping[key] || key
+        
+        // Skip officialReceiptNumber and documentOfficialReceipt - handled separately below
+        if (key === 'officialReceiptNumber' || key === 'documentOfficialReceipt') {
+          return
+        }
         
         if (key.startsWith('document') && formData[key]?.file) {
           // Add file uploads with backend field name
@@ -892,6 +933,20 @@ function FranchiseMgmt() {
       
       // Add application type
       formDataToSend.append('applicationType', 'new')
+      
+      // Mark as walk-in application (admin-submitted)
+      formDataToSend.append('isWalkIn', 'true')
+      
+      // Add OR number if provided (walk-in)
+      if (formData.officialReceiptNumber?.trim()) {
+        formDataToSend.append('officialReceiptNumber', formData.officialReceiptNumber.trim())
+        formDataToSend.append('orSubmittedAt', new Date().toISOString())
+      }
+      
+      // Add OR document if provided (walk-in)
+      if (formData.documentOfficialReceipt?.file) {
+        formDataToSend.append('oRTreasurerOfficeObj', formData.documentOfficialReceipt.file)
+      }
 
       // Submit to backend using secure API
       const response = await franchiseAPI.create(formDataToSend)
@@ -942,12 +997,18 @@ function FranchiseMgmt() {
         documentCedula: null,
         documentDriversLicense: null,
         documentVotersAffidavit: null,
+        documentMotorChassisStencil: null,
         documentPicture: null,
+        documentOperatorPicture: null,
+        documentOrLTO: null,
+        documentCR: null,
+        officialReceiptNumber: '',
+        documentOfficialReceipt: null,
       })
       
       setNotification({
         open: true,
-        message: 'Franchise application submitted successfully',
+        message: 'Walk-in franchise application submitted successfully. The applicant will be notified via email or phone.',
         type: 'success'
       })
     } catch (error) {
@@ -1475,44 +1536,112 @@ function FranchiseMgmt() {
           },
         }}
       >
-        <Box className="modal-container">
-          <div className="modal-header">
-            <Typography variant="h5" component="h2" sx={{ fontWeight: 700, color: '#0A356B' }}>
-              FRANCHISE APPLICATION
+        <Box className="modal-container" sx={{ 
+          maxWidth: '900px', 
+          width: '90%',
+          maxHeight: '90vh',
+          overflow: 'hidden',
+          display: 'flex',
+          flexDirection: 'column',
+          borderRadius: '16px',
+          boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)'
+        }}>
+          <Box className="modal-header" sx={{ 
+            p: 3, 
+            borderBottom: '2px solid #E5E7EB',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between'
+          }}>
+            <Typography variant="h5" component="h2" sx={{ 
+              fontWeight: 700, 
+              color: '#fff',
+              fontSize: '1.5rem',
+              letterSpacing: '0.5px'
+            }}>
+               WALK-IN FRANCHISE APPLICATION
             </Typography>
-            <IconButton onClick={handleCloseAddModal} sx={{ color: '#666' }}>
+            <IconButton 
+              onClick={handleCloseAddModal} 
+              sx={{ 
+                color: '#fff',
+                '&:hover': {
+                  background: 'rgba(255, 255, 255, 0.1)'
+                }
+              }}
+            >
               <CloseIcon />
             </IconButton>
-          </div>
+          </Box>
           
-          <div className="modal-body">
+          <Box className="modal-body" sx={{ 
+            maxHeight: 'calc(90vh - 180px)', 
+            overflowY: 'auto', 
+            p: 3,
+            background: '#FAFBFC',
+            '&::-webkit-scrollbar': {
+              width: '8px'
+            },
+            '&::-webkit-scrollbar-track': {
+              background: '#F1F5F9'
+            },
+            '&::-webkit-scrollbar-thumb': {
+              background: '#CBD5E1',
+              borderRadius: '4px',
+              '&:hover': {
+                background: '#94A3B8'
+              }
+            }
+          }}>
             <form onSubmit={handleSubmitApplication} id="franchise-form">
-              <Typography variant="h6" className="section-header">
+              {/* Walk-in Information Banner */}
+              <Box sx={{ 
+                mb: 3, 
+                p: 2.5, 
+                background: 'linear-gradient(135deg, #EBF4FF 0%, #E0F2FE 100%)',
+                borderRadius: 2,
+                border: '2px solid #93C5FD',
+                boxShadow: '0 2px 8px rgba(59, 130, 246, 0.1)'
+              }}>
+                <Typography variant="body1" sx={{ fontWeight: 600, color: '#1E40AF', mb: 1 }}>
+                  👤 Walk-In Application Process
+                </Typography>
+                <Typography variant="body2" sx={{ color: '#3B82F6', fontSize: '0.9rem' }}>
+                  Complete all required information. <strong>Provide either Email OR Phone Number</strong> - applicant will be notified via available contact method.
+                </Typography>
+              </Box>
+
+              {/* Date Row */}
+              <Box sx={{ mb: 3 }}>
+                <TextField
+                  label="Date"
+                  type="date"
+                  name="date"
+                  value={formData.date}
+                  onChange={handleFormChange}
+                  fullWidth
+                  required
+                  InputLabelProps={{ shrink: true }}
+                  size="small"
+                  disabled
+                  sx={{ maxWidth: '300px' }}
+                />
+              </Box>
+
+              {/* Personal Information Section */}
+              <Typography variant="h6" sx={{ 
+                fontWeight: 700, 
+                color: '#0A356B', 
+                mb: 2,
+                pb: 1,
+                borderBottom: '3px solid #0A356B',
+                fontSize: '1.1rem',
+                letterSpacing: '0.5px'
+              }}>
                 PERSONAL INFORMATION
               </Typography>
             
-            <div className="form-row">
-              <TextField
-                label="Date"
-                type="date"
-                name="date"
-                value={formData.date}
-                onChange={handleFormChange}
-                fullWidth
-                required
-                InputLabelProps={{ shrink: true }}
-              />
-              <TextField
-                label="Sidecar Plate Number"
-                name="sidecarPlateNumber"
-                value={formData.sidecarPlateNumber}
-                onChange={handleFormChange}
-                fullWidth
-                required
-              />
-            </div>
-            
-            <div className="form-row">
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2, mb: 2 }}>
               <TextField
                 label="Name of Operator"
                 name="name"
@@ -1520,6 +1649,7 @@ function FranchiseMgmt() {
                 onChange={handleFormChange}
                 fullWidth
                 required
+                size="small"
               />
               <TextField
                 label="Contact Number"
@@ -1527,62 +1657,96 @@ function FranchiseMgmt() {
                 value={formData.contactNumber}
                 onChange={handleFormChange}
                 fullWidth
-                required
+                size="small"
+                placeholder="09123456789"
+                helperText="Required if no email provided"
+                inputProps={{ inputMode: 'numeric', pattern: '[0-9]*' }}
               />
-            </div>
+            </Box>
             
             <TextField
-              label="Email Address (for account linking)"
+              label="Email Address (for notifications)"
               name="operatorEmail"
               type="email"
               value={formData.operatorEmail}
               onChange={handleFormChange}
               fullWidth
-              required
+              size="small"
               placeholder="operator@example.com"
-              helperText="This email will be used to link the franchise to the operator's account"
+              helperText="Required if no contact number provided - notifications will be sent here"
+              sx={{ mb: 2 }}
             />
-            
-            <TextField
-              label="Address"
-              name="address"
-              value={formData.address}
-              onChange={handleFormChange}
-              fullWidth
-              required
-              placeholder="Street, Barangay, City"
-            />
-            
-            <TextField
-              label="Barangay"
-              name="barangay"
-              value={formData.barangay}
-              onChange={handleFormChange}
-              fullWidth
-              required
-              placeholder="Enter barangay"
-            />
-            
-            <div className="form-row">
+
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '2fr 1fr' }, gap: 2, mb: 2 }}>
               <TextField
-                label="Birth Place"
+                label="House No., Street, Purok/Subdivision"
+                name="address"
+                value={formData.address}
+                onChange={handleFormChange}
+                fullWidth
+                required
+                size="small"
+                placeholder="123 Main Street, Purok 1"
+              />
+              <FormControl fullWidth required size="small">
+                <InputLabel>Barangay</InputLabel>
+                <Select
+                  name="barangay"
+                  value={formData.barangay}
+                  onChange={handleFormChange}
+                  label="Barangay"
+                >
+                  <MenuItem value="Aggub">Aggub</MenuItem>
+                  <MenuItem value="Bagahabag">Bagahabag</MenuItem>
+                  <MenuItem value="Bangaan">Bangaan</MenuItem>
+                  <MenuItem value="Bangar">Bangar</MenuItem>
+                  <MenuItem value="Bascaran">Bascaran</MenuItem>
+                  <MenuItem value="Communal">Communal</MenuItem>
+                  <MenuItem value="Concepcion">Concepcion</MenuItem>
+                  <MenuItem value="Curifang">Curifang</MenuItem>
+                  <MenuItem value="Dadap">Dadap</MenuItem>
+                  <MenuItem value="Lactawan">Lactawan</MenuItem>
+                  <MenuItem value="Osmeña">Osmeña</MenuItem>
+                  <MenuItem value="Pilar D. Galima">Pilar D. Galima</MenuItem>
+                  <MenuItem value="Poblacion North">Poblacion North</MenuItem>
+                  <MenuItem value="Poblacion South">Poblacion South</MenuItem>
+                  <MenuItem value="Quezon">Quezon</MenuItem>
+                  <MenuItem value="Quirino">Quirino</MenuItem>
+                  <MenuItem value="Roxas">Roxas</MenuItem>
+                  <MenuItem value="San Juan">San Juan</MenuItem>
+                  <MenuItem value="San Luis">San Luis</MenuItem>
+                  <MenuItem value="Tucal">Tucal</MenuItem>
+                  <MenuItem value="Uddiawan">Uddiawan</MenuItem>
+                  <MenuItem value="Wacal">Wacal</MenuItem>
+                </Select>
+              </FormControl>
+            </Box>
+            
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)' }, gap: 2, mb: 2 }}>
+              <TextField
+                label="Place of Birth"
                 name="birthPlace"
                 value={formData.birthPlace}
                 onChange={handleFormChange}
                 fullWidth
                 required
+                size="small"
               />
               <TextField
-                label="Birth Date"
+                label="Date of Birth"
                 type="date"
                 name="birthDate"
                 value={formData.birthDate}
                 onChange={handleFormChange}
                 fullWidth
                 required
+                size="small"
                 InputLabelProps={{ shrink: true }}
               />
-              <FormControl fullWidth required>
+            </Box>
+
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)' }, gap: 2, mb: 2 }}>
+              <FormControl fullWidth required size="small">
                 <InputLabel>Civil Status</InputLabel>
                 <Select
                   name="civilStatus"
@@ -1592,8 +1756,8 @@ function FranchiseMgmt() {
                 >
                   <MenuItem value="Single">Single</MenuItem>
                   <MenuItem value="Married">Married</MenuItem>
-                  <MenuItem value="Divorced">Divorced</MenuItem>
                   <MenuItem value="Widowed">Widowed</MenuItem>
+                  <MenuItem value="Separated">Separated</MenuItem>
                 </Select>
               </FormControl>
               <TextField
@@ -1603,8 +1767,9 @@ function FranchiseMgmt() {
                 onChange={handleFormChange}
                 fullWidth
                 required
+                size="small"
               />
-            </div>
+            </Box>
             
             <TextField
               label="TODA Membership"
@@ -1613,14 +1778,35 @@ function FranchiseMgmt() {
               onChange={handleFormChange}
               fullWidth
               required
-              className="toda-membership-field"
+              size="small"
+              sx={{ mb: 3 }}
             />
             
-            <Typography variant="h6" className="section-header">
+            {/* Motorcycle Information Section */}
+            <Typography variant="h6" sx={{ 
+              fontWeight: 700, 
+              color: '#0A356B', 
+              mb: 2,
+              pb: 1,
+              borderBottom: '3px solid #0A356B',
+              fontSize: '1.1rem',
+              letterSpacing: '0.5px'
+            }}>
               MOTORCYCLE INFORMATION
             </Typography>
+
+            <TextField
+              label="Name of the Driver"
+              name="driverName"
+              value={formData.driverName}
+              onChange={handleFormChange}
+              fullWidth
+              required
+              size="small"
+              sx={{ mb: 2 }}
+            />
             
-            <div className="form-row">
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)' }, gap: 2, mb: 2 }}>
               <TextField
                 label="Unit Model"
                 name="unitModel"
@@ -1628,6 +1814,7 @@ function FranchiseMgmt() {
                 onChange={handleFormChange}
                 fullWidth
                 required
+                size="small"
               />
               <TextField
                 label="Color (Motor)"
@@ -1636,7 +1823,11 @@ function FranchiseMgmt() {
                 onChange={handleFormChange}
                 fullWidth
                 required
+                size="small"
               />
+            </Box>
+
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)' }, gap: 2, mb: 2 }}>
               <TextField
                 label="Color (Sidecar)"
                 name="colorSidecar"
@@ -1644,18 +1835,22 @@ function FranchiseMgmt() {
                 onChange={handleFormChange}
                 fullWidth
                 required
+                size="small"
+                placeholder="Blue and Yellow"
+                helperText="Default: Blue and Yellow"
               />
               <TextField
-                label="MV Plate"
+                label="MV Plate Number"
                 name="mvPlate"
                 value={formData.mvPlate}
                 onChange={handleFormChange}
                 fullWidth
                 required
+                size="small"
               />
-            </div>
+            </Box>
             
-            <div className="form-row">
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)' }, gap: 2, mb: 2 }}>
               <TextField
                 label="Motor/Engine Number"
                 name="motorEngineNumber"
@@ -1663,6 +1858,7 @@ function FranchiseMgmt() {
                 onChange={handleFormChange}
                 fullWidth
                 required
+                size="small"
               />
               <TextField
                 label="Chassis Number"
@@ -1671,151 +1867,344 @@ function FranchiseMgmt() {
                 onChange={handleFormChange}
                 fullWidth
                 required
+                size="small"
               />
-            </div>
+            </Box>
             
-            <div className="form-row">
-              <TextField
-                label="Name of the Driver"
-                name="driverName"
-                value={formData.driverName}
-                onChange={handleFormChange}
-                fullWidth
-                required
-              />
-              <TextField
-                label="Address of the Driver"
-                name="driverAddress"
-                value={formData.driverAddress}
-                onChange={handleFormChange}
-                fullWidth
-                required
-              />
-            </div>
+            <TextField
+              label="Address of the Driver"
+              name="driverAddress"
+              value={formData.driverAddress}
+              onChange={handleFormChange}
+              fullWidth
+              required
+              size="small"
+              placeholder="House No., Street, Purok, Barangay"
+              sx={{ mb: 3 }}
+            />
             
-            <Typography variant="h6" className="section-header">
+            {/* Documentary Requirements Section */}
+            <Typography variant="h6" sx={{ 
+              fontWeight: 700, 
+              color: '#0A356B', 
+              mb: 2,
+              pb: 1,
+              borderBottom: '3px solid #0A356B',
+              fontSize: '1.1rem',
+              letterSpacing: '0.5px'
+            }}>
               DOCUMENTARY REQUIREMENTS
             </Typography>
             
-            <Typography variant="body2" className="document-requirements-info">
-              Maximum file size: 5MB per file. Accepted formats: JPG, PNG, PDF
+            <Box sx={{ 
+              mb: 3, 
+              p: 2, 
+              background: '#FFF7ED',
+              borderRadius: 2,
+              border: '1px solid #FDBA74'
+            }}>
+              <Typography variant="body2" sx={{ fontWeight: 600, color: '#EA580C', mb: 0.5 }}>
+                Upload Instructions:
+              </Typography>
+              <Typography variant="body2" sx={{ color: '#9A3412', fontSize: '0.85rem' }}>
+                • Maximum: 5MB per file • Formats: JPG, PNG, PDF • All documents must be clear and readable
+              </Typography>
+            </Box>
+            
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <Box>
+                <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#374151', mb: 1 }}>
+                  Photocopy of Registration
+                </Typography>
+                <TextField
+                  type="file"
+                  name="documentRegistration"
+                  onChange={handleFileChange}
+                  fullWidth
+                  required
+                  size="small"
+                  InputLabelProps={{ shrink: true }}
+                  inputProps={{ 
+                    accept: "image/jpeg,image/png,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.doc,.docx"
+                  }}
+                />
+              </Box>
+              
+              <Box>
+                <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#374151', mb: 1 }}>
+                  Photocopy of Barangay Clearance
+                </Typography>
+                <TextField
+                  type="file"
+                  name="documentBarangayClearance"
+                  onChange={handleFileChange}
+                  fullWidth
+                  required
+                  size="small"
+                  InputLabelProps={{ shrink: true }}
+                  inputProps={{ 
+                    accept: "image/jpeg,image/png,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.doc,.docx"
+                  }}
+                />
+              </Box>
+              
+              <Box>
+                <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#374151', mb: 1 }}>
+                  Photocopy of Cedula
+                </Typography>
+                <TextField
+                  type="file"
+                  name="documentCedula"
+                  onChange={handleFileChange}
+                  fullWidth
+                  required
+                  size="small"
+                  InputLabelProps={{ shrink: true }}
+                  inputProps={{ 
+                    accept: "image/jpeg,image/png,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.doc,.docx"
+                  }}
+                />
+              </Box>
+            
+              <Box>
+                <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#374151', mb: 1 }}>
+                  Photocopy of Driver's License
+                </Typography>
+                <TextField
+                  type="file"
+                  name="documentDriversLicense"
+                  onChange={handleFileChange}
+                  fullWidth
+                  required
+                  size="small"
+                  InputLabelProps={{ shrink: true }}
+                  inputProps={{ 
+                    accept: "image/jpeg,image/png,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.doc,.docx"
+                  }}
+                />
+              </Box>
+            
+              <Box>
+                <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#374151', mb: 1 }}>
+                  Photocopy of Voter's Affidavit
+                </Typography>
+                <TextField
+                  type="file"
+                  name="documentVotersAffidavit"
+                  onChange={handleFileChange}
+                  fullWidth
+                  required
+                  size="small"
+                  InputLabelProps={{ shrink: true }}
+                  inputProps={{ 
+                  accept: "image/jpeg,image/png,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.doc,.docx"
+                  }}
+                />
+              </Box>
+            
+              <Box>
+                <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#374151', mb: 1 }}>
+                  Photocopy of Motor Chassis Stencil
+                </Typography>
+                <TextField
+                  type="file"
+                  name="documentMotorChassisStencil"
+                  onChange={handleFileChange}
+                  fullWidth
+                  required
+                  size="small"
+                  InputLabelProps={{ shrink: true }}
+                  inputProps={{ 
+                    accept: "image/jpeg,image/png,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.doc,.docx"
+                  }}
+                />
+              </Box>
+            
+              <Box>
+                <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#374151', mb: 1 }}>
+                  Photocopy of OR/LTO
+                </Typography>
+                <TextField
+                  type="file"
+                  name="documentOrLTO"
+                  onChange={handleFileChange}
+                  fullWidth
+                  required
+                  size="small"
+                  InputLabelProps={{ shrink: true }}
+                  inputProps={{ 
+                    accept: "image/jpeg,image/png,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.doc,.docx"
+                  }}
+                />
+              </Box>
+            
+              <Box>
+                <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#374151', mb: 1 }}>
+                  Photocopy of CR
+                </Typography>
+                <TextField
+                  type="file"
+                  name="documentCR"
+                  onChange={handleFileChange}
+                  fullWidth
+                  required
+                  size="small"
+                  InputLabelProps={{ shrink: true }}
+                  inputProps={{ 
+                    accept: "image/jpeg,image/png,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.doc,.docx"
+                  }}
+                />
+              </Box>
+            
+              <Box>
+                <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#374151', mb: 1 }}>
+                  1x1 Picture of Driver
+                </Typography>
+                <TextField
+                  type="file"
+                  name="documentPicture"
+                  onChange={handleFileChange}
+                  fullWidth
+                  required
+                  size="small"
+                  InputLabelProps={{ shrink: true }}
+                  inputProps={{ 
+                    accept: "image/jpeg,image/png"
+                  }}
+                />
+              </Box>
+            
+              <Box>
+                <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#374151', mb: 1 }}>
+                  1x1 Picture of Operator
+                </Typography>
+                <TextField
+                  type="file"
+                  name="documentOperatorPicture"
+                  onChange={handleFileChange}
+                  fullWidth
+                  required
+                  size="small"
+                  InputLabelProps={{ shrink: true }}
+                  inputProps={{ 
+                    accept: "image/jpeg,image/png"
+                  }}
+                />
+              </Box>
+            </Box>
+            
+            {/* Walk-in OR Section */}
+            <Typography variant="h6" sx={{ 
+              fontWeight: 700, 
+              color: '#0A356B', 
+              mb: 2,
+              mt: 3,
+              pb: 1,
+              borderBottom: '3px solid #0A356B',
+              fontSize: '1.1rem',
+              letterSpacing: '0.5px'
+            }}>
+              WALK-IN - OFFICIAL RECEIPT (OR) - OPTIONAL
             </Typography>
             
-            <div className="document-row">
-              <Typography variant="subtitle2" className="document-title">
-                Photocopy of Registration
+            <Box sx={{ 
+              mb: 3, 
+              p: 2, 
+              background: '#EFF6FF',
+              borderRadius: 2,
+              border: '1px solid #93C5FD'
+            }}>
+              <Typography variant="body2" sx={{ fontWeight: 600, color: '#1E40AF', mb: 0.5 }}>
+                Optional OR Submission:
               </Typography>
-              <TextField
-                type="file"
-                name="documentRegistration"
-                onChange={handleFileChange}
-                fullWidth
-                required
-                InputLabelProps={{ shrink: true }}
-                inputProps={{ 
-                  accept: "image/jpeg,image/png,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.doc,.docx"
-                }}
-              />
-            </div>
+              <Typography variant="body2" sx={{ color: '#1E3A8A', fontSize: '0.85rem' }}>
+                If the applicant has already paid and submitted the OR during walk-in, enter it below. Otherwise, they can submit it later online.
+              </Typography>
+            </Box>
             
-            <div className="document-row">
-              <Typography variant="subtitle2" className="document-title">
-                Photocopy of Barangay Clearance
-              </Typography>
-              <TextField
-                type="file"
-                name="documentBarangayClearance"
-                onChange={handleFileChange}
-                fullWidth
-                required
-                InputLabelProps={{ shrink: true }}
-                inputProps={{ 
-                  accept: "image/jpeg,image/png,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.doc,.docx"
-                }}
-              />
-            </div>
+            <TextField
+              label="Official Receipt Number (Optional)"
+              name="officialReceiptNumber"
+              value={formData.officialReceiptNumber}
+              onChange={handleFormChange}
+              fullWidth
+              size="small"
+              placeholder="OR-2025-XXXX"
+              helperText="Enter OR number if applicant submitted it during walk-in"
+              sx={{ mb: 2 }}
+            />
             
-            <div className="document-row">
-              <Typography variant="subtitle2" className="document-title">
-                Photocopy of Cedula
+            <Box>
+              <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#374151', mb: 1 }}>
+                Official Receipt Document (Optional)
               </Typography>
               <TextField
                 type="file"
-                name="documentCedula"
+                name="documentOfficialReceipt"
                 onChange={handleFileChange}
                 fullWidth
-                required
+                size="small"
                 InputLabelProps={{ shrink: true }}
+                helperText="Upload OR document if provided during walk-in"
                 inputProps={{ 
-                  accept: "image/jpeg,image/png,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.doc,.docx"
+                  accept: "image/jpeg,image/png,application/pdf"
                 }}
               />
-            </div>
-            
-            <div className="document-row">
-              <Typography variant="subtitle2" className="document-title">
-                Photocopy of Driver's License
-              </Typography>
-              <TextField
-                type="file"
-                name="documentDriversLicense"
-                onChange={handleFileChange}
-                fullWidth
-                required
-                InputLabelProps={{ shrink: true }}
-                inputProps={{ 
-                  accept: "image/jpeg,image/png,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.doc,.docx"
-                }}
-              />
-            </div>
-            
-            <div className="document-row">
-              <Typography variant="subtitle2" className="document-title">
-                Photocopy of Voter's Affidavit
-              </Typography>
-              <TextField
-                type="file"
-                name="documentVotersAffidavit"
-                onChange={handleFileChange}
-                fullWidth
-                required
-                InputLabelProps={{ shrink: true }}
-                inputProps={{ 
-                  accept: "image/jpeg,image/png,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.doc,.docx"
-                }}
-              />
-            </div>
-            
-            <div className="document-row">
-              <Typography variant="subtitle2" className="document-title">
-                1x1 Picture
-              </Typography>
-              <TextField
-                type="file"
-                name="documentPicture"
-                onChange={handleFileChange}
-                fullWidth
-                required
-                InputLabelProps={{ shrink: true }}
-                inputProps={{ 
-                  accept: "image/jpeg,image/png"
-                }}
-              />
-            </div>
+            </Box>
             </form>
-          </div>
+          </Box>
           
-          <div className="modal-footer">
+          <Box className="modal-footer" sx={{ 
+            display: 'flex', 
+            justifyContent: 'flex-end', 
+            gap: 2, 
+            p: 3, 
+            borderTop: '1px solid #E5E7EB',
+            background: '#F9FAFB'
+          }}>
+            <Button
+              variant="outlined"
+              onClick={handleCloseAddModal}
+              disabled={isLoading}
+              sx={{ 
+                minWidth: '120px',
+                color: '#374151',
+                borderColor: '#D1D5DB',
+                '&:hover': {
+                  borderColor: '#9CA3AF',
+                  background: '#F3F4F6'
+                }
+              }}
+            >
+              Cancel
+            </Button>
             <Button
               type="submit"
               form="franchise-form"
-              className="button-primary"
+              variant="contained"
               disabled={isLoading}
               startIcon={isLoading && <CircularProgress size={20} sx={{ color: 'white' }} />}
+              sx={{ 
+                minWidth: '200px',
+                background: 'linear-gradient(135deg, #0A356B 0%, #174D7A 100%)',
+                color: '#fff',
+                fontWeight: 600,
+                px: 4,
+                py: 1.2,
+                fontSize: '0.95rem',
+                '&:hover': {
+                  background: 'linear-gradient(135deg, #082746 0%, #0F3A5F 100%)',
+                  boxShadow: '0 4px 12px rgba(10, 53, 107, 0.3)'
+                },
+                '&:disabled': {
+                  background: '#9CA3AF',
+                  color: '#fff'
+                }
+              }}
             >
-              {isLoading ? 'Submitting...' : 'Submit Application'}
+              {isLoading ? 'Submitting...' : '📝 Submit Walk-in Application'}
             </Button>
-          </div>
+          </Box>
         </Box>
       </Modal>
       

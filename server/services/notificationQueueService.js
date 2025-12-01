@@ -432,11 +432,90 @@ function cleanupOldRecords() {
   return cleaned;
 }
 
+/**
+ * Send walk-in application notification (Admin-submitted application)
+ * Notifies the operator via email or phone that their application was submitted
+ */
+async function sendWalkInApplicationNotification(application) {
+  try {
+    console.log('[Notification] Sending walk-in application notification:', {
+      operatorName: application.operatorName,
+      email: application.operatorEmail,
+      phone: application.operatorContactNumber,
+      hasOR: !!application.officialReceiptNumber
+    });
+
+    const operatorName = application.operatorName || 'Valued Operator';
+    const operatorEmail = application.operatorEmail;
+    const operatorContactNumber = application.operatorContactNumber;
+    const orNumber = application.officialReceiptNumber || 'Not yet provided';
+    
+    const results = {
+      sms: null,
+      email: null,
+      method: null
+    };
+
+    // Try email first if available
+    if (operatorEmail) {
+      try {
+        const emailText = `Dear ${operatorName},
+
+Your franchise application has been successfully submitted through our office.
+
+Application Details:
+- Operator Name: ${operatorName}
+- MV Plate: ${application.mvPlateNo || 'N/A'}
+- Official Receipt Number: ${orNumber}
+- Status: Pending Review
+
+${application.officialReceiptNumber ? 'Your OR has been recorded. ' : 'Please submit your Official Receipt (OR) as soon as possible. '}You will be notified of any updates via ${operatorEmail ? 'email' : 'phone'}.
+
+For inquiries, please visit our office or contact us.
+
+Thank you,
+TRC-V Management`;
+
+        results.email = await emailService.sendEmail(
+          operatorEmail,
+          'Franchise Application Submitted - Walk-in',
+          emailText
+        );
+        results.method = 'email';
+        console.log('[Notification] Walk-in email sent successfully');
+      } catch (emailError) {
+        console.error('[Notification] Walk-in email error:', emailError);
+        results.email = { success: false, error: emailError.message };
+      }
+    }
+
+    // Send SMS if phone number is available (as backup or primary if no email)
+    if (operatorContactNumber && (!operatorEmail || !results.email?.success)) {
+      try {
+        const smsMessage = `Dear ${operatorName}, your franchise application has been submitted. ${application.officialReceiptNumber ? `OR: ${orNumber}. ` : ''}Status: Pending Review. You will be notified of updates. - TRC-V`;
+        
+        results.sms = await smsService.sendSMS(operatorContactNumber, smsMessage);
+        if (!results.method) results.method = 'sms';
+        console.log('[Notification] Walk-in SMS sent successfully');
+      } catch (smsError) {
+        console.error('[Notification] Walk-in SMS error:', smsError);
+        results.sms = { success: false, error: smsError.message };
+      }
+    }
+
+    return results;
+  } catch (error) {
+    console.error('[Notification] Walk-in notification error:', error);
+    return { success: false, error: error.message };
+  }
+}
+
 module.exports = {
   sendOTPNotification,
   sendFranchiseExpiryNotification,
   sendBPLOApprovalNotification,
   sendSBApprovalNotification,
+  sendWalkInApplicationNotification,
   getNotificationStats,
   cleanupOldRecords,
   NOTIFICATION_RULES
