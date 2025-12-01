@@ -75,6 +75,7 @@ function QROperatorID() {
             franchiseNumber: franchiseData.franchiseNumber,
             franchiseChainId: franchiseData.franchiseChainId,
             address: franchiseData.operatorAddress,
+            barangay: franchiseData.operatorBarangay,
             expiryDate: franchiseData.expiryDate || '', 
             status: franchiseData.franchiseStatus,
             notLinked: !franchiseData.franchiseNumber,
@@ -393,6 +394,20 @@ function QROperatorID() {
           >
             {user?.firstName} {user?.middleName ? user.middleName.charAt(0) + '.' : ''} {user?.lastName}
           </Typography>
+
+          {/* Barangay */}
+          {matchedFranchise?.barangay && (
+            <Typography 
+              sx={{ 
+                color: '#000',
+                fontWeight: 'bold',
+                fontSize: { xs: '0.9rem', sm: '1rem' },
+                px: 2
+              }}
+            >
+              Brgy. {matchedFranchise.barangay}
+            </Typography>
+          )}
 
           {/* Address */}
           <Typography 

@@ -624,6 +624,7 @@ exports.franchiseQRLookupByHash = async (req, res, next) => {
       franchiseStatus: franchiseInformation.franchiseStatus,
       operatorName: franchiseInformation.operatorName,
       operatorAddress: franchiseInformation.operatorAddress,
+      operatorBarangay: franchiseInformation.operatorBarangay,
       operatorPicture: operatorPictureUrl,
       operatorPictureObj: franchiseInformation.documents?.operatorPictureObj || null,
       todaMembership: franchiseInformation.todaMembership,
