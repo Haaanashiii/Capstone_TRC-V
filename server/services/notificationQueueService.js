@@ -33,17 +33,17 @@ const NOTIFICATION_RULES = {
     priority: 'CRITICAL'
   },
   BPLO_APPROVAL: {
-    smsEnabled: false,
+    smsEnabled: true,
     emailEnabled: true,
     priority: 'CRITICAL'
   },
   SB_APPROVAL: {
-    smsEnabled: false,
+    smsEnabled: true,
     emailEnabled: true,
     priority: 'CRITICAL'
   },
   BPLO_DISAPPROVAL: {
-    smsEnabled: false,
+    smsEnabled: true,
     emailEnabled: true,
     priority: 'HIGH'
   },
