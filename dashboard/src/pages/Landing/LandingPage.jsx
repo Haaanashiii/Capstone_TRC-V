@@ -24,7 +24,7 @@ const Card = ({ children, className }) => (
 
 const LandingPage = () => {
   const { login } = useAuth();
-  const { t } = useTranslation();
+  const { t, loading: translationsLoading } = useTranslation();
   const [announcements, setAnnouncements] = useState([]);
   const [loadingAnnouncements, setLoadingAnnouncements] = useState(true);
   const [openFareModal, setOpenFareModal] = useState(false);
@@ -192,6 +192,15 @@ const LandingPage = () => {
       description: t("landing.feature3Description")
     }
   ];
+
+  // Don't render content until translations are loaded to prevent showing raw translation keys
+  if (translationsLoading) {
+    return (
+      <div className="landing-root" style={{ minHeight: '100vh' }}>
+        <UnifiedNavbar />
+      </div>
+    );
+  }
 
   
   return (
