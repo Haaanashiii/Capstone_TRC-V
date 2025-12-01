@@ -624,13 +624,17 @@ export default function FranchiseApplication() {
             zIndex: 9999
           }}>
             <div className="franchise-modal" style={{ 
-              maxWidth: 480, 
+              width: '90%',
+              maxWidth: 500, 
               borderRadius: 18, 
               background: '#fff', 
               boxShadow: '0 4px 24px #0002', 
               padding: 36, 
               position: 'relative',
-              margin: '20px'
+              margin: '20px',
+              minHeight: 'auto',
+              maxHeight: '90vh',
+              overflowY: 'auto'
             }}>
               <div style={{ fontWeight: 900, fontSize: '2.2rem', marginBottom: 8, letterSpacing: 0.5 }}>{t.selectFile}</div>
               <div style={{ fontWeight: 700, fontSize: 20, marginBottom: 24, color: '#111' }}>

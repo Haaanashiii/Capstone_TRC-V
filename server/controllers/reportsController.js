@@ -16,6 +16,9 @@ exports.createPublicReport = async (req, res, next) => {
             description 
         } = req.body;
         
+        // Get client IP for tracking (DDoS/fraud prevention)
+        const clientIp = getClientIp(req);
+        
         // Validate required fields
         if (!operatorId || !fullName || !contactNumber || !amountCharged || !expectedFare || !description) {
             return res.status(400).json({ 
@@ -35,7 +38,7 @@ exports.createPublicReport = async (req, res, next) => {
         }
 
         // Validate phone number format (Philippine format)
-        if (!/^(\+63|0)?9\d{9}$/.test(contactNumber.replace(/[\s\-]/g, ''))) {
+        if (!/^(\+63|0)?9\d{9}$/.test(contactNumber.replace(/[\s-]/g, ''))) {
             return res.status(400).json({ error: 'Invalid phone number format' });
         }
 
@@ -56,15 +59,59 @@ exports.createPublicReport = async (req, res, next) => {
             return res.status(400).json({ error: 'Amount charged must be higher than expected fare to report overpricing' });
         }
 
-        // Get franchise information to get operator name
+        // Get franchise information to validate it exists and is still active
         const FranchiseInformation = require('../models/franchiseInformationModel');
-        const franchise = await FranchiseInformation.findOne({ operatorId });
+        
+        // The operatorId is actually the hashed franchise number from QR code
+        // We need to find the franchise that matches this hash
+        const { generateHashedFranchiseNo } = require('../utils/franchiseHelpers');
+        
+        // Find franchise with matching hash
+        let franchise = null;
+        const allCurrentFranchises = await FranchiseInformation.find({ 
+          isCurrentVersion: true 
+        }).lean();
+        
+        for (const f of allCurrentFranchises) {
+          const computedHash = generateHashedFranchiseNo(f.franchiseNumber);
+          if (computedHash === operatorId) {
+            franchise = f;
+            break;
+          }
+        }
         
         if (!franchise) {
+            console.warn(`[FRAUD] Report for non-existent franchiseNumber hash: ${operatorId}, IP: ${clientIp}`);
             return res.status(404).json({ error: 'Operator not found' });
         }
 
+        // SECURITY: Verify franchise is still active and not expired/inactive
+        // This prevents reporting on recycled franchise numbers that no longer belong to the original operator
+        if (franchise.franchiseStatus === 'expired' || franchise.franchiseStatus === 'inactive') {
+            console.warn(`[FRAUD] Report for inactive franchise: ${operatorId} (${franchise.franchiseStatus}), IP: ${clientIp}`);
+            return res.status(403).json({ 
+                error: 'Cannot report on expired or inactive franchises. Please ensure you scanned an active operator\'s QR code.' 
+            });
+        }
+
+        // ANTI-DDoS: Check if same IP has reported same franchise multiple times recently (within 24 hours)
+        // This prevents rapid-fire attacks on the same operator
+        const Report = require('../models/reportsModel');
+        const recentReportsFromIp = await Report.countDocuments({
+            franchiseNumber: operatorId,
+            createdAt: { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
+            reporterIp: clientIp
+        });
+
+        if (recentReportsFromIp >= 3) {
+            console.warn(`[DDoS] Same IP reported same operator 3+ times in 24h: ${operatorId}, IP: ${clientIp}`);
+            return res.status(429).json({ 
+                error: 'Too many reports on this operator from your network. Please contact support if this is an error.' 
+            });
+        }
+
         const reportData = {
+            franchiseNumber: franchise.franchiseNumber,
             franchiseeName: franchise.operatorName,
             dateReported: new Date(),
             timeReported: new Date().toLocaleTimeString('en-PH', { 
@@ -74,14 +121,18 @@ exports.createPublicReport = async (req, res, next) => {
             amountCharged: chargedAmount,
             expectedFare: expectedAmount,
             description: description.trim(),
-            reporterContact: `${fullName} - ${contactNumber}`
+            reporterContact: `${fullName} - ${contactNumber}`,
+            reporterIp: clientIp, // Track IP for abuse detection
+            franchiseStatusAtTime: franchise.franchiseStatus, // Store status for audit trail
+            status: 'new'
         };
 
-        const newReport = await reportsRepository.createReport(reportData);
+        // Create a new Report document and trigger pre-save hook
+        const newReportDoc = new Report(reportData);
+        const newReport = await newReportDoc.save();
         
         // Log for audit trail
-        const ipAddress = getClientIp(req);
-        console.log(`[PUBLIC REPORT] Operator: ${operatorId}, Reporter: ${fullName}, IP: ${ipAddress}`);
+        console.log(`[PUBLIC REPORT] Operator: ${franchise.franchiseNumber}, Reporter: ${fullName}, IP: ${clientIp}, Report ID: ${newReport.reportID}`);
         
         // Emit WebSocket event for real-time updates
         if (req.app.get('io')) {

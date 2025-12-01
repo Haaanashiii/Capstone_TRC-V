@@ -1891,28 +1891,30 @@ const OperatorHomePage = () => {
             
             {/* Action Buttons */}
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '24px' }}>
-              <Button
-                onClick={() => {
-                  handleCloseNoticeModal();
-                  // Navigate with the application ID for editing/resubmission
-                  const appId = selectedNotice?.application?._id || selectedNotice?.id;
-                  navigate(`/operator/franchise/application?resubmit=${appId}`);
-                }}
-                sx={{
-                  backgroundColor: '#FEDE05',
-                  color: '#174D7A',
-                  padding: '10px 32px',
-                  borderRadius: '8px',
-                  fontWeight: 600,
-                  fontFamily: 'Poppins, sans-serif',
-                  textTransform: 'none',
-                  '&:hover': {
-                    backgroundColor: '#e5c900'
-                  }
-                }}
-              >
-                Edit Franchise Application
-              </Button>
+              {selectedNotice?.status !== 'awaiting-sb' && selectedNotice?.status !== 'sb-approved' && (
+                <Button
+                  onClick={() => {
+                    handleCloseNoticeModal();
+                    // Navigate with the application ID for editing/resubmission
+                    const appId = selectedNotice?.application?._id || selectedNotice?.id;
+                    navigate(`/operator/franchise/application?resubmit=${appId}`);
+                  }}
+                  sx={{
+                    backgroundColor: '#FEDE05',
+                    color: '#174D7A',
+                    padding: '10px 32px',
+                    borderRadius: '8px',
+                    fontWeight: 600,
+                    fontFamily: 'Poppins, sans-serif',
+                    textTransform: 'none',
+                    '&:hover': {
+                      backgroundColor: '#e5c900'
+                    }
+                  }}
+                >
+                  Edit Franchise Application
+                </Button>
+              )}
               <Button
                 onClick={handleCloseNoticeModal}
                 sx={{
