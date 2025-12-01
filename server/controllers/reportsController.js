@@ -124,7 +124,7 @@ exports.createPublicReport = async (req, res, next) => {
             reporterContact: `${fullName} - ${contactNumber}`,
             reporterIp: clientIp, // Track IP for abuse detection
             franchiseStatusAtTime: franchise.franchiseStatus, // Store status for audit trail
-            status: 'new'
+            status: 'pending'
         };
 
         // Create a new Report document and trigger pre-save hook

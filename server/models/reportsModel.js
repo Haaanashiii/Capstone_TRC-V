@@ -14,8 +14,8 @@ const reportSchema = new mongoose.Schema({
     franchiseStatusAtTime: { type: String }, // Status when report was submitted (for audit)
     status: { 
       type: String, 
-      enum: ['new', 'pending', 'investigating', 'resolved', 'dismissed'], 
-      default: 'new' 
+      enum: ['pending', 'investigating', 'resolved', 'dismissed'], 
+      default: 'pending' 
     }
 }, { timestamps: true });
 
