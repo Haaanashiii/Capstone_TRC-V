@@ -1,42 +1,116 @@
 const mongoose = require('mongoose');
 
+const REPORT_CATEGORIES = {
+  OVERPRICING: 'overpricing',
+  RUDE_BEHAVIOR: 'rude_behavior',
+  UNSAFE_DRIVING: 'unsafe_driving',
+  VEHICLE_CONDITION: 'vehicle_condition',
+  REFUSAL_OF_SERVICE: 'refusal_of_service',
+  ROUTE_DEVIATION: 'route_deviation',
+  OTHER: 'other'
+};
+
 const reportSchema = new mongoose.Schema({
     reportID: { type: String, unique: true },
-    franchiseNumber: { type: String }, // Store franchise number for validation
-    franchiseeName: { type: String, required: true },
+    franchiseNumber: { type: String },
+    operatorName: { type: String },
+    operatorBarangay: { type: String },
+
+    category: { 
+      type: String, 
+      enum: Object.values(REPORT_CATEGORIES),
+      default: REPORT_CATEGORIES.OVERPRICING,
+      required: true
+    },
+    
+    // Overpricing-specific fields
+    amountCharged: { type: Number },
+    expectedFare: { type: Number },
+    
+    // General report fields
     dateReported: { type: Date, required: true, default: Date.now },
     timeReported: { type: String, required: true },
-    amountCharged: { type: Number, required: true },
-    expectedFare: { type: Number, required: true },
     description: { type: String, required: true },
-    reporterContact: { type: String, required: true }, // Combined email and phone
-    reporterIp: { type: String }, // Track IP for DDoS/fraud detection
-    franchiseStatusAtTime: { type: String }, // Status when report was submitted (for audit)
+    
+    // Reporter info
+    reporterName: { type: String },
+    reporterContact: { type: String, required: true },
+
+    // Tracking
+    franchiseStatusAtTime: { type: String },
     status: { 
       type: String, 
       enum: ['pending', 'investigating', 'resolved', 'dismissed'], 
       default: 'pending' 
-    }
+    },
+    
+    // Admin actions
+    resolvedBy: { type: String },
+    resolvedAt: { type: Date },
+    resolutionNotes: { type: String },
+    actionTaken: { type: String }
 }, { timestamps: true });
 
-// Indexes for performance optimization
-reportSchema.index({ status: 1 }); // Query reports by status
-reportSchema.index({ franchiseeName: 1 }); // Query reports by franchise name
-reportSchema.index({ franchiseNumber: 1 }); // Query reports by franchise number
-reportSchema.index({ dateReported: -1 }); // Sort by date reported
-reportSchema.index({ reporterIp: 1, franchiseNumber: 1, dateReported: -1 }); // DDoS detection compound index
-reportSchema.index({ status: 1, dateReported: -1 }); // Compound index for common queries
+reportSchema.index({ status: 1 });
+reportSchema.index({ category: 1 });
+reportSchema.index({ operatorName: 1 });
+reportSchema.index({ operatorBarangay: 1 });
+reportSchema.index({ franchiseNumber: 1 });
+reportSchema.index({ dateReported: -1 });
+reportSchema.index({ status: 1, dateReported: -1 });
+reportSchema.index({ category: 1, status: 1 });
+reportSchema.index({ operatorBarangay: 1, status: 1 });
 
-// Pre-save hook to generate report ID
+// Counter schema for atomic ID generation
+const counterSchema = new mongoose.Schema({
+  _id: { type: String, required: true },
+  seq: { type: Number, default: 0 }
+});
+
+const Counter = mongoose.models.Counter || mongoose.model('Counter', counterSchema);
+
+async function getNextReportId() {
+  // Check if counter exists
+  let counter = await Counter.findById('reportId');
+  
+  if (!counter) {
+    // First time: sync with existing reports
+    const Report = mongoose.model('Report');
+    const lastReport = await Report.findOne({ reportID: { $regex: /^RPT-\d+$/ } })
+      .sort({ reportID: -1 })
+      .select('reportID')
+      .lean();
+    
+    let startSeq = 0;
+    if (lastReport && lastReport.reportID) {
+      const match = lastReport.reportID.match(/^RPT-(\d+)$/);
+      if (match) {
+        startSeq = parseInt(match[1], 10);
+      }
+    }
+    
+    // Create counter starting from highest existing ID
+    counter = await Counter.findByIdAndUpdate(
+      'reportId',
+      { $setOnInsert: { seq: startSeq } },
+      { new: true, upsert: true }
+    );
+  }
+  
+  // Atomic increment
+  counter = await Counter.findByIdAndUpdate(
+    'reportId',
+    { $inc: { seq: 1 } },
+    { new: true }
+  );
+  
+  return `RPT-${counter.seq.toString().padStart(4, '0')}`;
+}
+
 reportSchema.pre('save', async function(next) {
   if (this.isNew && !this.reportID) {
     try {
-      // Get the count of existing documents + 1
-      const count = await mongoose.model('Report').countDocuments();
-      const nextNumber = count + 1;
-      
-      // Format as RPT-XXXX (4 digits with leading zeros)
-      this.reportID = `RPT-${nextNumber.toString().padStart(4, '0')}`;
+      this.reportID = await getNextReportId();
       next();
     } catch (error) {
       next(error);
@@ -47,3 +121,4 @@ reportSchema.pre('save', async function(next) {
 });
 
 module.exports = mongoose.model('Report', reportSchema);
+module.exports.REPORT_CATEGORIES = REPORT_CATEGORIES;

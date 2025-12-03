@@ -1,72 +1,86 @@
 const reportsRepository = require('../repositories/reportsRepository');
 const { getClientIp } = require('../utils/ipHelper');
+const { REPORT_CATEGORIES } = require('../models/reportsModel');
 
-/**
- * Create a public report (no authentication required)
- * For use by citizens scanning QR codes
- */
+const CATEGORY_LABELS = {
+  overpricing: 'Fare Overpricing',
+  rude_behavior: 'Rude Behavior',
+  unsafe_driving: 'Unsafe Driving',
+  vehicle_condition: 'Poor Vehicle Condition',
+  refusal_of_service: 'Refusal of Service',
+  route_deviation: 'Route Deviation',
+  other: 'Other'
+};
+
 exports.createPublicReport = async (req, res, next) => {
     try {
         const { 
             operatorId,
             fullName, 
             contactNumber,
+            category,
             amountCharged, 
-            expectedFare, 
+            expectedFare,
             description 
         } = req.body;
         
-        // Get client IP for tracking (DDoS/fraud prevention)
         const clientIp = getClientIp(req);
+        const reportCategory = category || 'overpricing';
         
-        // Validate required fields
-        if (!operatorId || !fullName || !contactNumber || !amountCharged || !expectedFare || !description) {
+        if (!Object.values(REPORT_CATEGORIES).includes(reportCategory)) {
             return res.status(400).json({ 
-                error: 'All fields are required: operatorId, fullName, contactNumber, amountCharged, expectedFare, description' 
+                error: 'Invalid report category',
+                validCategories: Object.values(REPORT_CATEGORIES)
+            });
+        }
+        
+        if (!operatorId || !fullName || !contactNumber || !description) {
+            return res.status(400).json({ 
+                error: 'Required fields: operatorId, fullName, contactNumber, description' 
             });
         }
 
-        // Additional validation for spam prevention
-        // Validate string lengths to prevent abuse
         if (fullName.length > 100 || contactNumber.length > 20 || description.length > 1000) {
             return res.status(400).json({ error: 'Input exceeds maximum length' });
         }
 
-        // Validate name contains only letters, spaces, and common name characters
         if (!/^[a-zA-Z\s\-.']+$/.test(fullName)) {
             return res.status(400).json({ error: 'Invalid name format' });
         }
 
-        // Validate phone number format (Philippine format)
         if (!/^(\+63|0)?9\d{9}$/.test(contactNumber.replace(/[\s-]/g, ''))) {
             return res.status(400).json({ error: 'Invalid phone number format' });
         }
 
-        // Validate amounts are positive numbers
-        const chargedAmount = parseFloat(amountCharged);
-        const expectedAmount = parseFloat(expectedFare);
+        let chargedAmount = null;
+        let expectedAmount = null;
         
-        if (isNaN(chargedAmount) || chargedAmount <= 0 || chargedAmount > 10000) {
-            return res.status(400).json({ error: 'Invalid amount charged (must be between 1-10000)' });
-        }
-        
-        if (isNaN(expectedAmount) || expectedAmount <= 0 || expectedAmount > 10000) {
-            return res.status(400).json({ error: 'Invalid expected fare (must be between 1-10000)' });
+        if (reportCategory === 'overpricing') {
+            if (!amountCharged || !expectedFare) {
+                return res.status(400).json({ 
+                    error: 'Overpricing reports require amountCharged and expectedFare' 
+                });
+            }
+            
+            chargedAmount = parseFloat(amountCharged);
+            expectedAmount = parseFloat(expectedFare);
+            
+            if (isNaN(chargedAmount) || chargedAmount <= 0 || chargedAmount > 10000) {
+                return res.status(400).json({ error: 'Invalid amount charged (must be between 1-10000)' });
+            }
+            
+            if (isNaN(expectedAmount) || expectedAmount <= 0 || expectedAmount > 10000) {
+                return res.status(400).json({ error: 'Invalid expected fare (must be between 1-10000)' });
+            }
+
+            if (chargedAmount <= expectedAmount) {
+                return res.status(400).json({ error: 'Amount charged must be higher than expected fare' });
+            }
         }
 
-        // Validate that charged amount is higher than expected (otherwise not overpricing)
-        if (chargedAmount <= expectedAmount) {
-            return res.status(400).json({ error: 'Amount charged must be higher than expected fare to report overpricing' });
-        }
-
-        // Get franchise information to validate it exists and is still active
         const FranchiseInformation = require('../models/franchiseInformationModel');
-        
-        // The operatorId is actually the hashed franchise number from QR code
-        // We need to find the franchise that matches this hash
         const { generateHashedFranchiseNo } = require('../utils/franchiseHelpers');
         
-        // Find franchise with matching hash
         let franchise = null;
         const allCurrentFranchises = await FranchiseInformation.find({ 
           isCurrentVersion: true 
@@ -81,82 +95,73 @@ exports.createPublicReport = async (req, res, next) => {
         }
         
         if (!franchise) {
-            console.warn(`[FRAUD] Report for non-existent franchiseNumber hash: ${operatorId}, IP: ${clientIp}`);
+            console.warn(`[REPORT] Non-existent franchise hash: ${operatorId}, IP: ${clientIp}`);
             return res.status(404).json({ error: 'Operator not found' });
         }
 
-        // SECURITY: Verify franchise is still active and not expired/inactive
-        // This prevents reporting on recycled franchise numbers that no longer belong to the original operator
         if (franchise.franchiseStatus === 'expired' || franchise.franchiseStatus === 'inactive') {
-            console.warn(`[FRAUD] Report for inactive franchise: ${operatorId} (${franchise.franchiseStatus}), IP: ${clientIp}`);
+            console.warn(`[REPORT] Inactive franchise: ${operatorId} (${franchise.franchiseStatus}), IP: ${clientIp}`);
             return res.status(403).json({ 
-                error: 'Cannot report on expired or inactive franchises. Please ensure you scanned an active operator\'s QR code.' 
+                error: 'Cannot report on expired or inactive franchises' 
             });
         }
 
-        // ANTI-DDoS: Check if same IP has reported same franchise multiple times recently (within 24 hours)
-        // This prevents rapid-fire attacks on the same operator
         const Report = require('../models/reportsModel');
         const recentReportsFromIp = await Report.countDocuments({
-            franchiseNumber: operatorId,
+            franchiseNumber: franchise.franchiseNumber,
             createdAt: { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
             reporterIp: clientIp
         });
 
         if (recentReportsFromIp >= 3) {
-            console.warn(`[DDoS] Same IP reported same operator 3+ times in 24h: ${operatorId}, IP: ${clientIp}`);
+            console.warn(`[REPORT] Rate limit: ${operatorId}, IP: ${clientIp}`);
             return res.status(429).json({ 
-                error: 'Too many reports on this operator from your network. Please contact support if this is an error.' 
+                error: 'Too many reports from your network. Please try again later.' 
             });
         }
 
         const reportData = {
             franchiseNumber: franchise.franchiseNumber,
-            franchiseeName: franchise.operatorName,
+            operatorName: franchise.operatorName,
+            operatorBarangay: franchise.operatorBarangay || franchise.barangay,
+            category: reportCategory,
+            amountCharged: chargedAmount,
+            expectedFare: expectedAmount,
             dateReported: new Date(),
             timeReported: new Date().toLocaleTimeString('en-PH', { 
                 timeZone: 'Asia/Manila',
                 hour12: true 
             }),
-            amountCharged: chargedAmount,
-            expectedFare: expectedAmount,
             description: description.trim(),
-            reporterContact: `${fullName} - ${contactNumber}`,
-            reporterIp: clientIp, // Track IP for abuse detection
-            franchiseStatusAtTime: franchise.franchiseStatus, // Store status for audit trail
+            reporterName: fullName.trim(),
+            reporterContact: contactNumber,
+            franchiseStatusAtTime: franchise.franchiseStatus,
             status: 'pending'
         };
 
-        // Create a new Report document and trigger pre-save hook
         const newReportDoc = new Report(reportData);
         const newReport = await newReportDoc.save();
         
-        // Log for audit trail
-        console.log(`[PUBLIC REPORT] Operator: ${franchise.franchiseNumber}, Reporter: ${fullName}, IP: ${clientIp}, Report ID: ${newReport.reportID}`);
+        console.log(`[REPORT] ${reportCategory}: ${franchise.franchiseNumber}, Reporter: ${fullName}, ID: ${newReport.reportID}`);
         
-        // Emit WebSocket event for real-time updates
         if (req.app.get('io')) {
-            req.app.get('io').to('general').emit('fare-reports', {
+            const eventData = {
                 action: 'created',
                 reportID: newReport.reportID,
-                franchiseeName: newReport.franchiseeName
-            });
-            req.app.get('io').to('bplo-admins').emit('fare-reports', {
-                action: 'created',
-                reportID: newReport.reportID,
-                franchiseeName: newReport.franchiseeName
-            });
-            req.app.get('io').to('sb-admins').emit('fare-reports', {
-                action: 'created',
-                reportID: newReport.reportID,
-                franchiseeName: newReport.franchiseeName
-            });
+                operatorName: newReport.operatorName,
+                category: newReport.category,
+                categoryLabel: CATEGORY_LABELS[newReport.category]
+            };
+            req.app.get('io').to('general').emit('fare-reports', eventData);
+            req.app.get('io').to('bplo-admins').emit('fare-reports', eventData);
+            req.app.get('io').to('sb-admins').emit('fare-reports', eventData);
         }
         
         res.status(201).json({ 
             success: true,
-            message: 'Report submitted successfully. Thank you for helping maintain fair fare practices.',
-            reportId: newReport.reportID
+            message: 'Report submitted successfully. Thank you for your feedback.',
+            reportId: newReport.reportID,
+            category: newReport.category
         });
     } catch (error) {
         console.error('Error creating public report:', error);
@@ -164,27 +169,39 @@ exports.createPublicReport = async (req, res, next) => {
     }   
 };
 
-/**
- * Create a new report
- */
 exports.createReport = async (req, res, next) => {
     try {
-        const { franchiseeName, amountCharged, expectedFare, description, reporterContact } = req.body;
+        const { 
+            operatorName,
+            operatorBarangay,
+            franchiseNumber,
+            category,
+            amountCharged, 
+            expectedFare, 
+            description, 
+            reporterName,
+            reporterContact 
+        } = req.body;
         
-        // Validate required fields
-        if (!franchiseeName || !amountCharged || !expectedFare || !description || !reporterContact) {
+        const reportCategory = category || 'overpricing';
+        
+        if (!operatorName || !description || !reporterContact) {
             return res.status(400).json({ 
-                error: 'Missing required fields: franchiseeName, amountCharged, expectedFare, description, reporterContact' 
+                error: 'Required: operatorName, description, reporterContact' 
             });
         }
 
         const reportData = {
-            franchiseeName,
+            franchiseNumber: franchiseNumber || null,
+            operatorName,
+            operatorBarangay: operatorBarangay || null,
+            category: reportCategory,
             dateReported: new Date(),
             timeReported: new Date().toLocaleTimeString(),
-            amountCharged: parseFloat(amountCharged),
-            expectedFare: parseFloat(expectedFare),
+            amountCharged: amountCharged ? parseFloat(amountCharged) : null,
+            expectedFare: expectedFare ? parseFloat(expectedFare) : null,
             description,
+            reporterName: reporterName || null,
             reporterContact
         };
 
@@ -199,9 +216,6 @@ exports.createReport = async (req, res, next) => {
     }   
 };
 
-/**
- * Get all reports with pagination and filtering
- */
 exports.getAllReports = async (req, res, next) => {
     try {
         const { 
@@ -209,6 +223,8 @@ exports.getAllReports = async (req, res, next) => {
             limit = 10, 
             search = '', 
             status = '',
+            category = '',
+            barangay = '',
             sortBy = 'dateReported',
             sortOrder = 'desc'
         } = req.query;
@@ -218,11 +234,15 @@ exports.getAllReports = async (req, res, next) => {
             limit: parseInt(limit),
             search,
             status,
+            category,
+            barangay,
             sortBy,
             sortOrder
         };
 
         const result = await reportsRepository.getAllReports(options);
+        result.categories = CATEGORY_LABELS;
+        
         res.status(200).json(result);
     } catch (error) {
         console.error('Error getting reports:', error);
@@ -230,9 +250,6 @@ exports.getAllReports = async (req, res, next) => {
     }
 };
 
-/**
- * Get a single report by ID
- */
 exports.getReportById = async (req, res, next) => {
     try {
         const reportId = req.params.id;
@@ -249,18 +266,19 @@ exports.getReportById = async (req, res, next) => {
     }
 };
 
-/**
- * Update a report
- */
 exports.updateReport = async (req, res, next) => {
     try {
         const reportId = req.params.id;
         const updateData = req.body;
         
-        // Remove fields that shouldn't be updated
         delete updateData.reportID;
         delete updateData.createdAt;
         delete updateData.updatedAt;
+
+        if (updateData.status === 'resolved' && !updateData.resolvedAt) {
+            updateData.resolvedAt = new Date();
+            updateData.resolvedBy = req.user?.adminId || req.user?.id || 'admin';
+        }
 
         const updatedReport = await reportsRepository.updateReport(reportId, updateData);
         
@@ -268,25 +286,18 @@ exports.updateReport = async (req, res, next) => {
             return res.status(404).json({ error: 'Report not found' });
         }
         
-        // Emit WebSocket event for real-time updates
         if (req.app.get('io')) {
-            req.app.get('io').to('general').emit('report-updated', {
+            const eventData = {
+                action: 'updated',
                 reportID: updatedReport.reportID,
                 status: updatedReport.status,
+                category: updatedReport.category,
+                categoryLabel: CATEGORY_LABELS[updatedReport.category],
                 timestamp: new Date().toISOString()
-            });
-            // Also emit to admin rooms
-            req.app.get('io').to('bplo-admins').emit('fare-reports', {
-                action: 'updated',
-                reportID: updatedReport.reportID,
-                status: updatedReport.status
-            });
-            req.app.get('io').to('sb-admins').emit('fare-reports', {
-                action: 'updated',
-                reportID: updatedReport.reportID,
-                status: updatedReport.status
-            });
-            console.log(`[WebSocket] Report ${updatedReport.reportID} status updated to ${updatedReport.status}`);
+            };
+            req.app.get('io').to('general').emit('report-updated', eventData);
+            req.app.get('io').to('bplo-admins').emit('fare-reports', eventData);
+            req.app.get('io').to('sb-admins').emit('fare-reports', eventData);
         }
         
         res.status(200).json({ 
@@ -299,9 +310,6 @@ exports.updateReport = async (req, res, next) => {
     }
 };
 
-/**
- * Delete a report
- */
 exports.deleteReport = async (req, res, next) => {
     try {
         const reportId = req.params.id;
@@ -321,59 +329,50 @@ exports.deleteReport = async (req, res, next) => {
     }
 };
 
-/**
- * Get monthly reports and optionally export as CSV
- */
 exports.getMonthlyReports = async (req, res, next) => {
     try {
-        const { month, year, format = 'json' } = req.query;
+        const { month, year, format = 'json', category = '', barangay = '' } = req.query;
         
         if (!month || !year) {
-            return res.status(400).json({ 
-                error: 'Month and year parameters are required' 
-            });
+            return res.status(400).json({ error: 'Month and year parameters are required' });
         }
 
         const monthNum = parseInt(month);
         const yearNum = parseInt(year);
         
         if (monthNum < 1 || monthNum > 12) {
-            return res.status(400).json({ 
-                error: 'Month must be between 1 and 12' 
-            });
+            return res.status(400).json({ error: 'Month must be between 1 and 12' });
         }
 
-        const reports = await reportsRepository.getMonthlyReports(monthNum, yearNum);
+        let reports = await reportsRepository.getMonthlyReports(monthNum, yearNum);
+        
+        if (category) reports = reports.filter(r => r.category === category);
+        if (barangay) reports = reports.filter(r => r.operatorBarangay === barangay);
         
         if (format === 'csv') {
-            // Generate CSV content
-            const csvHeader = 'Report ID,Franchisee Name,Date Reported,Time Reported,Amount Charged,Expected Fare,Description,Reporter Contact,Status\n';
+            const csvHeader = 'Report ID,Category,Operator Name,Barangay,Date Reported,Time Reported,Amount Charged,Expected Fare,Description,Reporter,Contact,Status\n';
             const csvContent = reports.map(report => {
                 return [
                     report.reportID,
-                    `"${report.franchiseeName}"`,
+                    CATEGORY_LABELS[report.category] || report.category,
+                    `"${report.operatorName || ''}"`,
+                    `"${report.operatorBarangay || ''}"`,
                     report.dateReported.toISOString().split('T')[0],
                     report.timeReported,
-                    report.amountCharged,
-                    report.expectedFare,
+                    report.amountCharged || '',
+                    report.expectedFare || '',
                     `"${report.description.replace(/"/g, '""')}"`,
+                    `"${report.reporterName || ''}"`,
                     `"${report.reporterContact}"`,
                     report.status
                 ].join(',');
             }).join('\n');
             
-            const csv = csvHeader + csvContent;
-            
             res.setHeader('Content-Type', 'text/csv');
             res.setHeader('Content-Disposition', `attachment; filename="reports_${year}_${month.toString().padStart(2, '0')}.csv"`);
-            res.send(csv);
+            res.send(csvHeader + csvContent);
         } else {
-            res.status(200).json({
-                month: monthNum,
-                year: yearNum,
-                total: reports.length,
-                reports
-            });
+            res.status(200).json({ month: monthNum, year: yearNum, total: reports.length, reports });
         }
     } catch (error) {
         console.error('Error getting monthly reports:', error);
@@ -381,12 +380,10 @@ exports.getMonthlyReports = async (req, res, next) => {
     }
 };
 
-/**
- * Get reports statistics
- */
 exports.getReportsStatistics = async (req, res, next) => {
     try {
         const statistics = await reportsRepository.getReportsStatistics();
+        statistics.categoryLabels = CATEGORY_LABELS;
         res.status(200).json(statistics);
     } catch (error) {
         console.error('Error getting reports statistics:', error);
@@ -394,62 +391,63 @@ exports.getReportsStatistics = async (req, res, next) => {
     }
 };
 
-/**
- * Get reports by date range with optional CSV export
- */
+exports.getReportCategories = async (req, res, next) => {
+    try {
+        res.status(200).json({
+            categories: Object.values(REPORT_CATEGORIES),
+            labels: CATEGORY_LABELS
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
 exports.getReportsByDateRange = async (req, res, next) => {
     try {
-        const { startDate, endDate, format = 'json' } = req.query;
+        const { startDate, endDate, format = 'json', category = '', barangay = '' } = req.query;
         
         if (!startDate || !endDate) {
-            return res.status(400).json({ 
-                error: 'startDate and endDate parameters are required' 
-            });
+            return res.status(400).json({ error: 'startDate and endDate parameters are required' });
         }
 
         const start = new Date(startDate);
         const end = new Date(endDate);
         
         if (isNaN(start.getTime()) || isNaN(end.getTime())) {
-            return res.status(400).json({ 
-                error: 'Invalid date format. Use YYYY-MM-DD' 
-            });
+            return res.status(400).json({ error: 'Invalid date format. Use YYYY-MM-DD' });
         }
 
-        // Set end date to end of day
         end.setHours(23, 59, 59, 999);
 
-        const reports = await reportsRepository.getReportsByDateRange(start, end);
+        let reports = await reportsRepository.getReportsByDateRange(start, end);
+        
+        if (category) reports = reports.filter(r => r.category === category);
+        if (barangay) reports = reports.filter(r => r.operatorBarangay === barangay);
         
         if (format === 'csv') {
-            // Generate CSV content
-            const csvHeader = 'Report ID,Franchisee Name,Date Reported,Time Reported,Amount Charged,Expected Fare,Description,Reporter Contact,Status\n';
+            const csvHeader = 'Report ID,Category,Operator Name,Barangay,Date Reported,Time Reported,Amount Charged,Expected Fare,Description,Reporter,Contact,Status\n';
             const csvContent = reports.map(report => {
                 return [
                     report.reportID,
-                    `"${report.franchiseeName}"`,
+                    CATEGORY_LABELS[report.category] || report.category,
+                    `"${report.operatorName || ''}"`,
+                    `"${report.operatorBarangay || ''}"`,
                     report.dateReported.toISOString().split('T')[0],
                     report.timeReported,
-                    report.amountCharged,
-                    report.expectedFare,
+                    report.amountCharged || '',
+                    report.expectedFare || '',
                     `"${report.description.replace(/"/g, '""')}"`,
+                    `"${report.reporterName || ''}"`,
                     `"${report.reporterContact}"`,
                     report.status
                 ].join(',');
             }).join('\n');
             
-            const csv = csvHeader + csvContent;
-            
             res.setHeader('Content-Type', 'text/csv');
             res.setHeader('Content-Disposition', `attachment; filename="reports_${startDate}_to_${endDate}.csv"`);
-            res.send(csv);
+            res.send(csvHeader + csvContent);
         } else {
-            res.status(200).json({
-                startDate,
-                endDate,
-                total: reports.length,
-                reports
-            });
+            res.status(200).json({ startDate, endDate, total: reports.length, reports });
         }
     } catch (error) {
         console.error('Error getting reports by date range:', error);
@@ -457,12 +455,122 @@ exports.getReportsByDateRange = async (req, res, next) => {
     }
 };
 
-/**
- * Note: Certificate generation functionality has been moved to certificateController.js
- * All certificate-related endpoints are now available under /api/certificates/*
- * 
- * Available certificate endpoints:
- * - POST /api/certificates/generate - Generate certificates (PDF or DOCX)
- * - GET /api/certificates/inspect-pdf/:templateName - Inspect PDF template fields
- * - GET /api/certificates/templates - Get list of available certificate templates
- */
+exports.getReportsByBarangay = async (req, res, next) => {
+    try {
+        const { barangay } = req.params;
+        const { page = 1, limit = 20, status, category } = req.query;
+        
+        if (!barangay) {
+            return res.status(400).json({ error: 'Barangay parameter is required' });
+        }
+
+        const result = await reportsRepository.getReportsByBarangay(barangay, {
+            page: parseInt(page),
+            limit: parseInt(limit),
+            status,
+            category
+        });
+        
+        res.status(200).json({
+            barangay,
+            ...result,
+            categoryLabels: CATEGORY_LABELS
+        });
+    } catch (error) {
+        console.error('Error getting reports by barangay:', error);
+        next(error);
+    }
+};
+
+exports.getReportsByCategory = async (req, res, next) => {
+    try {
+        const { category } = req.params;
+        const { page = 1, limit = 20, status } = req.query;
+        
+        if (!category || !Object.values(REPORT_CATEGORIES).includes(category)) {
+            return res.status(400).json({ 
+                error: 'Valid category parameter is required',
+                validCategories: Object.values(REPORT_CATEGORIES)
+            });
+        }
+
+        const result = await reportsRepository.getReportsByCategory(category, {
+            page: parseInt(page),
+            limit: parseInt(limit),
+            status
+        });
+        
+        res.status(200).json({
+            category,
+            categoryLabel: CATEGORY_LABELS[category],
+            ...result
+        });
+    } catch (error) {
+        console.error('Error getting reports by category:', error);
+        next(error);
+    }
+};
+
+exports.getReportsByOperator = async (req, res, next) => {
+    try {
+        const { operatorName } = req.params;
+        const { page = 1, limit = 20, status, category } = req.query;
+        
+        if (!operatorName) {
+            return res.status(400).json({ error: 'Operator name parameter is required' });
+        }
+
+        const result = await reportsRepository.getReportsByOperator(operatorName, {
+            page: parseInt(page),
+            limit: parseInt(limit),
+            status,
+            category
+        });
+        
+        res.status(200).json({
+            operatorName,
+            ...result,
+            categoryLabels: CATEGORY_LABELS
+        });
+    } catch (error) {
+        console.error('Error getting reports by operator:', error);
+        next(error);
+    }
+};
+
+exports.getBarangaySummary = async (req, res, next) => {
+    try {
+        const summary = await reportsRepository.getBarangaySummary();
+        res.status(200).json({ summary, total: summary.length });
+    } catch (error) {
+        console.error('Error getting barangay summary:', error);
+        next(error);
+    }
+};
+
+exports.getCategorySummary = async (req, res, next) => {
+    try {
+        const summary = await reportsRepository.getCategorySummary();
+        res.status(200).json({ 
+            summary: summary.map(s => ({
+                ...s,
+                categoryLabel: CATEGORY_LABELS[s.category] || s.category
+            })),
+            categoryLabels: CATEGORY_LABELS
+        });
+    } catch (error) {
+        console.error('Error getting category summary:', error);
+        next(error);
+    }
+};
+
+exports.getOperatorSummary = async (req, res, next) => {
+    try {
+        const { limit = 20 } = req.query;
+        const summary = await reportsRepository.getOperatorSummary({ limit: parseInt(limit) });
+        res.status(200).json({ summary, total: summary.length });
+    } catch (error) {
+        console.error('Error getting operator summary:', error);
+        next(error);
+    }
+};

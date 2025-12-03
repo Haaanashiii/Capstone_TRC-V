@@ -1,6 +1,6 @@
 const franchiseInformationRepository = require('../repositories/franchiseInformationRepository');
 const { generateOperatorQRCode, deleteQRCode } = require('../services/qrCodeService');
-const { getFileFromR2 } = require('../services/cloudflareService');
+const storage = require('../services/storageAdapter');
 const { getClientIp } = require('../utils/ipHelper');
 const { generateHashedFranchiseNo } = require('../utils/franchiseHelpers');
 
@@ -650,8 +650,7 @@ exports.proxyCloudflareFile = async (req, res, next) => {
     const { url } = req.query;
     if (!url) return res.status(400).json({ error: 'Missing url parameter' });
     
-    const key = url.startsWith('r2://') ? url.substring(5) : url;
-    const { buffer, contentType } = await getFileFromR2(key);
+    const { buffer, contentType } = await storage.getFile(url);
     
     res.setHeader('Content-Type', contentType);
     res.setHeader('Cache-Control', 'public, max-age=3600');

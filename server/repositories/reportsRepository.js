@@ -1,11 +1,6 @@
 
 const Report = require('../models/reportsModel');
 
-/**
- * Create a new report
- * @param {Object} reportData - Report data
- * @returns {Promise<Object>} Created report
- */
 exports.createReport = async (reportData) => {
   try {
     const report = new Report(reportData);
@@ -17,17 +12,6 @@ exports.createReport = async (reportData) => {
   }
 };
 
-/**
- * Get all reports with pagination and filtering
- * @param {Object} options - Query options
- * @param {number} options.page - Page number
- * @param {number} options.limit - Items per page
- * @param {string} options.search - Search term
- * @param {string} options.status - Filter by status
- * @param {string} options.sortBy - Sort field (reportID, dateReported, status, franchiseeName)
- * @param {string} options.sortOrder - Sort order (asc, desc)
- * @returns {Promise<Object>} Reports with pagination info
- */
 exports.getAllReports = async (options = {}) => {
   try {
     const {
@@ -35,64 +19,59 @@ exports.getAllReports = async (options = {}) => {
       limit = 10,
       search = '',
       status = '',
+      category = '',
+      barangay = '',
       sortBy = 'dateReported',
       sortOrder = 'desc'
     } = options;
 
     const skip = (page - 1) * limit;
     
-    // Build query
     let query = {};
     
     if (search) {
       query.$or = [
         { reportID: { $regex: search, $options: 'i' } },
-        { franchiseeName: { $regex: search, $options: 'i' } },
-        { description: { $regex: search, $options: 'i' } }
+        { operatorName: { $regex: search, $options: 'i' } },
+        { franchiseNumber: { $regex: search, $options: 'i' } },
+        { description: { $regex: search, $options: 'i' } },
+        { reporterName: { $regex: search, $options: 'i' } },
+        { operatorBarangay: { $regex: search, $options: 'i' } }
       ];
     }
     
-    if (status) {
-      query.status = status;
-    }
+    if (status) query.status = status;
+    if (category) query.category = category;
+    if (barangay) query.operatorBarangay = barangay;
 
-    // Build sort object
     let sortObject = {};
     
     switch (sortBy) {
       case 'reportID':
-        // Custom sort for reportID to handle RPT-XXXX format numerically
         sortObject = { reportID: sortOrder === 'asc' ? 1 : -1 };
         break;
       case 'dateReported':
         sortObject = { dateReported: sortOrder === 'asc' ? 1 : -1 };
         break;
       case 'status':
-        // Sort by status priority: pending > investigating > resolved > dismissed
-        const statusPriority = {
-          'pending': 1,
-          'investigating': 2, 
-          'resolved': 3,
-          'dismissed': 4
-        };
-        // For status sorting, we'll use a different approach in the aggregation
-        if (sortOrder === 'asc') {
-          sortObject = { status: 1, dateReported: -1 };
-        } else {
-          sortObject = { status: -1, dateReported: -1 };
-        }
+        sortObject = { status: sortOrder === 'asc' ? 1 : -1, dateReported: -1 };
         break;
-      case 'franchiseeName':
-        sortObject = { franchiseeName: sortOrder === 'asc' ? 1 : -1 };
+      case 'category':
+        sortObject = { category: sortOrder === 'asc' ? 1 : -1, dateReported: -1 };
+        break;
+      case 'operatorName':
+        sortObject = { operatorName: sortOrder === 'asc' ? 1 : -1 };
+        break;
+      case 'operatorBarangay':
+        sortObject = { operatorBarangay: sortOrder === 'asc' ? 1 : -1, dateReported: -1 };
         break;
       case 'amountCharged':
         sortObject = { amountCharged: sortOrder === 'asc' ? 1 : -1 };
         break;
       default:
-        sortObject = { dateReported: -1 }; // Default: newest first
+        sortObject = { dateReported: -1 };
     }
 
-    // If sorting by reportID, we need special handling for numerical order
     if (sortBy === 'reportID') {
       const [reports, total] = await Promise.all([
         Report.aggregate([
@@ -100,20 +79,14 @@ exports.getAllReports = async (options = {}) => {
           {
             $addFields: {
               reportNumber: {
-                $toInt: {
-                  $substr: ['$reportID', 4, -1] // Extract number part after 'RPT-'
-                }
+                $toInt: { $substr: ['$reportID', 4, -1] }
               }
             }
           },
           { $sort: { reportNumber: sortOrder === 'asc' ? 1 : -1 } },
           { $skip: skip },
           { $limit: parseInt(limit) },
-          {
-            $project: {
-              reportNumber: 0 // Remove the temporary field
-            }
-          }
+          { $project: { reportNumber: 0 } }
         ]),
         Report.countDocuments(query)
       ]);
@@ -129,7 +102,6 @@ exports.getAllReports = async (options = {}) => {
       };
     }
 
-    // For other sorts, use regular find with sort
     const [reports, total] = await Promise.all([
       Report.find(query)
         .sort(sortObject)
@@ -153,11 +125,6 @@ exports.getAllReports = async (options = {}) => {
   }
 };
 
-/**
- * Get a single report by reportID (RPT-XXXX format)
- * @param {string} reportId - Report ID
- * @returns {Promise<Object|null>} Report or null if not found
- */
 exports.getReportById = async (reportId) => {
   try {
     const report = await Report.findOne({ reportID: reportId });
@@ -168,21 +135,12 @@ exports.getReportById = async (reportId) => {
   }
 };
 
-/**
- * Update a report
- * @param {string} reportId - Report ID (can be _id or reportID)
- * @param {Object} updateData - Update data
- * @returns {Promise<Object|null>} Updated report or null if not found
- */
 exports.updateReport = async (reportId, updateData) => {
   try {
-    // Try to find by _id first (MongoDB ObjectId), then by reportID (RPT-XXXX)
     let query;
     if (reportId.match(/^[0-9a-fA-F]{24}$/)) {
-      // It's a MongoDB ObjectId
       query = { _id: reportId };
     } else {
-      // It's a reportID in RPT-XXXX format
       query = { reportID: reportId };
     }
     
@@ -198,11 +156,6 @@ exports.updateReport = async (reportId, updateData) => {
   }
 };
 
-/**
- * Delete a report
- * @param {string} reportId - Report ID
- * @returns {Promise<Object|null>} Deleted report or null if not found
- */
 exports.deleteReport = async (reportId) => {
   try {
     const deletedReport = await Report.findOneAndDelete({ reportID: reportId });
@@ -213,12 +166,6 @@ exports.deleteReport = async (reportId) => {
   }
 };
 
-/**
- * Get reports for a specific month and year
- * @param {number} month - Month (1-12)
- * @param {number} year - Year
- * @returns {Promise<Array>} Array of reports
- */
 exports.getMonthlyReports = async (month, year) => {
   try {
     const startDate = new Date(year, month - 1, 1);
@@ -238,10 +185,6 @@ exports.getMonthlyReports = async (month, year) => {
   }
 };
 
-/**
- * Get reports statistics
- * @returns {Promise<Object>} Report statistics
- */
 exports.getReportsStatistics = async () => {
   try {
     const [
@@ -249,21 +192,43 @@ exports.getReportsStatistics = async () => {
       pendingReports,
       resolvedReports,
       investigatingReports,
-      dismissedReports
+      dismissedReports,
+      categoryStats,
+      barangayStats
     ] = await Promise.all([
       Report.countDocuments(),
       Report.countDocuments({ status: 'pending' }),
       Report.countDocuments({ status: 'resolved' }),
       Report.countDocuments({ status: 'investigating' }),
-      Report.countDocuments({ status: 'dismissed' })
+      Report.countDocuments({ status: 'dismissed' }),
+      Report.aggregate([
+        { $group: { _id: '$category', count: { $sum: 1 } } }
+      ]),
+      Report.aggregate([
+        { $match: { operatorBarangay: { $ne: null, $ne: '' } } },
+        { $group: { _id: '$operatorBarangay', count: { $sum: 1 } } },
+        { $sort: { count: -1 } }
+      ])
     ]);
+
+    const byCategory = {};
+    categoryStats.forEach(stat => {
+      byCategory[stat._id || 'overpricing'] = stat.count;
+    });
+
+    const byBarangay = {};
+    barangayStats.forEach(stat => {
+      byBarangay[stat._id] = stat.count;
+    });
 
     return {
       total: totalReports,
       pending: pendingReports,
       resolved: resolvedReports,
       investigating: investigatingReports,
-      dismissed: dismissedReports
+      dismissed: dismissedReports,
+      byCategory,
+      byBarangay
     };
   } catch (error) {
     console.error('Error getting reports statistics:', error);
@@ -271,12 +236,6 @@ exports.getReportsStatistics = async () => {
   }
 };
 
-/**
- * Get reports by date range
- * @param {Date} startDate - Start date
- * @param {Date} endDate - End date
- * @returns {Promise<Array>} Array of reports
- */
 exports.getReportsByDateRange = async (startDate, endDate) => {
   try {
     const reports = await Report.find({
@@ -293,3 +252,218 @@ exports.getReportsByDateRange = async (startDate, endDate) => {
   }
 };
 
+exports.getReportsByCategory = async (category, options = {}) => {
+  try {
+    const { limit = 50, status, page = 1 } = options;
+    const skip = (page - 1) * limit;
+    
+    const query = { category };
+    if (status) query.status = status;
+    
+    const [reports, total] = await Promise.all([
+      Report.find(query)
+        .sort({ dateReported: -1 })
+        .skip(skip)
+        .limit(limit),
+      Report.countDocuments(query)
+    ]);
+      
+    return {
+      reports,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        pages: Math.ceil(total / limit)
+      }
+    };
+  } catch (error) {
+    console.error('Error getting reports by category:', error);
+    throw error;
+  }
+};
+
+exports.getReportsByFranchise = async (franchiseNumber, options = {}) => {
+  try {
+    const { limit = 50, page = 1 } = options;
+    const skip = (page - 1) * limit;
+    
+    const [reports, total] = await Promise.all([
+      Report.find({ franchiseNumber })
+        .sort({ dateReported: -1 })
+        .skip(skip)
+        .limit(limit),
+      Report.countDocuments({ franchiseNumber })
+    ]);
+      
+    return {
+      reports,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        pages: Math.ceil(total / limit)
+      }
+    };
+  } catch (error) {
+    console.error('Error getting reports by franchise:', error);
+    throw error;
+  }
+};
+
+exports.getReportsByBarangay = async (barangay, options = {}) => {
+  try {
+    const { limit = 50, status, category, page = 1 } = options;
+    const skip = (page - 1) * limit;
+    
+    const query = { operatorBarangay: barangay };
+    if (status) query.status = status;
+    if (category) query.category = category;
+    
+    const [reports, total] = await Promise.all([
+      Report.find(query)
+        .sort({ dateReported: -1 })
+        .skip(skip)
+        .limit(limit),
+      Report.countDocuments(query)
+    ]);
+      
+    return {
+      reports,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        pages: Math.ceil(total / limit)
+      }
+    };
+  } catch (error) {
+    console.error('Error getting reports by barangay:', error);
+    throw error;
+  }
+};
+
+exports.getReportsByOperator = async (operatorName, options = {}) => {
+  try {
+    const { limit = 50, status, category, page = 1 } = options;
+    const skip = (page - 1) * limit;
+    
+    const query = { operatorName: { $regex: operatorName, $options: 'i' } };
+    if (status) query.status = status;
+    if (category) query.category = category;
+    
+    const [reports, total] = await Promise.all([
+      Report.find(query)
+        .sort({ dateReported: -1 })
+        .skip(skip)
+        .limit(limit),
+      Report.countDocuments(query)
+    ]);
+      
+    return {
+      reports,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        pages: Math.ceil(total / limit)
+      }
+    };
+  } catch (error) {
+    console.error('Error getting reports by operator:', error);
+    throw error;
+  }
+};
+
+exports.getBarangaySummary = async () => {
+  try {
+    const summary = await Report.aggregate([
+      { $match: { operatorBarangay: { $ne: null, $ne: '' } } },
+      {
+        $group: {
+          _id: '$operatorBarangay',
+          total: { $sum: 1 },
+          pending: { $sum: { $cond: [{ $eq: ['$status', 'pending'] }, 1, 0] } },
+          resolved: { $sum: { $cond: [{ $eq: ['$status', 'resolved'] }, 1, 0] } },
+          investigating: { $sum: { $cond: [{ $eq: ['$status', 'investigating'] }, 1, 0] } },
+          dismissed: { $sum: { $cond: [{ $eq: ['$status', 'dismissed'] }, 1, 0] } }
+        }
+      },
+      { $sort: { total: -1 } }
+    ]);
+    
+    return summary.map(s => ({
+      barangay: s._id,
+      total: s.total,
+      pending: s.pending,
+      resolved: s.resolved,
+      investigating: s.investigating,
+      dismissed: s.dismissed
+    }));
+  } catch (error) {
+    console.error('Error getting barangay summary:', error);
+    throw error;
+  }
+};
+
+exports.getCategorySummary = async () => {
+  try {
+    const summary = await Report.aggregate([
+      {
+        $group: {
+          _id: '$category',
+          total: { $sum: 1 },
+          pending: { $sum: { $cond: [{ $eq: ['$status', 'pending'] }, 1, 0] } },
+          resolved: { $sum: { $cond: [{ $eq: ['$status', 'resolved'] }, 1, 0] } },
+          investigating: { $sum: { $cond: [{ $eq: ['$status', 'investigating'] }, 1, 0] } },
+          dismissed: { $sum: { $cond: [{ $eq: ['$status', 'dismissed'] }, 1, 0] } }
+        }
+      },
+      { $sort: { total: -1 } }
+    ]);
+    
+    return summary.map(s => ({
+      category: s._id || 'overpricing',
+      total: s.total,
+      pending: s.pending,
+      resolved: s.resolved,
+      investigating: s.investigating,
+      dismissed: s.dismissed
+    }));
+  } catch (error) {
+    console.error('Error getting category summary:', error);
+    throw error;
+  }
+};
+
+exports.getOperatorSummary = async (options = {}) => {
+  try {
+    const { limit = 20 } = options;
+    
+    const summary = await Report.aggregate([
+      { $match: { operatorName: { $ne: null, $ne: '' } } },
+      {
+        $group: {
+          _id: { name: '$operatorName', franchiseNumber: '$franchiseNumber', barangay: '$operatorBarangay' },
+          total: { $sum: 1 },
+          pending: { $sum: { $cond: [{ $eq: ['$status', 'pending'] }, 1, 0] } },
+          resolved: { $sum: { $cond: [{ $eq: ['$status', 'resolved'] }, 1, 0] } }
+        }
+      },
+      { $sort: { total: -1 } },
+      { $limit: limit }
+    ]);
+    
+    return summary.map(s => ({
+      operatorName: s._id.name,
+      franchiseNumber: s._id.franchiseNumber,
+      barangay: s._id.barangay,
+      total: s.total,
+      pending: s.pending,
+      resolved: s.resolved
+    }));
+  } catch (error) {
+    console.error('Error getting operator summary:', error);
+    throw error;
+  }
+};

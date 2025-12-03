@@ -4,7 +4,7 @@ const FranchiseApplication = require('../models/franchiseApplicationModel');
 const FranchiseInformation = require('../models/franchiseInformationModel');
 const { uploadFile, validateFile, moveFilesToInformation } = require('../services/fileUploadService');
 const { generateHashedFranchiseNo, generateQRCodeBuffer, handleVersionControl, validateFranchiseStatus } = require('../utils/franchiseHelpers');
-const { moveFranchiseFiles } = require('../services/cloudflareService');
+const storage = require('../services/storageAdapter');
 const { auditLogService } = require('../services/auditLogService');
 const { sendBPLOApprovalNotification, sendSBApprovalNotification } = require('../services/notificationQueueService');
 
@@ -1422,9 +1422,9 @@ exports.sbAdminAcceptNewFranchise = async (req, res, next) => {
         console.log('[sbAdminAcceptNewFranchise] Starting background file movements for franchise:', franchiseNo);
         const startTime = Date.now();
         
-        // Move files from applications → information (both local and cloud)
-        await moveFilesToInformation(userId, appId, franchiseNo, franchiseChainId, version); // Local
-        const urlMapping = await moveFranchiseFiles(userId, appId, franchiseNo, franchiseChainId, version); // Cloud
+        // Move files from applications → information
+        await moveFilesToInformation(userId, appId, franchiseNo, franchiseChainId, version);
+        const urlMapping = await storage.moveFranchiseFiles(userId, appId, franchiseNo, franchiseChainId, version);
         
         const elapsedTime = Date.now() - startTime;
         console.log(`[sbAdminAcceptNewFranchise] File movements completed in ${elapsedTime}ms for franchise: ${franchiseNo}`);
@@ -1710,9 +1710,9 @@ exports.sbAdminAcceptRenewOrAmendment = async (req, res, next) => {
         console.log('[sbAdminAcceptRenewOrAmendment] Starting background file movements for franchise:', franchiseNo);
         const startTime = Date.now();
         
-        // Move files from applications → information (both local and cloud)
-        await moveFilesToInformation(userId, appId, franchiseNo, newFranchiseChainId, version); // Local
-        const urlMapping = await moveFranchiseFiles(userId, appId, franchiseNo, newFranchiseChainId, version); // Cloud
+        // Move files from applications → information
+        await moveFilesToInformation(userId, appId, franchiseNo, newFranchiseChainId, version);
+        const urlMapping = await storage.moveFranchiseFiles(userId, appId, franchiseNo, newFranchiseChainId, version);
         
         const elapsedTime = Date.now() - startTime;
         console.log(`[sbAdminAcceptRenewOrAmendment] File movements completed in ${elapsedTime}ms for franchise: ${franchiseNo}`);
@@ -1852,9 +1852,7 @@ exports.proxyCloudflareFile = async (req, res, next) => {
     const { url } = req.query;
     if (!url) return res.status(400).json({ error: 'Missing url parameter' });
     
-    const { getFileFromR2 } = require('../services/cloudflareService');
-    const key = url.startsWith('r2://') ? url.substring(5) : url;
-    const { buffer, contentType } = await getFileFromR2(key);
+    const { buffer, contentType } = await storage.getFile(url);
     
     res.setHeader('Content-Type', contentType);
     res.setHeader('Cache-Control', 'public, max-age=3600');

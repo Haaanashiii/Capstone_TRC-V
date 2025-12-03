@@ -13,6 +13,7 @@ const { apiLimiter, authLimiter, qrVerificationLimiter } = require('./middleware
 const { sanitizeRequest } = require('./middlewares/validateRequest');
 const { enforceHttps } = require('./middlewares/securityHeaders');
 const { auditLogService } = require('./services/auditLogService');
+const storage = require('./services/storageAdapter');
   
 // Load all API routes
 console.log('[SERVER] Loading routes...');
@@ -508,15 +509,19 @@ console.log('[SERVER] Starting server initialization...');
 const startTime = Date.now();
 
 mongoose.connect(process.env.MONGO_URI, {
-  serverSelectionTimeoutMS: 10000, // Increase timeout to 10 seconds
-  maxPoolSize: 75, // Increased from 10 for handling 100-500 concurrent users
-  minPoolSize: 10, // Maintain minimum pool for faster connection reuse
-  socketTimeoutMS: 45000, // Close sockets after 45 seconds of inactivity
-  family: 4 // Use IPv4, skip trying IPv6
+  serverSelectionTimeoutMS: 10000,
+  maxPoolSize: 75,
+  minPoolSize: 10,
+  socketTimeoutMS: 45000,
+  family: 4
 })
   .then(() => {
     const dbConnectTime = Date.now() - startTime;
     console.log(`[SERVER] ✅ MongoDB connected (${dbConnectTime}ms)`);
+    
+    // Initialize storage service (GridFS requires MongoDB connection)
+    storage.init();
+    console.log(`[SERVER] ✅ Storage initialized (${storage.storageType})`);
     
     // Start server immediately, initialize scheduler in background
     server.listen(PORT, '0.0.0.0', () => {

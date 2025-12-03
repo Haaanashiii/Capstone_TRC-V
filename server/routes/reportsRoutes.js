@@ -5,29 +5,31 @@ const { apiLimiter, publicReportLimiter } = require('../middlewares/rateLimiter'
 const authenticate = require('../middlewares/authenticate');
 const authorize = require('../middlewares/authorize');
 
-// Public route for submitting reports - Strict rate limiting (5 per hour)
-// NO authentication required, just public report limiter
+// Public routes
 router.post('/public', publicReportLimiter, reportsController.createPublicReport);
+router.get('/categories', reportsController.getReportCategories);
 
-// Apply rate limiting to authenticated routes only
 router.use(apiLimiter);
 router.use(authenticate);
 
-// Basic CRUD routes (require authentication)
+// Reports CRUD
 router.post('/', reportsController.createReport);
 router.get('/', reportsController.getAllReports);
+
+// Summary/Statistics endpoints
 router.get('/statistics', authorize(['sb-admin', 'bplo-admin', 'super-admin']), reportsController.getReportsStatistics);
+router.get('/summary/barangay', authorize(['sb-admin', 'bplo-admin', 'super-admin']), reportsController.getBarangaySummary);
+router.get('/summary/category', authorize(['sb-admin', 'bplo-admin', 'super-admin']), reportsController.getCategorySummary);
+router.get('/summary/operator', authorize(['sb-admin', 'bplo-admin', 'super-admin']), reportsController.getOperatorSummary);
 
-// Monthly reports with CSV export (admin only)
+// Filter endpoints
 router.get('/monthly', authorize(['sb-admin', 'bplo-admin', 'super-admin']), reportsController.getMonthlyReports);
-
-// Date range reports with CSV export (admin only)
 router.get('/date-range', authorize(['sb-admin', 'bplo-admin', 'super-admin']), reportsController.getReportsByDateRange);
+router.get('/by-barangay/:barangay', authorize(['sb-admin', 'bplo-admin', 'super-admin']), reportsController.getReportsByBarangay);
+router.get('/by-category/:category', authorize(['sb-admin', 'bplo-admin', 'super-admin']), reportsController.getReportsByCategory);
+router.get('/by-operator/:operatorName', authorize(['sb-admin', 'bplo-admin', 'super-admin']), reportsController.getReportsByOperator);
 
-// Note: Certificate endpoints have been moved to /api/certificates/*
-// See certificateRoutes.js for certificate generation functionality
-
-// Individual report operations
+// Single report operations
 router.get('/:id', reportsController.getReportById);
 router.put('/:id', authorize(['sb-admin', 'bplo-admin', 'super-admin']), reportsController.updateReport);
 router.delete('/:id', authorize(['sb-admin', 'bplo-admin', 'super-admin']), reportsController.deleteReport);
