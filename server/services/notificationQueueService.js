@@ -17,33 +17,33 @@ const emailService = require('./emailService');
  */
 const NOTIFICATION_RULES = {
   OTP: {
-    smsEnabled: true,
+    smsEnabled: false,
     maxSmsAttempts: 2,
     emailEnabled: true,
     priority: 'CRITICAL'
   },
   FRANCHISE_EXPIRY_1_WEEK: {
-    smsEnabled: true,
+    smsEnabled: false,
     emailEnabled: true,
     priority: 'HIGH'
   },
   FRANCHISE_EXPIRY_FINAL_DAY: {
-    smsEnabled: true,
+    smsEnabled: false,
     emailEnabled: true,
     priority: 'CRITICAL'
   },
   BPLO_APPROVAL: {
-    smsEnabled: true,
+    smsEnabled: false,
     emailEnabled: true,
     priority: 'CRITICAL'
   },
   SB_APPROVAL: {
-    smsEnabled: true,
+    smsEnabled: false,
     emailEnabled: true,
     priority: 'CRITICAL'
   },
   BPLO_DISAPPROVAL: {
-    smsEnabled: true,
+    smsEnabled: false,
     emailEnabled: true,
     priority: 'HIGH'
   },
