@@ -9,7 +9,7 @@ let autoBackupJob = null;
  */
 const initializeBackupScheduler = () => {
   if (!BACKUP_CONFIG.autoBackupEnabled) {
-    console.log('[BACKUP SCHEDULER] Automatic backups are disabled');
+    if (process.env.DEBUG === 'true') console.log('[BACKUP] Auto-backups disabled');
     return;
   }
   
@@ -17,14 +17,12 @@ const initializeBackupScheduler = () => {
   
   // Validate cron expression
   if (!cron.validate(cronExpression)) {
-    console.error(`[BACKUP SCHEDULER] Invalid cron expression: ${cronExpression}`);
+    console.error(`[BACKUP] Invalid cron: ${cronExpression}`);
     return;
   }
   
-  console.log(`[BACKUP SCHEDULER] Initializing automatic backups with schedule: ${cronExpression}`);
-  
   autoBackupJob = cron.schedule(cronExpression, async () => {
-    console.log('[BACKUP SCHEDULER] Starting scheduled automatic backup...');
+    console.log('[BACKUP] Running scheduled backup...');
     
     try {
       const result = await backupService.createBackup({
@@ -37,7 +35,7 @@ const initializeBackupScheduler = () => {
         }
       });
       
-      console.log(`[BACKUP SCHEDULER] ✅ Automatic backup completed: ${result.backupId}`);
+      console.log(`[BACKUP SCHEDULER] SUCCESS - Automatic backup completed: ${result.backupId}`);
       console.log(`[BACKUP SCHEDULER] - Size: ${result.formattedSize}`);
       console.log(`[BACKUP SCHEDULER] - Documents: ${result.totalDocuments}`);
       
@@ -46,10 +44,10 @@ const initializeBackupScheduler = () => {
       
       // Also run cleanup after successful backup
       await backupService.cleanupOldBackups();
-      console.log('[BACKUP SCHEDULER] ✅ Old backup cleanup completed');
+      console.log('[BACKUP SCHEDULER] SUCCESS - Old backup cleanup completed');
       
     } catch (error) {
-      console.error('[BACKUP SCHEDULER] ❌ Automatic backup failed:', error.message);
+      console.error('[BACKUP SCHEDULER] ERROR - Automatic backup failed:', error.message);
       
       // Log to audit trail - AUTOMATIC BACKUP FAILED
       await auditLogService.logAutomaticBackup(null, false, error.message);
@@ -62,8 +60,10 @@ const initializeBackupScheduler = () => {
     timezone: process.env.BACKUP_TIMEZONE || 'Asia/Manila' // Philippines timezone
   });
   
-  console.log('[BACKUP SCHEDULER] ✅ Automatic backup scheduler initialized');
-  console.log(`[BACKUP SCHEDULER] ℹ️  Next backup: ${getNextBackupTime(cronExpression)}`);
+  // Silent initialization - only log if DEBUG mode
+  if (process.env.DEBUG === 'true') {
+    console.log(`[DEBUG] Backup scheduler: ${cronExpression}`);
+  }
 };
 
 /**

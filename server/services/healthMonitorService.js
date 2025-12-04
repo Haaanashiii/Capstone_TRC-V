@@ -47,10 +47,9 @@ let lastHealthStatus = {
 
 /**
  * Perform database health check
+ * @param {boolean} silent - If true, don't log success messages
  */
-async function performHealthCheck() {
-  console.log('[HEALTH] Starting database health check...');
-  
+async function performHealthCheck(silent = false) {
   const issues = [];
   const startTime = Date.now();
   
@@ -62,7 +61,7 @@ async function performHealthCheck() {
         severity: 'critical',
         message: 'MongoDB is not connected'
       });
-      return createHealthReport(issues, startTime);
+      return createHealthReport(issues, startTime, silent);
     }
     
     const db = mongoose.connection.db;
@@ -76,7 +75,7 @@ async function performHealthCheck() {
         severity: 'critical',
         message: `Database not responding: ${error.message}`
       });
-      return createHealthReport(issues, startTime);
+      return createHealthReport(issues, startTime, silent);
     }
     
     // Check 3: Collections exist and are readable
@@ -168,23 +167,23 @@ async function performHealthCheck() {
       // Ignore disk check errors
     }
     
-    return createHealthReport(issues, startTime);
+    return createHealthReport(issues, startTime, silent);
     
   } catch (error) {
-    console.error('[HEALTH] Health check error:', error);
+    console.error('[HEALTH] Error:', error.message);
     issues.push({
       type: 'system',
       severity: 'critical',
       message: `Health check failed: ${error.message}`
     });
-    return createHealthReport(issues, startTime);
+    return createHealthReport(issues, startTime, silent);
   }
 }
 
 /**
  * Create health report from issues
  */
-function createHealthReport(issues, startTime) {
+function createHealthReport(issues, startTime, silent = false) {
   const criticalIssues = issues.filter(i => i.severity === 'critical');
   const warningIssues = issues.filter(i => i.severity === 'warning');
   
@@ -215,12 +214,12 @@ function createHealthReport(issues, startTime) {
   lastHealthStatus.isHealthy = isHealthy;
   lastHealthStatus.lastCheck = new Date();
   
-  // Log status
-  if (isHealthy) {
-    console.log(`[HEALTH] ✅ Database healthy (${durationMs}ms)`);
-  } else {
-    console.log(`[HEALTH] ⚠️  Issues detected: ${criticalIssues.length} critical, ${warningIssues.length} warnings`);
-    issues.forEach(i => console.log(`[HEALTH]   - [${i.severity.toUpperCase()}] ${i.message}`));
+  // Only log if not silent OR if there are issues (always log problems)
+  if (!silent || !isHealthy) {
+    if (!isHealthy) {
+      console.log(`[HEALTH] WARNING - Issues: ${criticalIssues.length} critical, ${warningIssues.length} warnings`);
+      issues.forEach(i => console.log(`  - [${i.severity.toUpperCase()}] ${i.message}`));
+    }
   }
   
   return report;
@@ -230,7 +229,7 @@ function createHealthReport(issues, startTime) {
  * Attempt automatic recovery from last good backup
  */
 async function attemptAutoRecovery() {
-  console.log('[RECOVERY] 🔄 Attempting automatic recovery...');
+  console.log('[RECOVERY] Attempting automatic recovery...');
   
   lastHealthStatus.recoveryAttempts++;
   
@@ -239,7 +238,7 @@ async function attemptAutoRecovery() {
     const lastBackup = await Backup.getLastSuccessfulBackup();
     
     if (!lastBackup) {
-      console.error('[RECOVERY] ❌ No backup available for recovery');
+      console.error('[RECOVERY] ERROR - No backup available for recovery');
       const result = { success: false, error: 'No backup available' };
       await auditLogService.logAutoRecovery(result, 'health-monitor', false, 'No backup available');
       return result;
@@ -250,7 +249,7 @@ async function attemptAutoRecovery() {
     const verification = await backupService.verifyBackup(lastBackup.backupId);
     
     if (!verification.valid) {
-      console.error(`[RECOVERY] ❌ Backup verification failed: ${verification.error}`);
+      console.error(`[RECOVERY] ERROR - Backup verification failed: ${verification.error}`);
       const result = { success: false, error: `Backup verification failed: ${verification.error}` };
       await auditLogService.logAutoRecovery(result, 'health-monitor', false, result.error);
       return result;
@@ -279,7 +278,7 @@ async function attemptAutoRecovery() {
       dryRun: false
     });
     
-    console.log(`[RECOVERY] ✅ Recovery completed: ${restoreResult.totalDocuments} documents restored`);
+    console.log(`[RECOVERY] SUCCESS - Recovery completed: ${restoreResult.totalDocuments} documents restored`);
     
     const result = {
       success: true,
@@ -294,7 +293,7 @@ async function attemptAutoRecovery() {
     return result;
     
   } catch (error) {
-    console.error('[RECOVERY] ❌ Recovery failed:', error.message);
+    console.error('[RECOVERY] ERROR - Recovery failed:', error.message);
     const result = { success: false, error: error.message };
     await auditLogService.logAutoRecovery(result, 'health-monitor', false, error.message);
     return result;
@@ -321,11 +320,9 @@ function getHealthStatus() {
 let healthCheckJob = null;
 
 function initializeHealthMonitor() {
-  console.log('[HEALTH] Initializing database health monitor...');
-  
   // Validate cron expression
   if (!cron.validate(HEALTH_CONFIG.checkInterval)) {
-    console.error(`[HEALTH] Invalid cron expression: ${HEALTH_CONFIG.checkInterval}`);
+    console.error(`[ERROR] Health monitor: invalid cron ${HEALTH_CONFIG.checkInterval}`);
     return;
   }
   
@@ -339,7 +336,7 @@ function initializeHealthMonitor() {
         HEALTH_CONFIG.autoRecoveryEnabled &&
         lastHealthStatus.consecutiveFailures >= 3) {
       
-      console.log('[HEALTH] Multiple consecutive failures detected, initiating auto-recovery...');
+      console.log('[HEALTH] Auto-recovery triggered after 3 failures...');
       await attemptAutoRecovery();
       
       // Re-check health after recovery
@@ -350,11 +347,13 @@ function initializeHealthMonitor() {
     timezone: process.env.BACKUP_TIMEZONE || 'Asia/Manila'
   });
   
-  console.log(`[HEALTH] ✅ Health monitor initialized (checking ${HEALTH_CONFIG.checkInterval})`);
-  console.log(`[HEALTH] Auto-recovery: ${HEALTH_CONFIG.autoRecoveryEnabled ? 'ENABLED' : 'DISABLED'}`);
+  // Silent initialization - only log if DEBUG mode
+  if (process.env.DEBUG === 'true') {
+    console.log(`[DEBUG] Health monitor: ${HEALTH_CONFIG.checkInterval}`);
+  }
   
-  // Run initial health check
-  performHealthCheck();
+  // Run initial health check silently (don't log success)
+  performHealthCheck(true);
 }
 
 function stopHealthMonitor() {

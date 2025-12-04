@@ -241,9 +241,9 @@ class AuditLogService {
       case 'ADMIN_PRE_UPDATE_BACKUP':
         return `${name} created pre-update backup before: ${details?.updateDescription || 'system update'}`;
       case 'ADMIN_RESTORE_BACKUP':
-        return `⚠️ ${name} RESTORED database from backup: ${details?.backupId || 'N/A'} (${details?.totalDocuments || 0} documents)`;
+        return `[WARNING] ${name} RESTORED database from backup: ${details?.backupId || 'N/A'} (${details?.totalDocuments || 0} documents)`;
       case 'SYSTEM_AUTO_RECOVERY':
-        return `⚠️ System automatically recovered database from backup: ${details?.backupId || 'last good backup'}`;
+        return `[WARNING] System automatically recovered database from backup: ${details?.backupId || 'last good backup'}`;
       case 'ADMIN_DELETE_BACKUP':
         return `${name} deleted backup: ${details?.backupId || 'N/A'}`;
       case 'ADMIN_DOWNLOAD_BACKUP':
@@ -251,7 +251,7 @@ class AuditLogService {
       case 'ADMIN_FULL_DATABASE_EXPORT':
         return `${name} exported FULL DATABASE for external storage (${details?.formattedSize || 'N/A'}, ${details?.totalDocuments || 0} documents)`;
       case 'ADMIN_IMPORT_FROM_EXTERNAL':
-        return `⚠️ ${name} IMPORTED database from external backup file (${details?.totalDocuments || 0} documents)`;
+        return `[WARNING] ${name} IMPORTED database from external backup file (${details?.totalDocuments || 0} documents)`;
       case 'ADMIN_ARCHIVE_OLD_DATA':
         return `${name} archived ${details?.totalArchivedDocuments || 0} old documents${details?.deleteAfterArchive ? ' and DELETED from database' : ''}`;
       case 'ADMIN_RESTORE_FROM_ARCHIVE':
@@ -261,7 +261,7 @@ class AuditLogService {
       case 'ADMIN_UNPROTECT_BACKUP':
         return `${name} removed protection from backup: ${details?.backupId || 'N/A'}`;
       case 'ADMIN_VERIFY_BACKUP':
-        return `${name} verified backup ${details?.backupId || 'N/A'}: ${details?.valid ? '✅ Valid' : '❌ Corrupted'}`;
+        return `${name} verified backup ${details?.backupId || 'N/A'}: ${details?.valid ? 'VALID' : 'CORRUPTED'}`;
       case 'ADMIN_UPDATE_BACKUP_CONFIG':
         return `${name} updated backup system configuration`;
       

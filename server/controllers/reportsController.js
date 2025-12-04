@@ -1,6 +1,7 @@
 const reportsRepository = require('../repositories/reportsRepository');
 const { getClientIp } = require('../utils/ipHelper');
 const { REPORT_CATEGORIES } = require('../models/reportsModel');
+const { findFranchiseNumberByHash } = require('../utils/franchiseHelpers');
 
 const CATEGORY_LABELS = {
   overpricing: 'Fare Overpricing',
@@ -79,20 +80,22 @@ exports.createPublicReport = async (req, res, next) => {
         }
 
         const FranchiseInformation = require('../models/franchiseInformationModel');
-        const { generateHashedFranchiseNo } = require('../utils/franchiseHelpers');
         
-        let franchise = null;
-        const allCurrentFranchises = await FranchiseInformation.find({ 
-          isCurrentVersion: true 
-        }).lean();
+        // OPTIMIZED: Use cached hash lookup instead of full collection scan
+        const franchiseNumber = await findFranchiseNumberByHash(operatorId);
         
-        for (const f of allCurrentFranchises) {
-          const computedHash = generateHashedFranchiseNo(f.franchiseNumber);
-          if (computedHash === operatorId) {
-            franchise = f;
-            break;
-          }
+        if (!franchiseNumber) {
+            console.warn(`[REPORT] Non-existent franchise hash: ${operatorId}, IP: ${clientIp}`);
+            return res.status(404).json({ error: 'Operator not found' });
         }
+        
+        // Direct indexed lookup (very fast)
+        const franchise = await FranchiseInformation.findOne({
+          franchiseNumber: franchiseNumber,
+          isCurrentVersion: true
+        })
+        .select('franchiseNumber operatorName operatorBarangay barangay franchiseStatus')
+        .lean();
         
         if (!franchise) {
             console.warn(`[REPORT] Non-existent franchise hash: ${operatorId}, IP: ${clientIp}`);
@@ -344,10 +347,11 @@ exports.getMonthlyReports = async (req, res, next) => {
             return res.status(400).json({ error: 'Month must be between 1 and 12' });
         }
 
-        let reports = await reportsRepository.getMonthlyReports(monthNum, yearNum);
-        
-        if (category) reports = reports.filter(r => r.category === category);
-        if (barangay) reports = reports.filter(r => r.operatorBarangay === barangay);
+        // Pass filters to repository for database-level filtering (efficient for 10K+ docs)
+        const reports = await reportsRepository.getMonthlyReports(monthNum, yearNum, {
+            category,
+            barangay
+        });
         
         if (format === 'csv') {
             const csvHeader = 'Report ID,Category,Operator Name,Barangay,Date Reported,Time Reported,Amount Charged,Expected Fare,Description,Reporter,Contact,Status\n';
@@ -419,10 +423,11 @@ exports.getReportsByDateRange = async (req, res, next) => {
 
         end.setHours(23, 59, 59, 999);
 
-        let reports = await reportsRepository.getReportsByDateRange(start, end);
-        
-        if (category) reports = reports.filter(r => r.category === category);
-        if (barangay) reports = reports.filter(r => r.operatorBarangay === barangay);
+        // Use database-level filtering for efficiency
+        const reports = await reportsRepository.getReportsByDateRange(start, end, {
+            category,
+            barangay
+        });
         
         if (format === 'csv') {
             const csvHeader = 'Report ID,Category,Operator Name,Barangay,Date Reported,Time Reported,Amount Charged,Expected Fare,Description,Reporter,Contact,Status\n';

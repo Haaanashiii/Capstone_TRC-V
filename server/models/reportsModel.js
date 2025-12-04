@@ -51,15 +51,39 @@ const reportSchema = new mongoose.Schema({
     actionTaken: { type: String }
 }, { timestamps: true });
 
+// Essential indexes for filtering and sorting
 reportSchema.index({ status: 1 });
 reportSchema.index({ category: 1 });
 reportSchema.index({ operatorName: 1 });
 reportSchema.index({ operatorBarangay: 1 });
 reportSchema.index({ franchiseNumber: 1 });
 reportSchema.index({ dateReported: -1 });
+
+// Compound indexes for common query patterns (10K+ optimization)
 reportSchema.index({ status: 1, dateReported: -1 });
 reportSchema.index({ category: 1, status: 1 });
 reportSchema.index({ operatorBarangay: 1, status: 1 });
+reportSchema.index({ operatorBarangay: 1, dateReported: -1 }); // For barangay reports over time
+
+// Text index for efficient search (replaces slow regex searches)
+reportSchema.index({
+  reportID: 'text',
+  operatorName: 'text',
+  franchiseNumber: 'text',
+  description: 'text',
+  reporterName: 'text',
+  operatorBarangay: 'text'
+}, {
+  weights: {
+    reportID: 10,         // Highest priority for exact ID matches
+    franchiseNumber: 8,
+    operatorName: 5,
+    operatorBarangay: 3,
+    reporterName: 2,
+    description: 1
+  },
+  name: 'reports_text_search'
+});
 
 // Counter schema for atomic ID generation
 const counterSchema = new mongoose.Schema({

@@ -588,11 +588,14 @@ function initializeFranchiseExpiryScheduler() {
   if (now.getHours() >= 6) {
     nextRun.setDate(nextRun.getDate() + 1);
   }
-  console.log('[Expiry Scheduler] Initialized - runs daily at 6:00 AM (PH Time)');
+  // Silent initialization - only log if DEBUG mode
+  if (process.env.DEBUG === 'true') {
+    console.log('[DEBUG] Expiry scheduler: daily at 6:00 AM');
+  }
   
   // Run immediately on startup (optional - for testing)
   if (process.env.RUN_EXPIRY_CHECK_ON_STARTUP === 'true') {
-    console.log('[EXPIRY_SCHEDULER] Running initial expiry check...');
+    console.log('[EXPIRY] Running initial check...');
     setTimeout(() => runExpiryChecks(), 5000); // Run after 5 seconds
   }
 }

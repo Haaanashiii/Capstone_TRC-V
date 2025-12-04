@@ -3,29 +3,27 @@ const FranchiseInformation = require('../models/franchiseInformationModel');
 const Report = require('../models/reportsModel');
 const cacheManager = require('../utils/cache');
 
-// Get main dashboard numbers (saved in memory for 5 minutes)
+// Get dashboard statistics (uses aggregation pipeline, cached 5min)
 exports.getDashboardStatistics = async (req, res, next) => {
   try {
     // Get date range from query parameters, default to current week
     const startDate = req.query.startDate ? new Date(req.query.startDate) : (() => {
       const today = new Date();
       const day = today.getDay();
-      const diff = today.getDate() - day + (day === 0 ? -6 : 1); // Adjust to Monday
+      const diff = today.getDate() - day + (day === 0 ? -6 : 1);
       return new Date(today.setDate(diff));
     })();
     
     const endDate = req.query.endDate ? new Date(req.query.endDate) : new Date();
     
-    // Set start date to beginning of day and end date to end of day
     startDate.setHours(0, 0, 0, 0);
     endDate.setHours(23, 59, 59, 999);
     
-    // Create cache key based on date range
+    // Cache key based on date range
     const cacheKey = `dashboard-stats-${startDate.toISOString().split('T')[0]}-${endDate.toISOString().split('T')[0]}`;
     const cachedStats = cacheManager.get(cacheKey);
     
     if (cachedStats) {
-      console.log('[Dashboard] Returning cached data');
       return res.status(200).json({
         success: true,
         data: cachedStats,
@@ -34,118 +32,46 @@ exports.getDashboardStatistics = async (req, res, next) => {
     }
 
     const currentDate = new Date();
-    
-    console.log('[Dashboard] Querying data from', startDate.toISOString(), 'to', endDate.toISOString());
 
-    // Run all database queries at the same time (faster)
+    // Run all queries in parallel
     const [
       totalRegisteredResult,
       expiredFranchiseResult,
       pendingVerificationsResult,
       pendingReportsResult,
-      allFranchises
+      totalApplications,
+      trendAggregation
     ] = await Promise.all([
-      // Count all franchises (current versions only)
-      FranchiseInformation.countDocuments({ 
-        isCurrentVersion: true 
-      }),
-
-      // Count expired franchises using franchiseStatus field
-      FranchiseInformation.countDocuments({ 
-        isCurrentVersion: true,
-        franchiseStatus: 'Expired'
-      }),
-
-      // Count applications waiting for approval
-      FranchiseApplication.countDocuments({
-        $or: [
-          { actionTaken: { $exists: false } },
-          { actionTaken: null },
-          { actionTaken: '' }
-        ]
-      }),
-
-      // Count pending reports from public
+      FranchiseInformation.countDocuments({ isCurrentVersion: true }),
+      FranchiseInformation.countDocuments({ isCurrentVersion: true, franchiseStatus: 'Expired' }),
+      FranchiseApplication.countDocuments({ statusOfBPLO: 'pending' }),
       Report.countDocuments({ status: 'pending' }),
-
-      // Get ALL current franchises
-      FranchiseInformation.find({
-        isCurrentVersion: true
-      }).select('approvedAt createdAt operatorName franchiseStatus').lean()
+      FranchiseApplication.countDocuments(),
+      
+      // Trend aggregation - groups by date in DB
+      FranchiseInformation.aggregate([
+        { $match: { isCurrentVersion: true, createdAt: { $gte: startDate, $lte: endDate } } },
+        { $project: { dateKey: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } }, franchiseStatus: 1 } },
+        {
+          $group: {
+            _id: '$dateKey',
+            active: { $sum: { $cond: [{ $eq: ['$franchiseStatus', 'Active'] }, 1, 0] } },
+            expired: { $sum: { $cond: [{ $eq: ['$franchiseStatus', 'Expired'] }, 1, 0] } },
+            revoked: { $sum: { $cond: [{ $eq: ['$franchiseStatus', 'Revoked'] }, 1, 0] } },
+            total: { $sum: 1 }
+          }
+        },
+        { $sort: { _id: 1 } },
+        { $project: { _id: 0, date: '$_id', active: 1, expired: 1, revoked: 1, total: 1 } }
+      ])
     ]);
 
-    console.log('[Dashboard] Total franchises found:', allFranchises.length);
-    
-    // Log all franchises to see what we have
-    allFranchises.forEach((f, i) => {
-      console.log(`[Dashboard] Franchise ${i + 1}:`, {
-        name: f.operatorName,
-        status: f.franchiseStatus,
-        approvedAt: f.approvedAt,
-        createdAt: f.createdAt
-      });
-    });
-
-    // Filter franchises by createdAt date within range
-    const franchisesInRange = allFranchises.filter(franchise => {
-      // Use createdAt as the reference date (it always exists from timestamps)
-      const referenceDate = new Date(franchise.createdAt);
-      return referenceDate >= startDate && referenceDate <= endDate;
-    });
-    
-    console.log('[Dashboard] Franchises in date range:', franchisesInRange.length);
-
-    // Group franchises by date
-    const franchisesByDate = {};
-    
-    franchisesInRange.forEach(franchise => {
-      const dateKey = new Date(franchise.createdAt).toISOString().split('T')[0]; // YYYY-MM-DD
-      
-      if (!franchisesByDate[dateKey]) {
-        franchisesByDate[dateKey] = {
-          active: 0,
-          expired: 0,
-          revoked: 0,
-          total: 0
-        };
-      }
-      
-      // Use franchiseStatus field to determine status
-      const status = franchise.franchiseStatus;
-      console.log(`[Dashboard] Franchise ${franchise.operatorName} has status: "${status}"`);
-      
-      if (status === 'Active') {
-        franchisesByDate[dateKey].active++;
-      } else if (status === 'Expired') {
-        franchisesByDate[dateKey].expired++;
-      } else if (status === 'Revoked') {
-        franchisesByDate[dateKey].revoked++;
-      }
-      franchisesByDate[dateKey].total++;
-    });
-    
-    // Convert to array and sort by date
-    const trendData = Object.keys(franchisesByDate)
-      .sort()
-      .map(date => ({
-        date,
-        active: franchisesByDate[date].active,
-        expired: franchisesByDate[date].expired,
-        revoked: franchisesByDate[date].revoked || 0,
-        total: franchisesByDate[date].total
-      }));
-    
-    console.log('[Dashboard] Final trend data:', JSON.stringify(trendData, null, 2));
-
-    // Calculate additional statistics
-    const totalApplications = await FranchiseApplication.countDocuments();
     const approvalRate = totalApplications > 0 
       ? ((totalRegisteredResult / totalApplications) * 100).toFixed(1)
       : 0;
 
-    // Get total active and expired in the selected range
-    const totalActive = trendData.reduce((sum, item) => sum + item.active, 0);
-    const totalExpired = trendData.reduce((sum, item) => sum + item.expired, 0);
+    const totalActive = trendAggregation.reduce((sum, item) => sum + item.active, 0);
+    const totalExpired = trendAggregation.reduce((sum, item) => sum + item.expired, 0);
 
     const statsData = {
       kpis: {
@@ -157,7 +83,7 @@ exports.getDashboardStatistics = async (req, res, next) => {
         approvalRate: parseFloat(approvalRate)
       },
       trends: {
-        monthly: trendData,
+        monthly: trendAggregation,
         currentMonth: {
           active: totalActive,
           expired: totalExpired,
@@ -171,14 +97,8 @@ exports.getDashboardStatistics = async (req, res, next) => {
         end: endDate.toISOString()
       }
     };
-    
-    console.log('[Dashboard] Returning stats:', {
-      kpis: statsData.kpis,
-      trendDataCount: statsData.trends.monthly.length,
-      currentPeriod: statsData.trends.currentMonth
-    });
 
-    // Cache the stats for 5 minutes to reduce database load
+    // Cache for 5 minutes
     cacheManager.set(cacheKey, statsData, 300);
 
     res.status(200).json({
@@ -186,24 +106,21 @@ exports.getDashboardStatistics = async (req, res, next) => {
       data: statsData
     });
   } catch (error) {
-    console.error('[Dashboard] Error fetching statistics:', error);
+    console.error('[Dashboard] Error:', error.message);
     next(error);
   }
 };
 
-/**
- * Get recent applications for dashboard activity feed
- * @param {number} limit - Number of recent applications to fetch (default: 5)
- */
+// Get recent applications (capped at 20)
 exports.getRecentApplications = async (req, res, next) => {
   try {
-    const limit = parseInt(req.query.limit) || 5;
+    const limit = Math.min(parseInt(req.query.limit) || 5, 20);
 
     const recentApplications = await FranchiseApplication.find()
       .sort({ submittedAt: -1 })
       .limit(limit)
-      .select('operatorName actionType submittedAt actionTaken')
-      .lean(); // Optimization: lean() for read-only queries
+      .select('operatorName applicationType submittedAt statusOfBPLO franchiseNumber')
+      .lean();
 
     res.status(200).json({
       success: true,
@@ -215,13 +132,9 @@ exports.getRecentApplications = async (req, res, next) => {
   }
 };
 
-/**
- * Get quick statistics for admin overview
- * Lightweight endpoint for frequent polling - cached for 2 minutes
- */
+// Quick stats for polling (cached 2min)
 exports.getQuickStats = async (req, res, next) => {
   try {
-    // Check cache first (TTL: 2 minutes for more frequent updates)
     const cacheKey = 'quick-stats';
     const cachedStats = cacheManager.get(cacheKey);
     
@@ -234,19 +147,11 @@ exports.getQuickStats = async (req, res, next) => {
     }
 
     const [totalRegistered, pendingVerifications, expiredFranchise, pendingReports] = await Promise.all([
-      FranchiseApplication.countDocuments({ 
-        actionTaken: { $exists: true, $ne: null, $ne: '' }
-      }),
-      FranchiseApplication.countDocuments({
-        $or: [
-          { actionTaken: { $exists: false } },
-          { actionTaken: null },
-          { actionTaken: '' }
-        ]
-      }),
+      FranchiseInformation.countDocuments({ isCurrentVersion: true }),
+      FranchiseApplication.countDocuments({ statusOfBPLO: 'pending' }),
       FranchiseInformation.countDocuments({ 
         isCurrentVersion: true,
-        expiryDate: { $lt: new Date() }
+        franchiseStatus: 'Expired'
       }),
       Report.countDocuments({ status: 'pending' })
     ]);
@@ -258,8 +163,7 @@ exports.getQuickStats = async (req, res, next) => {
       pendingReports
     };
 
-    // Cache for 2 minutes
-    cacheManager.set('quick-stats', quickStats, 120);
+    cacheManager.set(cacheKey, quickStats, 120);
 
     res.status(200).json({
       success: true,
@@ -271,146 +175,78 @@ exports.getQuickStats = async (req, res, next) => {
   }
 };
 
-/**
- * Get analytics data for franchise distribution by barangay
- * Provides comprehensive analytics including total, active, and expired franchises per barangay
- */
+// Analytics - franchise distribution by barangay (cached 10min)
 exports.getAnalytics = async (req, res, next) => {
   try {
+    const cacheKey = 'dashboard-analytics';
+    const cachedAnalytics = cacheManager.get(cacheKey);
+    
+    if (cachedAnalytics) {
+      return res.status(200).json({
+        success: true,
+        data: cachedAnalytics,
+        cached: true
+      });
+    }
+
     const currentDate = new Date();
 
-    // Run all queries in parallel for optimal performance
-    const [
-      totalFranchises,
-      activeFranchises,
-      expiredFranchises,
-      pendingApplications,
-      barangayStats
-    ] = await Promise.all([
-      // Total franchises count (only current versions)
-      FranchiseInformation.countDocuments({ isCurrentVersion: true }),
-
-      // Active franchises (not expired, only current versions)
-      FranchiseInformation.countDocuments({ 
-        isCurrentVersion: true,
-        expiryDate: { $gte: currentDate }
-      }),
-
-      // Expired franchises (only current versions)
-      FranchiseInformation.countDocuments({ 
-        isCurrentVersion: true,
-        expiryDate: { $lt: currentDate }
-      }),
-
-      // Pending applications
-      FranchiseApplication.countDocuments({
-        $or: [
-          { actionTaken: { $exists: false } },
-          { actionTaken: null },
-          { actionTaken: '' }
-        ]
-      }),
-
-      // Barangay-wise franchise distribution
+    const [aggregationResult] = await Promise.all([
       FranchiseInformation.aggregate([
-        {
-          $match: {
-            isCurrentVersion: true
-          }
-        },
+        { $match: { isCurrentVersion: true } },
         {
           $facet: {
-            // Get active franchises by barangay
-            activeByBarangay: [
-              {
-                $match: {
-                  expiryDate: { $gte: currentDate }
-                }
-              },
+            totals: [
               {
                 $group: {
-                  _id: '$operatorBarangay',
-                  count: { $sum: 1 }
+                  _id: null,
+                  total: { $sum: 1 },
+                  active: { $sum: { $cond: [{ $eq: ['$franchiseStatus', 'Active'] }, 1, 0] } },
+                  expired: { $sum: { $cond: [{ $eq: ['$franchiseStatus', 'Expired'] }, 1, 0] } },
+                  revoked: { $sum: { $cond: [{ $eq: ['$franchiseStatus', 'Revoked'] }, 1, 0] } }
                 }
               }
             ],
-            // Get expired franchises by barangay
-            expiredByBarangay: [
+            byBarangay: [
               {
-                $match: {
-                  expiryDate: { $lt: currentDate }
+                $group: {
+                  _id: '$operatorBarangay',
+                  total: { $sum: 1 },
+                  active: { $sum: { $cond: [{ $eq: ['$franchiseStatus', 'Active'] }, 1, 0] } },
+                  expired: { $sum: { $cond: [{ $eq: ['$franchiseStatus', 'Expired'] }, 1, 0] } }
                 }
               },
-              {
-                $group: {
-                  _id: '$operatorBarangay',
-                  count: { $sum: 1 }
-                }
-              }
-            ],
-            // Get total franchises by barangay
-            totalByBarangay: [
-              {
-                $group: {
-                  _id: '$operatorBarangay',
-                  count: { $sum: 1 }
-                }
-              }
+              { $sort: { active: -1 } },
+              { $limit: 50 }
             ]
           }
         }
       ])
     ]);
 
-    // Process barangay statistics
-    const barangayMap = new Map();
+    const pendingApplications = await FranchiseApplication.countDocuments({ statusOfBPLO: 'pending' });
+    const totals = aggregationResult.totals[0] || { total: 0, active: 0, expired: 0, revoked: 0 };
+    const barangayData = aggregationResult.byBarangay.map(b => ({
+      barangay: b._id || 'Unknown',
+      total: b.total,
+      active: b.active,
+      expired: b.expired
+    }));
 
-    // Extract results from aggregation
-    const { activeByBarangay, expiredByBarangay, totalByBarangay } = barangayStats[0] || {
-      activeByBarangay: [],
-      expiredByBarangay: [],
-      totalByBarangay: []
+    const analyticsData = {
+      totalFranchises: totals.total,
+      activeFranchises: totals.active,
+      expiredFranchises: totals.expired,
+      revokedFranchises: totals.revoked,
+      pendingApplications,
+      barangayData
     };
 
-    // Initialize map with total counts
-    totalByBarangay.forEach(item => {
-      if (item._id) {
-        barangayMap.set(item._id, {
-          barangay: item._id,
-          active: 0,
-          expired: 0,
-          total: item.count
-        });
-      }
-    });
-
-    // Add active counts
-    activeByBarangay.forEach(item => {
-      if (item._id && barangayMap.has(item._id)) {
-        barangayMap.get(item._id).active = item.count;
-      }
-    });
-
-    // Add expired counts
-    expiredByBarangay.forEach(item => {
-      if (item._id && barangayMap.has(item._id)) {
-        barangayMap.get(item._id).expired = item.count;
-      }
-    });
-
-    // Convert map to array and sort by active count (descending)
-    const barangayData = Array.from(barangayMap.values())
-      .sort((a, b) => b.active - a.active);
+    cacheManager.set(cacheKey, analyticsData, 600);
 
     res.status(200).json({
       success: true,
-      data: {
-        totalFranchises,
-        activeFranchises,
-        expiredFranchises,
-        pendingApplications,
-        barangayData
-      },
+      data: analyticsData,
       timestamp: currentDate.toISOString()
     });
   } catch (error) {

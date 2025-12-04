@@ -67,11 +67,11 @@ async function testCertificateGeneration() {
             // Save the filled PDF
             await fs.writeFile(outputPath, pdfBytes);
             
-            console.log(`   ✅ Successfully generated: ${template.output}`);
-            console.log(`   📁 Saved to: ${outputPath}`);
+            console.log(`   [OK] Successfully generated: ${template.output}`);
+            console.log(`   [FILE] Saved to: ${outputPath}`);
             
         } catch (error) {
-            console.error(`   ❌ Error: ${error.message}`);
+            console.error(`   [ERROR] ${error.message}`);
         }
     }
     

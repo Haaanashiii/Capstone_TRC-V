@@ -242,7 +242,7 @@ class BackupService {
       
       await backupRecord.save();
       
-      console.log(`[BACKUP] ✅ Backup completed: ${backupId}`);
+      console.log(`[BACKUP] SUCCESS - Backup completed: ${backupId}`);
       console.log(`[BACKUP] - Duration: ${durationMs}ms`);
       console.log(`[BACKUP] - Size: ${this.formatBytes(stats.size)}`);
       console.log(`[BACKUP] - Documents: ${totalDocuments}`);
@@ -267,7 +267,7 @@ class BackupService {
       };
       
     } catch (error) {
-      console.error(`[BACKUP] ❌ Backup failed: ${error.message}`);
+      console.error(`[BACKUP] ERROR - Backup failed: ${error.message}`);
       
       // Update backup record with error
       backupRecord.status = 'failed';
@@ -399,7 +399,7 @@ class BackupService {
     backupRecord.recovery.restoredCount += 1;
     await backupRecord.save();
     
-    console.log(`[RESTORE] ✅ Restore completed from backup: ${backupId}`);
+    console.log(`[RESTORE] SUCCESS - Restore completed from backup: ${backupId}`);
     
     return {
       success: true,
@@ -915,7 +915,7 @@ class BackupService {
     
     await archiveRecord.save();
     
-    console.log(`[ARCHIVE] ✅ Archive completed: ${archiveId}`);
+    console.log(`[ARCHIVE] SUCCESS - Archive completed: ${archiveId}`);
     console.log(`[ARCHIVE] - Duration: ${durationMs}ms`);
     console.log(`[ARCHIVE] - Size: ${this.formatBytes(fileStats.size)}`);
     console.log(`[ARCHIVE] - Archived: ${totalArchivedDocuments} documents`);
@@ -1224,7 +1224,7 @@ class BackupService {
       totalRestored += insertedCount;
     }
     
-    console.log(`[ARCHIVE] ✅ Restore from archive completed: ${archiveId}`);
+    console.log(`[ARCHIVE] SUCCESS - Restore from archive completed: ${archiveId}`);
     console.log(`[ARCHIVE] - Total restored: ${totalRestored} documents`);
     
     return {
@@ -1383,7 +1383,7 @@ class BackupService {
       
       await exportRecord.save();
       
-      console.log(`[EXPORT] ✅ Full export completed: ${exportId}`);
+      console.log(`[EXPORT] SUCCESS - Full export completed: ${exportId}`);
       console.log(`[EXPORT] - Duration: ${durationMs}ms`);
       console.log(`[EXPORT] - File Size: ${this.formatBytes(fileStats.size)}`);
       console.log(`[EXPORT] - Documents: ${totalDocuments}`);
@@ -1408,7 +1408,7 @@ class BackupService {
       };
       
     } catch (error) {
-      console.error(`[EXPORT] ❌ Export failed: ${error.message}`);
+      console.error(`[EXPORT] ERROR - Export failed: ${error.message}`);
       
       exportRecord.status = 'failed';
       exportRecord.completedAt = new Date();
@@ -1545,7 +1545,7 @@ class BackupService {
       console.log('[IMPORT] Could not delete uploaded file:', e.message);
     }
     
-    console.log(`[IMPORT] ✅ Import completed`);
+    console.log(`[IMPORT] SUCCESS - Import completed`);
     console.log(`[IMPORT] - Total imported: ${totalDocuments} documents`);
     
     return {

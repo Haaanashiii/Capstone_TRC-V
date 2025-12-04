@@ -6,10 +6,8 @@ let initialized = false;
 function getStorageService() {
   if (!storageService) {
     if (STORAGE_BACKEND === 'r2') {
-      console.log('[Storage] Using Cloudflare R2 backend');
       storageService = require('./cloudflareService');
     } else {
-      console.log('[Storage] Using GridFS backend');
       storageService = require('./gridfsService');
     }
   }
