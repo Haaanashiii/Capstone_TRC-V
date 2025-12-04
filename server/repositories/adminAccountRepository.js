@@ -117,6 +117,30 @@ exports.deactivateAdmin = async (id) => {
 };
 
 /**
+ * Activate admin account
+ */
+exports.activateAdmin = async (id) => {
+  return await exports.updateAdminAccount(id, { isActive: true });
+};
+
+/**
+ * Toggle admin account status (active/inactive)
+ */
+exports.toggleAdminStatus = async (id) => {
+  let admin = await AdminAccount.findOne({ adminId: id });
+  if (!admin) {
+    admin = await AdminAccount.findById(id);
+  }
+
+  if (!admin) {
+    throw new Error('Admin not found');
+  }
+
+  admin.isActive = !admin.isActive;
+  return await admin.save();
+};
+
+/**
  * Hard delete admin account
  */
 exports.deleteAdminAccount = async (id) => {

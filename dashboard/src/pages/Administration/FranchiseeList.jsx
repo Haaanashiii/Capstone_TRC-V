@@ -2,6 +2,7 @@ import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react'
 import Sidebar from './Sidebar';
 import { franchiseInformationAPI, API_BASE_URL } from '../Services/api';
 import websocketService from '../../services/websocket';
+import { useAuth } from '../../contexts/AuthContext';
 import {
   Box,
   Typography,
@@ -33,6 +34,17 @@ import {
   Select,
   FormControl,
   InputLabel,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Checkbox,
+  FormControlLabel,
+  FormGroup,
+  Divider,
+  RadioGroup,
+  Radio,
+  Tooltip,
 } from '@mui/material';
 import { styled } from "@mui/material/styles";
 import SearchIcon from '@mui/icons-material/Search';
@@ -46,11 +58,75 @@ import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import DownloadIcon from '@mui/icons-material/Download';
 import FileDownloadIcon from '@mui/icons-material/FileDownload';
 import FilterListIcon from '@mui/icons-material/FilterList';
+import CancelIcon from '@mui/icons-material/Cancel';
+import SortIcon from '@mui/icons-material/Sort';
+import DateRangeIcon from '@mui/icons-material/DateRange';
+import CategoryIcon from '@mui/icons-material/Category';
+import LocationOnIcon from '@mui/icons-material/LocationOn';
+import HistoryIcon from '@mui/icons-material/History';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import * as XLSX from 'xlsx';
 import '../../Styles/Administrator_Css/FranchiseeList.css';
 import '../../Styles/Administrator_Css/SharedTable.css';
 
-// Styled components for table
+// ============================================================================
+// CONSTANTS
+// ============================================================================
+
+const CIVIL_STATUS_OPTIONS = ['Single', 'Married', 'Widowed', 'Separated', 'Divorced'];
+const FRANCHISE_STATUS_OPTIONS = ['Active', 'Inactive', 'Suspended', 'Expired', 'Revoked'];
+const APPLICATION_TYPE_OPTIONS = ['New', 'Renewal', 'Update ownership', 'Change unit', 'Auto expired', 'Auto revoked'];
+
+// Change type to color mapping
+const CHANGE_TYPE_COLORS = {
+  new: 'success',
+  renewal: 'primary',
+  update_ownership: 'warning',
+  change_unit: 'info',
+  auto_expired: 'error',
+  auto_revoked: 'error',
+};
+
+// Franchise status to color mapping
+const FRANCHISE_STATUS_COLORS = {
+  Active: 'success',
+  Expired: 'warning',
+  Revoked: 'error',
+};
+
+// ============================================================================
+// HELPER FUNCTIONS
+// ============================================================================
+
+/**
+ * Get chip color based on change type
+ * @param {string} changeType - The change type from backend
+ * @returns {string} MUI color name
+ */
+const getChangeTypeColor = (changeType) => CHANGE_TYPE_COLORS[changeType] || 'default';
+
+/**
+ * Get chip color based on franchise status
+ * @param {string} status - The franchise status
+ * @returns {string} MUI color name
+ */
+const getStatusColor = (status) => FRANCHISE_STATUS_COLORS[status] || 'default';
+
+/**
+ * Format change type for display (capitalize and replace underscores)
+ * @param {string} changeType - Raw change type from backend
+ * @returns {string} Formatted display string
+ */
+const formatChangeType = (changeType) => {
+  if (!changeType) return 'New';
+  return changeType.charAt(0).toUpperCase() + changeType.slice(1).replace(/_/g, ' ');
+};
+
+// ============================================================================
+// STYLED COMPONENTS
+// ============================================================================
+
 const StyledTableCell = styled(TableCell)(({ theme }) => ({
   [`&.${tableCellClasses.head}`]: {
     backgroundColor: '#0A356B',
@@ -93,9 +169,298 @@ const modalStyle = {
   flexDirection: 'column',
 };
 
-// FranchiseeDetailsModal Component
-const FranchiseeDetailsModal = ({ open, onClose, franchisee, isEditing, onEdit, onSave, onFilePreview, getFileIcon, getDocumentDisplayName, qrBlobUrl }) => {
+// ============================================================================
+// REUSABLE COMPONENTS
+// ============================================================================
+
+/**
+ * EditableField - Inline editable field component
+ * Renders as TextField/Select in edit mode, Typography in view mode
+ */
+const EditableField = ({ label, value, field, isEditing, editData, onChange, type = 'text', options = [] }) => {
+  const renderEditMode = () => {
+    if (type === 'select') {
+      return (
+        <FormControl size="small" fullWidth>
+          <Select
+            value={editData[field] || ''}
+            onChange={(e) => onChange(field, e.target.value)}
+            sx={{ bgcolor: 'white' }}
+          >
+            {options.map((opt) => (
+              <MenuItem key={opt} value={opt}>{opt}</MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+      );
+    }
+    return (
+      <TextField
+        size="small"
+        fullWidth
+        type={type}
+        value={editData[field] || ''}
+        onChange={(e) => onChange(field, e.target.value)}
+        sx={{ bgcolor: 'white' }}
+      />
+    );
+  };
+
+  return (
+    <>
+      <Typography variant="subtitle2" className="label">{label}:</Typography>
+      {isEditing ? renderEditMode() : <Typography>{value || 'N/A'}</Typography>}
+    </>
+  );
+};
+
+/**
+ * FranchiseHistorySection - Collapsible section showing franchise ownership history in table format
+ */
+const FranchiseHistorySection = ({ franchisee, isEditing }) => {
+  const [showHistory, setShowHistory] = useState(false);
+  const [historyData, setHistoryData] = useState(null);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+
+  const fetchHistory = useCallback(async () => {
+    if (!franchisee?.franchiseNumber) return;
+    
+    setLoadingHistory(true);
+    try {
+      const response = await franchiseInformationAPI.getHistory(franchisee.franchiseNumber);
+      if (response.data?.success) {
+        setHistoryData(response.data);
+      }
+    } catch (error) {
+      console.error('Error fetching franchise history:', error);
+    } finally {
+      setLoadingHistory(false);
+    }
+  }, [franchisee?.franchiseNumber]);
+
+  const handleToggleHistory = () => {
+    if (!showHistory && !historyData) {
+      fetchHistory();
+    }
+    setShowHistory(prev => !prev);
+  };
+
+  /**
+   * Format date for display
+   */
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+  };
+
+  const renderHistoryTable = () => {
+    if (!historyData?.ownershipHistory?.length) {
+      return (
+        <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 2 }}>
+          No ownership history found
+        </Typography>
+      );
+    }
+
+    return (
+      <TableContainer component={Paper} variant="outlined" sx={{ mt: 1 }}>
+        <Table size="small">
+          <TableHead>
+            <TableRow sx={{ bgcolor: '#f5f5f5' }}>
+              <TableCell sx={{ fontWeight: 600 }}>Franchise #</TableCell>
+              <TableCell sx={{ fontWeight: 600 }}>Owner Name</TableCell>
+              <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
+              <TableCell sx={{ fontWeight: 600 }}>Versions</TableCell>
+              <TableCell sx={{ fontWeight: 600 }}>Registered</TableCell>
+              <TableCell sx={{ fontWeight: 600 }}>Ownership</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {historyData.ownershipHistory.map((owner, idx) => {
+              const isCurrentOwner = owner.franchiseChainId === franchisee.franchiseChainId;
+              const ownerName = owner.franchises[0]?.operatorName || 'Unknown';
+              const firstRegistered = owner.franchises[0]?.changedAt;
+              const isActiveOwner = owner.currentStatus === 'Active';
+              
+              return (
+                <TableRow 
+                  key={owner.franchiseChainId}
+                  sx={{ 
+                    bgcolor: isCurrentOwner ? '#e3f2fd' : 'inherit',
+                    '&:hover': { bgcolor: isCurrentOwner ? '#bbdefb' : '#f5f5f5' }
+                  }}
+                >
+                  <TableCell>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                      {historyData.franchiseNumber}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Typography variant="body2">{ownerName}</Typography>
+                      {isCurrentOwner && (
+                        <Chip label="Viewing" size="small" color="info" sx={{ height: 20, fontSize: '0.7rem' }} />
+                      )}
+                    </Box>
+                  </TableCell>
+                  <TableCell>
+                    <Chip 
+                      label={owner.currentStatus} 
+                      size="small"
+                      color={getStatusColor(owner.currentStatus)}
+                      sx={{ fontWeight: 500 }}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <Typography variant="body2">{owner.versions}</Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Typography variant="body2">{formatDate(firstRegistered)}</Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Chip 
+                      label={isActiveOwner ? 'Current Owner' : 'Previous Owner'} 
+                      size="small"
+                      variant={isActiveOwner ? 'filled' : 'outlined'}
+                      color={isActiveOwner ? 'success' : 'default'}
+                      sx={{ fontWeight: 500 }}
+                    />
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </TableContainer>
+    );
+  };
+
+  const renderHistoryContent = () => {
+    if (loadingHistory) {
+      return (
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', p: 2 }}>
+          <CircularProgress size={24} />
+          <Typography sx={{ ml: 1 }}>Loading history...</Typography>
+        </Box>
+      );
+    }
+
+    if (!historyData) {
+      return (
+        <Typography variant="body2" color="text.secondary">
+          No history data available
+        </Typography>
+      );
+    }
+
+    return (
+      <Box>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+          <Typography variant="subtitle2" sx={{ color: '#0A356B', fontWeight: 600 }}>
+            Franchise #{historyData.franchiseNumber} - Ownership History
+          </Typography>
+          <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+            {historyData.uniqueOwners} owner(s) | {historyData.totalVersions} version(s)
+          </Typography>
+        </Box>
+        {renderHistoryTable()}
+      </Box>
+    );
+  };
+
+  return (
+    <Box sx={{ mt: 2, mb: 2 }}>
+      <Button
+        variant="outlined"
+        size="small"
+        startIcon={<HistoryIcon />}
+        endIcon={showHistory ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+        onClick={handleToggleHistory}
+        disabled={isEditing}
+        sx={{ mb: 1 }}
+      >
+        {showHistory ? 'Hide History' : 'View Franchise History'}
+      </Button>
+      
+      {showHistory && (
+        <Paper variant="outlined" sx={{ p: 2, mt: 1, bgcolor: '#f8f9fa' }}>
+          {renderHistoryContent()}
+        </Paper>
+      )}
+    </Box>
+  );
+};
+
+// ============================================================================
+// FRANCHISEE DETAILS MODAL COMPONENT
+// ============================================================================
+
+const FranchiseeDetailsModal = ({ 
+  open, 
+  onClose, 
+  franchisee, 
+  isEditing, 
+  onEdit, 
+  onSave, 
+  onCancelEdit,
+  onFilePreview, 
+  getFileIcon, 
+  getDocumentDisplayName, 
+  qrBlobUrl,
+  saving
+}) => {
+  const [editData, setEditData] = useState({});
+
+  // Initialize edit data when entering edit mode
+  useEffect(() => {
+    if (isEditing && franchisee) {
+      setEditData({
+        franchiseeName: franchisee.franchiseeName || '',
+        contactNumber: franchisee.contactNumber || '',
+        email: franchisee.email || '',
+        address: franchisee.address || '',
+        barangay: franchisee.barangay || '',
+        birthPlace: franchisee.birthPlace || '',
+        birthDate: franchisee.birthDate || '',
+        civilStatus: franchisee.civilStatus || '',
+        citizenship: franchisee.citizenship || '',
+        todaMembership: franchisee.todaMembership || '',
+        coOwnerName: franchisee.coOwnerName || '',
+        coOwnerAddress: franchisee.coOwnerAddress || '',
+        driverName: franchisee.driverName || '',
+        driversAddress: franchisee.driversAddress || '',
+        franchiseStatus: franchisee.franchiseStatus || '',
+        rate: franchisee.rate || '',
+        resolutionNumber: franchisee.resolutionNumber || '',
+        orNumber: franchisee.orNumber || '',
+        unitModel: franchisee.unitModel || '',
+        colorMotor: franchisee.colorMotor || '',
+        colorSidecar: franchisee.colorSidecar || '',
+        mvPlate: franchisee.mvPlate || '',
+        motorEngineNumber: franchisee.motorEngineNumber || '',
+        chassisNumber: franchisee.chassisNumber || '',
+        make: franchisee.make || '',
+        plateNumber: franchisee.plateNumber || '',
+      });
+    }
+  }, [isEditing, franchisee]);
+
+  const handleFieldChange = (field, value) => {
+    setEditData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleSaveClick = () => {
+    onSave({ ...franchisee, ...editData });
+  };
+
   if (!franchisee) return null;
+
+  // Only mark as previous owner if franchise was revoked (taken away and given to someone else)
+  const isPreviousOwner = franchisee.franchiseStatus === 'Revoked';
 
   return (
     <Modal
@@ -110,62 +475,185 @@ const FranchiseeDetailsModal = ({ open, onClose, franchisee, isEditing, onEdit, 
       <Fade in={open}>
         <Box className="modal-container">
           <div className="modal-header">
-            <Typography variant="h5" component="h2">
-              FRANCHISEE DETAILS
-            </Typography>
-            <IconButton onClick={onClose}>
-              <CloseIcon />
-            </IconButton>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <Typography variant="h5" component="h2">
+                {isEditing ? 'EDIT FRANCHISEE' : 'FRANCHISEE DETAILS'}
+              </Typography>
+              {isPreviousOwner && !isEditing && (
+                <Chip 
+                  label="Previous Owner" 
+                  size="small" 
+                  color="warning"
+                  sx={{ 
+                    fontWeight: 600, 
+                    bgcolor: '#ff9800',
+                    color: 'white'
+                  }} 
+                />
+              )}
+            </Box>
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              {!isEditing ? (
+                <Tooltip title="Edit Franchisee">
+                  <IconButton onClick={onEdit} sx={{ color: 'white' }}>
+                    <EditIcon />
+                  </IconButton>
+                </Tooltip>
+              ) : (
+                <>
+                  <Tooltip title="Save Changes">
+                    <IconButton 
+                      onClick={handleSaveClick} 
+                      sx={{ color: '#4caf50' }}
+                      disabled={saving}
+                    >
+                      {saving ? <CircularProgress size={24} color="inherit" /> : <SaveIcon />}
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip title="Cancel Edit">
+                    <IconButton onClick={onCancelEdit} sx={{ color: '#f44336' }}>
+                      <CancelIcon />
+                    </IconButton>
+                  </Tooltip>
+                </>
+              )}
+              <IconButton onClick={onClose} sx={{ color: 'white' }}>
+                <CloseIcon />
+              </IconButton>
+            </Box>
           </div>
           
           <div className="modal-body">
+            {isPreviousOwner && !isEditing && (
+              <Alert severity="warning" sx={{ mb: 2 }}>
+                This franchisee is a <strong>previous owner</strong> of franchise #{franchisee.franchiseNumber}. 
+                Status: <strong>{franchisee.franchiseStatus}</strong>
+              </Alert>
+            )}
+            {isEditing && (
+              <Alert severity="info" sx={{ mb: 2 }}>
+                You are now editing franchisee information. Click the save icon to save changes or cancel to discard.
+              </Alert>
+            )}
+            
             <Typography variant="h6" className="section-header">
               PERSONAL INFORMATION
             </Typography>
             
             <div className="info-grid">
               <Typography variant="subtitle2" className="label">Franchise Number:</Typography>
-              <Typography>{franchisee.franchiseNumber}</Typography>
+              <Typography sx={{ fontWeight: 600, color: '#0A356B' }}>{franchisee.franchiseNumber}</Typography>
               
-              <Typography variant="subtitle2" className="label">Name:</Typography>
-              <Typography>{franchisee.franchiseeName}</Typography>
+              <EditableField 
+                label="Name" 
+                value={franchisee.franchiseeName}
+                field="franchiseeName"
+                isEditing={isEditing}
+                editData={editData}
+                onChange={handleFieldChange}
+              />
               
-              <Typography variant="subtitle2" className="label">Contact Number:</Typography>
-              <Typography>{franchisee.contactNumber || 'N/A'}</Typography>
+              <EditableField 
+                label="Contact Number" 
+                value={franchisee.contactNumber}
+                field="contactNumber"
+                isEditing={isEditing}
+                editData={editData}
+                onChange={handleFieldChange}
+              />
               
-              <Typography variant="subtitle2" className="label">Email:</Typography>
-              <Typography>{franchisee.email || 'N/A'}</Typography>
+              <EditableField 
+                label="Email" 
+                value={franchisee.email}
+                field="email"
+                isEditing={isEditing}
+                editData={editData}
+                onChange={handleFieldChange}
+                type="email"
+              />
               
-              <Typography variant="subtitle2" className="label">Barangay:</Typography>
-              <Typography>{franchisee.barangay || 'N/A'}</Typography>
+              <EditableField 
+                label="Barangay" 
+                value={franchisee.barangay}
+                field="barangay"
+                isEditing={isEditing}
+                editData={editData}
+                onChange={handleFieldChange}
+              />
               
-              <Typography variant="subtitle2" className="label">Birth Place:</Typography>
-              <Typography>{franchisee.birthPlace || 'N/A'}</Typography>
+              <EditableField 
+                label="Birth Place" 
+                value={franchisee.birthPlace}
+                field="birthPlace"
+                isEditing={isEditing}
+                editData={editData}
+                onChange={handleFieldChange}
+              />
               
-              <Typography variant="subtitle2" className="label">Birth Date:</Typography>
-              <Typography>{franchisee.birthDate || 'N/A'}</Typography>
+              <EditableField 
+                label="Birth Date" 
+                value={franchisee.birthDate}
+                field="birthDate"
+                isEditing={isEditing}
+                editData={editData}
+                onChange={handleFieldChange}
+              />
               
-              <Typography variant="subtitle2" className="label">Civil Status:</Typography>
-              <Typography>{franchisee.civilStatus || 'N/A'}</Typography>
+              <EditableField 
+                label="Civil Status" 
+                value={franchisee.civilStatus}
+                field="civilStatus"
+                isEditing={isEditing}
+                editData={editData}
+                onChange={handleFieldChange}
+                type="select"
+                options={CIVIL_STATUS_OPTIONS}
+              />
               
-              <Typography variant="subtitle2" className="label">Citizenship:</Typography>
-              <Typography>{franchisee.citizenship || 'N/A'}</Typography>
+              <EditableField 
+                label="Citizenship" 
+                value={franchisee.citizenship}
+                field="citizenship"
+                isEditing={isEditing}
+                editData={editData}
+                onChange={handleFieldChange}
+              />
               
-              <Typography variant="subtitle2" className="label">TODA Membership:</Typography>
-              <Typography>{franchisee.todaMembership || 'N/A'}</Typography>
+              <EditableField 
+                label="TODA Membership" 
+                value={franchisee.todaMembership}
+                field="todaMembership"
+                isEditing={isEditing}
+                editData={editData}
+                onChange={handleFieldChange}
+              />
               
-              <Typography variant="subtitle2" className="label">Address:</Typography>
-              <Typography>{franchisee.address}</Typography>
+              <EditableField 
+                label="Address" 
+                value={franchisee.address}
+                field="address"
+                isEditing={isEditing}
+                editData={editData}
+                onChange={handleFieldChange}
+              />
               
-              {(franchisee.coOwnerName || franchisee.coOwnerAddress) && (
-                <>
-                  <Typography variant="subtitle2" className="label">Co-Owner Name:</Typography>
-                  <Typography>{franchisee.coOwnerName || 'N/A'}</Typography>
-                  
-                  <Typography variant="subtitle2" className="label">Co-Owner Address:</Typography>
-                  <Typography>{franchisee.coOwnerAddress || 'N/A'}</Typography>
-                </>
-              )}
+              <EditableField 
+                label="Co-Owner Name" 
+                value={franchisee.coOwnerName}
+                field="coOwnerName"
+                isEditing={isEditing}
+                editData={editData}
+                onChange={handleFieldChange}
+              />
+              
+              <EditableField 
+                label="Co-Owner Address" 
+                value={franchisee.coOwnerAddress}
+                field="coOwnerAddress"
+                isEditing={isEditing}
+                editData={editData}
+                onChange={handleFieldChange}
+              />
             </div>
             
             <Typography variant="h6" className="section-header">
@@ -173,11 +661,23 @@ const FranchiseeDetailsModal = ({ open, onClose, franchisee, isEditing, onEdit, 
             </Typography>
             
             <div className="info-grid">
-              <Typography variant="subtitle2" className="label">Driver Name:</Typography>
-              <Typography>{franchisee.driverName || 'N/A'}</Typography>
+              <EditableField 
+                label="Driver Name" 
+                value={franchisee.driverName}
+                field="driverName"
+                isEditing={isEditing}
+                editData={editData}
+                onChange={handleFieldChange}
+              />
               
-              <Typography variant="subtitle2" className="label">Driver Address:</Typography>
-              <Typography>{franchisee.driversAddress || 'N/A'}</Typography>
+              <EditableField 
+                label="Driver Address" 
+                value={franchisee.driversAddress}
+                field="driversAddress"
+                isEditing={isEditing}
+                editData={editData}
+                onChange={handleFieldChange}
+              />
             </div>
             
             <Typography variant="h6" className="section-header">
@@ -185,11 +685,25 @@ const FranchiseeDetailsModal = ({ open, onClose, franchisee, isEditing, onEdit, 
             </Typography>
             
             <div className="info-grid">
-              <Typography variant="subtitle2" className="label">Status:</Typography>
-              <Typography>{franchisee.franchiseStatus || 'N/A'}</Typography>
+              <EditableField 
+                label="Status" 
+                value={franchisee.franchiseStatus}
+                field="franchiseStatus"
+                isEditing={isEditing}
+                editData={editData}
+                onChange={handleFieldChange}
+                type="select"
+                options={FRANCHISE_STATUS_OPTIONS}
+              />
               
-              <Typography variant="subtitle2" className="label">Rate:</Typography>
-              <Typography>{franchisee.rate || 'N/A'}</Typography>
+              <EditableField 
+                label="Rate" 
+                value={franchisee.rate}
+                field="rate"
+                isEditing={isEditing}
+                editData={editData}
+                onChange={handleFieldChange}
+              />
               
               <Typography variant="subtitle2" className="label">Approved Date:</Typography>
               <Typography>{franchisee.approvedAt || 'N/A'}</Typography>
@@ -207,10 +721,14 @@ const FranchiseeDetailsModal = ({ open, onClose, franchisee, isEditing, onEdit, 
               <Typography variant="subtitle2" className="label">Expiry Date:</Typography>
               <Typography>{franchisee.expiryDate || 'N/A'}</Typography>
               
-              <Typography variant="subtitle2" className="label">Resolution Number:</Typography>
-              <Typography sx={{ fontWeight: 'bold', color: franchisee.resolutionNumber ? 'success.main' : 'text.secondary' }}>
-                {franchisee.resolutionNumber || 'N/A'}
-              </Typography>
+              <EditableField 
+                label="Resolution Number" 
+                value={franchisee.resolutionNumber}
+                field="resolutionNumber"
+                isEditing={isEditing}
+                editData={editData}
+                onChange={handleFieldChange}
+              />
               
               <Typography variant="subtitle2" className="label">Resolution Document:</Typography>
               {franchisee.resolutionDocument ? (
@@ -232,43 +750,106 @@ const FranchiseeDetailsModal = ({ open, onClose, franchisee, isEditing, onEdit, 
             </Typography>
             
             <div className="info-grid">
-              <Typography variant="subtitle2" className="label">OR Number:</Typography>
-              <Typography sx={{ fontWeight: 'bold', color: franchisee.orNumber ? 'success.main' : 'text.secondary' }}>
-                {franchisee.orNumber || 'N/A'}
-              </Typography>
+              <Typography variant="subtitle2" className="label">Application Type:</Typography>
+              <Chip 
+                label={franchisee.applicationType || 'New'} 
+                size="small"
+                color={getChangeTypeColor(franchisee.changeType)}
+                sx={{ fontWeight: 600 }}
+              />
+              
+              <Typography variant="subtitle2" className="label">Version:</Typography>
+              <Typography>{franchisee.version || 1}</Typography>
+              
+              <EditableField 
+                label="OR Number" 
+                value={franchisee.orNumber}
+                field="orNumber"
+                isEditing={isEditing}
+                editData={editData}
+                onChange={handleFieldChange}
+              />
             </div>
+
+            {/* Franchise History Section */}
+            <FranchiseHistorySection franchisee={franchisee} isEditing={isEditing} />
             
             <Typography variant="h6" className="section-header">
               MOTORCYCLE INFORMATION
             </Typography>
             
             <div className="info-grid">
-              <Typography variant="subtitle2" className="label">Unit Model:</Typography>
-              <Typography>{franchisee.unitModel || 'N/A'}</Typography>
+              <EditableField 
+                label="Unit Model" 
+                value={franchisee.unitModel}
+                field="unitModel"
+                isEditing={isEditing}
+                editData={editData}
+                onChange={handleFieldChange}
+              />
               
-              <Typography variant="subtitle2" className="label">Color (Motor):</Typography>
-              <Typography>{franchisee.colorMotor || 'N/A'}</Typography>
+              <EditableField 
+                label="Color (Motor)" 
+                value={franchisee.colorMotor}
+                field="colorMotor"
+                isEditing={isEditing}
+                editData={editData}
+                onChange={handleFieldChange}
+              />
               
-              <Typography variant="subtitle2" className="label">Color (Sidecar):</Typography>
-              <Typography>{franchisee.colorSidecar || 'N/A'}</Typography>
+              <EditableField 
+                label="Color (Sidecar)" 
+                value={franchisee.colorSidecar}
+                field="colorSidecar"
+                isEditing={isEditing}
+                editData={editData}
+                onChange={handleFieldChange}
+              />
               
-              <Typography variant="subtitle2" className="label">MV Plate:</Typography>
-              <Typography>{franchisee.mvPlate || 'N/A'}</Typography>
+              <EditableField 
+                label="MV Plate" 
+                value={franchisee.mvPlate}
+                field="mvPlate"
+                isEditing={isEditing}
+                editData={editData}
+                onChange={handleFieldChange}
+              />
               
-              <Typography variant="subtitle2" className="label">Motor/Engine Number:</Typography>
-              <Typography>{franchisee.motorEngineNumber || 'N/A'}</Typography>
+              <EditableField 
+                label="Motor/Engine Number" 
+                value={franchisee.motorEngineNumber}
+                field="motorEngineNumber"
+                isEditing={isEditing}
+                editData={editData}
+                onChange={handleFieldChange}
+              />
               
-              <Typography variant="subtitle2" className="label">Chassis Number:</Typography>
-              <Typography>{franchisee.chassisNumber || 'N/A'}</Typography>
+              <EditableField 
+                label="Chassis Number" 
+                value={franchisee.chassisNumber}
+                field="chassisNumber"
+                isEditing={isEditing}
+                editData={editData}
+                onChange={handleFieldChange}
+              />
               
-              <Typography variant="subtitle2" className="label">Driver Name:</Typography>
-              <Typography>{franchisee.driverName || 'N/A'}</Typography>
+              <EditableField 
+                label="Make" 
+                value={franchisee.make}
+                field="make"
+                isEditing={isEditing}
+                editData={editData}
+                onChange={handleFieldChange}
+              />
               
-              <Typography variant="subtitle2" className="label">Make:</Typography>
-              <Typography>{franchisee.make}</Typography>
-              
-              <Typography variant="subtitle2" className="label">Plate Number:</Typography>
-              <Typography>{franchisee.plateNumber}</Typography>
+              <EditableField 
+                label="Plate Number" 
+                value={franchisee.plateNumber}
+                field="plateNumber"
+                isEditing={isEditing}
+                editData={editData}
+                onChange={handleFieldChange}
+              />
             </div>
 
             <Typography variant="h6" className="section-header">
@@ -419,7 +1000,500 @@ const FranchiseeDetailsModal = ({ open, onClose, franchisee, isEditing, onEdit, 
   );
 };
 
+// Export Options Dialog Component
+const ExportOptionsDialog = ({ open, onClose, onExport, franchisees, barangays }) => {
+  const [exportOptions, setExportOptions] = useState({
+    groupBy: 'none',
+    sortBy: 'franchiseNumber',
+    sortOrder: 'asc',
+    dateRange: 'all',
+    customStartDate: '',
+    customEndDate: '',
+    selectedBarangays: [],
+    selectedStatuses: [],
+    includeFields: {
+      basic: true,
+      personal: true,
+      driver: true,
+      vehicle: true,
+      franchise: true,
+    },
+    separateSheets: false,
+  });
+
+  const [activeTab, setActiveTab] = useState(0);
+
+  const handleOptionChange = (field, value) => {
+    setExportOptions(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleFieldToggle = (field) => {
+    setExportOptions(prev => ({
+      ...prev,
+      includeFields: {
+        ...prev.includeFields,
+        [field]: !prev.includeFields[field]
+      }
+    }));
+  };
+
+  const handleBarangayToggle = (barangay) => {
+    setExportOptions(prev => ({
+      ...prev,
+      selectedBarangays: prev.selectedBarangays.includes(barangay)
+        ? prev.selectedBarangays.filter(b => b !== barangay)
+        : [...prev.selectedBarangays, barangay]
+    }));
+  };
+
+  const handleStatusToggle = (status) => {
+    setExportOptions(prev => ({
+      ...prev,
+      selectedStatuses: prev.selectedStatuses.includes(status)
+        ? prev.selectedStatuses.filter(s => s !== status)
+        : [...prev.selectedStatuses, status]
+    }));
+  };
+
+  const handleExport = () => {
+    onExport(exportOptions);
+    onClose();
+  };
+
+  const handleSelectAllBarangays = () => {
+    if (exportOptions.selectedBarangays.length === barangays.length) {
+      setExportOptions(prev => ({ ...prev, selectedBarangays: [] }));
+    } else {
+      setExportOptions(prev => ({ ...prev, selectedBarangays: [...barangays] }));
+    }
+  };
+
+  const handleSelectAllStatuses = () => {
+    if (exportOptions.selectedStatuses.length === APPLICATION_TYPE_OPTIONS.length) {
+      setExportOptions(prev => ({ ...prev, selectedStatuses: [] }));
+    } else {
+      setExportOptions(prev => ({ ...prev, selectedStatuses: [...APPLICATION_TYPE_OPTIONS] }));
+    }
+  };
+
+  const getPreviewCount = () => {
+    let filtered = [...franchisees];
+    
+    if (exportOptions.selectedBarangays.length > 0) {
+      filtered = filtered.filter(f => exportOptions.selectedBarangays.includes(f.barangay));
+    }
+    
+    if (exportOptions.selectedStatuses.length > 0) {
+      filtered = filtered.filter(f => 
+        exportOptions.selectedStatuses.includes(f.franchiseStatus) ||
+        exportOptions.selectedStatuses.includes(f.applicationType)
+      );
+    }
+    
+    if (exportOptions.dateRange !== 'all') {
+      const now = new Date();
+      filtered = filtered.filter(f => {
+        if (!f.approvedAt) return false;
+        const approvedDate = new Date(f.approvedAt);
+        if (isNaN(approvedDate)) return false;
+        
+        switch (exportOptions.dateRange) {
+          case 'thisMonth':
+            return approvedDate.getMonth() === now.getMonth() && 
+                   approvedDate.getFullYear() === now.getFullYear();
+          case 'thisYear':
+            return approvedDate.getFullYear() === now.getFullYear();
+          case 'custom':
+            const start = exportOptions.customStartDate ? new Date(exportOptions.customStartDate) : null;
+            const end = exportOptions.customEndDate ? new Date(exportOptions.customEndDate) : null;
+            if (start && approvedDate < start) return false;
+            if (end && approvedDate > end) return false;
+            return true;
+          default:
+            return true;
+        }
+      });
+    }
+    
+    return filtered.length;
+  };
+
+  const SectionTitle = ({ icon: Icon, title }) => (
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+      <Icon sx={{ color: '#0A356B', fontSize: 20 }} />
+      <Typography variant="subtitle1" sx={{ fontWeight: 600, color: '#0A356B' }}>
+        {title}
+      </Typography>
+    </Box>
+  );
+
+  return (
+    <Dialog 
+      open={open} 
+      onClose={onClose} 
+      maxWidth="sm" 
+      fullWidth
+      PaperProps={{
+        sx: { 
+          borderRadius: 3,
+          overflow: 'hidden',
+          maxHeight: '85vh',
+        }
+      }}
+    >
+      <DialogTitle sx={{ 
+        bgcolor: '#0A356B', 
+        color: 'white', 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'space-between',
+        py: 2,
+        px: 3,
+      }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <FileDownloadIcon />
+          <Typography variant="h6" sx={{ fontWeight: 600 }}>Export to Excel</Typography>
+        </Box>
+        <IconButton onClick={onClose} sx={{ color: 'white', '&:hover': { bgcolor: 'rgba(255,255,255,0.1)' } }}>
+          <CloseIcon />
+        </IconButton>
+      </DialogTitle>
+      
+      <DialogContent sx={{ p: 0 }}>
+        {/* Sort & Group Section */}
+        <Box sx={{ p: 3, bgcolor: '#f8fafc' }}>
+          <Grid container spacing={2}>
+            <Grid item xs={6}>
+              <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 500, mb: 0.5, display: 'block' }}>
+                Sort By
+              </Typography>
+              <FormControl fullWidth size="small">
+                <Select
+                  value={exportOptions.sortBy}
+                  onChange={(e) => handleOptionChange('sortBy', e.target.value)}
+                  sx={{ bgcolor: 'white' }}
+                >
+                  <MenuItem value="franchiseNumber">Franchise Number</MenuItem>
+                  <MenuItem value="franchiseeName">Franchisee Name</MenuItem>
+                  <MenuItem value="approvedAt">Approved Date</MenuItem>
+                  <MenuItem value="barangay">Barangay</MenuItem>
+                  <MenuItem value="todaMembership">TODA</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={6}>
+              <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 500, mb: 0.5, display: 'block' }}>
+                Order
+              </Typography>
+              <FormControl fullWidth size="small">
+                <Select
+                  value={exportOptions.sortOrder}
+                  onChange={(e) => handleOptionChange('sortOrder', e.target.value)}
+                  sx={{ bgcolor: 'white' }}
+                >
+                  <MenuItem value="asc">Ascending (A-Z)</MenuItem>
+                  <MenuItem value="desc">Descending (Z-A)</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={6}>
+              <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 500, mb: 0.5, display: 'block' }}>
+                Group By
+              </Typography>
+              <FormControl fullWidth size="small">
+                <Select
+                  value={exportOptions.groupBy}
+                  onChange={(e) => handleOptionChange('groupBy', e.target.value)}
+                  sx={{ bgcolor: 'white' }}
+                >
+                  <MenuItem value="none">No Grouping</MenuItem>
+                  <MenuItem value="barangay">Barangay</MenuItem>
+                  <MenuItem value="month">Month</MenuItem>
+                  <MenuItem value="status">Status</MenuItem>
+                  <MenuItem value="toda">TODA</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={6}>
+              <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 500, mb: 0.5, display: 'block' }}>
+                Date Range
+              </Typography>
+              <FormControl fullWidth size="small">
+                <Select
+                  value={exportOptions.dateRange}
+                  onChange={(e) => handleOptionChange('dateRange', e.target.value)}
+                  sx={{ bgcolor: 'white' }}
+                >
+                  <MenuItem value="all">All Time</MenuItem>
+                  <MenuItem value="thisMonth">This Month</MenuItem>
+                  <MenuItem value="thisYear">This Year</MenuItem>
+                  <MenuItem value="custom">Custom</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+          </Grid>
+
+          {exportOptions.dateRange === 'custom' && (
+            <Box sx={{ display: 'flex', gap: 2, mt: 2 }}>
+              <TextField
+                size="small"
+                label="From"
+                type="date"
+                value={exportOptions.customStartDate}
+                onChange={(e) => handleOptionChange('customStartDate', e.target.value)}
+                InputLabelProps={{ shrink: true }}
+                fullWidth
+                sx={{ bgcolor: 'white' }}
+              />
+              <TextField
+                size="small"
+                label="To"
+                type="date"
+                value={exportOptions.customEndDate}
+                onChange={(e) => handleOptionChange('customEndDate', e.target.value)}
+                InputLabelProps={{ shrink: true }}
+                fullWidth
+                sx={{ bgcolor: 'white' }}
+              />
+            </Box>
+          )}
+
+          {exportOptions.groupBy !== 'none' && (
+            <FormControlLabel
+              control={
+                <Checkbox
+                  size="small"
+                  checked={exportOptions.separateSheets}
+                  onChange={(e) => handleOptionChange('separateSheets', e.target.checked)}
+                />
+              }
+              label={<Typography variant="body2">Create separate sheets for each group</Typography>}
+              sx={{ mt: 1.5 }}
+            />
+          )}
+        </Box>
+
+        <Divider />
+
+        {/* Filters Section */}
+        <Box sx={{ p: 3 }}>
+          <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#334155', mb: 2 }}>
+            Filter Records
+          </Typography>
+          <Box sx={{ display: 'flex', gap: 2 }}>
+            {/* Barangay Filter */}
+            <Box sx={{ 
+              flex: 1,
+              border: '1px solid #e2e8f0', 
+              borderRadius: 2, 
+              overflow: 'hidden',
+              display: 'flex',
+              flexDirection: 'column',
+            }}>
+              <Box sx={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'space-between',
+                px: 1.5,
+                py: 1,
+                bgcolor: '#f8fafc',
+                borderBottom: '1px solid #e2e8f0',
+              }}>
+                <Typography variant="caption" sx={{ fontWeight: 600, color: '#475569' }}>
+                  Barangay
+                </Typography>
+                <Button 
+                  size="small" 
+                  onClick={handleSelectAllBarangays}
+                  sx={{ 
+                    textTransform: 'none', 
+                    fontSize: '0.7rem', 
+                    minWidth: 'auto', 
+                    py: 0,
+                    px: 1,
+                    color: '#0A356B',
+                  }}
+                >
+                  {exportOptions.selectedBarangays.length === barangays.length ? 'Clear' : 'Select All'}
+                </Button>
+              </Box>
+              <Box sx={{ p: 1.5, height: 160, overflow: 'auto' }}>
+                {barangays.length > 0 ? (
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                    {barangays.map((barangay) => (
+                      <FormControlLabel
+                        key={barangay}
+                        control={
+                          <Checkbox
+                            size="small"
+                            checked={exportOptions.selectedBarangays.includes(barangay)}
+                            onChange={() => handleBarangayToggle(barangay)}
+                            sx={{ p: 0.5 }}
+                          />
+                        }
+                        label={
+                          <Typography variant="body2" sx={{ fontSize: '0.8rem', color: '#334155' }}>
+                            {barangay}
+                          </Typography>
+                        }
+                        sx={{ m: 0, ml: -0.5 }}
+                      />
+                    ))}
+                  </Box>
+                ) : (
+                  <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic', textAlign: 'center', py: 2 }}>
+                    No barangays available
+                  </Typography>
+                )}
+              </Box>
+            </Box>
+
+            {/* Status Filter */}
+            <Box sx={{ 
+              flex: 1,
+              border: '1px solid #e2e8f0', 
+              borderRadius: 2, 
+              overflow: 'hidden',
+              display: 'flex',
+              flexDirection: 'column',
+            }}>
+              <Box sx={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'space-between',
+                px: 1.5,
+                py: 1,
+                bgcolor: '#f8fafc',
+                borderBottom: '1px solid #e2e8f0',
+              }}>
+                <Typography variant="caption" sx={{ fontWeight: 600, color: '#475569' }}>
+                  Status
+                </Typography>
+                <Button 
+                  size="small" 
+                  onClick={handleSelectAllStatuses}
+                  sx={{ 
+                    textTransform: 'none', 
+                    fontSize: '0.7rem', 
+                    minWidth: 'auto', 
+                    py: 0,
+                    px: 1,
+                    color: '#0A356B',
+                  }}
+                >
+                  {exportOptions.selectedStatuses.length === APPLICATION_TYPE_OPTIONS.length ? 'Clear' : 'Select All'}
+                </Button>
+              </Box>
+              <Box sx={{ p: 1.5, height: 160, overflow: 'auto' }}>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                  {APPLICATION_TYPE_OPTIONS.map((status) => (
+                    <FormControlLabel
+                      key={status}
+                      control={
+                        <Checkbox
+                          size="small"
+                          checked={exportOptions.selectedStatuses.includes(status)}
+                          onChange={() => handleStatusToggle(status)}
+                          sx={{ p: 0.5 }}
+                        />
+                      }
+                      label={
+                        <Typography variant="body2" sx={{ fontSize: '0.8rem', color: '#334155' }}>
+                          {status}
+                        </Typography>
+                      }
+                      sx={{ m: 0, ml: -0.5 }}
+                    />
+                  ))}
+                </Box>
+              </Box>
+            </Box>
+          </Box>
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1.5, textAlign: 'center' }}>
+            Leave unselected to include all records
+          </Typography>
+        </Box>
+
+        <Divider />
+
+        {/* Fields Section */}
+        <Box sx={{ p: 3 }}>
+          <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#334155', mb: 1.5 }}>
+            Fields to Include
+          </Typography>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+            {[
+              { key: 'basic', label: 'Basic Info', desc: 'Franchise #, Name, Plate' },
+              { key: 'personal', label: 'Personal', desc: 'Contact, Address' },
+              { key: 'driver', label: 'Driver', desc: 'Driver Details' },
+              { key: 'vehicle', label: 'Vehicle', desc: 'Model, Engine' },
+              { key: 'franchise', label: 'Franchise', desc: 'Status, Dates' },
+            ].map((field) => (
+              <Chip
+                key={field.key}
+                label={field.label}
+                onClick={() => handleFieldToggle(field.key)}
+                color={exportOptions.includeFields[field.key] ? 'primary' : 'default'}
+                variant={exportOptions.includeFields[field.key] ? 'filled' : 'outlined'}
+                sx={{ 
+                  borderRadius: 2,
+                  '&.MuiChip-colorPrimary': {
+                    bgcolor: '#0A356B',
+                  }
+                }}
+              />
+            ))}
+          </Box>
+        </Box>
+      </DialogContent>
+      
+      {/* Footer */}
+      <Box sx={{ 
+        p: 2.5, 
+        bgcolor: '#f8fafc', 
+        borderTop: '1px solid #e2e8f0',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+      }}>
+        <Typography variant="body2" sx={{ color: '#64748b' }}>
+          <strong style={{ color: '#0A356B' }}>{getPreviewCount()}</strong> records to export
+        </Typography>
+        <Box sx={{ display: 'flex', gap: 1.5 }}>
+          <Button 
+            onClick={onClose} 
+            sx={{ 
+              color: '#64748b',
+              textTransform: 'none',
+              fontWeight: 500,
+            }}
+          >
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleExport} 
+            variant="contained" 
+            startIcon={<FileDownloadIcon />}
+            disabled={getPreviewCount() === 0}
+            sx={{ 
+              bgcolor: '#0A356B', 
+              '&:hover': { bgcolor: '#082548' },
+              textTransform: 'none',
+              fontWeight: 600,
+              px: 3,
+              borderRadius: 2,
+            }}
+          >
+            Export
+          </Button>
+        </Box>
+      </Box>
+    </Dialog>
+  );
+};
+
 function FranchiseeList() {
+  const { user } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
@@ -436,6 +1510,8 @@ function FranchiseeList() {
   const qrBlobUrlRef = useRef(null);
   const [qrBlobUrl, setQrBlobUrl] = useState(null);
   const [selectedBarangay, setSelectedBarangay] = useState('all');
+  const [exportDialogOpen, setExportDialogOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   // Helper function to get document display name with proper status
   const getDocumentDisplayName = (document) => {
@@ -514,7 +1590,11 @@ function FranchiseeList() {
           franchiseNumber: app.franchiseNumber || '',
           make: app.unitModel || 'N/A',
           plateNumber: app.mvPlateNo || 'N/A',
-          applicationType: 'Approved', // All are approved franchises
+          // Use changeType from backend: new, renewal, update_ownership, change_unit, auto_expired, auto_revoked
+          applicationType: app.changeType ? app.changeType.charAt(0).toUpperCase() + app.changeType.slice(1).replace(/_/g, ' ') : 'New',
+          changeType: app.changeType || 'new',
+          franchiseChainId: app.franchiseChainId || '',
+          version: app.version || 1,
           address: app.operatorAddress || '',
           barangay: app.operatorBarangay || '',
           contactNumber: app.operatorContactNumber || '',
@@ -783,32 +1863,46 @@ function FranchiseeList() {
     setIsEditing(true);
   }, []);
 
+  const handleCancelEdit = useCallback(() => {
+    setIsEditing(false);
+  }, []);
+
   const handleSave = useCallback(async (editedData) => {
-    setLoading(true);
+    setSaving(true);
     setError('');
     
     try {
-      const apiBase = API_BASE_URL || 'http://localhost:5170';
+      // Map frontend fields to backend API fields
+      const updatePayload = {
+        operatorName: editedData.franchiseeName,
+        operatorAddress: editedData.address,
+        operatorBarangay: editedData.barangay,
+        operatorContactNumber: editedData.contactNumber,
+        operatorEmail: editedData.email,
+        operatorBirthPlace: editedData.birthPlace,
+        operatorCivilStatus: editedData.civilStatus,
+        operatorCitizenship: editedData.citizenship,
+        todaMembership: editedData.todaMembership,
+        coOwnerName: editedData.coOwnerName,
+        coOwnerAddress: editedData.coOwnerAddress,
+        driverName: editedData.driverName,
+        driversAddress: editedData.driversAddress,
+        franchiseStatus: editedData.franchiseStatus,
+        rate: editedData.rate,
+        resolutionNumber: editedData.resolutionNumber,
+        officialReceiptNumber: editedData.orNumber,
+        unitModel: editedData.unitModel,
+        colorMotor: editedData.colorMotor,
+        sideCarColor: editedData.colorSidecar,
+        mvPlateNo: editedData.mvPlate,
+        motorEngineNo: editedData.motorEngineNumber,
+        chasisNo: editedData.chassisNumber,
+        make: editedData.make,
+        plateNumber: editedData.plateNumber,
+      };
 
-      const response = await fetch(`${apiBase}/api/franchise-information/${editedData.id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          operatorName: editedData.franchiseeName,
-          address: editedData.address,
-          mtopNumber: editedData.franchiseNumber,
-          civilStatus: editedData.civilStatus,
-          driversID: editedData.driversID,
-          contactNumber: editedData.contactNumber
-        })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to update franchisee');
-      }
+      // Use the API service for update
+      await franchiseInformationAPI.update(editedData.id, updatePayload);
 
       setSelectedFranchisee(editedData);
       setIsEditing(false);
@@ -817,12 +1911,13 @@ function FranchiseeList() {
       await fetchFranchisees();
       
       // Show success message
-      setError('');
+      setNotification({ open: true, message: 'Franchisee information updated successfully!', type: 'success' });
     } catch (err) {
       console.error('Error saving franchisee:', err);
-      setError(err.message || 'Failed to save changes. Please try again.');
+      const errorMessage = err.response?.data?.error || err.message || 'Failed to save changes. Please try again.';
+      setNotification({ open: true, message: errorMessage, type: 'error' });
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   }, [fetchFranchisees]);
 
@@ -968,99 +2063,403 @@ function FranchiseeList() {
     setPage(0); // Reset to first page when filter changes
   }, []);
 
-  const exportToXLSX = useCallback(() => {
+  // Comprehensive export function with options
+  const exportToXLSX = useCallback((options) => {
     try {
-      // Prepare data for export with comprehensive information
-      const dataToExport = filteredFranchisees.map(f => ({
-        'Record Number': f.recordNumber,
-        'Franchise Number': f.franchiseNumber,
-        'Franchisee Name': f.franchiseeName,
-        'Plate Number': f.plateNumber,
-        'Application Type': f.applicationType,
-        'Barangay': f.barangay || 'N/A',
-        'Address': f.address,
-        'Contact Number': f.contactNumber || 'N/A',
-        'Email': f.email || 'N/A',
-        'Birth Date': f.birthDate || 'N/A',
-        'Birth Place': f.birthPlace || 'N/A',
-        'Civil Status': f.civilStatus || 'N/A',
-        'Citizenship': f.citizenship || 'N/A',
-        'TODA Membership': f.todaMembership || 'N/A',
-        'Co-Owner Name': f.coOwnerName || 'N/A',
-        'Co-Owner Address': f.coOwnerAddress || 'N/A',
-        'Unit Model': f.unitModel || 'N/A',
-        'Make': f.make,
-        'MV Plate': f.mvPlate || 'N/A',
-        'Motor/Engine Number': f.motorEngineNumber || 'N/A',
-        'Chassis Number': f.chassisNumber || 'N/A',
-        'Color (Motor)': f.colorMotor || 'N/A',
-        'Color (Sidecar)': f.colorSidecar || 'N/A',
-        'Driver Name': f.driverName || 'N/A',
-        'Driver Address': f.driversAddress || 'N/A',
-        'Franchise Status': f.franchiseStatus || 'N/A',
-        'Rate': f.rate || 'N/A',
-        'Approved Date': f.approvedAt || 'N/A',
-        'Expiry Date': f.expiryDate || 'N/A',
-        'Resolution Number': f.resolutionNumber || 'N/A',
-        'OR Number': f.orNumber || 'N/A',
-      }));
-
-      // Create worksheet from data
-      const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+      let dataToExport = [...filteredFranchisees];
       
-      // Set column widths for better readability
-      const columnWidths = [
-        { wch: 15 }, // Record Number
-        { wch: 18 }, // Franchise Number
-        { wch: 25 }, // Franchisee Name
-        { wch: 15 }, // Plate Number
-        { wch: 15 }, // Application Type
-        { wch: 20 }, // Barangay
-        { wch: 35 }, // Address
-        { wch: 18 }, // Contact Number
-        { wch: 25 }, // Email
-        { wch: 15 }, // Birth Date
-        { wch: 20 }, // Birth Place
-        { wch: 15 }, // Civil Status
-        { wch: 15 }, // Citizenship
-        { wch: 18 }, // TODA Membership
-        { wch: 25 }, // Co-Owner Name
-        { wch: 35 }, // Co-Owner Address
-        { wch: 20 }, // Unit Model
-        { wch: 15 }, // Make
-        { wch: 15 }, // MV Plate
-        { wch: 20 }, // Motor/Engine Number
-        { wch: 20 }, // Chassis Number
-        { wch: 15 }, // Color (Motor)
-        { wch: 15 }, // Color (Sidecar)
-        { wch: 20 }, // Sidecar Plate Number
-        { wch: 25 }, // Driver Name
-        { wch: 35 }, // Driver Address
-        { wch: 18 }, // Franchise Status
-        { wch: 12 }, // Rate
-        { wch: 15 }, // Approved Date
-        { wch: 15 }, // Expiry Date
-        { wch: 18 }, // Resolution Number
-        { wch: 18 }, // OR Number
-      ];
-      worksheet['!cols'] = columnWidths;
+      // Apply filters from export options
+      // Filter by selected barangays
+      if (options.selectedBarangays.length > 0) {
+        dataToExport = dataToExport.filter(f => options.selectedBarangays.includes(f.barangay));
+      }
+      
+      // Filter by selected statuses
+      if (options.selectedStatuses.length > 0) {
+        dataToExport = dataToExport.filter(f => 
+          options.selectedStatuses.includes(f.franchiseStatus) ||
+          options.selectedStatuses.includes(f.applicationType)
+        );
+      }
+      
+      // Filter by date range
+      if (options.dateRange !== 'all') {
+        const now = new Date();
+        dataToExport = dataToExport.filter(f => {
+          if (!f.approvedAt) return false;
+          const approvedDate = new Date(f.approvedAt);
+          if (isNaN(approvedDate)) return false;
+          
+          switch (options.dateRange) {
+            case 'thisMonth':
+              return approvedDate.getMonth() === now.getMonth() && 
+                     approvedDate.getFullYear() === now.getFullYear();
+            case 'thisYear':
+              return approvedDate.getFullYear() === now.getFullYear();
+            case 'custom':
+              const start = options.customStartDate ? new Date(options.customStartDate) : null;
+              const end = options.customEndDate ? new Date(options.customEndDate) : null;
+              if (start && approvedDate < start) return false;
+              if (end && approvedDate > end) return false;
+              return true;
+            default:
+              return true;
+          }
+        });
+      }
+      
+      // Sort data
+      dataToExport.sort((a, b) => {
+        let valA = a[options.sortBy] || '';
+        let valB = b[options.sortBy] || '';
+        
+        // Handle date sorting
+        if (options.sortBy === 'approvedAt') {
+          valA = valA ? new Date(valA) : new Date(0);
+          valB = valB ? new Date(valB) : new Date(0);
+        } else {
+          valA = String(valA).toLowerCase();
+          valB = String(valB).toLowerCase();
+        }
+        
+        if (options.sortOrder === 'asc') {
+          return valA > valB ? 1 : valA < valB ? -1 : 0;
+        } else {
+          return valA < valB ? 1 : valA > valB ? -1 : 0;
+        }
+      });
 
-      // Create workbook and add worksheet
+      // Build columns based on included fields
+      const buildRowData = (f) => {
+        const row = {};
+        
+        if (options.includeFields.basic) {
+          row['Record Number'] = f.recordNumber;
+          row['Franchise Number'] = f.franchiseNumber;
+          row['Franchisee Name'] = f.franchiseeName;
+          row['Plate Number'] = f.plateNumber;
+          row['Application Type'] = f.applicationType;
+        }
+        
+        if (options.includeFields.personal) {
+          row['Contact Number'] = f.contactNumber || 'N/A';
+          row['Email'] = f.email || 'N/A';
+          row['Barangay'] = f.barangay || 'N/A';
+          row['Address'] = f.address || 'N/A';
+          row['Birth Date'] = f.birthDate || 'N/A';
+          row['Birth Place'] = f.birthPlace || 'N/A';
+          row['Civil Status'] = f.civilStatus || 'N/A';
+          row['Citizenship'] = f.citizenship || 'N/A';
+          row['TODA Membership'] = f.todaMembership || 'N/A';
+          row['Co-Owner Name'] = f.coOwnerName || 'N/A';
+          row['Co-Owner Address'] = f.coOwnerAddress || 'N/A';
+        }
+        
+        if (options.includeFields.driver) {
+          row['Driver Name'] = f.driverName || 'N/A';
+          row['Driver Address'] = f.driversAddress || 'N/A';
+        }
+        
+        if (options.includeFields.vehicle) {
+          row['Unit Model'] = f.unitModel || 'N/A';
+          row['Make'] = f.make || 'N/A';
+          row['MV Plate'] = f.mvPlate || 'N/A';
+          row['Motor/Engine Number'] = f.motorEngineNumber || 'N/A';
+          row['Chassis Number'] = f.chassisNumber || 'N/A';
+          row['Color (Motor)'] = f.colorMotor || 'N/A';
+          row['Color (Sidecar)'] = f.colorSidecar || 'N/A';
+        }
+        
+        if (options.includeFields.franchise) {
+          row['Franchise Status'] = f.franchiseStatus || 'N/A';
+          row['Rate'] = f.rate || 'N/A';
+          row['Approved Date'] = f.approvedAt || 'N/A';
+          row['Expiry Date'] = f.expiryDate || 'N/A';
+          row['Resolution Number'] = f.resolutionNumber || 'N/A';
+          row['OR Number'] = f.orNumber || 'N/A';
+        }
+        
+        return row;
+      };
+
+      // Create workbook
       const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, 'Franchisee List');
 
-      // Generate filename with date and optional barangay filter
-      const filename = `franchisee_list_${selectedBarangay !== 'all' ? selectedBarangay + '_' : ''}${new Date().toISOString().split('T')[0]}.xlsx`;
+      // Build header information based on export conditions
+      const buildHeaderInfo = () => {
+        const headers = [];
+        const now = new Date();
+        const exportDate = now.toLocaleDateString('en-US', { 
+          year: 'numeric', 
+          month: 'long', 
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+        
+        headers.push(['FRANCHISEE LIST EXPORT REPORT']);
+        headers.push([`Exported on: ${exportDate}`]);
+        headers.push([`Generated by: ${user?.name || 'Unknown User'}`]);
+        headers.push(['']); // Empty row for spacing
+        
+        // Add filter conditions
+        headers.push(['EXPORT CONDITIONS:']);
+        
+        // Sort info
+        const sortByLabels = {
+          franchiseNumber: 'Franchise Number',
+          franchiseeName: 'Franchisee Name',
+          approvedAt: 'Approved Date',
+          barangay: 'Barangay',
+          todaMembership: 'TODA'
+        };
+        headers.push([`Sort By: ${sortByLabels[options.sortBy] || options.sortBy} (${options.sortOrder === 'asc' ? 'Ascending' : 'Descending'})`]);
+        
+        // Group info
+        if (options.groupBy !== 'none') {
+          const groupByLabels = {
+            barangay: 'Barangay',
+            month: 'Month',
+            status: 'Status',
+            toda: 'TODA'
+          };
+          headers.push([`Grouped By: ${groupByLabels[options.groupBy] || options.groupBy}`]);
+        }
+        
+        // Date range info
+        if (options.dateRange !== 'all') {
+          let dateRangeText = '';
+          switch (options.dateRange) {
+            case 'thisMonth':
+              dateRangeText = `This Month (${now.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })})`;
+              break;
+            case 'thisYear':
+              dateRangeText = `This Year (${now.getFullYear()})`;
+              break;
+            case 'custom':
+              const startStr = options.customStartDate ? new Date(options.customStartDate).toLocaleDateString('en-US') : 'N/A';
+              const endStr = options.customEndDate ? new Date(options.customEndDate).toLocaleDateString('en-US') : 'N/A';
+              dateRangeText = `Custom Range: ${startStr} to ${endStr}`;
+              break;
+            default:
+              dateRangeText = 'All Time';
+          }
+          headers.push([`Date Range: ${dateRangeText}`]);
+        } else {
+          headers.push(['Date Range: All Time']);
+        }
+        
+        // Barangay filter info
+        if (options.selectedBarangays.length > 0) {
+          headers.push([`Barangay Filter: ${options.selectedBarangays.join(', ')}`]);
+        } else {
+          headers.push(['Barangay Filter: All Barangays']);
+        }
+        
+        // Status filter info
+        if (options.selectedStatuses.length > 0) {
+          headers.push([`Status Filter: ${options.selectedStatuses.join(', ')}`]);
+        } else {
+          headers.push(['Status Filter: All Statuses']);
+        }
+        
+        // Fields included
+        const includedFields = [];
+        if (options.includeFields.basic) includedFields.push('Basic Info');
+        if (options.includeFields.personal) includedFields.push('Personal Info');
+        if (options.includeFields.driver) includedFields.push('Driver Info');
+        if (options.includeFields.vehicle) includedFields.push('Vehicle Info');
+        if (options.includeFields.franchise) includedFields.push('Franchise Info');
+        headers.push([`Fields Included: ${includedFields.join(', ')}`]);
+        
+        headers.push([`Total Records: ${dataToExport.length}`]);
+        headers.push(['']); // Empty row before data
+        
+        return headers;
+      };
+
+      // Handle grouping
+      if (options.groupBy !== 'none' && options.separateSheets) {
+        // Group data
+        const groups = {};
+        dataToExport.forEach(f => {
+          let groupKey = 'Other';
+          
+          switch (options.groupBy) {
+            case 'barangay':
+              groupKey = f.barangay || 'No Barangay';
+              break;
+            case 'month':
+              if (f.approvedAt) {
+                const date = new Date(f.approvedAt);
+                if (!isNaN(date)) {
+                  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+                                      'July', 'August', 'September', 'October', 'November', 'December'];
+                  groupKey = `${monthNames[date.getMonth()]} ${date.getFullYear()}`;
+                }
+              } else {
+                groupKey = 'No Date';
+              }
+              break;
+            case 'status':
+              groupKey = f.franchiseStatus || f.applicationType || 'Unknown';
+              break;
+            case 'toda':
+              groupKey = f.todaMembership || 'No TODA';
+              break;
+          }
+          
+          if (!groups[groupKey]) groups[groupKey] = [];
+          groups[groupKey].push(f);
+        });
+
+        // Create separate sheets for each group
+        Object.keys(groups).sort().forEach(groupKey => {
+          const groupData = groups[groupKey].map(buildRowData);
+          
+          // Create worksheet with header info for each group
+          const headerInfo = buildHeaderInfo();
+          headerInfo.push([`Group: ${groupKey} (${groups[groupKey].length} records)`]);
+          headerInfo.push(['']);
+          
+          const worksheet = XLSX.utils.aoa_to_sheet(headerInfo);
+          XLSX.utils.sheet_add_json(worksheet, groupData, { origin: -1 });
+          
+          // Auto-adjust column widths
+          const maxWidths = {};
+          groupData.forEach(row => {
+            Object.keys(row).forEach(key => {
+              const val = String(row[key] || '');
+              maxWidths[key] = Math.max(maxWidths[key] || key.length, val.length);
+            });
+          });
+          worksheet['!cols'] = Object.keys(maxWidths).map(key => ({ wch: Math.min(maxWidths[key] + 2, 50) }));
+          
+          // Sanitize sheet name (max 31 chars, no special chars)
+          let sheetName = groupKey.substring(0, 31).replace(/[*?:/\\[\]]/g, '-');
+          XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
+        });
+
+        // Add summary sheet with header
+        const summaryHeaderInfo = buildHeaderInfo();
+        summaryHeaderInfo.push(['GROUP SUMMARY']);
+        summaryHeaderInfo.push(['']);
+        
+        const summaryData = Object.keys(groups).sort().map(key => ({
+          'Group': key,
+          'Count': groups[key].length
+        }));
+        const summarySheet = XLSX.utils.aoa_to_sheet(summaryHeaderInfo);
+        XLSX.utils.sheet_add_json(summarySheet, summaryData, { origin: -1 });
+        
+        // Set column widths for summary
+        summarySheet['!cols'] = [{ wch: 30 }, { wch: 10 }];
+        
+        XLSX.utils.book_append_sheet(workbook, summarySheet, 'Summary');
+      } else {
+        // Single sheet with optional grouping indicator
+        let exportData = dataToExport;
+        
+        if (options.groupBy !== 'none') {
+          // Sort by group first
+          exportData = [...dataToExport].sort((a, b) => {
+            let groupA = '', groupB = '';
+            
+            switch (options.groupBy) {
+              case 'barangay':
+                groupA = a.barangay || 'zzz';
+                groupB = b.barangay || 'zzz';
+                break;
+              case 'month':
+                groupA = a.approvedAt || 'zzz';
+                groupB = b.approvedAt || 'zzz';
+                break;
+              case 'status':
+                groupA = a.franchiseStatus || a.applicationType || 'zzz';
+                groupB = b.franchiseStatus || b.applicationType || 'zzz';
+                break;
+              case 'toda':
+                groupA = a.todaMembership || 'zzz';
+                groupB = b.todaMembership || 'zzz';
+                break;
+            }
+            
+            return groupA.localeCompare(groupB);
+          });
+        }
+        
+        const sheetData = exportData.map(f => {
+          const row = buildRowData(f);
+          // Add group column if grouping is enabled
+          if (options.groupBy !== 'none') {
+            let groupValue = '';
+            switch (options.groupBy) {
+              case 'barangay':
+                groupValue = f.barangay || 'No Barangay';
+                break;
+              case 'month':
+                if (f.approvedAt) {
+                  const date = new Date(f.approvedAt);
+                  if (!isNaN(date)) {
+                    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+                                        'July', 'August', 'September', 'October', 'November', 'December'];
+                    groupValue = `${monthNames[date.getMonth()]} ${date.getFullYear()}`;
+                  }
+                } else {
+                  groupValue = 'No Date';
+                }
+                break;
+              case 'status':
+                groupValue = f.franchiseStatus || f.applicationType || 'Unknown';
+                break;
+              case 'toda':
+                groupValue = f.todaMembership || 'No TODA';
+                break;
+            }
+            return { 'Group': groupValue, ...row };
+          }
+          return row;
+        });
+
+        // Create worksheet with header info
+        const headerInfo = buildHeaderInfo();
+        const worksheet = XLSX.utils.aoa_to_sheet(headerInfo);
+        XLSX.utils.sheet_add_json(worksheet, sheetData, { origin: -1 });
+        
+        // Auto-adjust column widths
+        const maxWidths = {};
+        sheetData.forEach(row => {
+          Object.keys(row).forEach(key => {
+            const val = String(row[key] || '');
+            maxWidths[key] = Math.max(maxWidths[key] || key.length, val.length);
+          });
+        });
+        worksheet['!cols'] = Object.keys(maxWidths).map(key => ({ wch: Math.min(maxWidths[key] + 2, 50) }));
+        
+        XLSX.utils.book_append_sheet(workbook, worksheet, 'Franchisee List');
+      }
+
+      // Generate filename
+      const now = new Date();
+      const dateStr = now.toISOString().split('T')[0];
+      let filename = `franchisee_export_${dateStr}`;
+      
+      if (options.groupBy !== 'none') {
+        filename += `_by_${options.groupBy}`;
+      }
+      
+      filename += '.xlsx';
 
       // Export file
       XLSX.writeFile(workbook, filename);
 
-      setNotification({ open: true, message: 'Data exported successfully to Excel', type: 'success' });
+      setNotification({ open: true, message: `Successfully exported ${dataToExport.length} franchisees to Excel`, type: 'success' });
+      setExportDialogOpen(false);
     } catch (error) {
       console.error('Export error:', error);
       setNotification({ open: true, message: 'Failed to export data', type: 'error' });
     }
-  }, [filteredFranchisees, selectedBarangay]);
+  }, [filteredFranchisees, user]);
 
   const getApplicationTypeColor = (type) => {
     switch (type) {
@@ -1142,7 +2541,7 @@ function FranchiseeList() {
           <Button
             variant="contained"
             startIcon={<FileDownloadIcon />}
-            onClick={exportToXLSX}
+            onClick={() => setExportDialogOpen(true)}
             sx={{
               bgcolor: '#0A356B',
               '&:hover': { bgcolor: '#082548' },
@@ -1282,51 +2681,83 @@ function FranchiseeList() {
             <Table className="admin-table" stickyHeader aria-label="franchisee table">
             <TableHead>
               <TableRow>
-                <TableCell className="admin-table-header-cell col-id">Record Number</TableCell>
+                <TableCell className="admin-table-header-cell col-id">Record #</TableCell>
                 <TableCell className="admin-table-header-cell col-name" align="left">Franchisee Name</TableCell>
-                <TableCell className="admin-table-header-cell col-id">Franchise Number</TableCell>
+                <TableCell className="admin-table-header-cell col-id">Franchise #</TableCell>
                 <TableCell className="admin-table-header-cell col-contact">Plate Number</TableCell>
-                <TableCell className="admin-table-header-cell col-status">Application Type</TableCell>
+                <TableCell className="admin-table-header-cell col-status">Type</TableCell>
+                <TableCell className="admin-table-header-cell col-status">Status</TableCell>
                 <TableCell className="admin-table-header-cell col-barangay" align="left">Address</TableCell>
                 <TableCell className="admin-table-header-cell col-actions">Action</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {!loading && paginatedFranchisees.length > 0 ? (
-                paginatedFranchisees.map((row) => (
-                  <TableRow 
-                    key={row.id}
-                    className="admin-table-row"
-                    onClick={() => handleRowClick(row)}
-                    hover
-                  >
-                    <TableCell className="admin-table-cell">{row.recordNumber}</TableCell>
-                    <TableCell className="admin-table-cell col-name" align="left">{row.franchiseeName}</TableCell>
-                    <TableCell className="admin-table-cell">{row.franchiseNumber}</TableCell>
-                    <TableCell className="admin-table-cell">{row.plateNumber}</TableCell>
-                    <TableCell className="admin-table-cell">
-                      <span className={`status-badge ${row.applicationType === 'new' ? 'status-pending' : 'status-active'}`}>
-                        {row.applicationType}
-                      </span>
-                    </TableCell>
-                    <TableCell className="admin-table-cell col-barangay" align="left">{row.address}</TableCell>
-                    <TableCell className="admin-table-cell">
-                      <IconButton 
-                        size="small" 
-                        className="action-icon-button view"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleRowClick(row);
-                        }}
-                      >
-                        <VisibilityIcon />
-                      </IconButton>
-                    </TableCell>
-                  </TableRow>
-                ))
+                paginatedFranchisees.map((row) => {
+                  // Only mark as previous owner if franchise was revoked
+                  const isPreviousOwner = row.franchiseStatus === 'Revoked';
+                  
+                  return (
+                    <TableRow 
+                      key={row.id}
+                      className="admin-table-row"
+                      onClick={() => handleRowClick(row)}
+                      hover
+                      sx={isPreviousOwner ? { bgcolor: '#fff3e0' } : {}}
+                    >
+                      <TableCell className="admin-table-cell">{row.recordNumber}</TableCell>
+                      <TableCell className="admin-table-cell col-name" align="left">
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          {row.franchiseeName}
+                          {isPreviousOwner && (
+                            <Chip 
+                              label="Past" 
+                              size="small" 
+                              variant="outlined"
+                              color="warning"
+                              sx={{ height: 20, fontSize: '0.65rem' }} 
+                            />
+                          )}
+                        </Box>
+                      </TableCell>
+                      <TableCell className="admin-table-cell">{row.franchiseNumber}</TableCell>
+                      <TableCell className="admin-table-cell">{row.plateNumber}</TableCell>
+                      <TableCell className="admin-table-cell">
+                        <Chip 
+                          label={row.applicationType}
+                          size="small"
+                          color={getChangeTypeColor(row.changeType)}
+                          sx={{ fontWeight: 500, fontSize: '0.7rem' }}
+                        />
+                      </TableCell>
+                      <TableCell className="admin-table-cell">
+                        <Chip 
+                          label={row.franchiseStatus || 'N/A'}
+                          size="small"
+                          color={getStatusColor(row.franchiseStatus)}
+                          variant={isPreviousOwner ? 'outlined' : 'filled'}
+                          sx={{ fontWeight: 500, fontSize: '0.7rem' }}
+                        />
+                      </TableCell>
+                      <TableCell className="admin-table-cell col-barangay" align="left">{row.address}</TableCell>
+                      <TableCell className="admin-table-cell">
+                        <IconButton 
+                          size="small" 
+                          className="action-icon-button view"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRowClick(row);
+                          }}
+                        >
+                          <VisibilityIcon />
+                        </IconButton>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
               ) : (
                 <TableRow>
-                  <TableCell colSpan={7} className="admin-table-empty">
+                  <TableCell colSpan={8} className="admin-table-empty">
                     <Typography className="admin-table-empty-text">
                       {loading ? 'Loading...' : 'No franchisees found'}
                     </Typography>
@@ -1358,10 +2789,21 @@ function FranchiseeList() {
           isEditing={isEditing}
           onEdit={handleEdit}
           onSave={handleSave}
+          onCancelEdit={handleCancelEdit}
           onFilePreview={handleOpenFilePreview}
           getFileIcon={getFileIcon}
           getDocumentDisplayName={getDocumentDisplayName}
           qrBlobUrl={qrBlobUrl}
+          saving={saving}
+        />
+
+        {/* Export Options Dialog */}
+        <ExportOptionsDialog
+          open={exportDialogOpen}
+          onClose={() => setExportDialogOpen(false)}
+          onExport={exportToXLSX}
+          franchisees={filteredFranchisees}
+          barangays={barangays}
         />
 
         {/* File Preview Modal */}

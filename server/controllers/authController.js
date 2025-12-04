@@ -432,6 +432,28 @@ exports.login = async (req, res, next) => {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
     
+    // Check if admin account is active (deactivated admins cannot login)
+    if (isAdmin && user.isActive === false) {
+      await auditLogService.logLogin(
+        { 
+          id: user._id || user.adminId, 
+          userId: user.adminId,
+          username: user.username || user.email, 
+          name: user.name,
+          role: user.role, 
+          accountType: 'admin', 
+          email: user.email 
+        },
+        req,
+        false,
+        'Account deactivated - access denied'
+      ).catch(err => console.error('Audit log error:', err));
+      return res.status(403).json({ 
+        error: 'Your account has been deactivated. Please contact a super admin to reactivate your account.',
+        code: 'ACCOUNT_DEACTIVATED'
+      });
+    }
+    
     // Populate franchise data for regular users (not admins)
     if (!isAdmin && user._id) {
       try {

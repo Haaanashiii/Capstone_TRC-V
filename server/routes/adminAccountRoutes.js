@@ -22,6 +22,12 @@ router.put('/:id', authenticate, authorize(['super-admin']), adminAccountControl
 // PATCH deactivate admin account (soft delete) - super-admin only
 router.patch('/:id/deactivate', authenticate, authorize(['super-admin']), adminAccountController.deactivateAdmin);
 
+// PATCH activate admin account - super-admin only
+router.patch('/:id/activate', authenticate, authorize(['super-admin']), adminAccountController.activateAdmin);
+
+// PATCH toggle admin account status (active/inactive) - super-admin only
+router.patch('/:id/toggle-status', authenticate, authorize(['super-admin']), adminAccountController.toggleAdminStatus);
+
 // DELETE admin account (hard delete) - super-admin only
 router.delete('/:id', authenticate, authorize(['super-admin']), adminAccountController.deleteAdmin);
 

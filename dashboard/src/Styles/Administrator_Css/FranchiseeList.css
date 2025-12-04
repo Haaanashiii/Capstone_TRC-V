@@ -314,6 +314,47 @@
   background-color: rgba(255, 255, 255, 0.15) !important;
 }
 
+/* Edit mode styles */
+.franchisee-list-container .info-grid .MuiTextField-root {
+  margin: 0 !important;
+}
+
+.franchisee-list-container .info-grid .MuiTextField-root .MuiOutlinedInput-root {
+  background-color: white;
+  border-radius: 6px;
+}
+
+.franchisee-list-container .info-grid .MuiTextField-root .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline {
+  border-color: #0A356B;
+}
+
+.franchisee-list-container .info-grid .MuiTextField-root .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline {
+  border-color: #0A356B;
+  border-width: 2px;
+}
+
+.franchisee-list-container .info-grid .MuiFormControl-root {
+  margin: 0 !important;
+}
+
+.franchisee-list-container .info-grid .MuiSelect-root {
+  background-color: white;
+}
+
+.franchisee-list-container .edit-alert {
+  margin-bottom: 16px;
+  border-radius: 8px;
+}
+
+/* Save/Cancel button animations */
+.franchisee-list-container .modal-header .MuiIconButton-root svg {
+  transition: transform 0.2s ease;
+}
+
+.franchisee-list-container .modal-header .MuiIconButton-root:hover svg {
+  transform: scale(1.1);
+}
+
 .franchisee-list-container .modal-body {
   flex: 1;
   overflow-y: auto;

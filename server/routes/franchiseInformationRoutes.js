@@ -181,4 +181,19 @@ router.get(
   franchiseInformationController.getFranchiseInformation
 );
 
+/**
+ * PUT /franchise-information/:id
+ * Update franchise information
+ * PROTECTED - Admin only (sb-admin, super-admin)
+ * 
+ * Body: Updated franchise fields (operatorName, address, contact, etc.)
+ * Returns: Updated franchise information
+ */
+router.put(
+  '/:id',
+  authenticate,
+  authorize(['sb-admin', 'super-admin']),
+  franchiseInformationController.updateFranchiseInformation
+);
+
 module.exports = router;

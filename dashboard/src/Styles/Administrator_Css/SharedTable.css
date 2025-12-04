@@ -4,10 +4,11 @@
 
 /* Table Container */
 .admin-table-container {
-  border-radius: 8px;
+  border-radius: 12px;
   overflow: hidden;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 4px 16px rgba(10, 53, 107, 0.1);
   background: #ffffff;
+  border: 1px solid rgba(10, 53, 107, 0.08);
 }
 
 .admin-table-wrapper {
