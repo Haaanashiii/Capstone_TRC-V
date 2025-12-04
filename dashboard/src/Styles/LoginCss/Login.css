@@ -357,9 +357,12 @@ ogin-right-title {
 }
 
 /* Mobile Responsiveness - Hide right panel on small screens */
-@media (max-width: 768px) {
+@media (max-width: 1024px) {
   .login-root {
     flex-direction: column;
+    height: auto;
+    min-height: 100vh;
+    overflow-y: auto;
   }
   .login-right {
     display: none;
@@ -367,5 +370,35 @@ ogin-right-title {
   .login-left {
     width: 100%;
     padding: clamp(16px, 4vw, 32px);
+    min-height: 100vh;
+    justify-content: center;
+  }
+  .login-form {
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 768px) {
+  .login-root {
+    height: auto;
+  }
+  .login-left {
+    padding: 20px 16px;
+  }
+  .login-header {
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+  .login-logo {
+    width: 44px;
+    height: 44px;
+  }
+  .login-qr {
+    width: 32px;
+    height: 32px;
+  }
+  .login-title {
+    font-size: 1.3rem;
+    margin-bottom: 16px;
   }
 }
