@@ -7,6 +7,15 @@ const { generateHashedFranchiseNo, generateQRCodeBuffer, handleVersionControl, v
 const storage = require('../services/storageAdapter');
 const { auditLogService } = require('../services/auditLogService');
 const { sendBPLOApprovalNotification, sendSBApprovalNotification } = require('../services/notificationQueueService');
+const cacheManager = require('../utils/cache');
+const crypto = require('crypto');
+
+// Helper to invalidate QR cache when franchise data changes
+const invalidateQRCache = (franchiseNumber) => {
+  if (!franchiseNumber) return;
+  const hash = crypto.createHash('sha256').update(franchiseNumber).digest('hex').substring(0, 16);
+  cacheManager.delete(`qr-scan-${hash}`);
+};
 
 // 1) CREATE NEW APPLICATION
 exports.createNewApplication = async (req, res, next) => {
@@ -14,31 +23,15 @@ exports.createNewApplication = async (req, res, next) => {
     const { body, files, user } = req;
     const userId = user?._id || user?.userId || String(user?.id);
     
-    console.log('[createNewApplication] Request body:', {
-      operatorName: body.operatorName,
-      operatorContactNumber: body.operatorContactNumber,
-      operatorAddress: body.operatorAddress,
-      operatorBarangay: body.operatorBarangay,
-      mvPlateNo: body.mvPlateNo,
-      filesCount: files ? Object.keys(files).length : 0
-    });
-    
-    // Fetch user email from database
     let userEmail = user?.email || '';
     if (!userEmail && userId) {
       try {
         const User = require('../models/userAccountModel');
         const foundUser = await User.findById(userId).select('email');
-        if (foundUser && foundUser.email) {
-          userEmail = foundUser.email;
-          console.log('[createNewApplication] Fetched user email from DB:', userEmail);
-        }
-      } catch (emailError) {
-        console.error('[createNewApplication] Failed to fetch user email:', emailError);
-      }
+        if (foundUser?.email) userEmail = foundUser.email;
+      } catch (emailError) {}
     }
     
-    // Build application data from request body
     const applicationData = {
       operatorName: body.operatorName,
       operatorContactNumber: body.operatorContactNumber,
@@ -63,54 +56,30 @@ exports.createNewApplication = async (req, res, next) => {
       applicationType: 'new',
       statusOfBPLO: 'pending',
       operatorInfo: userId,
-      // Walk-in specific fields
       isWalkIn: body.isWalkIn === 'true' || body.isWalkIn === true,
       officialReceiptNumber: body.officialReceiptNumber || '',
       orSubmittedAt: body.orSubmittedAt ? new Date(body.orSubmittedAt) : null
     };
     
-    console.log('[createNewApplication] Creating application with operatorInfo:', userId);
-    console.log('[createNewApplication] Application data:', applicationData);
     const application = await franchiseApplicationRepository.createFranchiseApplication(applicationData);
-    console.log('[createNewApplication] Application created:', application._id);
     const appId = String(application._id);
     
-    // Link application to user's franchiseApplications array
     if (userId) {
       try {
         const User = require('../models/userAccountModel');
-        await User.findByIdAndUpdate(
-          userId,
-          { $addToSet: { franchiseApplications: application._id } },
-          { new: true }
-        );
-        console.log('[createNewApplication] Application linked to user:', userId);
-      } catch (linkError) {
-        console.error('[createNewApplication] Failed to link application to user:', linkError);
-        // Don't fail the whole operation if linking fails
-      }
+        await User.findByIdAndUpdate(userId, { $addToSet: { franchiseApplications: application._id } }, { new: true });
+      } catch (linkError) {}
     }
     
-    // Upload documents if provided - application ID is automatically the application._id
-    // ASYNC: Don't block response - upload in background
     if (files && Object.keys(files).length > 0) {
-      // Don't await this - start upload in background
       const uploadAsync = (async () => {
         try {
-          console.log('[createNewApplication] Starting background file uploads for application:', appId);
-          const startTime = Date.now();
-          
           const uploadHelper = async (fieldName, category) => {
             const fileArray = files[fieldName];
             if (!fileArray?.[0]) return null;
-            
             validateFile(fileArray[0]);
-            const result = await uploadFile(
-              fileArray[0].buffer,
-              fileArray[0].originalname,
-              fileArray[0].mimetype,
-              { baseFolder: 'franchiseApplications', subFolder: userId, applicationId: appId, category }
-            );
+            const result = await uploadFile(fileArray[0].buffer, fileArray[0].originalname, fileArray[0].mimetype,
+              { baseFolder: 'franchiseApplications', subFolder: userId, applicationId: appId, category });
             return result.cloudflare;
           };
           
@@ -125,7 +94,7 @@ exports.createNewApplication = async (req, res, next) => {
             uploadHelper('operatorPictureObj', 'ProfilePictures'),
             uploadHelper('oRLTOObj', 'Documentations'),
             uploadHelper('cRLTOObj', 'Documentations'),
-            uploadHelper('oRTreasurerOfficeObj', 'Documentations') // OR document for walk-in
+            uploadHelper('oRTreasurerOfficeObj', 'Documentations')
           ]);
           
           const updateData = {};
@@ -144,12 +113,7 @@ exports.createNewApplication = async (req, res, next) => {
           if (Object.keys(updateData).length > 0) {
             await franchiseApplicationRepository.updateFranchiseApplication(appId, updateData);
           }
-          
-          const elapsedTime = Date.now() - startTime;
-          console.log(`[createNewApplication] File uploads completed in ${elapsedTime}ms for application: ${appId}`);
         } catch (uploadError) {
-          console.error('[createNewApplication] Async file upload error:', uploadError.message);
-          // Notify user of failure via WebSocket (non-blocking)
           if (req.app.get('io') && userId) {
             try {
               req.app.get('io').to(`user-${userId}`).emit('file-upload-error', {
@@ -157,65 +121,39 @@ exports.createNewApplication = async (req, res, next) => {
                 message: 'Some documents failed to upload. Please try re-uploading them.',
                 error: uploadError.message
               });
-            } catch (wsError) {
-              console.error('[createNewApplication] Failed to notify user of upload error:', wsError.message);
-            }
+            } catch (wsError) {}
           }
         }
       })();
-      
-      // Don't await - let it run in background
-      uploadAsync.catch(err => 
-        console.error('[createNewApplication] Uncaught async upload error:', err)
-      );
+      uploadAsync.catch(() => {});
     }
     
-    // Fetch updated application with all details for audit logging
     const finalApplication = await franchiseApplicationRepository.getFranchiseApplicationById(appId);
     
-    // Log application creation
     if (user) {
-      await auditLogService.logApplicationCreation(finalApplication, user, req).catch(err => 
-        console.error('[createNewApplication] Audit log error:', err)
-      );
+      await auditLogService.logApplicationCreation(finalApplication, user, req).catch(() => {});
     }
     
-    // Broadcast new application to BPLO admins and dashboard
     try {
       const io = req.app.get('io');
       if (io) {
         io.to('bplo-admin').emit('pending-applications', [finalApplication]);
         io.to('general').emit('application-updated', finalApplication);
-        console.log('[createNewApplication] Broadcasted new application to bplo-admins and general rooms');
       }
-    } catch (wsError) {
-      console.error('[createNewApplication] WebSocket broadcast error:', wsError.message);
-    }
+    } catch (wsError) {}
     
-    // Send notification for walk-in applications
     if (finalApplication.isWalkIn) {
-      console.log('[createNewApplication] Walk-in application detected - sending notification');
       try {
         const { sendWalkInApplicationNotification } = require('../services/notificationQueueService');
-        await sendWalkInApplicationNotification(finalApplication).catch(err => {
-          console.error('[createNewApplication] Walk-in notification error:', err);
-        });
-      } catch (notifError) {
-        console.error('[createNewApplication] Failed to import or send walk-in notification:', notifError);
-      }
+        await sendWalkInApplicationNotification(finalApplication).catch(() => {});
+      } catch (notifError) {}
     }
     
     res.status(201).json({ success: true, data: finalApplication });
   } catch (error) {
-    console.error('[createNewApplication] Error:', error.message);
-    console.error('[createNewApplication] Stack:', error.stack);
     if (error.code === 11000) {
-      // Duplicate key error
       const field = Object.keys(error.keyPattern || {})[0];
-      return res.status(400).json({ 
-        success: false, 
-        error: `Duplicate ${field}: A franchise application with this ${field} already exists.` 
-      });
+      return res.status(400).json({ success: false, error: `Duplicate ${field}: A franchise application with this ${field} already exists.` });
     }
     next(error);
   }
@@ -231,9 +169,6 @@ exports.getPendingFranchises = async (req, res, next) => {
     const userId = req.user?._id?.toString() || req.user?.userId || String(req.user?.id);
     const userEmail = req.user?.email;
     
-    console.log('[getPendingFranchises] User ID:', userId, 'Page:', pageNum, 'Limit:', pageLimit);
-    
-    // Build filter to match either operatorInfo (preferred) or operatorEmail (fallback for old applications)
     const filter = {
       $or: [
         { operatorInfo: userId },
@@ -244,16 +179,10 @@ exports.getPendingFranchises = async (req, res, next) => {
     if (status) {
       filter.statusOfBPLO = status;
     } else {
-      // Return all non-completed applications by default
       filter.statusOfBPLO = { $in: ['pending', 'bplo-approved', 'awaiting-sb', 'sb-approved', 'bplo-disapproved'] };
     }
     
-    console.log('[getPendingFranchises] Filter:', JSON.stringify(filter));
-    
-    // Get total count for pagination info
     const total = await FranchiseApplication.countDocuments(filter);
-    
-    // Fetch paginated results
     const applications = await FranchiseApplication
       .find(filter)
       .sort({ submittedAt: -1 })
@@ -261,20 +190,12 @@ exports.getPendingFranchises = async (req, res, next) => {
       .limit(pageLimit)
       .lean();
     
-    console.log('[getPendingFranchises] Found applications:', applications.length, 'of', total);
-    
     res.json({ 
       success: true, 
       data: applications,
-      pagination: {
-        page: pageNum,
-        limit: pageLimit,
-        total,
-        pages: Math.ceil(total / pageLimit)
-      }
+      pagination: { page: pageNum, limit: pageLimit, total, pages: Math.ceil(total / pageLimit) }
     });
   } catch (error) {
-    console.error('[getPendingFranchises] Error:', error);
     next(error);
   }
 };
@@ -314,57 +235,38 @@ exports.editPendingFranchise = async (req, res, next) => {
     const { body, files } = req;
     const application = await franchiseApplicationRepository.getFranchiseApplicationById(id);
     
-    if (!application) {
-      return res.status(404).json({ error: 'Application not found' });
-    }
-    
-    // Allow editing for pending OR disapproved applications (for resubmission)
+    if (!application) return res.status(404).json({ error: 'Application not found' });
     if (application.statusOfBPLO !== 'pending' && application.statusOfBPLO !== 'bplo-disapproved') {
       return res.status(400).json({ error: 'Can only edit pending or disapproved applications' });
     }
     
-    // Check if user owns this application
     const userId = req.user?._id?.toString() || req.user?.userId || String(req.user?.id);
     const appUserId = application.operatorInfo?.toString();
     if (userId !== appUserId && req.user?.role !== 'admin') {
       return res.status(403).json({ error: 'You can only edit your own applications' });
     }
     
-    // If resubmitting a disapproved application, reset status to pending
     const updateData = { ...body };
     if (application.statusOfBPLO === 'bplo-disapproved') {
       updateData.statusOfBPLO = 'pending';
-      updateData.bploDisapprovedReason = null; // Clear disapproval reason
-      updateData.submittedAt = new Date(); // Update submission timestamp
-      console.log('[editPendingFranchise] Resubmitting disapproved application - resetting to pending');
+      updateData.bploDisapprovedReason = null;
+      updateData.submittedAt = new Date();
     }
     
-    // Handle file uploads if provided
-    // ASYNC: Don't block response - upload in background
     if (files && Object.keys(files).length > 0) {
-      // Don't await this - start upload in background
       const uploadAsync = (async () => {
         try {
-          console.log('[editPendingFranchise] Starting background file uploads for application:', id);
-          const startTime = Date.now();
-          
           const { uploadFile, validateFile } = require('../services/fileUploadService');
           
           const uploadHelper = async (fieldName, category) => {
             const fileArray = files[fieldName];
             if (!fileArray?.[0]) return null;
-            
             validateFile(fileArray[0]);
-            const result = await uploadFile(
-              fileArray[0].buffer,
-              fileArray[0].originalname,
-              fileArray[0].mimetype,
-              { baseFolder: 'franchiseApplications', subFolder: userId, applicationId: id, category }
-            );
+            const result = await uploadFile(fileArray[0].buffer, fileArray[0].originalname, fileArray[0].mimetype,
+              { baseFolder: 'franchiseApplications', subFolder: userId, applicationId: id, category });
             return result.cloudflare;
           };
           
-          // Upload all provided documents
           const [motorReg, barangay, cedula, license, affidavit, stencil, driverPic, operatorPic, orLTO, crLTO] = await Promise.all([
             uploadHelper('motorRegistrationObj', 'Documentations'),
             uploadHelper('barangayClearanceObj', 'Documentations'),
@@ -378,7 +280,6 @@ exports.editPendingFranchise = async (req, res, next) => {
             uploadHelper('cRLTOObj', 'Documentations')
           ]);
           
-          // Build update data for uploaded files
           const fileUpdateData = {};
           if (motorReg) fileUpdateData['documents.motorRegistrationObj'] = motorReg;
           if (barangay) fileUpdateData['documents.barangayClearanceObj'] = barangay;
@@ -391,17 +292,10 @@ exports.editPendingFranchise = async (req, res, next) => {
           if (orLTO) fileUpdateData['documents.oRLTOObj'] = orLTO;
           if (crLTO) fileUpdateData['documents.cRLTOObj'] = crLTO;
           
-          // Update application with file URLs
           if (Object.keys(fileUpdateData).length > 0) {
             await franchiseApplicationRepository.updateFranchiseApplication(id, fileUpdateData);
-            console.log('[editPendingFranchise] Files updated for application:', id);
           }
-          
-          const elapsedTime = Date.now() - startTime;
-          console.log(`[editPendingFranchise] File uploads completed in ${elapsedTime}ms for application: ${id}`);
         } catch (uploadError) {
-          console.error('[editPendingFranchise] Async file upload error:', uploadError.message);
-          // Notify user of failure via WebSocket (non-blocking)
           if (req.app.get('io') && userId) {
             try {
               req.app.get('io').to(`user-${userId}`).emit('file-upload-error', {
@@ -409,43 +303,25 @@ exports.editPendingFranchise = async (req, res, next) => {
                 message: 'Some documents failed to upload. Please try re-uploading them.',
                 error: uploadError.message
               });
-            } catch (wsError) {
-              console.error('[editPendingFranchise] Failed to notify user of upload error:', wsError.message);
-            }
+            } catch (wsError) {}
           }
         }
       })();
-      
-      // Don't await - let it run in background
-      uploadAsync.catch(err => 
-        console.error('[editPendingFranchise] Uncaught async upload error:', err)
-      );
+      uploadAsync.catch(() => {});
     }
     
     const updated = await franchiseApplicationRepository.updateFranchiseApplication(id, updateData);
     
-    // Log application edit/resubmission
     if (req.user) {
-      await auditLogService.logApplicationEdit(updated, req.user, req).catch(err =>
-        console.error('[editPendingFranchise] Audit log error:', err)
-      );
+      await auditLogService.logApplicationEdit(updated, req.user, req).catch(() => {});
     }
     
-    // Notify BPLO admins via WebSocket if application was resubmitted
     if (application.statusOfBPLO === 'bplo-disapproved' && req.app.get('io')) {
       try {
-        // Fetch all pending applications to send updated list
         const FranchiseApplication = require('../models/franchiseApplicationModel');
-        const pendingApplications = await FranchiseApplication.find({
-          statusOfBPLO: 'pending'
-        }).sort({ submittedAt: -1 });
-        
-        // Emit updated list to all BPLO admins
+        const pendingApplications = await FranchiseApplication.find({ statusOfBPLO: 'pending' }).sort({ submittedAt: -1 });
         req.app.get('io').to('bplo-admins').emit('pending-applications', pendingApplications);
-        console.log(`[editPendingFranchise] Notified BPLO admins: ${pendingApplications.length} applications pending review`);
-      } catch (wsError) {
-        console.error('[editPendingFranchise] WebSocket notification failed:', wsError.message);
-      }
+      } catch (wsError) {}
     }
     
     res.json({ 
@@ -456,7 +332,6 @@ exports.editPendingFranchise = async (req, res, next) => {
         'Application updated successfully.'
     });
   } catch (error) {
-    console.error('[editPendingFranchise] Error:', error);
     next(error);
   }
 };
@@ -734,10 +609,6 @@ exports.approveFranchiseByBPLO = async (req, res, next) => {
           statusOfBPLO: { $in: ['bplo-approved', 'awaiting-sb', 'sb-approved', 'completed'] }
         }).select('franchiseNumber').lean().exec();
         
-        const now = new Date();
-        const threeYearsAgo = new Date(now);
-        threeYearsAgo.setFullYear(now.getFullYear() - 3);
-        
         const franchiseMap = new Map();
         let latestNumber = 0;
         
@@ -749,11 +620,12 @@ exports.approveFranchiseByBPLO = async (req, res, next) => {
           const franchiseNum = parseInt(numberMatch[1], 10);
           latestNumber = Math.max(latestNumber, franchiseNum);
           
-          const isRevoked = franchise.franchiseStatus === 'revoked' || franchise.franchiseStatus === 'Revoked';
-          const isExpired3Years = franchise.expiryDate && new Date(franchise.expiryDate) <= threeYearsAgo;
-          const isAvailable = isRevoked && isExpired3Years;
+          // A franchise number is AVAILABLE for recycling if:
+          // - Status is 'Revoked' or 'revoked' (case-insensitive check)
+          // That's it! Once revoked, the number can be reassigned to a new applicant
+          const isRevoked = franchise.franchiseStatus?.toLowerCase() === 'revoked';
           
-          franchiseMap.set(franchiseNum, { available: isAvailable, reserved: false });
+          franchiseMap.set(franchiseNum, { available: isRevoked, reserved: false });
         }
         
         // Add pending applications to mark numbers as RESERVED (in use)
@@ -764,7 +636,7 @@ exports.approveFranchiseByBPLO = async (req, res, next) => {
           const franchiseNum = parseInt(numberMatch[1], 10);
           latestNumber = Math.max(latestNumber, franchiseNum);
           
-          // Mark this number as reserved (being processed)
+          // Mark this number as reserved (being processed) - overrides any "available" status
           franchiseMap.set(franchiseNum, { available: false, reserved: true });
         }
         
@@ -772,7 +644,7 @@ exports.approveFranchiseByBPLO = async (req, res, next) => {
         let assignedNumber = null;
         for (let i = 1; i <= latestNumber; i++) {
           const franchise = franchiseMap.get(i);
-          // Only use if it exists AND is available (not reserved and not in use)
+          // Use if: (1) number never existed, OR (2) exists and is available (revoked)
           if (!franchise || franchise.available) {
             assignedNumber = i;
             break;
@@ -785,7 +657,6 @@ exports.approveFranchiseByBPLO = async (req, res, next) => {
         
         const franchiseNumber = String(assignedNumber).padStart(4, '0');
         updateData.franchiseNumber = franchiseNumber;
-        console.log('[BPLO Approval] Assigned franchise number:', franchiseNumber, 'to application:', id, '| Reserved numbers:', Array.from(franchiseMap.entries()).filter(([_, v]) => v.reserved).map(([k]) => String(k).padStart(4, '0')).join(', '));
       } catch (numberError) {
         console.error('[BPLO Approval] Failed to assign franchise number:', numberError.message);
         // Continue without franchise number assignment - can be assigned manually later
@@ -1379,11 +1250,10 @@ exports.sbAdminAcceptNewFranchise = async (req, res, next) => {
     
     const FranchiseInformationModel = require('../models/franchiseInformationModel');
     const franchise = await FranchiseInformationModel.create([franchiseData], { session });
-    console.log('[sbAdminAcceptNewFranchise] Franchise created:', {
-      franchiseNumber: franchiseNo,
-      resolutionNumber: franchiseData.resolutionNumber || 'NOT SET',
-      resolutionDocument: franchiseData.documents?.resolutionDocumentObj ? '✓ Saved' : '✗ Not found'
-    });
+    
+    // Invalidate QR cache - important for recycled franchise numbers
+    // When 0001 goes from gabatino-0001 (revoked) to gonzales-0001 (new), QR shows new owner
+    invalidateQRCache(franchiseNo);
     
     // Link franchise chain ID to user account
     if (application.operatorInfo) {
@@ -1663,13 +1533,9 @@ exports.sbAdminAcceptRenewOrAmendment = async (req, res, next) => {
     
     const FranchiseInformationModel = require('../models/franchiseInformationModel');
     const newFranchise = await FranchiseInformationModel.create([newVersionData], { session });
-    console.log('[sbAdminAcceptRenewOrAmendment] New franchise version created:', {
-      franchiseNumber: franchiseNo,
-      applicationType: application.applicationType,
-      version: newVersionData.version,
-      resolutionNumber: newVersionData.resolutionNumber || 'NOT SET',
-      resolutionDocument: newVersionData.documents?.resolutionDocumentObj ? '✓ Saved' : '✗ Not found'
-    });
+    
+    // Invalidate QR cache - renewal/amendment may update driver/operator info shown in QR scan
+    invalidateQRCache(franchiseNo);
     
     // Link franchise chain ID to new owner (for ownership updates)
     if (application.applicationType === 'update_ownership' && application.operatorInfo) {

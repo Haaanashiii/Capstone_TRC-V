@@ -352,8 +352,8 @@ function initializeHealthMonitor() {
     console.log(`[DEBUG] Health monitor: ${HEALTH_CONFIG.checkInterval}`);
   }
   
-  // Run initial health check silently (don't log success)
-  performHealthCheck(true);
+  // Delay initial health check by 10s (don't slow down startup)
+  setTimeout(() => performHealthCheck(true), 10000);
 }
 
 function stopHealthMonitor() {

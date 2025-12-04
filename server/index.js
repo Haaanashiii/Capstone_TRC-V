@@ -417,30 +417,49 @@ app.use(errorHandler);
 
 // Start server
 const PORT = process.env.PORT || 5170;
+const HOST = process.env.NODE_ENV === 'production' ? '0.0.0.0' : '127.0.0.1';
 const startTime = Date.now();
 
+// Connect to MongoDB first, then start the HTTP server
 mongoose.connect(process.env.MONGO_URI, {
-  serverSelectionTimeoutMS: 10000,
-  maxPoolSize: 75,
-  minPoolSize: 10,
-  socketTimeoutMS: 45000,
-  family: 4
+  serverSelectionTimeoutMS: 10000, // Default 10s (increased from 5s for reliability)
+  maxPoolSize: 50,                 // Reduced from 75 (faster pool init)
+  minPoolSize: 5,                  // Reduced from 10
+  socketTimeoutMS: 30000,          // Reduced from 45s
+  family: 4,
+  bufferCommands: false,           // Disable command buffering to avoid race conditions
+  autoIndex: false                 // Don't build indexes on startup (do in migration)
 })
-  .then(() => {
-    storage.init();
-    
-    server.listen(PORT, '0.0.0.0', () => {
-      console.log(`\nTRC-V Server | Port ${PORT} | ${Date.now() - startTime}ms | ${storage.storageType}\n`);
-      
-      // Init schedulers in background
-      setImmediate(() => {
-        try { require('./services/franchiseExpiryScheduler').initializeFranchiseExpiryScheduler(); } catch (e) {}
-        try { require('./services/backupScheduler').initializeBackupScheduler(); } catch (e) {}
-        try { require('./services/healthMonitorService').initializeHealthMonitor(); } catch (e) {}
-      });
+  .then(async () => {
+    const mongoTime = Date.now() - startTime;
+    console.log(`MongoDB connected in ${mongoTime}ms | ${storage.storageType}`);
+
+    // Ensure all Mongoose indexes are created (since autoIndex is false)
+    try {
+      const modelNames = mongoose.modelNames();
+      await Promise.all(
+        modelNames.map(name => mongoose.model(name).syncIndexes())
+      );
+      console.log('All Mongoose indexes are ensured.');
+    } catch (err) {
+      console.error('Error ensuring Mongoose indexes:', err);
+    }
+
+    // Init storage in background (non-blocking)
+    setImmediate(() => storage.init());
+    // Init schedulers with 2s delay (let server stabilize first)
+    setTimeout(() => {
+      try { require('./services/franchiseExpiryScheduler').initializeFranchiseExpiryScheduler(); } catch (e) {}
+      try { require('./services/backupScheduler').initializeBackupScheduler(); } catch (e) {}
+      try { require('./services/healthMonitorService').initializeHealthMonitor(); } catch (e) {}
+    }, 2000);
+
+    // Now start the HTTP server after DB is ready
+    server.listen(PORT, HOST, () => {
+      console.log(`\nTRC-V Server | Port ${PORT} | Host ${HOST} | ${Date.now() - startTime}ms\n`);
     });
   })
   .catch((err) => {
-    console.error(' MongoDB failed:', err.message);
+    console.error('MongoDB failed:', err.message);
     process.exit(1);
   });

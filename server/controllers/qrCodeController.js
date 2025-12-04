@@ -1,15 +1,19 @@
 const qrCodeService = require('../services/qrCodeService');
 const qrCodeRepository = require('../repositories/qrCodeRepository');
+const cacheManager = require('../utils/cache');
+const crypto = require('crypto');
 
 /**
- * Scan QR code and retrieve franchise information
- * GET /api/qr/scan/:hashedFranchiseNo
+ * QR Scan - Returns the LATEST ACTIVE franchise for a given franchise number
  * 
- * SIMPLE: Scan a QR code to get the CURRENT owner's franchise information
- * INPUT: hashedFranchiseNo from QR code (hashed franchise number - static)
- * OUTPUT: Current active owner's details - driver name, address, photo, status
+ * IMPORTANT: The QR code contains a HASHED franchise number (e.g., hash of "0001")
+ * This means when franchise 0001 is recycled from gabatino-0001 to gonzales-0001,
+ * the SAME QR code now shows gonzales-0001's data (the new active owner).
  * 
- * The QR code is static (doesn't change), but lookup finds current owner
+ * Cache is invalidated when:
+ * - Franchise status changes (revoke, expire)
+ * - New franchise created with same number (recycle)
+ * - Amendment/renewal updates the current version
  */
 exports.scanQRCode = async (req, res, next) => {
   try {
@@ -19,76 +23,88 @@ exports.scanQRCode = async (req, res, next) => {
       return res.status(400).json({ error: 'Hashed franchise number is required' });
     }
     
-    console.log(`[QR SCAN] Scanning QR code with hash: ${hashedFranchiseNo}`);
+    // Check cache first (2 min TTL - balance between performance and data freshness)
+    const cacheKey = `qr-scan-${hashedFranchiseNo}`;
+    const cached = cacheManager.get(cacheKey);
+    if (cached) {
+      return res.status(200).json({ success: true, data: cached, cached: true });
+    }
     
-    // The hashedFranchiseNo is a static identifier for a franchise number
-    // We need to reverse-lookup the actual franchise number
-    // For now, we'll search by the hash stored in the database
     const FranchiseInformation = require('../models/franchiseInformationModel');
     
-    // Find the CURRENT ACTIVE version of this franchise (regardless of owner)
-    // by searching for any franchise with this hash
-    const latestFranchise = await FranchiseInformation.findOne(
-      { 
-        // Search for franchise with matching hash in any chainId
-        $expr: {
-          $eq: [
-            { $substr: [{ $sha256: '$franchiseNumber' }, 0, 16] },
-            hashedFranchiseNo
-          ]
-        },
-        isCurrentVersion: true,
-        franchiseStatus: 'Active'  // Only active franchises
-      }
-    ).select(
-      'franchiseNumber franchiseChainId driverName driversAddress ' +
-      'franchiseStatus documents.driverPictureObj operatorName operatorContactNumber'
-    );
+    // Find ALL current versions (isCurrentVersion: true) to match against hash
+    // This includes Active, Expired, and even recently Revoked franchises
+    const currentFranchises = await FranchiseInformation.find({
+      isCurrentVersion: true
+    })
+    .select('franchiseNumber franchiseChainId driverName driversAddress franchiseStatus expiryDate approvedAt documents.driverPictureObj operatorName operatorContactNumber version')
+    .lean();
     
-    if (!latestFranchise) {
+    // Match the hashed franchise number
+    const matchedFranchise = currentFranchises.find(f => {
+      const hash = crypto.createHash('sha256').update(f.franchiseNumber).digest('hex').substring(0, 16);
+      return hash === hashedFranchiseNo;
+    });
+    
+    if (!matchedFranchise) {
       return res.status(404).json({ 
-        error: 'Franchise not found or not active',
-        hashedFranchiseNo: hashedFranchiseNo,
-        message: 'This franchise number is either inactive, revoked, or does not exist'
+        error: 'Franchise not found',
+        message: 'This QR code does not match any registered franchise'
       });
     }
     
-    // Construct response with current owner's information
+    // Build response with status-aware messaging
+    const isActive = matchedFranchise.franchiseStatus === 'Active';
+    const isExpired = matchedFranchise.franchiseStatus === 'Expired' || 
+                      (matchedFranchise.expiryDate && new Date(matchedFranchise.expiryDate) < new Date());
+    const isRevoked = matchedFranchise.franchiseStatus === 'Revoked';
+    
     const response = {
-      success: true,
-      data: {
-        franchiseNumber: latestFranchise.franchiseNumber,
-        franchiseChainId: latestFranchise.franchiseChainId,
-        franchiseStatus: latestFranchise.franchiseStatus,
-        driver: {
-          name: latestFranchise.driverName,
-          address: latestFranchise.driversAddress,
-          pictureUrl: latestFranchise.documents?.driverPictureObj || null
-        },
-        operator: {
-          name: latestFranchise.operatorName,
-          contactNumber: latestFranchise.operatorContactNumber
-        }
-      }
+      franchiseNumber: matchedFranchise.franchiseNumber,
+      franchiseChainId: matchedFranchise.franchiseChainId,
+      franchiseStatus: matchedFranchise.franchiseStatus,
+      version: matchedFranchise.version,
+      expiryDate: matchedFranchise.expiryDate,
+      approvedAt: matchedFranchise.approvedAt,
+      driver: {
+        name: matchedFranchise.driverName,
+        address: matchedFranchise.driversAddress,
+        pictureUrl: matchedFranchise.documents?.driverPictureObj || null
+      },
+      operator: {
+        name: matchedFranchise.operatorName,
+        contactNumber: matchedFranchise.operatorContactNumber
+      },
+      // Status flags for frontend display
+      isValid: isActive,
+      statusMessage: isActive ? 'Valid and Active Franchise' :
+                     isExpired ? 'Franchise has expired - renewal required' :
+                     isRevoked ? 'Franchise has been revoked' : 
+                     `Franchise status: ${matchedFranchise.franchiseStatus}`
     };
     
-    console.log(`[QR SCAN] Successfully scanned franchise: ${latestFranchise.franchiseNumber} (current owner: ${latestFranchise.franchiseChainId})`);
+    // Only cache active franchises (expired/revoked may change soon)
+    if (isActive) {
+      cacheManager.set(cacheKey, response, 120); // 2 minutes
+    }
     
-    res.status(200).json(response);
+    res.status(200).json({ success: true, data: response });
   } catch (error) {
-    console.error('[QR SCAN] Error:', error);
     next(error);
   }
 };
 
 /**
- * Generate QR code for an operator
- * POST /api/qr/generate/operator/:operatorId
- * 
- * SIMPLE: Admin wants to create a QR code for an operator
- * INPUT: operatorId in URL
- * OUTPUT: QR code image (base64) and file path
+ * Invalidate QR cache when franchise data changes
+ * Call this after: status change, amendment, renewal, recycle
  */
+exports.invalidateQRCache = (franchiseNumber) => {
+  if (!franchiseNumber) return;
+  const hash = crypto.createHash('sha256').update(franchiseNumber).digest('hex').substring(0, 16);
+  const cacheKey = `qr-scan-${hash}`;
+  cacheManager.delete(cacheKey);
+};
+
 exports.generateOperatorQRCode = async (req, res, next) => {
   try {
     const { operatorId } = req.params;
@@ -98,57 +114,33 @@ exports.generateOperatorQRCode = async (req, res, next) => {
       return res.status(400).json({ error: 'Operator ID is required' });
     }
     
-    console.log(`[QR] Generating QR code for operator: ${operatorId}`);
+    const qrCodeData = await qrCodeService.generateOperatorQRCode(operatorId, { saveToFile });
     
-    // Generate QR code using service
-    const qrCodeData = await qrCodeService.generateOperatorQRCode(operatorId, {
-      saveToFile: saveToFile
-    });
-    
-    // Save to database
     if (qrCodeData.filePath) {
-      await qrCodeRepository.storeOperatorQRCode(
-        operatorId,
-        qrCodeData.filePath,
-        qrCodeData.dataURL
-      );
+      await qrCodeRepository.storeOperatorQRCode(operatorId, qrCodeData.filePath, qrCodeData.dataURL);
     }
-    
-    console.log(`[QR] Generated successfully: ${qrCodeData.filePath}`);
     
     res.status(200).json({
       success: true,
       message: 'QR code generated successfully',
       data: {
-        qrCode: qrCodeData.dataURL,        // Base64 image to show immediately
-        filePath: qrCodeData.filePath,      // Path to saved PNG file   
+        qrCode: qrCodeData.dataURL,
+        filePath: qrCodeData.filePath,
         verificationUrl: qrCodeData.verificationUrl,
-        operatorId: operatorId
+        operatorId
       }
     });
   } catch (error) {
-    console.error('[QR] Generation error:', error);
-    
     if (error.message === 'Operator not found') {
       return res.status(404).json({ error: 'Operator not found' });
     }
-    
     next(error);
   }
 };
 
-/**
- * Get operator's QR code
- * GET /api/qr/operator/:operatorId
- * 
- * SIMPLE: Get the QR code that was already generated for an operator
- * INPUT: operatorId in URL
- * OUTPUT: QR code info (file path, when it was created)
- */
 exports.getOperatorQRCode = async (req, res, next) => {
   try {
     const { operatorId } = req.params;
-    
     const operator = await qrCodeRepository.getOperatorQRCode(operatorId);
     
     if (!operator) {
@@ -174,55 +166,29 @@ exports.getOperatorQRCode = async (req, res, next) => {
       }
     });
   } catch (error) {
-    console.error('[QR] Get error:', error);
     next(error);
   }
 };
 
-/**
- * Regenerate QR code for an operator
- * PUT /api/qr/regenerate/operator/:operatorId
- * 
- * SIMPLE: Create a new QR code (replaces old one)
- * INPUT: operatorId in URL
- * OUTPUT: New QR code image and file path
- */
 exports.regenerateOperatorQRCode = async (req, res, next) => {
   try {
     const { operatorId } = req.params;
-    
-    console.log(`[QR] Regenerating QR code for operator: ${operatorId}`);
-    
-    // Get old QR code info
     const operator = await qrCodeRepository.getOperatorQRCode(operatorId);
     
     if (!operator) {
       return res.status(404).json({ error: 'Operator not found' });
     }
     
-    // Delete old QR code file if exists
     if (operator.qrCode) {
       try {
         await qrCodeService.deleteQRCode(operator.qrCode);
-        console.log(`[QR] Deleted old QR code: ${operator.qrCode}`);
       } catch (delError) {
-        console.warn('[QR] Failed to delete old QR code file:', delError);
+        console.warn('[QR] Failed to delete old QR code file:', delError.message);
       }
     }
     
-    // Generate new QR code
-    const qrCodeData = await qrCodeService.generateOperatorQRCode(operatorId, {
-      saveToFile: true
-    });
-    
-    // Update database
-    await qrCodeRepository.storeOperatorQRCode(
-      operatorId,
-      qrCodeData.filePath,
-      qrCodeData.dataURL
-    );
-    
-    console.log(`[QR] Regenerated successfully: ${qrCodeData.filePath}`);
+    const qrCodeData = await qrCodeService.generateOperatorQRCode(operatorId, { saveToFile: true });
+    await qrCodeRepository.storeOperatorQRCode(operatorId, qrCodeData.filePath, qrCodeData.dataURL);
     
     res.status(200).json({
       success: true,
@@ -231,65 +197,36 @@ exports.regenerateOperatorQRCode = async (req, res, next) => {
         qrCode: qrCodeData.dataURL,
         filePath: qrCodeData.filePath,
         verificationUrl: qrCodeData.verificationUrl,
-        operatorId: operatorId
+        operatorId
       }
     });
   } catch (error) {
-    console.error('[QR] Regeneration error:', error);
     next(error);
   }
 };
 
-/**
- * Delete QR code for an operator
- * DELETE /api/qr/operator/:operatorId
- * 
- * SIMPLE: Remove QR code (deletes file and database record)
- * INPUT: operatorId in URL
- * OUTPUT: Success message
- */
 exports.deleteOperatorQRCode = async (req, res, next) => {
   try {
     const { operatorId } = req.params;
-    
-    console.log(`[QR] Deleting QR code for operator: ${operatorId}`);
-    
-    // Remove from database and get old file path
     const { operator, oldQRPath } = await qrCodeRepository.deleteOperatorQRCode(operatorId);
     
-    // Delete physical file
     if (oldQRPath) {
-      const deleted = await qrCodeService.deleteQRCode(oldQRPath);
-      console.log(`[QR] File deletion ${deleted ? 'successful' : 'failed'}: ${oldQRPath}`);
+      await qrCodeService.deleteQRCode(oldQRPath).catch(() => {});
     }
     
     res.status(200).json({
       success: true,
       message: 'QR code deleted successfully',
-      data: {
-        operatorId: operatorId,
-        deletedPath: oldQRPath
-      }
+      data: { operatorId, deletedPath: oldQRPath }
     });
   } catch (error) {
-    console.error('[QR] Deletion error:', error);
-    
     if (error.message === 'Operator not found') {
       return res.status(404).json({ error: 'Operator not found' });
     }
-    
     next(error);
   }
 };
 
-/**
- * Get all operators with QR codes
- * GET /api/qr/operators
- * 
- * SIMPLE: List all operators who have QR codes
- * INPUT: None
- * OUTPUT: Array of operators with QR codes
- */
 exports.getAllOperatorsWithQR = async (req, res, next) => {
   try {
     const operators = await qrCodeRepository.getAllOperatorsWithQR();
@@ -306,34 +243,16 @@ exports.getAllOperatorsWithQR = async (req, res, next) => {
       }))
     });
   } catch (error) {
-    console.error('[QR] List error:', error);
     next(error);
   }
 };
 
-/**
- * Generate QR code for franchise application
- * POST /api/qr/generate/franchise/:applicationId
- * 
- * SIMPLE: Create QR code for a franchise application
- * INPUT: applicationId in URL
- * OUTPUT: QR code image and file path
- */
 exports.generateFranchiseQRCode = async (req, res, next) => {
   try {
     const { applicationId } = req.params;
     
-    console.log(`[QR] Generating QR code for franchise: ${applicationId}`);
-    
-    // Generate QR code
-    const qrCodeData = await qrCodeService.generateOperatorQRCode(applicationId, {
-      saveToFile: true
-    });
-    
-    // Save to database
+    const qrCodeData = await qrCodeService.generateOperatorQRCode(applicationId, { saveToFile: true });
     await qrCodeRepository.storeFranchiseQRCode(applicationId, qrCodeData.filePath);
-    
-    console.log(`[QR] Franchise QR generated: ${qrCodeData.filePath}`);
     
     res.status(200).json({
       success: true,
@@ -342,42 +261,29 @@ exports.generateFranchiseQRCode = async (req, res, next) => {
         qrCode: qrCodeData.dataURL,
         filePath: qrCodeData.filePath,
         verificationUrl: qrCodeData.verificationUrl,
-        applicationId: applicationId
+        applicationId
       }
     });
   } catch (error) {
-    console.error('[QR] Franchise generation error:', error);
-    
     if (error.message === 'Franchise application not found') {
       return res.status(404).json({ error: 'Franchise application not found' });
     }
-    
     next(error);
   }
 };
 
-/**
- * Download QR code as image
- * GET /api/qr/download/operator/:operatorId
- * 
- * SIMPLE: Download QR code PNG file
- * INPUT: operatorId in URL
- * OUTPUT: PNG file download
- */
 exports.downloadOperatorQRCode = async (req, res, next) => {
   try {
     const { operatorId } = req.params;
-    
     const operator = await qrCodeRepository.getOperatorQRCode(operatorId);
     
     if (!operator || !operator.qrCode) {
       return res.status(404).json({ error: 'QR code not found' });
     }
     
-    const filePath = operator.qrCode.replace(/^\//, ''); // Remove leading slash
+    const filePath = operator.qrCode.replace(/^\//, '');
     const absolutePath = require('path').join(process.cwd(), filePath);
     
-    // Check if file exists
     if (!require('fs').existsSync(absolutePath)) {
       return res.status(404).json({ 
         error: 'QR code file not found on server',
@@ -385,17 +291,12 @@ exports.downloadOperatorQRCode = async (req, res, next) => {
       });
     }
     
-    // Send file for download
     res.download(absolutePath, `operator-${operator.driversID}-qr.png`, (err) => {
-      if (err) {
-        console.error('[QR] Download error:', err);
-        if (!res.headersSent) {
-          res.status(500).json({ error: 'Failed to download QR code' });
-        }
+      if (err && !res.headersSent) {
+        res.status(500).json({ error: 'Failed to download QR code' });
       }
     });
   } catch (error) {
-    console.error('[QR] Download error:', error);
     next(error);
   }
 };

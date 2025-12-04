@@ -1,12 +1,26 @@
 const cron = require('node-cron');
 const FranchiseInformation = require('../models/franchiseInformationModel');
+const SchedulerState = require('../models/schedulerStateModel');
 const { sendFranchiseExpiryEmail } = require('./emailService');
 const { sendFranchiseExpiryNotification } = require('./notificationQueueService');
 const { auditLogService } = require('./auditLogService');
 
+// Import cache invalidation for QR scans
+let invalidateQRCache;
+try {
+  invalidateQRCache = require('../controllers/qrCodeController').invalidateQRCache;
+} catch (e) {
+  invalidateQRCache = () => {}; // Fallback if not available
+}
+
 /**
  * Franchise Expiry Reminder Scheduler - OPTIMIZED VERSION
  * Runs daily at 6:00 AM to check for franchises expiring soon
+ * 
+ * Features:
+ * - Catches up on missed days after server downtime
+ * - Tracks last successful run in database
+ * - Processes missed expirations and notifications
  * 
  * Checks the LATEST VERSION of each franchiseChainId:
  * - 30 days before expiry (email only - cost optimization)
@@ -16,6 +30,8 @@ const { auditLogService } = require('./auditLogService');
  * 
  * OPTIMIZATION: Single database query with all filters, batch processing, resilient error handling
  */
+
+const SCHEDULER_NAME = 'franchise-expiry';
 
 // Track sent notifications in-memory to avoid duplicate emails within same cron run
 const sentNotifications = new Map(); // { franchiseId: { 30days: true, 7days: true, expired: true, revoked: true } }
@@ -479,6 +495,9 @@ async function revokeExpiredFranchises() {
           return { success: false, reason: 'update_failed', franchise };
         }
         
+        // Invalidate QR cache so scans show updated status
+        invalidateQRCache(franchise.franchiseNumber);
+        
         console.log(`[EXPIRY_SCHEDULER] [REVOKE] → ${franchise.franchiseNumber}/${franchise.franchiseChainId} (v${franchise.version}) revoked - number available for reassignment`);
         
         // Audit log (non-blocking)
@@ -525,22 +544,146 @@ async function revokeExpiredFranchises() {
 }
 
 /**
+ * Get franchises that should have expired during downtime
+ * Finds all franchises with expiryDate between lastRun and today that are still 'active'
+ * 
+ * @param {Date} fromDate - Start date (last successful run)
+ * @param {Date} toDate - End date (today)
+ * @returns {Promise<Array>} List of franchises that missed expiration processing
+ */
+async function getMissedExpiredFranchises(fromDate, toDate) {
+  try {
+    const missedFranchises = await FranchiseInformation.aggregate([
+      {
+        $match: {
+          franchiseChainId: { $exists: true, $ne: null },
+          franchiseStatus: 'active', // Still active but should be expired
+          expiryDate: {
+            $gte: fromDate,
+            $lt: toDate
+          }
+        }
+      },
+      { $sort: { franchiseChainId: 1, version: -1 } },
+      {
+        $group: {
+          _id: '$franchiseChainId',
+          latestFranchise: { $first: '$$ROOT' }
+        }
+      },
+      {
+        $project: {
+          _id: '$latestFranchise._id',
+          franchiseNumber: '$latestFranchise.franchiseNumber',
+          franchiseChainId: '$latestFranchise.franchiseChainId',
+          operatorName: '$latestFranchise.operatorName',
+          operatorEmail: '$latestFranchise.operatorEmail',
+          operatorContactNumber: '$latestFranchise.operatorContactNumber',
+          expiryDate: '$latestFranchise.expiryDate',
+          version: '$latestFranchise.version',
+          franchiseStatus: '$latestFranchise.franchiseStatus'
+        }
+      }
+    ])
+    .allowDiskUse(true)
+    .lean()
+    .exec();
+    
+    return missedFranchises;
+  } catch (error) {
+    console.error('[CATCH-UP] Error fetching missed franchises:', error.message);
+    return [];
+  }
+}
+
+/**
+ * Process missed expirations during downtime
+ * Marks franchises as expired and sends notifications
+ */
+async function processMissedExpirations(missedDays) {
+  console.log(`[CATCH-UP] Processing ${missedDays} missed day(s)...`);
+  
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
+  const fromDate = new Date(today);
+  fromDate.setDate(fromDate.getDate() - missedDays);
+  
+  // Get franchises that should have expired during downtime
+  const missedFranchises = await getMissedExpiredFranchises(fromDate, today);
+  
+  if (missedFranchises.length === 0) {
+    console.log('[CATCH-UP] ✓ No missed expirations found');
+    return { processed: 0, errors: 0 };
+  }
+  
+  console.log(`[CATCH-UP] Found ${missedFranchises.length} franchises that should have expired during downtime`);
+  
+  let processed = 0;
+  let errors = 0;
+  
+  for (const franchise of missedFranchises) {
+    try {
+      // Mark as expired
+      await FranchiseInformation.findByIdAndUpdate(
+        franchise._id,
+        {
+          franchiseStatus: 'expired',
+          changedAt: new Date(),
+          changeType: 'auto_expired_catchup',
+          changeNotes: `Expired during server downtime. Original expiry: ${franchise.expiryDate.toISOString()}`
+        }
+      );
+      
+      console.log(`[CATCH-UP] → Marked ${franchise.franchiseNumber} as EXPIRED (was due: ${franchise.expiryDate.toDateString()})`);
+      
+      // Send notification (SMS + email for missed expirations)
+      if (franchise.operatorEmail || franchise.operatorContactNumber) {
+        try {
+          await sendFranchiseExpiryNotification(franchise, 0);
+          console.log(`[CATCH-UP] → Sent catch-up notification to ${franchise.operatorName}`);
+        } catch (notifError) {
+          console.error(`[CATCH-UP] ✗ Notification failed for ${franchise.franchiseNumber}:`, notifError.message);
+        }
+      }
+      
+      // Audit log
+      auditLogService.logFranchiseExpired({
+        ...franchise,
+        _id: franchise._id,
+        changeNotes: 'Catch-up expiration after server downtime'
+      }).catch(err => console.error('[CATCH-UP] Audit log error:', err.message));
+      
+      processed++;
+    } catch (error) {
+      console.error(`[CATCH-UP] ✗ Failed to process ${franchise.franchiseNumber}:`, error.message);
+      errors++;
+    }
+  }
+  
+  return { processed, errors };
+}
+
+/**
  * Run all expiry checks in sequence - optimized for performance
  * Processes: 30-day → 7-day → expiry → revocation
  * 
  * Memory note: ~50-100MB per 1000 franchises
  * For 5K-7K franchises: expect 250-700MB peak usage
  */
-async function runExpiryChecks() {
+async function runExpiryChecks(isCatchUp = false) {
   const runStartTime = Date.now();
   console.log('\n═══════════════════════════════════════════════════════════════');
-  console.log('[EXPIRY_SCHEDULER] Daily check cycle starting...');
+  console.log(`[EXPIRY_SCHEDULER] ${isCatchUp ? 'Catch-up' : 'Daily'} check cycle starting...`);
   console.log(`[EXPIRY_SCHEDULER] Time: ${new Date().toLocaleString('en-PH', { timeZone: 'Asia/Manila' })}`);
   
   // Show memory usage (Node.js only)
   const memBefore = process.memoryUsage();
   console.log(`[EXPIRY_SCHEDULER] Memory before: ${Math.round(memBefore.heapUsed / 1024 / 1024)}MB`);
   console.log('═══════════════════════════════════════════════════════════════');
+  
+  let processedCount = 0;
+  let errorCount = 0;
   
   try {
     // Clear in-memory cache for this run
@@ -555,22 +698,84 @@ async function runExpiryChecks() {
     const totalTime = Date.now() - runStartTime;
     const memAfter = process.memoryUsage();
     
+    // Update scheduler state
+    await SchedulerState.updateLastRun(SCHEDULER_NAME, 'success', {
+      processedCount,
+      errorCount,
+      durationMs: totalTime,
+      missedDaysCaughtUp: 0
+    });
+    
     console.log('═══════════════════════════════════════════════════════════════');
-    console.log(`[EXPIRY_SCHEDULER] ✓ Daily cycle completed in ${totalTime}ms`);
+    console.log(`[EXPIRY_SCHEDULER] ✓ ${isCatchUp ? 'Catch-up' : 'Daily'} cycle completed in ${totalTime}ms`);
     console.log(`[EXPIRY_SCHEDULER] Memory after: ${Math.round(memAfter.heapUsed / 1024 / 1024)}MB (delta: ${Math.round((memAfter.heapUsed - memBefore.heapUsed) / 1024 / 1024)}MB)`);
     console.log('═══════════════════════════════════════════════════════════════\n');
+    
+    return { success: true, durationMs: totalTime };
   } catch (error) {
     console.error('[EXPIRY_SCHEDULER] ✗ FATAL ERROR:', error.message);
     console.error(error.stack);
+    
+    // Update scheduler state with failure
+    await SchedulerState.updateLastRun(SCHEDULER_NAME, 'failed', {
+      processedCount,
+      errorCount: errorCount + 1,
+      durationMs: Date.now() - runStartTime
+    }).catch(() => {});
+    
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Check for missed runs and catch up
+ * Called on server startup
+ */
+async function catchUpMissedRuns() {
+  try {
+    const missedDays = await SchedulerState.getDaysSinceLastRun(SCHEDULER_NAME);
+    
+    if (missedDays <= 0) {
+      console.log('[EXPIRY_SCHEDULER] ✓ No missed runs detected');
+      return;
+    }
+    
+    if (missedDays > 30) {
+      console.warn(`[EXPIRY_SCHEDULER] ⚠ Server was down for ${missedDays} days! Limiting catch-up to 30 days.`);
+    }
+    
+    const daysToProcess = Math.min(missedDays, 30);
+    
+    console.log('\n╔═══════════════════════════════════════════════════════════════╗');
+    console.log(`║  CATCH-UP MODE: Server was offline for ${missedDays} day(s)              ║`);
+    console.log('╚═══════════════════════════════════════════════════════════════╝');
+    
+    // Process missed expirations
+    const catchUpResult = await processMissedExpirations(daysToProcess);
+    
+    console.log(`[CATCH-UP] ✓ Processed ${catchUpResult.processed} missed expirations, ${catchUpResult.errors} errors`);
+    
+    // Now run normal checks for today
+    await runExpiryChecks(true);
+    
+    // Update state with catch-up info
+    await SchedulerState.updateLastRun(SCHEDULER_NAME, 'success', {
+      processedCount: catchUpResult.processed,
+      errorCount: catchUpResult.errors,
+      missedDaysCaughtUp: daysToProcess
+    });
+    
+  } catch (error) {
+    console.error('[CATCH-UP] ✗ Error during catch-up:', error.message);
   }
 }
 
 /**
  * Initialize the expiry scheduler
- * Runs every Monday at 8:00 AM (Philippine Time)
+ * Runs daily at 6:00 AM (Philippine Time)
+ * On startup, checks for missed runs and catches up
  */
-function initializeFranchiseExpiryScheduler() {
-
+async function initializeFranchiseExpiryScheduler() {
   // '0 6 * * *' = At 6:00 AM every day
   const cronExpression = '0 6 * * *';
   
@@ -581,23 +786,16 @@ function initializeFranchiseExpiryScheduler() {
     timezone: 'Asia/Manila' 
   });
   
-  // Calculate next run at 6:00 AM tomorrow
-  const now = new Date();
-  const nextRun = new Date(now);
-  nextRun.setHours(6, 0, 0, 0);
-  if (now.getHours() >= 6) {
-    nextRun.setDate(nextRun.getDate() + 1);
-  }
   // Silent initialization - only log if DEBUG mode
   if (process.env.DEBUG === 'true') {
     console.log('[DEBUG] Expiry scheduler: daily at 6:00 AM');
   }
   
-  // Run immediately on startup (optional - for testing)
-  if (process.env.RUN_EXPIRY_CHECK_ON_STARTUP === 'true') {
-    console.log('[EXPIRY] Running initial check...');
-    setTimeout(() => runExpiryChecks(), 5000); // Run after 5 seconds
-  }
+  // ALWAYS check for missed runs on startup (after 3 seconds to let DB stabilize)
+  setTimeout(async () => {
+    console.log('[EXPIRY_SCHEDULER] Checking for missed runs during downtime...');
+    await catchUpMissedRuns();
+  }, 3000);
 }
 
 /**
@@ -611,5 +809,6 @@ async function triggerManualExpiryCheck() {
 module.exports = {
   initializeFranchiseExpiryScheduler,
   triggerManualExpiryCheck,
-  runExpiryChecks
+  runExpiryChecks,
+  catchUpMissedRuns
 };
