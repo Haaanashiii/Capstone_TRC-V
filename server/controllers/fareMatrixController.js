@@ -65,7 +65,7 @@ exports.uploadFareMatrix = async (req, res, next) => {
       fileSize: req.file.size,
       mimeType: req.file.mimetype,
       uploadedBy: req.user.adminId || req.user.id || req.user._id.toString(),
-      uploadedByName: req.user.name || req.user.email,
+      uploadedByName: req.user.name || 'Unknown Admin',
       isActive: true,
       createdAt: new Date()
     };

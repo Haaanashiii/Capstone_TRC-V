@@ -26,7 +26,7 @@ router.post('/trigger-expiry-check', authenticate, authorize(['super-admin', 'sb
     res.status(200).json({
       success: true,
       message: 'Franchise expiry check initiated. Check server logs for results.',
-      triggeredBy: req.user.email || req.user.username,
+      triggeredBy: req.user.name || 'Admin',
       timestamp: new Date().toISOString()
     });
   } catch (error) {

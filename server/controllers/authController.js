@@ -16,8 +16,11 @@ async function handleOtpRequest(email, phoneNumber, userId, res, next, message, 
   try {
     if (!email) return res.status(400).json({ error: 'Email is required' });
     
+    // Normalize email to lowercase and trim whitespace for consistent storage
+    const normalizedEmail = String(email).trim().toLowerCase();
+    
     // Check if too many OTP requests (max 10 per 5 minutes)
-    const rateLimitCheck = checkRateLimit(email);
+    const rateLimitCheck = checkRateLimit(normalizedEmail);
     if (!rateLimitCheck.allowed) {
       return res.status(429).json({ 
         error: rateLimitCheck.message,
@@ -28,27 +31,29 @@ async function handleOtpRequest(email, phoneNumber, userId, res, next, message, 
     // Always say success (don't reveal if email exists or not)
     let user;
     try {
-      user = await userAccountRepository.findAccountByEmail(email);
+      user = await userAccountRepository.findAccountByEmail(normalizedEmail);
     } catch (e) {}
 
     // Send OTP even if account doesn't exist yet (for signup flows)
     try {
       const otp = generateOTP();
-      setOTP(email, otp); // OTP expires in 5 minutes
+      setOTP(normalizedEmail, otp); // OTP expires in 5 minutes - use normalized email
+      
+      console.log(`[OTP] Generated OTP for "${normalizedEmail}" - storing with normalized key`);
       
       // Send OTP via SMS or Email (smart routing)
       await sendOTPNotification(
-        userId || email,
+        userId || normalizedEmail,
         phoneNumber || (user && user.phoneNumber),
-        email,
+        normalizedEmail,  // Use normalized email for sending too
         otp,
         deliveryMethod
       );
       
-      console.log(`[OTP] Generated and sent OTP for ${email} - Valid for 5 minutes`);
+      console.log(`[OTP] Generated and sent OTP for ${normalizedEmail} - Valid for 5 minutes`);
     } catch (e) {
       // Log error but don't expose to user
-      console.error('Failed to generate/send OTP for', email, e && e.message ? e.message : e);
+      console.error('Failed to generate/send OTP for', normalizedEmail, e && e.message ? e.message : e);
     }
     res.json({ message });
   } catch (err) {
@@ -103,19 +108,41 @@ function constantTimeCompare(a, b) {
 // Verify OTP code from user
 exports.verifyOtp = async (req, res, next) => {
   try {
-    const { email, otp, rememberMe } = req.body;
+    let { email, otp, rememberMe } = req.body;
     if (!email || !otp) return res.status(400).json({ error: 'Email and OTP are required' });
-    // Check if OTP is correct
-    let valid = false;
-    try {
-      const entry = require('../middlewares/otpMiddleware').otpStore?.get?.(email);
-      if (entry && Date.now() <= entry.expiresAt && constantTimeCompare(entry.otp, otp)) {
-        valid = true;
-        // DO NOT delete OTP here - it will be needed for reset-password step
-        // Only verify that it exists and is valid
-      }
-    } catch (e) {}
-    if (!valid) return res.status(400).json({ error: 'Invalid or expired OTP' });
+    
+    // Normalize email to match how it was stored (lowercase, trimmed)
+    email = String(email).trim().toLowerCase();
+    
+    // Use the verifyOTP function from middleware for consistent verification
+    const { verifyOTP: verifyOTPFromStore, otpStore } = require('../middlewares/otpMiddleware');
+    
+    // Debug: Log what we're looking for
+    console.log(`[OTP Verify] Checking OTP for email: "${email}"`);
+    
+    // Check if OTP entry exists
+    const entry = otpStore.get(email);
+    if (!entry) {
+      console.log(`[OTP Verify] No OTP entry found for: "${email}"`);
+      return res.status(400).json({ error: 'Invalid or expired OTP. Please request a new one.' });
+    }
+    
+    console.log(`[OTP Verify] Found entry, expires at: ${new Date(entry.expiresAt).toISOString()}, attempts: ${entry.attempts}`);
+    
+    // Use the middleware's verifyOTP function for consistent verification
+    const valid = verifyOTPFromStore(email, otp);
+    
+    if (!valid) {
+      console.log(`[OTP Verify] OTP verification failed for: "${email}"`);
+      return res.status(400).json({ error: 'Invalid or expired OTP' });
+    }
+    
+    console.log(`[OTP Verify] OTP verified successfully for: "${email}"`);
+    
+    // Re-store the OTP for the reset-password step (since verifyOTP deletes it)
+    // We need to allow the user to use the same OTP for password reset
+    const { setOTP } = require('../middlewares/otpMiddleware');
+    setOTP(email, otp);  // Re-store for password reset step
     
     // If remember device was checked, create a trusted device token
     if (rememberMe) {
@@ -165,8 +192,11 @@ exports.verifyOtp = async (req, res, next) => {
 // Reset password using OTP (constant-time, generic error)
 exports.resetPassword = async (req, res, next) => {
   try {
-    const { email, otp, newPassword } = req.body;
+    let { email, otp, newPassword } = req.body;
     if (!email || !otp || !newPassword) return res.status(400).json({ error: 'Email, OTP, and new password are required' });
+    
+    // Normalize email for consistent lookup
+    email = String(email).trim().toLowerCase();
     
     // Validate password strength (minimum 8 characters)
     if (newPassword.length < 8) {
@@ -177,18 +207,21 @@ exports.resetPassword = async (req, res, next) => {
     let user;
     
     try {
-      const entry = require('../middlewares/otpMiddleware').otpStore?.get?.(email);
-      if (entry && Date.now() <= entry.expiresAt && constantTimeCompare(entry.otp, otp)) {
-        valid = true;
-        require('../middlewares/otpMiddleware').otpStore.delete(email);
-      }
+      const { otpStore, verifyOTP: verifyOTPFromStore } = require('../middlewares/otpMiddleware');
+      
+      // Use the verifyOTP function for consistent verification
+      valid = verifyOTPFromStore(email, otp);
+      
+      console.log(`[ResetPassword] OTP verification for "${email}": ${valid ? 'SUCCESS' : 'FAILED'}`);
       
       // Try to find user (both operator/user and admin accounts)
       user = await userAccountRepository.findAccountByEmail(email).catch(() => null);
       if (!user) {
         user = await require('../repositories/adminAccountRepository').findAdminByEmail(email).catch(() => null);
       }
-    } catch (e) {}
+    } catch (e) {
+      console.error('[ResetPassword] Error during verification:', e.message);
+    }
     
     if (!valid || !user) return res.status(400).json({ error: 'Invalid or expired OTP' });
     
@@ -513,7 +546,11 @@ exports.login = async (req, res, next) => {
     if (!skipOTP) {
       try {
         const otp = generateOTP();
-        setOTP(user.email || user.username || identifier, otp);
+        // Normalize email for consistent OTP storage (lowercase, trimmed)
+        const otpKey = String(user.email || user.username || identifier).trim().toLowerCase();
+        setOTP(otpKey, otp);
+        console.log(`[Login] OTP generated and stored for key: "${otpKey}"`);
+        
         // send to the canonical email on file
         if (user.email) {
           // fire-and-forget

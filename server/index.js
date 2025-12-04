@@ -32,6 +32,7 @@ const auditLogRoutes = require('./routes/auditLogRoutes');
 const fareMatrixRoutes = require('./routes/fareMatrixRoutes');
 const rolePageAccessRoutes = require('./routes/rolePageAccessRoutes');
 const certificateRoutes = require('./routes/certificateRoutes');
+const backupRoutes = require('./routes/backupRoutes');
 console.log('[SERVER] ✅ Routes loaded');
 
 dotenv.config();
@@ -466,6 +467,7 @@ app.use('/api/audit-logs', apiLimiter, auditLogRoutes);
 app.use('/api/fare-matrix', apiLimiter, fareMatrixRoutes);
 app.use('/api/role-page-access', apiLimiter, rolePageAccessRoutes);
 app.use('/api/certificates', apiLimiter, certificateRoutes);
+app.use('/api/backup', apiLimiter, backupRoutes);
 
 
 // Health check endpoint
@@ -532,13 +534,29 @@ mongoose.connect(process.env.MONGO_URI, {
       console.log(`[SERVER] ℹ️  Socket.IO log level: ${SOCKET_LOG_LEVEL} (set SOCKET_LOG_LEVEL=debug for verbose logs)`);
       console.log(`[SERVER] ℹ️  Optimizations enabled: JWT caching, pagination (50 items), 5s cache for room data`);
       
-      // Initialize scheduler AFTER server starts (non-blocking)
+      // Initialize schedulers AFTER server starts (non-blocking)
       setImmediate(() => {
         try {
           const { initializeFranchiseExpiryScheduler } = require('./services/franchiseExpiryScheduler');
           initializeFranchiseExpiryScheduler();
         } catch (err) {
-          console.error('[SERVER] ⚠️  Scheduler initialization failed:', err.message);
+          console.error('[SERVER] ⚠️  Franchise scheduler initialization failed:', err.message);
+        }
+        
+        // Initialize backup scheduler
+        try {
+          const { initializeBackupScheduler } = require('./services/backupScheduler');
+          initializeBackupScheduler();
+        } catch (err) {
+          console.error('[SERVER] ⚠️  Backup scheduler initialization failed:', err.message);
+        }
+        
+        // Initialize health monitor for auto-recovery
+        try {
+          const { initializeHealthMonitor } = require('./services/healthMonitorService');
+          initializeHealthMonitor();
+        } catch (err) {
+          console.error('[SERVER] ⚠️  Health monitor initialization failed:', err.message);
         }
       });
     });

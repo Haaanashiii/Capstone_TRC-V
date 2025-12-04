@@ -95,6 +95,14 @@ async function sendOTPSMS(phoneNumber, otp) {
     const message = `Your TRC-V Verification Code is: ${otp}. It will expire in 5 minutes. Do not share this code with anyone.`;
 
     const result = await sendSMS(phoneNumber, message);
+    
+    if (result.success) {
+      console.log(`[SMS] OTP sent successfully to ${phoneNumber}`);
+    } else {
+      console.warn(`[SMS] OTP failed for ${phoneNumber}: ${result.error}`);
+    }
+    
+    return result;
   } catch (error) {
     console.error(`[SMS] OTP Error:`, error.message);
     return {
