@@ -1,25 +1,48 @@
 // Backup Service API
+// Provides backup and recovery operations for the TRC-V system
+
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170';
 
 /**
- * Get authorization headers
+ * Get authorization headers with access token
+ * Uses sessionStorage for security (XSS protection)
+ * @returns {Object} Headers object with Content-Type and Authorization
  */
 const getAuthHeaders = () => {
-  const token = localStorage.getItem('token');
+  // Check sessionStorage first (preferred), fallback to localStorage for legacy support
+  const token = sessionStorage.getItem('accessToken') || 
+                localStorage.getItem('accessToken') || 
+                localStorage.getItem('token');
+  
   return {
     'Content-Type': 'application/json',
-    'Authorization': `Bearer ${token}`
+    'Authorization': token ? `Bearer ${token}` : ''
   };
 };
 
 /**
- * Handle API response
+ * Handle API response with consistent error handling
+ * @param {Response} response - Fetch API response
+ * @returns {Promise<Object>} Parsed JSON response
+ * @throws {Error} If response is not ok
  */
 const handleResponse = async (response) => {
   const data = await response.json();
+  
   if (!response.ok) {
-    throw new Error(data.message || 'An error occurred');
+    // Handle specific error cases
+    if (response.status === 401) {
+      throw new Error('Session expired. Please log in again.');
+    }
+    if (response.status === 403) {
+      throw new Error('You do not have permission to perform this action.');
+    }
+    if (response.status === 404) {
+      throw new Error(data.message || 'Resource not found.');
+    }
+    throw new Error(data.message || data.error || 'An error occurred');
   }
+  
   return data;
 };
 

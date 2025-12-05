@@ -22,6 +22,7 @@ exports.createNewApplication = async (req, res, next) => {
   try {
     const { body, files, user } = req;
     const userId = user?._id || user?.userId || String(user?.id);
+    const adminUsername = user?.username || user?.email || 'BPLO Admin';
     
     let userEmail = user?.email || '';
     if (!userEmail && userId) {
@@ -30,6 +31,27 @@ exports.createNewApplication = async (req, res, next) => {
         const foundUser = await User.findById(userId).select('email');
         if (foundUser?.email) userEmail = foundUser.email;
       } catch (emailError) {}
+    }
+    
+    // Determine if this is a walk-in application
+    const isWalkIn = body.isWalkIn === 'true' || body.isWalkIn === true;
+    
+    // Walk-in applications submitted by BPLO Admin go directly to SB
+    // OR is optional at submission - SB can also add it during their review
+    let initialStatus = 'pending';
+    let bploApprovalData = {};
+    
+    if (isWalkIn) {
+      // Walk-in always goes directly to SB queue (awaiting-sb)
+      // OR is optional - BPLO can include it, or SB can add it later
+      initialStatus = 'awaiting-sb';
+      
+      // Set BPLO approval metadata for walk-in applications
+      bploApprovalData = {
+        bploApprovedBy: adminUsername,
+        bploApprovedAt: new Date(),
+        bploInspectionRequired: false // Walk-in already inspected at counter
+      };
     }
     
     const applicationData = {
@@ -54,15 +76,72 @@ exports.createNewApplication = async (req, res, next) => {
       motorEngineNo: body.motorEngineNo,
       chasisNo: body.chasisNo,
       applicationType: 'new',
-      statusOfBPLO: 'pending',
+      statusOfBPLO: initialStatus,
       operatorInfo: userId,
-      isWalkIn: body.isWalkIn === 'true' || body.isWalkIn === true,
+      isWalkIn: isWalkIn,
       officialReceiptNumber: body.officialReceiptNumber || '',
-      orSubmittedAt: body.orSubmittedAt ? new Date(body.orSubmittedAt) : null
+      orSubmittedAt: body.orSubmittedAt ? new Date(body.orSubmittedAt) : null,
+      ...bploApprovalData
     };
     
     const application = await franchiseApplicationRepository.createFranchiseApplication(applicationData);
     const appId = String(application._id);
+    
+    // For walk-in NEW applications, assign franchise number immediately (same as BPLO approval)
+    if (isWalkIn && body.applicationType !== 'renewal' && body.applicationType !== 'change-unit') {
+      try {
+        // Get available franchise numbers from both completed franchises and pending applications
+        const allCurrentFranchises = await FranchiseInformation.find({
+          isCurrentVersion: true
+        }).select('franchiseNumber franchiseStatus').lean().exec();
+        
+        const allPendingApplications = await FranchiseApplication.find({
+          applicationType: 'new',
+          franchiseNumber: { $exists: true, $ne: null },
+          statusOfBPLO: { $in: ['bplo-approved', 'awaiting-sb', 'sb-approved', 'completed'] }
+        }).select('franchiseNumber').lean().exec();
+        
+        const franchiseMap = new Map();
+        let latestNumber = 0;
+        
+        for (const franchise of allCurrentFranchises) {
+          const numberMatch = franchise.franchiseNumber?.match(/^(\d{1,4})$/);
+          if (!numberMatch) continue;
+          const franchiseNum = parseInt(numberMatch[1], 10);
+          latestNumber = Math.max(latestNumber, franchiseNum);
+          const isRevoked = franchise.franchiseStatus?.toLowerCase() === 'revoked';
+          franchiseMap.set(franchiseNum, { available: isRevoked, reserved: false });
+        }
+        
+        for (const pendingApp of allPendingApplications) {
+          const numberMatch = pendingApp.franchiseNumber?.match(/^(\d{1,4})$/);
+          if (!numberMatch) continue;
+          const franchiseNum = parseInt(numberMatch[1], 10);
+          latestNumber = Math.max(latestNumber, franchiseNum);
+          franchiseMap.set(franchiseNum, { available: false, reserved: true });
+        }
+        
+        let assignedNumber = null;
+        for (let i = 1; i <= latestNumber; i++) {
+          const franchise = franchiseMap.get(i);
+          if (!franchise || franchise.available) {
+            assignedNumber = i;
+            break;
+          }
+        }
+        
+        if (!assignedNumber) {
+          assignedNumber = latestNumber + 1;
+        }
+        
+        const franchiseNumber = String(assignedNumber).padStart(4, '0');
+        await franchiseApplicationRepository.updateFranchiseApplication(appId, { franchiseNumber });
+        console.log(`[Walk-in] Assigned franchise number ${franchiseNumber} to application ${appId}`);
+      } catch (numberError) {
+        console.error('[Walk-in] Failed to assign franchise number:', numberError.message);
+        // Continue without franchise number - can be assigned manually later
+      }
+    }
     
     if (userId) {
       try {
@@ -137,7 +216,18 @@ exports.createNewApplication = async (req, res, next) => {
     try {
       const io = req.app.get('io');
       if (io) {
-        io.to('bplo-admin').emit('pending-applications', [finalApplication]);
+        // Notify appropriate admins based on application status
+        if (isWalkIn) {
+          // Walk-in applications go to SB admins (already BPLO approved)
+          const sbApplications = await FranchiseApplication.find({
+            statusOfBPLO: { $in: ['bplo-approved', 'awaiting-sb', 'sb-approved'] }
+          }).sort({ sbApprovedAt: -1, bploApprovedAt: -1, orSubmittedAt: -1 });
+          io.to('sb-admins').emit('approved-applications', sbApplications);
+          console.log(`[Walk-in] Notified SB admins - Application ${appId} status: ${initialStatus}`);
+        } else {
+          // Regular applications go to BPLO admins first
+          io.to('bplo-admin').emit('pending-applications', [finalApplication]);
+        }
         io.to('general').emit('application-updated', finalApplication);
       }
     } catch (wsError) {}
@@ -149,7 +239,12 @@ exports.createNewApplication = async (req, res, next) => {
       } catch (notifError) {}
     }
     
-    res.status(201).json({ success: true, data: finalApplication });
+    // Prepare appropriate response message
+    const responseMessage = isWalkIn 
+      ? 'Walk-in application submitted and forwarded to SB for approval.'
+      : 'Franchise application submitted successfully.';
+    
+    res.status(201).json({ success: true, data: finalApplication, message: responseMessage });
   } catch (error) {
     if (error.code === 11000) {
       const field = Object.keys(error.keyPattern || {})[0];
@@ -836,10 +931,14 @@ exports.editApprovedFranchise = async (req, res, next) => {
       return res.status(400).json({ error: 'Application must be approved by BPLO first' });
     }
     
-    // Check if user owns this application
+    // Check authorization:
+    // - Admin roles (admin, bplo-admin, sb-admin) can edit any application
+    // - Regular users can only edit their own applications
     const userId = req.user?._id?.toString() || req.user?.userId || String(req.user?.id);
     const appUserId = application.operatorInfo?.toString();
-    if (userId !== appUserId && req.user?.role !== 'admin') {
+    const isAdminRole = ['admin', 'bplo-admin', 'sb-admin'].includes(req.user?.role);
+    
+    if (userId !== appUserId && !isAdminRole) {
       return res.status(403).json({ error: 'You can only edit your own applications' });
     }
     
@@ -944,7 +1043,7 @@ exports.getApprovedRoutesForSBAdmin = async (req, res, next) => {
 exports.approveFranchiseBySBAdmin = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { resolutionNumber } = req.body;
+    const { resolutionNumber, officialReceiptNumber } = req.body;
     const { files } = req;
     
     if (!resolutionNumber || !resolutionNumber.trim()) {
@@ -959,7 +1058,7 @@ exports.approveFranchiseBySBAdmin = async (req, res, next) => {
     
     // Allow approval for:
     // 1. bplo-approved (even without OR - SB can approve in advance)
-    // 2. awaiting-sb (with OR submitted)
+    // 2. awaiting-sb (walk-in or OR submitted)
     // 3. legacy 'approved' with OR
     const canApprove = application.statusOfBPLO === 'bplo-approved' ||
                        application.statusOfBPLO === 'awaiting-sb' || 
@@ -977,6 +1076,28 @@ exports.approveFranchiseBySBAdmin = async (req, res, next) => {
       sbApprovedAt: new Date(),
       sbResolutionNumber: resolutionNumber.trim()
     };
+    
+    // SB Admin can add OR if not already provided (for walk-in applications)
+    if (officialReceiptNumber && officialReceiptNumber.trim() && !application.officialReceiptNumber) {
+      updateData.officialReceiptNumber = officialReceiptNumber.trim();
+      updateData.orSubmittedAt = new Date();
+      console.log('[SB Approval] OR number added by SB Admin:', officialReceiptNumber.trim());
+    }
+    
+    // Upload OR document if provided by SB Admin
+    if (files?.oRTreasurerOfficeObj && !application.documents?.oRTreasurerOfficeObj) {
+      const { validateFile, uploadFile } = require('../services/fileUploadService');
+      const orFile = files.oRTreasurerOfficeObj[0];
+      validateFile(orFile);
+      const orResult = await uploadFile(
+        orFile.buffer, 
+        orFile.originalname, 
+        orFile.mimetype, 
+        { baseFolder: 'franchiseApplications', subFolder: application.operatorInfo || 'pending', applicationId: id, category: 'Documentations' }
+      );
+      updateData['documents.oRTreasurerOfficeObj'] = orResult.cloudflare;
+      console.log('[SB Approval] OR document uploaded by SB Admin:', orResult.cloudflare);
+    }
     
     // Upload resolution document if provided
     if (files?.resolutionDocument) {

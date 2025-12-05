@@ -1008,7 +1008,7 @@ function FranchiseMgmt() {
       
       setNotification({
         open: true,
-        message: 'Walk-in franchise application submitted successfully. The applicant will be notified via email or phone.',
+        message: response.data?.message || 'Walk-in application submitted and forwarded to SB for approval. The applicant will be notified via email or phone.',
         type: 'success'
       })
     } catch (error) {
@@ -1772,12 +1772,11 @@ function FranchiseMgmt() {
             </Box>
             
             <TextField
-              label="TODA Membership"
+              label="TODA Membership (Optional)"
               name="todaMembership"
               value={formData.todaMembership}
               onChange={handleFormChange}
               fullWidth
-              required
               size="small"
               sx={{ mb: 3 }}
             />

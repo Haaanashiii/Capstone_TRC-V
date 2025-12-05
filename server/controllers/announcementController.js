@@ -19,17 +19,6 @@ class AnnouncementController {
         });
       }
 
-      // Check published limit
-      if (published) {
-        const publishedCount = await announcementRepository.countPublished();
-        if (publishedCount >= 3) {
-          return res.status(400).json({
-            success: false,
-            message: 'Only 3 announcements can be published at a time'
-          });
-        }
-      }
-
       const announcementData = {
         title,
         description,
@@ -132,21 +121,7 @@ class AnnouncementController {
       const { id } = req.params;
       const { title, description, date, published } = req.body;
 
-      // Get current announcement
-      const currentAnnouncement = await announcementRepository.getById(id);
-
-      // Check published limit if trying to publish
-      if (published && !currentAnnouncement.published) {
-        const publishedCount = await announcementRepository.countPublished();
-        if (publishedCount >= 3) {
-          return res.status(400).json({
-            success: false,
-            message: 'Only 3 announcements can be published at a time'
-          });
-        }
-      }
-
-      const updateData = {};
+      const updateData = {}
       if (title !== undefined) updateData.title = title;
       if (description !== undefined) updateData.description = description;
       if (date !== undefined) updateData.date = date;

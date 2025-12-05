@@ -178,10 +178,13 @@ exports.getQuickStats = async (req, res, next) => {
 // Analytics - franchise distribution by barangay (cached 10min)
 exports.getAnalytics = async (req, res, next) => {
   try {
+    console.log('[Dashboard] getAnalytics called');
+    
     const cacheKey = 'dashboard-analytics';
     const cachedAnalytics = cacheManager.get(cacheKey);
     
     if (cachedAnalytics) {
+      console.log('[Dashboard] Returning cached analytics');
       return res.status(200).json({
         success: true,
         data: cachedAnalytics,
@@ -189,49 +192,58 @@ exports.getAnalytics = async (req, res, next) => {
       });
     }
 
+    console.log('[Dashboard] Fetching fresh analytics from database...');
     const currentDate = new Date();
 
-    const [aggregationResult] = await Promise.all([
-      FranchiseInformation.aggregate([
-        { $match: { isCurrentVersion: true } },
-        {
-          $facet: {
-            totals: [
-              {
-                $group: {
-                  _id: null,
-                  total: { $sum: 1 },
-                  active: { $sum: { $cond: [{ $eq: ['$franchiseStatus', 'Active'] }, 1, 0] } },
-                  expired: { $sum: { $cond: [{ $eq: ['$franchiseStatus', 'Expired'] }, 1, 0] } },
-                  revoked: { $sum: { $cond: [{ $eq: ['$franchiseStatus', 'Revoked'] }, 1, 0] } }
-                }
+    // Run aggregation
+    const aggregationResult = await FranchiseInformation.aggregate([
+      { $match: { isCurrentVersion: true } },
+      {
+        $facet: {
+          totals: [
+            {
+              $group: {
+                _id: null,
+                total: { $sum: 1 },
+                active: { $sum: { $cond: [{ $eq: ['$franchiseStatus', 'Active'] }, 1, 0] } },
+                expired: { $sum: { $cond: [{ $eq: ['$franchiseStatus', 'Expired'] }, 1, 0] } },
+                revoked: { $sum: { $cond: [{ $eq: ['$franchiseStatus', 'Revoked'] }, 1, 0] } }
               }
-            ],
-            byBarangay: [
-              {
-                $group: {
-                  _id: '$operatorBarangay',
-                  total: { $sum: 1 },
-                  active: { $sum: { $cond: [{ $eq: ['$franchiseStatus', 'Active'] }, 1, 0] } },
-                  expired: { $sum: { $cond: [{ $eq: ['$franchiseStatus', 'Expired'] }, 1, 0] } }
-                }
-              },
-              { $sort: { active: -1 } },
-              { $limit: 50 }
-            ]
-          }
+            }
+          ],
+          byBarangay: [
+            {
+              $group: {
+                _id: '$operatorBarangay',
+                total: { $sum: 1 },
+                active: { $sum: { $cond: [{ $eq: ['$franchiseStatus', 'Active'] }, 1, 0] } },
+                expired: { $sum: { $cond: [{ $eq: ['$franchiseStatus', 'Expired'] }, 1, 0] } }
+              }
+            },
+            { $sort: { active: -1 } },
+            { $limit: 50 }
+          ]
         }
-      ])
+      }
     ]);
 
+    console.log('[Dashboard] Aggregation result:', JSON.stringify(aggregationResult, null, 2));
+
     const pendingApplications = await FranchiseApplication.countDocuments({ statusOfBPLO: 'pending' });
-    const totals = aggregationResult.totals[0] || { total: 0, active: 0, expired: 0, revoked: 0 };
-    const barangayData = aggregationResult.byBarangay.map(b => ({
-      barangay: b._id || 'Unknown',
-      total: b.total,
-      active: b.active,
-      expired: b.expired
-    }));
+    
+    // Safely access results
+    const totals = (aggregationResult && aggregationResult[0] && aggregationResult[0].totals && aggregationResult[0].totals[0]) 
+      ? aggregationResult[0].totals[0] 
+      : { total: 0, active: 0, expired: 0, revoked: 0 };
+    
+    const barangayData = (aggregationResult && aggregationResult[0] && aggregationResult[0].byBarangay) 
+      ? aggregationResult[0].byBarangay.map(b => ({
+          barangay: b._id || 'Unknown',
+          total: b.total,
+          active: b.active,
+          expired: b.expired
+        }))
+      : [];
 
     const analyticsData = {
       totalFranchises: totals.total,
@@ -242,6 +254,8 @@ exports.getAnalytics = async (req, res, next) => {
       barangayData
     };
 
+    console.log('[Dashboard] Analytics data prepared:', analyticsData);
+
     cacheManager.set(cacheKey, analyticsData, 600);
 
     res.status(200).json({
@@ -250,7 +264,8 @@ exports.getAnalytics = async (req, res, next) => {
       timestamp: currentDate.toISOString()
     });
   } catch (error) {
-    console.error('[Dashboard] Error fetching analytics:', error);
+    console.error('[Dashboard] Error fetching analytics:', error.message);
+    console.error('[Dashboard] Error stack:', error.stack);
     next(error);
   }
 };

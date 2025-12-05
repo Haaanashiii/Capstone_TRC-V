@@ -3,6 +3,7 @@ import '../../Styles/Administrator_Css/Announcement.css';
 import '../../Styles/Administrator_Css/SharedTable.css';
 import Sidebar from './Sidebar';
 import websocketService from '../../services/websocket';
+import announcementService from '../../services/announcementService';
 import {
   Box,
   Typography,
@@ -30,8 +31,6 @@ import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170';
-
 const INITIAL_ANNOUNCEMENT_STATE = {
   title: '',
   description: '',
@@ -58,17 +57,7 @@ function Announcement() {
   const fetchAnnouncements = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${API_BASE_URL}/announcements?limit=100`, {
-        headers: {
-          'Authorization': `Bearer ${sessionStorage.getItem('accessToken')}`
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch announcements');
-      }
-
-      const data = await response.json();
+      const data = await announcementService.getAll({ limit: 100 });
       setAnnouncements(data.announcements || []);
       setError('');
     } catch (err) {
@@ -141,11 +130,6 @@ function Announcement() {
     return filteredAnnouncements.slice(startIndex, startIndex + rowsPerPage);
   }, [filteredAnnouncements, page, rowsPerPage]);
 
-  // Count published announcements
-  const publishedCount = useMemo(() => {
-    return announcements.filter(a => a.published).length;
-  }, [announcements]);
-
   // Handle modal open
   const handleOpenModal = useCallback((announcement = null) => {
     setIsEditing(!!announcement);
@@ -177,19 +161,6 @@ function Announcement() {
       return;
     }
 
-    // Check published limit
-    if (newAnnouncement.published && !isEditing) {
-      if (publishedCount >= 3) {
-        setError('Only 3 announcements can be published at a time. Please unpublish one first.');
-        return;
-      }
-    } else if (newAnnouncement.published && isEditing && !selectedAnnouncement.published) {
-      if (publishedCount >= 3) {
-        setError('Only 3 announcements can be published at a time. Please unpublish one first.');
-        return;
-      }
-    }
-
     try {
       setLoading(true);
       setError('');
@@ -201,23 +172,10 @@ function Announcement() {
         published: newAnnouncement.published
       };
 
-      const url = isEditing
-        ? `${API_BASE_URL}/announcements/${selectedAnnouncement._id}`
-        : `${API_BASE_URL}/announcements`;
-
-      const response = await fetch(url, {
-        method: isEditing ? 'PUT' : 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${sessionStorage.getItem('accessToken')}`
-        },
-        body: JSON.stringify(announcementData)
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || `Failed to ${isEditing ? 'update' : 'create'} announcement`);
+      if (isEditing) {
+        await announcementService.update(selectedAnnouncement._id, announcementData);
+      } else {
+        await announcementService.create(announcementData);
       }
 
       setSuccess(`Announcement ${isEditing ? 'updated' : 'created'} successfully`);
@@ -232,7 +190,7 @@ function Announcement() {
     } finally {
       setLoading(false);
     }
-  }, [isEditing, newAnnouncement, selectedAnnouncement, publishedCount, handleCloseModal, fetchAnnouncements]);
+  }, [isEditing, newAnnouncement, selectedAnnouncement, handleCloseModal, fetchAnnouncements]);
 
   // Handle delete announcement
   const handleDeleteAnnouncement = useCallback(async (announcementId) => {
@@ -242,17 +200,7 @@ function Announcement() {
       setLoading(true);
       setError('');
 
-      const response = await fetch(`${API_BASE_URL}/announcements/${announcementId}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${sessionStorage.getItem('accessToken')}`
-        }
-      });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.message || 'Failed to delete announcement');
-      }
+      await announcementService.delete(announcementId);
 
       setSnackbar({
         open: true,
@@ -276,36 +224,10 @@ function Announcement() {
   const handleTogglePublished = useCallback(async (announcement) => {
     const newPublishedStatus = !announcement.published;
 
-    // Check if trying to publish when 3 are already published
-    if (newPublishedStatus && !announcement.published && publishedCount >= 3) {
-      setSnackbar({
-        open: true,
-        message: 'Only 3 announcements can be published at a time. Please unpublish one first.',
-        severity: 'warning'
-      });
-      return;
-    }
-
     try {
       setLoading(true);
 
-      const response = await fetch(`${API_BASE_URL}/announcements/${announcement._id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${sessionStorage.getItem('accessToken')}`
-        },
-        body: JSON.stringify({
-          ...announcement,
-          published: newPublishedStatus
-        })
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || 'Failed to update announcement');
-      }
+      await announcementService.togglePublished(announcement);
 
       setSnackbar({
         open: true,
@@ -323,7 +245,7 @@ function Announcement() {
     } finally {
       setLoading(false);
     }
-  }, [publishedCount, fetchAnnouncements]);
+  }, [fetchAnnouncements]);
 
   const handleChangePage = useCallback((event, newPage) => {
     setPage(newPage);
@@ -366,17 +288,6 @@ function Announcement() {
             {success}
           </Alert>
         )}
-
-        <Box sx={{ mb: 3, p: 2.5, bgcolor: 'white', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0, 0, 0, 0.08)' }}>
-          <Typography variant="body1" sx={{ color: '#0A356B', fontWeight: 600 }}>
-            Published Announcements: <strong style={{ color: '#0A356B', fontSize: '1.1em' }}>{publishedCount} / 3</strong>
-            {publishedCount >= 3 && (
-              <span style={{ color: '#d32f2f', marginLeft: 8, fontWeight: 500 }}>
-                (Maximum reached - unpublish one to publish another)
-              </span>
-            )}
-          </Typography>
-        </Box>
 
         <Box className="announcement-management-toolbar">
             <TextField
@@ -437,7 +348,7 @@ function Announcement() {
                         <Switch
                           checked={announcement.published || false}
                           onChange={() => handleTogglePublished(announcement)}
-                          disabled={loading || (!announcement.published && publishedCount >= 3)}
+                          disabled={loading}
                           color="primary"
                         />
                       </TableCell>
@@ -546,14 +457,9 @@ function Announcement() {
               <Switch
                 checked={newAnnouncement.published}
                 onChange={(e) => handleFieldChange('published', e.target.checked)}
-                disabled={loading || (!isEditing && publishedCount >= 3) || (isEditing && !selectedAnnouncement?.published && publishedCount >= 3)}
+                disabled={loading}
                 color="primary"
               />
-              {!isEditing && publishedCount >= 3 && (
-                <Typography variant="caption" color="error" sx={{ ml: 1 }}>
-                  Maximum 3 published
-                </Typography>
-              )}
             </Box>
 
             <Box className="announcement-modal-actions">
