@@ -167,7 +167,7 @@ exports.createPublicReport = async (req, res, next) => {
             category: newReport.category
         });
     } catch (error) {
-        console.error('Error creating public report:', error);
+        console.error('Error creating public incident report:', error);
         next(error);
     }   
 };
@@ -210,11 +210,11 @@ exports.createReport = async (req, res, next) => {
 
         const newReport = await reportsRepository.createReport(reportData);
         res.status(201).json({ 
-            message: 'Report created successfully', 
+            message: 'Incident report created successfully', 
             report: newReport 
         });
     } catch (error) {
-        console.error('Error creating report:', error);
+        console.error('Error creating incident report:', error);
         next(error);
     }   
 };
@@ -248,7 +248,7 @@ exports.getAllReports = async (req, res, next) => {
         
         res.status(200).json(result);
     } catch (error) {
-        console.error('Error getting reports:', error);
+        console.error('Error getting incident reports:', error);
         next(error);
     }
 };
@@ -259,12 +259,12 @@ exports.getReportById = async (req, res, next) => {
         const report = await reportsRepository.getReportById(reportId);
         
         if (!report) {
-            return res.status(404).json({ error: 'Report not found' });
+            return res.status(404).json({ error: 'Incident report not found' });
         }
         
         res.status(200).json(report);
     } catch (error) {
-        console.error('Error getting report by ID:', error);
+        console.error('Error getting incident report by ID:', error);
         next(error);
     }
 };
@@ -286,7 +286,7 @@ exports.updateReport = async (req, res, next) => {
         const updatedReport = await reportsRepository.updateReport(reportId, updateData);
         
         if (!updatedReport) {
-            return res.status(404).json({ error: 'Report not found' });
+            return res.status(404).json({ error: 'Incident report not found' });
         }
         
         if (req.app.get('io')) {
@@ -304,11 +304,11 @@ exports.updateReport = async (req, res, next) => {
         }
         
         res.status(200).json({ 
-            message: 'Report updated successfully', 
+            message: 'Incident report updated successfully', 
             report: updatedReport 
         });
     } catch (error) {
-        console.error('Error updating report:', error);
+        console.error('Error updating incident report:', error);
         next(error);
     }
 };
@@ -319,15 +319,15 @@ exports.deleteReport = async (req, res, next) => {
         const deletedReport = await reportsRepository.deleteReport(reportId);
         
         if (!deletedReport) {
-            return res.status(404).json({ error: 'Report not found' });
+            return res.status(404).json({ error: 'Incident report not found' });
         }
         
         res.status(200).json({ 
-            message: 'Report deleted successfully', 
+            message: 'Incident report deleted successfully', 
             report: deletedReport 
         });
     } catch (error) {
-        console.error('Error deleting report:', error);
+        console.error('Error deleting incident report:', error);
         next(error);
     }
 };
@@ -379,7 +379,7 @@ exports.getMonthlyReports = async (req, res, next) => {
             res.status(200).json({ month: monthNum, year: yearNum, total: reports.length, reports });
         }
     } catch (error) {
-        console.error('Error getting monthly reports:', error);
+        console.error('Error getting monthly incident reports:', error);
         next(error);
     }
 };
@@ -390,7 +390,7 @@ exports.getReportsStatistics = async (req, res, next) => {
         statistics.categoryLabels = CATEGORY_LABELS;
         res.status(200).json(statistics);
     } catch (error) {
-        console.error('Error getting reports statistics:', error);
+        console.error('Error getting incident reports statistics:', error);
         next(error);
     }
 };
@@ -455,7 +455,7 @@ exports.getReportsByDateRange = async (req, res, next) => {
             res.status(200).json({ startDate, endDate, total: reports.length, reports });
         }
     } catch (error) {
-        console.error('Error getting reports by date range:', error);
+        console.error('Error getting incident reports by date range:', error);
         next(error);
     }
 };

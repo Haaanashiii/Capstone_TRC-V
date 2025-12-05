@@ -24,11 +24,11 @@ const pageKeyToMenuItem = {
   'franchisee-list': { name: 'Franchisee List', icon: <ListAltIcon />, path: '/franchisee-list' },
   'franchise-management': { name: 'Franchise Management', icon: <BusinessIcon />, path: '/franchise-management' },
   'certificate': { name: 'Certificate', icon: <AssessmentIcon />, path: '/certificate' },
-  'fare-reports': { name: 'Fare Overpricing Report', icon: <AssessmentIcon />, path: '/fare-reports' },
+  'incident-reports': { name: 'Incident Reporting', icon: <AssessmentIcon />, path: '/incident-reports' },
   'analytics': { name: 'Analytics', icon: <AnalyticsIcon />, path: '/analytics' },
   'announcements': { name: 'Announcements', icon: <CampaignIcon />, path: '/announcements' },
   'audit-trail': { name: 'Audit Trail', icon: <HistoryIcon />, path: '/audit-trail' },
-  'user-management': { name: 'User Management', icon: <PeopleAltIcon />, path: '/user-management' },
+  'admin-management': { name: 'Admin Management', icon: <PeopleAltIcon />, path: '/admin-management' },
   'settings': { name: 'Settings', icon: <SettingsIcon />, path: '/settings' }
 };
 
@@ -95,9 +95,9 @@ function Sidebar() {
   // Default fallback if API is not available
   const getDefaultPages = (role) => {
     const defaults = {
-      'super-admin': ['dashboard', 'franchisee-list', 'franchise-management', 'certificate', 'fare-reports', 'analytics', 'announcements', 'audit-trail', 'user-management', 'settings'],
-      'sb-admin': ['dashboard', 'franchisee-list', 'franchise-management', 'certificate', 'fare-reports'],
-      'bplo-admin': ['dashboard', 'franchisee-list', 'franchise-management', 'certificate', 'fare-reports']
+      'super-admin': ['dashboard', 'franchisee-list', 'franchise-management', 'certificate', 'incident-reports', 'analytics', 'announcements', 'audit-trail', 'admin-management', 'settings'],
+      'sb-admin': ['dashboard', 'franchisee-list', 'franchise-management', 'certificate', 'incident-reports'],
+      'bplo-admin': ['dashboard', 'franchisee-list', 'franchise-management', 'certificate', 'incident-reports']
     };
     return defaults[role] || [];
   };

@@ -24,7 +24,7 @@ const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userAccountRoutes');
 const adminRoutes = require('./routes/adminAccountRoutes');
 const pendingAppsRoutes = require('./routes/pendingAppsRoutes');
-const reportsRoutes = require('./routes/reportsRoutes');
+const incidentReportsRoutes = require('./routes/reportsRoutes');
 const announcementRoutes = require('./routes/announcementRoutes');
 const franchiseInformationRoutes = require('./routes/franchiseInformationRoutes');
 const franchiseApplicationRoutes = require('./routes/franchiseApplicationRoutes');
@@ -315,7 +315,7 @@ app.use(cookieParser());
 // CORS
 const corsOriginEnv = process.env.CORS_ORIGIN || '';
 let corsOptions;
-const corsMethods = ['GET', 'POST', 'PUT', 'DELETE'];
+const corsMethods = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'];
 const corsAllowedHeaders = ['Content-Type', 'Authorization'];
 if (corsOriginEnv) {
   const allowedOrigins = corsOriginEnv.split(',').map(s => s.trim()).filter(Boolean);
@@ -383,7 +383,7 @@ app.use('/admins', apiLimiter, adminRoutes);
 app.use('/api/pending-apps', apiLimiter, pendingAppsRoutes);
 app.use('/api/franchise-applications', apiLimiter, franchiseApplicationRoutes);
 app.use('/api/dashboard', apiLimiter, dashboardRoutes);
-app.use('/api/reports', reportsRoutes);
+app.use('/api/incident-reports', incidentReportsRoutes);
 app.use('/announcements', apiLimiter, announcementRoutes);
 app.use('/api/franchise-information', apiLimiter, franchiseInformationRoutes);
 app.use('/qr', qrVerificationLimiter, qrCodeRoutes);

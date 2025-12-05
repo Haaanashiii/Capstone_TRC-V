@@ -1671,32 +1671,80 @@ exports.createFranchiseApplication = exports.createNewApplication;
 exports.getAllFranchiseApplications = async (req, res, next) => {
   try {
     const { getPaginationParams } = require('../utils/cache');
-    const { page, limit, status } = req.query;
+    const { page, limit, status, startDate, endDate, search } = req.query;
     const { skip, limit: pageLimit, page: pageNum } = getPaginationParams(page, limit);
     
-    // Only admins can fetch all applications
-    const filter = status ? { statusOfBPLO: status } : {};
+    // Build filter for admin queries
+    const filter = {};
+    const conditions = [];
+    
+    // Status filter
+    if (status) {
+      filter.statusOfBPLO = status;
+    }
+    
+    // Date range filter - match if ANY date field falls within range
+    if (startDate || endDate) {
+      const startDateTime = startDate ? new Date(startDate) : null;
+      const endDateTime = endDate ? new Date(new Date(endDate).setHours(23, 59, 59, 999)) : null;
+      
+      const dateCondition = {};
+      if (startDateTime) dateCondition.$gte = startDateTime;
+      if (endDateTime) dateCondition.$lte = endDateTime;
+      
+      // Match documents where createdAt OR sbApprovedAt falls within range
+      conditions.push({
+        $or: [
+          { createdAt: dateCondition },
+          { sbApprovedAt: dateCondition }
+        ]
+      });
+    }
+    
+    // Search filter
+    if (search && search.trim()) {
+      const searchRegex = new RegExp(search.trim(), 'i');
+      conditions.push({
+        $or: [
+          { operatorName: searchRegex },
+          { franchiseNumber: searchRegex },
+          { mvPlateNo: searchRegex }
+        ]
+      });
+    }
+    
+    // Combine all conditions with AND
+    if (conditions.length > 0) {
+      filter.$and = conditions;
+    }
+    
+    console.log('[getAllFranchiseApplications] Filter:', JSON.stringify(filter, null, 2));
     
     // Get total count
     const total = await FranchiseApplication.countDocuments(filter);
     
-    // Fetch paginated results
+    // Fetch results - increase limit for MTOF reports with date range
+    const effectiveLimit = (startDate && endDate) ? 1000 : pageLimit;
+    
     const applications = await franchiseApplicationRepository.getAllFranchiseApplications(
       filter, 
-      { skip, limit: pageLimit }
+      { skip: 0, limit: effectiveLimit }
     );
+    
+    console.log(`[getAllFranchiseApplications] Found ${applications.length} applications`);
     
     res.json({ 
       success: true, 
       data: applications,
       pagination: {
         page: pageNum,
-        limit: pageLimit,
+        limit: effectiveLimit,
         total,
-        pages: Math.ceil(total / pageLimit)
+        pages: Math.ceil(total / effectiveLimit)
       }
     });
   } catch (error) {
+    console.error('[getAllFranchiseApplications] Error:', error);
     next(error);
   }
 };

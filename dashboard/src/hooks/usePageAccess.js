@@ -176,14 +176,14 @@ export const useAllowedPages = () => {
 function getDefaultPageAccess(role) {
   const defaults = {
     'super-admin': [
-      'dashboard', 'franchisee-list', 'franchise-management', 'certificate', 'fare-reports',
-      'analytics', 'announcements', 'audit-trail', 'user-management', 'settings'
+      'dashboard', 'franchisee-list', 'franchise-management', 'certificate', 'incident-reports',
+      'analytics', 'announcements', 'audit-trail', 'admin-management', 'settings'
     ],
     'sb-admin': [
-      'dashboard', 'franchisee-list', 'franchise-management', 'certificate', 'fare-reports'
+      'dashboard', 'franchisee-list', 'franchise-management', 'certificate', 'incident-reports'
     ],
     'bplo-admin': [
-      'dashboard', 'franchisee-list', 'franchise-management', 'certificate', 'fare-reports'
+      'dashboard', 'franchisee-list', 'franchise-management', 'certificate', 'incident-reports'
     ]
   };
   return defaults[role] || [];

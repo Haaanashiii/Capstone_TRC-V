@@ -14,13 +14,13 @@ import OperatorHomePage from './pages/Driver/OperatorHomePage';
 import FranchiseApplication from './pages/Driver/FranchiseApplication';
 import RequestAmendment from './pages/Driver/RequestAmendment';
 import MaintenancePage from './pages/Maintenance/MaintenancePage';
-import UserManagement from './pages/Administration/UserManagement';
+import AdminManagement from './pages/Administration/AdminManagement';
 import ReportDriver from './pages/Reporting/reportDriver';
 import FranchiseeList from './pages/Administration/FranchiseeList';
 import FranchiseMgmt from './pages/Administration/FranchiseMgmt';
 import Dashboard from './pages/Administration/Dashboard';
 import Certificate from './pages/Administration/Certificate';
-import FareReports from './pages/Administration/FareReports';
+import TricycleIncidentReports from './pages/Administration/TricycleIncidentReports';
 import Announcement from './pages/Administration/Announcement';
 import Analytics from './pages/Administration/Analytics';
 import AuditTrail from './pages/Administration/AuditTrail';
@@ -138,18 +138,18 @@ function App() {
           } 
         />
         <Route 
-          path="/fare-reports" 
+          path="/incident-reports" 
           element={
-            <PageProtectedRoute pageKey="fare-reports">
-              <FareReports />
+            <PageProtectedRoute pageKey="incident-reports">
+              <TricycleIncidentReports />
             </PageProtectedRoute>
           } 
         />
         <Route 
-          path="/user-management" 
+          path="/admin-management" 
           element={
-            <PageProtectedRoute pageKey="user-management">
-              <UserManagement />
+            <PageProtectedRoute pageKey="admin-management">
+              <AdminManagement />
             </PageProtectedRoute>
           } 
         />

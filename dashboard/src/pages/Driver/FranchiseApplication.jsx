@@ -2,8 +2,8 @@ import React, { useState, useRef, useEffect } from "react";
 import Swal from 'sweetalert2';
 import { useNavigate } from 'react-router-dom';
 import UnifiedNavbar from "../../components/UnifiedNavbar";
-import { TextField, Button, CircularProgress, Select, MenuItem, FormControl, InputLabel, FormHelperText, Accordion, AccordionSummary, AccordionDetails, Typography } from "@mui/material";
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import PrivacyPolicyModal from "../../components/PrivacyPolicyModal";
+import { TextField, Button, CircularProgress, Select, MenuItem, FormControl, InputLabel, FormHelperText, Typography } from "@mui/material";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
@@ -76,8 +76,6 @@ export default function FranchiseApplication() {
   const [language, setLanguage] = useState('en'); // 'en' for English, 'tl' for Tagalog
   
   // Fetch user email from backend API (not from JWT for security)
-  const [userEmail, setUserEmail] = useState('');
-  const [userId, setUserId] = useState('');
   
   useEffect(() => {
     const fetchUserData = async () => {
@@ -95,7 +93,6 @@ export default function FranchiseApplication() {
           // Extract user ID from JWT
           const extractedUserId = userData.userId || userData.id || userData._id;
           if (extractedUserId) {
-            setUserId(extractedUserId);
             console.log('[FranchiseApplication] ✓ User ID extracted:', extractedUserId);
             
             // Fetch user email from backend API using the user ID
@@ -108,7 +105,6 @@ export default function FranchiseApplication() {
               const email = userData?.email;
               
               if (email) {
-                setUserEmail(email);
                 console.log('[FranchiseApplication] ✓ Email fetched from backend API:', email);
               } else {
                 console.error('[FranchiseApplication] ✗ No email in API response. Full response:', response.data);
@@ -202,10 +198,10 @@ export default function FranchiseApplication() {
           }
         } catch (error) {
           console.error('[FranchiseApplication] Error loading application for resubmission:', error);
-          setToast({
-            open: true,
-            message: 'Failed to load application data. Please try again.',
-            severity: 'error'
+          Swal.fire({
+            ...alertStyle.errorAlert,
+            title: 'Error',
+            text: 'Failed to load application data. Please try again.'
           });
         }
       }
@@ -345,10 +341,10 @@ export default function FranchiseApplication() {
     // Validate file
     const validation = validateFile(file);
     if (!validation.success) {
-      setToast({
-        open: true,
-        message: validation.message,
-        severity: 'error'
+      Swal.fire({
+        ...alertStyle.errorAlert,
+        title: 'Invalid File',
+        text: validation.message
       });
       return;
     }
@@ -366,20 +362,20 @@ export default function FranchiseApplication() {
         const newSize = formatFileSize(processedFile.size);
         const savings = Math.round((1 - processedFile.size / file.size) * 100);
         
-        setToast({
-          open: true,
-          message: ` ${originalSize} → ${newSize} (${savings}% smaller!)`,
-          severity: 'success'
+        Swal.fire({
+          ...alertStyle.successAlert,
+          title: 'Compression Complete',
+          text: `${originalSize} → ${newSize} (${savings}% smaller!)`
         });
       }
       
       setModalFile(processedFile);
     } catch (error) {
       console.error('[FileCompression] Error:', error);
-      setToast({
-        open: true,
-        message: '⚠️ Compression failed. Using original file.',
-        severity: 'warning'
+      Swal.fire({
+        ...alertStyle.warningAlert,
+        title: 'Compression Failed',
+        text: 'Compression failed. Using original file.'
       });
       setModalFile(file);
     }
@@ -488,6 +484,10 @@ export default function FranchiseApplication() {
 
   // Prevent multiple submissions / spamming
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // Privacy agreement checkbox state
+  const [agreeToPrivacy, setAgreeToPrivacy] = useState(false);
+  // Privacy modal state
+  const [privacyModalOpen, setPrivacyModalOpen] = useState(false);
   // Field-level errors map
   const [errors, setErrors] = useState({});
 
@@ -509,7 +509,7 @@ export default function FranchiseApplication() {
     const newErrors = {};
     setSidecarColorError("");
 
-    // Ensure every field in `fields` (except `date`, `hasCoOwner`, `operatorPicture`, `driverPicture`, and `todaMembership`) is present and non-empty
+    // Ensure every field in fields (except date, hasCoOwner, operatorPicture, driverPicture, and todaMembership) is present and non-empty
     Object.keys(fields).forEach(k => {
       if (k === 'date' || k === 'hasCoOwner' || k === 'operatorPicture' || k === 'driverPicture' || k === 'todaMembership') return;
       const v = fields[k];
@@ -617,7 +617,8 @@ export default function FranchiseApplication() {
             left: 0,
             right: 0,
             bottom: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            backgroundColor: 'rgba(0, 0, 0, 0.6)',
+            backdropFilter: 'blur(4px)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -625,19 +626,17 @@ export default function FranchiseApplication() {
           }}>
             <div className="franchise-modal" style={{ 
               width: '90%',
-              maxWidth: 500, 
-              borderRadius: 18, 
+              maxWidth: '500px', 
+              borderRadius: '24px', 
               background: '#fff', 
-              boxShadow: '0 4px 24px #0002', 
-              padding: 36, 
+              boxShadow: '0 20px 60px rgba(23, 77, 122, 0.3)', 
+              padding: '48px', 
               position: 'relative',
               margin: '20px',
-              minHeight: 'auto',
-              maxHeight: '90vh',
-              overflowY: 'auto'
+              animation: 'slideUp 0.3s ease-out'
             }}>
-              <div style={{ fontWeight: 900, fontSize: '2.2rem', marginBottom: 8, letterSpacing: 0.5 }}>{t.selectFile}</div>
-              <div style={{ fontWeight: 700, fontSize: 20, marginBottom: 24, color: '#111' }}>
+              <div style={{ fontWeight: 900, fontSize: '2rem', marginBottom: 12, letterSpacing: '-0.5px', color: '#0A356B' }}>{t.selectFile}</div>
+              <div style={{ fontWeight: 600, fontSize: '16px', marginBottom: '32px', color: '#666', letterSpacing: '0.3px' }}>
                 {t.upload} {[
                   { key: 'registration', label: t.photoRegistration },
                   { key: 'barangay', label: t.photoBarangay },
@@ -647,26 +646,53 @@ export default function FranchiseApplication() {
                   { key: 'picture', label: t.picture },
                 ].find(d => d.key === modalDocKey)?.label}
               </div>
-              <div style={{ marginBottom: 24 }}>
+              <div style={{ marginBottom: '32px' }}>
                 <div
                   style={{
-                    background: '#f6f9ff',
-                    border: '3px dashed #174D7A',
-                    borderRadius: 18,
-                    padding: 32,
+                    background: 'linear-gradient(135deg, #f0f7ff 0%, #e8f1ff 100%)',
+                    border: '2.5px dashed #174D7A',
+                    borderRadius: '20px',
+                    padding: '48px 32px',
                     display: 'flex',
                     flexDirection: 'column',
                     alignItems: 'center',
-                    marginBottom: 12,
-                    boxShadow: '0 2px 8px #0001',
+                    marginBottom: '16px',
+                    boxShadow: 'inset 0 2px 8px rgba(23, 77, 122, 0.05)',
                     cursor: 'pointer',
+                    transition: 'all 0.3s ease',
+                    backgroundColor: 'rgba(240, 247, 255, 0.8)',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = 'rgba(224, 242, 255, 0.9)';
+                    e.currentTarget.style.borderColor = '#0A356B';
+                    e.currentTarget.style.boxShadow = 'inset 0 2px 12px rgba(23, 77, 122, 0.1), 0 4px 12px rgba(23, 77, 122, 0.1)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'rgba(240, 247, 255, 0.8)';
+                    e.currentTarget.style.borderColor = '#174D7A';
+                    e.currentTarget.style.boxShadow = 'inset 0 2px 8px rgba(23, 77, 122, 0.05)';
                   }}
                   onClick={() => modalFileRef.current && modalFileRef.current.click()}
                 >
-                  <div style={{ marginBottom: 8 }}>
-                    <svg width="64" height="64" fill="#174D7A" viewBox="0 0 24 24"><path d="M12 16V4m0 0l-4 4m4-4l4 4" stroke="#174D7A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/><path d="M20 16v2a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-2" stroke="#174D7A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                  <div style={{ marginBottom: '16px' }}>
+                    <svg width="72" height="72" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <defs>
+                        <linearGradient id="iconGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                          <stop offset="0%" style={{stopColor: '#174D7A'}} />
+                          <stop offset="100%" style={{stopColor: '#0A356B'}} />
+                        </linearGradient>
+                      </defs>
+                      {/* Cloud shape */}
+                      <path d="M19 13c1.1 0 2-.9 2-2 0-1.05-.84-1.9-1.9-1.95C18.6 5.9 16 3 13 3c-2.5 0-4.6 1.7-5.1 4-.05.02-.1.02-.15.02C5.6 7 4 8.6 4 10.5 4 12.4 5.5 14 7.1 14" stroke="url(#iconGrad)" strokeWidth="2.2" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+                      {/* Upload arrow */}
+                      <g stroke="url(#iconGrad)" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round">
+                        <line x1="12" y1="10" x2="12" y2="18" />
+                        <polyline points="9 15 12 18 15 15" />
+                      </g>
+                    </svg>
                   </div>
-                  <div style={{ color: '#174D7A', fontWeight: 600, fontSize: 17 }}>{t.browseFiles}</div>
+                  <div style={{ color: '#174D7A', fontWeight: 700, fontSize: '18px', marginBottom: '8px', letterSpacing: '0.2px' }}>{t.browseFiles}</div>
+                  <div style={{ color: '#999', fontWeight: 400, fontSize: '13px' }}>or drag and drop</div>
                   <input
                     type="file"
                     style={{ display: 'none' }}
@@ -674,21 +700,77 @@ export default function FranchiseApplication() {
                     onChange={handleModalFileChange}
                   />
                 </div>
-                <div style={{ background: '#eaf1ff', borderRadius: 8, padding: '12px 0', textAlign: 'center', fontWeight: 500, color: '#222', fontSize: 16, marginTop: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingLeft: '8px', paddingRight: '8px' }}>
+                <div style={{ 
+                  background: '#f8f9fa', 
+                  borderRadius: '12px', 
+                  padding: '14px 16px', 
+                  textAlign: 'center', 
+                  fontWeight: 500, 
+                  color: '#333', 
+                  fontSize: '15px', 
+                  marginTop: '12px', 
+                  overflow: 'hidden', 
+                  textOverflow: 'ellipsis', 
+                  whiteSpace: 'nowrap',
+                  border: '1px solid #e0e0e0',
+                  transition: 'all 0.2s ease'
+                }}>
                   {modalFile ? truncateFilename(modalFile.name) : t.noFileSelected}
                 </div>
               </div>
-              <div style={{ display: 'flex', gap: 18, justifyContent: 'flex-end', marginTop: 24 }}>
+              <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '32px' }}>
                 <button
                   className="franchise-cancel-btn"
-                  style={{ background: '#f3f3f3', color: '#174D7A', fontWeight: 700, borderRadius: 8, padding: '10px 32px', fontSize: 18, border: 'none', boxShadow: '0 2px 8px #0001', cursor: 'pointer' }}
+                  style={{ 
+                    background: '#f5f5f5', 
+                    color: '#666', 
+                    fontWeight: 600, 
+                    borderRadius: '12px', 
+                    padding: '12px 28px', 
+                    fontSize: '15px', 
+                    border: '1px solid #e0e0e0',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = '#eeeeee';
+                    e.currentTarget.style.borderColor = '#d0d0d0';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = '#f5f5f5';
+                    e.currentTarget.style.borderColor = '#e0e0e0';
+                  }}
                   onClick={() => { setModalDocKey(null); setModalFile(null); }}
                 >
                   {t.cancel}
                 </button>
                 <button
                   className="franchise-submit-btn"
-                  style={{ background: '#174D7A', color: '#fff', fontWeight: 700, borderRadius: 8, padding: '10px 32px', fontSize: 18, border: 'none', boxShadow: '0 2px 8px #174D7A22', cursor: 'pointer' }}
+                  style={{ 
+                    background: '#174D7A', 
+                    color: '#fff', 
+                    fontWeight: 600, 
+                    borderRadius: '12px', 
+                    padding: '12px 28px', 
+                    fontSize: '15px', 
+                    border: 'none', 
+                    boxShadow: '0 4px 12px rgba(23, 77, 122, 0.3)', 
+                    cursor: modalFile ? 'pointer' : 'not-allowed',
+                    opacity: modalFile ? 1 : 0.6,
+                    transition: 'all 0.2s ease',
+                  }}
+                  onMouseEnter={(e) => {
+                    if (modalFile) {
+                      e.currentTarget.style.backgroundColor = '#0f3a5f';
+                      e.currentTarget.style.boxShadow = '0 6px 16px rgba(23, 77, 122, 0.4)';
+                      e.currentTarget.style.transform = 'translateY(-1px)';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = '#174D7A';
+                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(23, 77, 122, 0.3)';
+                    e.currentTarget.style.transform = 'translateY(0)';
+                  }}
                   onClick={() => {
                     if (modalFile && modalDocKey) {
                       setUploads(u => ({ ...u, [modalDocKey]: modalFile }));
@@ -998,18 +1080,8 @@ export default function FranchiseApplication() {
                     try {
                       const processedFile = await compressFile(file);
                       setFields({ ...fields, operatorPicture: processedFile });
-                      Swal.fire({
-                        ...alertStyle.successAlert,
-                        title: 'Success!',
-                        text: 'Picture uploaded successfully'
-                      });
                     } catch {
                       setFields({ ...fields, operatorPicture: file });
-                      Swal.fire({
-                        ...alertStyle.successAlert,
-                        title: 'Success!',
-                        text: 'Picture uploaded'
-                      });
                     }
                   }
                 };
@@ -1086,12 +1158,156 @@ export default function FranchiseApplication() {
               </div>
             ))}
           </div>
-              <div style={{ display: 'flex', justifyContent: 'flex-end', margin: '32px 0 0 0' }}>
-                <Button
-                  variant="contained"
-                  disabled={isSubmitting}
-                  sx={{ bgcolor: '#174D7A', color: '#fff', fontWeight: 700, borderRadius: 2, fontSize: 18, px: 4, py: 1 }}
-                  onClick={async () => {
+
+          {/* Agreement Section */}
+          <div style={{ marginTop: 3, padding: '24px', background: '#fafbfd', borderRadius: '12px', boxShadow: '0 4px 12px rgba(23, 77, 122, 0.15)' }}>
+            <div style={{ fontWeight: 700, fontSize: '18px', letterSpacing: '0.5px', textTransform: 'uppercase', marginBottom: 24, color: '#174D7A' }}>
+              {t.agreement}
+            </div>
+            <ol style={{ 
+              marginLeft: 24,
+              lineHeight: 1.8,
+              color: '#444'
+            }}>
+              <li style={{ marginBottom: 16 }}>
+                <Typography sx={{ 
+                  fontSize: '15px',
+                  fontFamily: 'Poppins, sans-serif',
+                  color: '#333'
+                }}>
+                  {t.agreeText1}
+                </Typography>
+              </li>
+              <li style={{ marginBottom: 16 }}>
+                <Typography sx={{ 
+                  fontSize: '15px',
+                  fontFamily: 'Poppins, sans-serif',
+                  color: '#333'
+                }}>
+                  {t.agreeText2}
+                </Typography>
+              </li>
+              <li style={{ marginBottom: 16 }}>
+                <Typography sx={{ 
+                  fontSize: '15px',
+                  fontFamily: 'Poppins, sans-serif',
+                  color: '#333'
+                }}>
+                  {t.agreeText3}
+                </Typography>
+              </li>
+            </ol>
+          </div>
+
+          {/* Sworn Statement Section */}
+          <div style={{ marginTop: 4, padding: '24px', background: '#fafbfd', borderRadius: '12px', boxShadow: '0 4px 12px rgba(23, 77, 122, 0.15)' }}>
+            <div style={{ fontWeight: 700, fontSize: '18px', letterSpacing: '0.5px', textTransform: 'uppercase', marginBottom: 24, color: '#174D7A' }}>
+              {t.swornStatement}
+            </div>
+            <div className="franchise-app-sworn-statement">
+              <Typography sx={{ 
+                marginBottom: 2, 
+                lineHeight: 1.8,
+                color: '#333',
+                fontSize: '15px',
+                fontFamily: 'Poppins, sans-serif'
+              }}>
+                {t.swornDeclaration}
+              </Typography>
+              <ol style={{ 
+                marginLeft: 24, 
+                marginBottom: 24,
+                lineHeight: 1.8,
+                color: '#444'
+              }}>
+                <li style={{ marginBottom: 12 }}>{t.swornItem1}</li>
+                <li style={{ marginBottom: 12 }}>{t.swornItem2}</li>
+                <li style={{ marginBottom: 12 }}>{t.swornItem3}</li>
+                <li style={{ marginBottom: 12 }}>{t.swornItem4}</li>
+              </ol>
+              <Typography sx={{ 
+                marginBottom: 3,
+                fontWeight: 500,
+                color: '#333',
+                fontSize: '15px',
+                fontFamily: 'Poppins, sans-serif'
+              }}>
+                {t.swornCompliance}
+              </Typography>
+              <div className="franchise-app-digital-signature">
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 32 }}>
+                  <div style={{ width: 340 }}>
+                    <div
+                      style={{
+                        width: '100%',
+                        height: 80,
+                        background: 'transparent',
+                        borderTop: '2px solid #174D7A',
+                        borderBottom: 'none',
+                        borderLeft: 'none',
+                        borderRight: 'none',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontWeight: 600,
+                        fontSize: 14,
+                        color: '#174D7A',
+                        marginBottom: 8,
+                        paddingTop: '10px',
+                        letterSpacing: '1px'
+                      }}
+                    >
+                      SIGNATURE
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Privacy Agreement Checkbox */}
+          <div style={{ marginTop: 3, marginBottom: 24, padding: '16px', background: '#fff3cd', borderRadius: '8px', border: '1px solid #ffc107', display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+            <input
+              type="checkbox"
+              checked={agreeToPrivacy}
+              onChange={(e) => setAgreeToPrivacy(e.target.checked)}
+              style={{ marginTop: 4, width: 20, height: 20, cursor: 'pointer' }}
+            />
+            <div style={{ flex: 1 }}>
+              <label style={{ cursor: 'pointer', fontSize: 14, color: '#333', fontWeight: 500 }}>
+                I agree to the{' '}
+                <span
+                  onClick={() => setPrivacyModalOpen(true)}
+                  style={{ color: '#174D7A', textDecoration: 'underline', cursor: 'pointer', fontWeight: 600 }}
+                >
+                  privacy policy
+                </span>
+                {' '}and understand that my personal information will be used for franchise application processing.
+              </label>
+            </div>
+          </div>
+
+          {/* Privacy Policy Modal */}
+          <PrivacyPolicyModal
+            open={privacyModalOpen}
+            onClose={() => setPrivacyModalOpen(false)}
+            onAgree={() => {
+              setAgreeToPrivacy(true);
+              setPrivacyModalOpen(false);
+            }}
+            onDecline={() => {
+              setAgreeToPrivacy(false);
+              setPrivacyModalOpen(false);
+            }}
+          />
+
+          {/* Submit Button - At the bottom */}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', margin: '32px 0' }}>
+            <Button
+              variant="contained"
+              disabled={isSubmitting}
+              sx={{ bgcolor: '#174D7A', color: '#fff', fontWeight: 700, borderRadius: 2, fontSize: 18, px: 4, py: 1 }}
+              onClick={async () => {
                     if (isSubmitting) return; // ignore repeated clicks
                     // Validate address and barangay before building form data
                     const addr = (fields.operatorAddress || '').trim();
@@ -1122,6 +1338,16 @@ export default function FranchiseApplication() {
                     const valid = validateRequiredFields();
                     if (!valid) return;
 
+                    // Validate privacy agreement
+                    if (!agreeToPrivacy) {
+                      Swal.fire({
+                        ...alertStyle.errorAlert,
+                        title: 'Privacy Agreement Required',
+                        text: 'You must agree to the privacy policy before submitting your application.'
+                      });
+                      return;
+                    }
+
                     // Mark as submitting to prevent spam
                     setIsSubmitting(true);
 
@@ -1150,6 +1376,7 @@ export default function FranchiseApplication() {
                       formDataToSend.append('unitModel', fields.unitModel || '');
                       formDataToSend.append('colorMotor', fields.colorMotor || '');
                       formDataToSend.append('sideCarColor', fields.colorSidecar || '');
+                      formDataToSend.append('sideCarPlateNumber', fields.mvPlateNo || ''); // FIXED: Added this field
                       formDataToSend.append('mvPlateNo', fields.mvPlateNo || ''); 
                       formDataToSend.append('motorEngineNo', fields.motorEngineNumber || ''); 
                       formDataToSend.append('chasisNo', fields.chassisNumber || '');
@@ -1372,183 +1599,6 @@ export default function FranchiseApplication() {
                   )}
                 </Button>
               </div>
-
-          {/* Sworn Statement Accordion */}
-          <Accordion 
-            defaultExpanded={false}
-            sx={{ 
-              marginTop: 4, 
-              boxShadow: '0 4px 12px rgba(23, 77, 122, 0.15)', 
-              borderRadius: '12px !important',
-              '&:before': { display: 'none' },
-              overflow: 'hidden'
-            }}
-          >
-            <AccordionSummary 
-              expandIcon={<ExpandMoreIcon sx={{ color: '#174D7A', fontSize: 32 }} />}
-              sx={{ 
-                background: 'linear-gradient(135deg, #174D7A 0%, #2563A8 100%)',
-                color: '#fff',
-                padding: '16px 24px',
-                '&:hover': {
-                  background: 'linear-gradient(135deg, #133D5F 0%, #1D4F85 100%)'
-                },
-                '& .MuiAccordionSummary-expandIconWrapper': {
-                  color: '#fff'
-                }
-              }}
-            >
-              <Typography sx={{ 
-                fontWeight: 700, 
-                fontSize: '18px',
-                letterSpacing: '0.5px',
-                fontFamily: 'Poppins, sans-serif',
-                textTransform: 'uppercase'
-              }}>
-                {t.swornStatement}
-              </Typography>
-            </AccordionSummary>
-            <AccordionDetails sx={{ 
-              padding: '32px 24px',
-              background: '#fafbfd'
-            }}>
-              <div className="franchise-app-sworn-statement">
-                <Typography sx={{ 
-                  marginBottom: 2, 
-                  lineHeight: 1.8,
-                  color: '#333',
-                  fontSize: '15px',
-                  fontFamily: 'Poppins, sans-serif'
-                }}>
-                  {t.swornDeclaration}
-                </Typography>
-                <ol style={{ 
-                  marginLeft: 24, 
-                  marginBottom: 24,
-                  lineHeight: 1.8,
-                  color: '#444'
-                }}>
-                  <li style={{ marginBottom: 12 }}>{t.swornItem1}</li>
-                  <li style={{ marginBottom: 12 }}>{t.swornItem2}</li>
-                  <li style={{ marginBottom: 12 }}>{t.swornItem3}</li>
-                  <li style={{ marginBottom: 12 }}>{t.swornItem4}</li>
-                </ol>
-                <Typography sx={{ 
-                  marginBottom: 3,
-                  fontWeight: 500,
-                  color: '#333',
-                  fontSize: '15px',
-                  fontFamily: 'Poppins, sans-serif'
-                }}>
-                  {t.swornCompliance}
-                </Typography>
-                <div className="franchise-app-digital-signature">
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 32 }}>
-                    <div style={{ width: 340 }}>
-                      <div
-                        style={{
-                          width: '100%',
-                          height: 80,
-                          background: 'transparent',
-                          borderTop: '2px solid #174D7A',
-                          borderBottom: 'none',
-                          borderLeft: 'none',
-                          borderRight: 'none',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontWeight: 600,
-                          fontSize: 14,
-                          color: '#174D7A',
-                          marginBottom: 8,
-                          paddingTop: '10px',
-                          letterSpacing: '1px'
-                        }}
-                      >
-                        SIGNATURE
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </AccordionDetails>
-          </Accordion>
-
-          {/* Agreement Accordion */}
-          <Accordion 
-            defaultExpanded={false}
-            sx={{ 
-              marginTop: 3, 
-              marginBottom: 4,
-              boxShadow: '0 4px 12px rgba(23, 77, 122, 0.15)', 
-              borderRadius: '12px !important',
-              '&:before': { display: 'none' },
-              overflow: 'hidden'
-            }}
-          >
-            <AccordionSummary 
-              expandIcon={<ExpandMoreIcon sx={{ color: '#174D7A', fontSize: 32 }} />}
-              sx={{ 
-                background: 'linear-gradient(135deg, #174D7A 0%, #2563A8 100%)',
-                color: '#fff',
-                padding: '16px 24px',
-                '&:hover': {
-                  background: 'linear-gradient(135deg, #133D5F 0%, #1D4F85 100%)'
-                },
-                '& .MuiAccordionSummary-expandIconWrapper': {
-                  color: '#fff'
-                }
-              }}
-            >
-              <Typography sx={{ 
-                fontWeight: 700, 
-                fontSize: '18px',
-                letterSpacing: '0.5px',
-                fontFamily: 'Poppins, sans-serif',
-                textTransform: 'uppercase'
-              }}>
-                {t.agreement}
-              </Typography>
-            </AccordionSummary>
-            <AccordionDetails sx={{ 
-              padding: '32px 24px',
-              background: '#fafbfd'
-            }}>
-              <ol style={{ 
-                marginLeft: 24,
-                lineHeight: 1.8,
-                color: '#444'
-              }}>
-                <li style={{ marginBottom: 16 }}>
-                  <Typography sx={{ 
-                    fontSize: '15px',
-                    fontFamily: 'Poppins, sans-serif',
-                    color: '#333'
-                  }}>
-                    {t.agreeText1}
-                  </Typography>
-                </li>
-                <li style={{ marginBottom: 16 }}>
-                  <Typography sx={{ 
-                    fontSize: '15px',
-                    fontFamily: 'Poppins, sans-serif',
-                    color: '#333'
-                  }}>
-                    {t.agreeText2}
-                  </Typography>
-                </li>
-                <li style={{ marginBottom: 16 }}>
-                  <Typography sx={{ 
-                    fontSize: '15px',
-                    fontFamily: 'Poppins, sans-serif',
-                    color: '#333'
-                  }}>
-                    {t.agreeText3}
-                  </Typography>
-                </li>
-              </ol>
-            </AccordionDetails>
-          </Accordion>
 
         </div>
       </div>

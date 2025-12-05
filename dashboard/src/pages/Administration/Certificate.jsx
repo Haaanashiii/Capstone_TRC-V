@@ -201,19 +201,19 @@ function Certificate() {
         search: searchTerm,
       });
 
-      // Determine if MTOF mode (date range selected)
+      // Determine if MTOF mode (date range selected for reports)
       const isMTOFMode = startDate && endDate;
       
       if (startDate) queryParams.append('startDate', startDate.toISOString());
       if (endDate) queryParams.append('endDate', endDate.toISOString());
 
-      // Use franchise-applications endpoint for MTOF (has applicationType field)
-      // Use franchise-information for regular certificate generation
+      // MTOF Reports: Use franchise-applications (has applicationType for grouping)
+      // Individual Certificates: Use franchise-information (approved franchises)
       const endpoint = isMTOFMode 
         ? `${API_BASE_URL}/api/franchise-applications?${queryParams}`
         : `${API_BASE_URL}/api/franchise-information?${queryParams}`;
 
-      console.log(`[Certificate] Loading from ${isMTOFMode ? 'applications' : 'information'} endpoint`);
+      console.log(`[Certificate] Loading from ${isMTOFMode ? 'applications (MTOF)' : 'information (Individual)'} endpoint`);
 
       const response = await fetch(endpoint, {
         headers: {
@@ -227,22 +227,13 @@ function Certificate() {
       const result = await response.json();
       const franchiseData = result.data || [];
       
-      // For MTOF mode, don't filter here - let backend or grouping handle it
-      // For regular mode, filter by active franchises
+      // For MTOF: show all applications (for grouping by type)
+      // For Individual: filter by active franchises only
       const filteredFranchises = isMTOFMode
-        ? franchiseData // Load all applications for MTOF
+        ? franchiseData
         : franchiseData.filter(f => f.franchiseStatus === 'Active' || f.isCurrentVersion === true);
 
-      console.log('[Certificate] Loaded franchises:', filteredFranchises.length);
-      if (filteredFranchises.length > 0) {
-        console.log('[Certificate] Sample franchise data:', {
-          operatorName: filteredFranchises[0].operatorName,
-          applicationType: filteredFranchises[0]?.applicationType,
-          statusOfBPLO: filteredFranchises[0]?.statusOfBPLO,
-          franchiseStatus: filteredFranchises[0]?.franchiseStatus,
-          createdAt: filteredFranchises[0].createdAt
-        });
-      }
+      console.log('[Certificate] Loaded franchises:', filteredFranchises.length, isMTOFMode ? '(MTOF Mode)' : '(Individual Mode)');
       setFranchises(filteredFranchises);
       setTotalFranchises(filteredFranchises.length);
     } catch (err) {
@@ -340,6 +331,10 @@ function Certificate() {
       preparedData.franchises = franchises;
       preparedData.grouped = grouped;
       preparedData.reportTitle = 'Motorized Tricycle-for-Hire Date Report';
+      preparedData.dateRange = {
+        start: startDate ? startDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : 'N/A',
+        end: endDate ? endDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : 'N/A'
+      };
     } else if (certType === CERTIFICATE_TYPES.MTOF_SUMMARY.id) {
       const stats = {
         newCount: franchises.filter(f => f.applicationType === 'new').length,
@@ -350,13 +345,17 @@ function Certificate() {
       preparedData.stats = stats;
       preparedData.reportTitle = 'Motorized Tricycle-for-Hire Summary Report';
       preparedData.summaryText = `THIS IS TO CERTIFY that there are ${stats.newCount} (${numberToWords(stats.newCount)}) new applicants, ${stats.renewalCount} (${numberToWords(stats.renewalCount)}) applications for renewal and ${stats.provisionalCount} (${numberToWords(stats.provisionalCount)}) units for provisional authority to operate motorized-tricycle-for-hire within Solano, Nueva Vizcaya.`;
+      preparedData.dateRange = {
+        start: startDate ? startDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : 'N/A',
+        end: endDate ? endDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : 'N/A'
+      };
     } else {
       preparedData.franchise = selectedFranchise;
     }
 
     setCertificateData(preparedData);
     setOpenPreviewModal(true);
-  }, [user, selectedFranchise, formatUserRole, numberToWords]);
+  }, [user, selectedFranchise, formatUserRole, numberToWords, startDate, endDate]);
 
   const handleViewFranchise = useCallback((franchise) => {
     setSelectedFranchise(franchise);
@@ -615,90 +614,71 @@ function Certificate() {
     return match ? match[1].trim() : '';
   };
 
+  /**
+   * Handle final generation of MTOF reports (Word documents)
+   * Includes generatedBy information for audit trail
+   */
   const handleFinalGenerate = async () => {
     setGenerating(true);
     try {
       const token = getAuthToken();
-      const certConfig = Object.values(CERTIFICATE_TYPES).find(c => c.id === selectedCertType);
+      const certConfig = certificateData?.certificateType;
       
-      if (!certConfig) throw new Error('Invalid certificate type');
+      if (!certConfig) {
+        throw new Error('Certificate type not specified');
+      }
 
-      // Determine if it's a Word document (MTOF reports)
-      const isWordDoc = certConfig.fileType === 'docx';
+      // Get current user information for generatedBy field
+      const generatedByName = user?.name || 'Administrator';
+      const generatedByRole = formatUserRole(user?.role) || 'Municipal Administrator';
 
+      // Build payload based on certificate type
       let payload;
-      if (isWordDoc) {
-        // For MTOF reports with Word documents
-        if (selectedCertType === CERTIFICATE_TYPES.MTOF_DATE.id) {
-          // MTOF DATE - Send grouped franchises data
-          payload = {
-            certificateType: selectedCertType,
-            franchiseData: {
-              franchiseNumber: 'MTOF-DATE-REPORT',
-              grouped: certificateData.grouped || {},
-              franchises: certificateData.franchises || [],
-              municipalityName: certificateData.municipalityName,
-              generatedByRole: certificateData.generatedByRole,
-              dateRange: {
-                start: startDate ? startDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : 'N/A',
-                end: endDate ? endDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : 'N/A'
-              }
-            },
-            format: certConfig.fileType,
-            generatedBy: certificateData.generatedBy,
-            generatedDate: new Date().toISOString()
-          };
-        } else {
-          // MTOF SUMMARY
-          payload = {
-            certificateType: selectedCertType,
-            franchiseData: {
-              franchiseNumber: 'MTOF-SUMMARY',
-              statistics: certificateData.stats || {},
-              summaryText: certificateData.summaryText,
-              franchises: certificateData.franchises || [],
-              municipalityName: certificateData.municipalityName,
-              generatedByRole: certificateData.generatedByRole
-            },
-            format: certConfig.fileType,
-            generatedBy: certificateData.generatedBy,
-            generatedDate: new Date().toISOString()
-          };
-        }
-      } else {
-        // For single franchise PDF certificates
+      
+      if (selectedCertType === CERTIFICATE_TYPES.MTOF_DATE.id) {
+        // MTOF DATE Report - Grouped franchises by application type
         payload = {
           certificateType: selectedCertType,
           franchiseData: {
-            franchiseNumber: certificateData.franchise?.franchiseNumber,
-            operatorName: certificateData.franchise?.operatorName,
-            operatorAddress: certificateData.franchise?.operatorAddress,
-            operatorBarangay: certificateData.franchise?.operatorBarangay,
-            barangay: certificateData.franchise?.operatorBarangay || extractBarangay(certificateData.franchise?.operatorAddress),
-            mvPlateNo: certificateData.franchise?.mvPlateNo,
-            unitModel: certificateData.franchise?.unitModel,
-            makeModel: certificateData.franchise?.makeModel || certificateData.franchise?.unitModel,
-            motorEngineNo: certificateData.franchise?.motorEngineNo,
-            engineNumber: certificateData.franchise?.motorEngineNo,
-            chasisNo: certificateData.franchise?.chasisNo,
-            chassisNumber: certificateData.franchise?.chasisNo,
-            resolutionNumber: certificateData.franchise?.resolutionNumber || certificateData.franchise?.sbResolutionNumber,
-            sbResolutionNumber: certificateData.franchise?.resolutionNumber || certificateData.franchise?.sbResolutionNumber,
-            sbApprovedAt: certificateData.franchise?.sbApprovedAt || certificateData.franchise?.approvedAt || certificateData.franchise?.createdAt,
-            approvedAt: certificateData.franchise?.approvedAt,
-            dateApproved: certificateData.franchise?.sbApprovedAt || certificateData.franchise?.approvedAt || certificateData.franchise?.createdAt,
-            officialReceiptNumber: certificateData.franchise?.officialReceiptNumber || '',
-            officialReceipNumber: certificateData.franchise?.officialReceiptNumber || '',
-            generatedBy: certificateData.generatedBy || user?.name,
-            generatedByRole: certificateData.generatedByRole || formatUserRole(user?.role),
-            municipalityName: certificateData.municipalityName,
-            dateGenerated: new Date().toISOString()
+            franchiseNumber: 'MTOF-DATE-REPORT',
+            grouped: certificateData.grouped || {},
+            franchises: certificateData.franchises || [],
+            generatedBy: generatedByName,
+            generatedByRole: generatedByRole,
+            municipalityName: certificateData.municipalityName || 'Municipality of Solano, Nueva Vizcaya',
+            dateRange: certificateData.dateRange || {
+              start: startDate ? startDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : 'N/A',
+              end: endDate ? endDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : 'N/A'
+            }
           },
           format: certConfig.fileType,
-          generatedBy: certificateData.generatedBy,
+          generatedBy: generatedByName,
           generatedDate: new Date().toISOString()
         };
+      } else if (selectedCertType === CERTIFICATE_TYPES.MTOF_SUMMARY.id) {
+        // MTOF SUMMARY Report - Statistics and summary
+        payload = {
+          certificateType: selectedCertType,
+          franchiseData: {
+            franchiseNumber: 'MTOF-SUMMARY',
+            statistics: certificateData.stats || {},
+            summaryText: certificateData.summaryText || '',
+            franchises: certificateData.franchises || [],
+            generatedBy: generatedByName,
+            generatedByRole: generatedByRole,
+            municipalityName: certificateData.municipalityName || 'Municipality of Solano, Nueva Vizcaya'
+          },
+          format: certConfig.fileType,
+          generatedBy: generatedByName,
+          generatedDate: new Date().toISOString()
+        };
+      } else {
+        throw new Error('Invalid certificate type for MTOF report');
       }
+
+      console.log('[Certificate] Generating MTOF report:', selectedCertType);
+      console.log('[Certificate] Generated by:', generatedByName);
+      console.log('[Certificate] Payload:', JSON.stringify(payload, null, 2));
 
       const response = await fetch(`${API_BASE_URL}/api/certificates/generate`, {
         method: 'POST',
@@ -709,23 +689,28 @@ function Certificate() {
         body: JSON.stringify(payload)
       });
 
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Server error: ${response.status}`);
+      }
 
+      // Download the generated document
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${certConfig.code}_${certificateData.franchise?.franchiseNumber || 'Report'}_${Date.now()}.${certConfig.fileType}`;
-      document.body.appendChild(a);
-      a.click();
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${certConfig.code}_Report_${Date.now()}.${certConfig.fileType}`;
+      document.body.appendChild(link);
+      link.click();
       window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
+      document.body.removeChild(link);
 
-      setOpenPreviewModal(false);
       setError('');
+      setOpenPreviewModal(false);
+      alert('Report downloaded successfully!');
     } catch (err) {
-      console.error('[Certificate] Error generating:', err);
-      setError('Failed to generate certificate. Please try again.');
+      console.error('[Certificate] Error generating MTOF report:', err);
+      setError(err.message || 'Failed to generate report. Please try again.');
     } finally {
       setGenerating(false);
     }
@@ -793,14 +778,29 @@ function Certificate() {
 
         {/* Controls Section */}
         <Paper className="controls-section" elevation={0} sx={{ mb: 3, p: 3, border: '1px solid #e0e0e0', borderRadius: '12px' }}>
-          <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mb: 2 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+            <Box sx={{ width: 40, height: 40, borderRadius: '8px', bgcolor: '#0A356B', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <DescriptionIcon sx={{ color: 'white', fontSize: 24 }} />
+            </Box>
+            <Box>
+              <Typography variant="h6" sx={{ fontWeight: 700, color: '#0A356B' }}>
+                Certificate Management
+              </Typography>
+              <Typography variant="caption" sx={{ color: '#666' }}>
+                Generate individual certificates or MTOF reports by date range
+              </Typography>
+            </Box>
+          </Box>
+          
+          <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
+            {/* Search Field */}
             <TextField
               placeholder="Search by Name, Franchise #, or Plate #"
               variant="outlined"
               size="small"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              sx={{ flex: 1, minWidth: '300px' }}
+              sx={{ flex: 1, minWidth: '250px' }}
               InputProps={{
                 startAdornment: (
                   <InputAdornment position="start">
@@ -810,13 +810,14 @@ function Certificate() {
               }}
             />
 
+            {/* Date Range for MTOF Reports */}
             <LocalizationProvider dateAdapter={AdapterDateFns}>
               <DatePicker
                 label="Start Date"
                 value={startDate}
                 onChange={(newValue) => setStartDate(newValue)}
                 slotProps={{
-                  textField: { size: 'small', sx: { minWidth: '170px' } }
+                  textField: { size: 'small', sx: { minWidth: '150px' } }
                 }}
               />
               <DatePicker
@@ -825,204 +826,269 @@ function Certificate() {
                 onChange={(newValue) => setEndDate(newValue)}
                 minDate={startDate}
                 slotProps={{
-                  textField: { size: 'small', sx: { minWidth: '170px' } }
+                  textField: { size: 'small', sx: { minWidth: '150px' } }
                 }}
               />
             </LocalizationProvider>
 
-            <Tooltip title="Generate certificate for selected franchises">
+            {/* Generate MTOF Report Button */}
+            <Tooltip title={!startDate || !endDate ? 'Select date range to generate MTOF Report' : 'Generate MTOF Report'}>
               <span>
                 <Button
                   variant="contained"
                   startIcon={<ArticleIcon />}
                   onClick={handleCertMenuClick}
-                  disabled={filteredFranchises.length === 0}
+                  disabled={!startDate || !endDate}
                   sx={{
                     bgcolor: '#0A356B',
-                    '&:hover': { bgcolor: '#082a52' },
+                    '&:hover': { bgcolor: '#072a52' },
+                    '&:disabled': { bgcolor: '#ccc' },
                     textTransform: 'none',
                     fontWeight: 600,
                     px: 3
                   }}
                 >
-                  Generate Certificate
+                  Generate MTOF Report
                 </Button>
               </span>
             </Tooltip>
-
-            <Menu
-              anchorEl={anchorEl}
-              open={Boolean(anchorEl)}
-              onClose={handleCertMenuClose}
-              PaperProps={{
-                elevation: 8,
-                sx: { mt: 1, minWidth: '420px', borderRadius: '12px', overflow: 'hidden' }
-              }}
-              TransitionComponent={Fade}
-            >
-              <Box sx={{ px: 2, py: 1.5, bgcolor: '#f5f5f5', borderBottom: '1px solid #e0e0e0' }}>
-                <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#0A356B' }}>
-                  Select Report Type
-                </Typography>
-              </Box>
-              {Object.values(CERTIFICATE_TYPES)
-                .filter(cert => cert.id === CERTIFICATE_TYPES.MTOF_DATE.id || cert.id === CERTIFICATE_TYPES.MTOF_SUMMARY.id)
-                .map((cert) => {
-                const Icon = cert.icon;
-                return (
-                  <MenuItem
-                    key={cert.id}
-                    onClick={() => handleSelectCertType(cert.id)}
-                    sx={{
-                      py: 2,
-                      px: 2,
-                      '&:hover': { bgcolor: 'rgba(10, 53, 107, 0.04)' },
-                      borderBottom: '1px solid #f5f5f5'
-                    }}
-                  >
-                    <Box sx={{ display: 'flex', alignItems: 'center', width: '100%', gap: 2 }}>
-                      <Box 
-                        sx={{ 
-                          width: 48, 
-                          height: 48, 
-                          borderRadius: '8px', 
-                          bgcolor: `${cert.color}15`, 
-                          display: 'flex', 
-                          alignItems: 'center', 
-                          justifyContent: 'center',
-                          flexShrink: 0
-                        }}
-                      >
-                        <Icon sx={{ color: cert.color, fontSize: 24 }} />
-                      </Box>
-                      <Box sx={{ flex: 1, minWidth: 0 }}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
-                          <Typography variant="body2" sx={{ fontWeight: 600, color: '#333' }}>
-                            {cert.name}
-                          </Typography>
-                          <Chip 
-                            label={cert.fileType.toUpperCase()} 
-                            size="small" 
-                            sx={{ height: 20, fontSize: '0.65rem', bgcolor: cert.color, color: 'white', fontWeight: 600 }}
-                          />
-                        </Box>
-                        <Typography variant="caption" sx={{ color: '#666', display: 'block' }}>
-                          {cert.description}
-                        </Typography>
-                        <Typography variant="caption" sx={{ color: '#999', display: 'block', mt: 0.5 }}>
-                          Code: {cert.code}
-                        </Typography>
-                      </Box>
-                    </Box>
-                  </MenuItem>
-                );
-              })}
-            </Menu>
           </Box>
 
-          <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', pt: 2, borderTop: '1px solid #e0e0e0' }}>
+          {/* Info Chips */}
+          <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', mt: 2, pt: 2, borderTop: '1px solid #e0e0e0' }}>
             <Chip
               icon={<CalendarTodayIcon sx={{ fontSize: 18 }} />}
-              label={`Total Franchises: ${filteredFranchises.length}`}
+              label={`Total: ${filteredFranchises.length} ${startDate && endDate ? 'applications' : 'franchises'}`}
               sx={{ bgcolor: '#e3f2fd', color: '#0A356B', fontWeight: 600, height: 32 }}
             />
-            {(startDate || endDate) && (
+            {startDate && endDate && (
               <Chip
-                label={`Date Range: ${startDate ? formatDate(startDate) : 'All'} - ${endDate ? formatDate(endDate) : 'All'}`}
+                label={`Date Range: ${formatDate(startDate)} - ${formatDate(endDate)}`}
                 onDelete={() => { setStartDate(null); setEndDate(null); }}
-                sx={{ bgcolor: '#fff3e0', color: '#e65100', fontWeight: 600, height: 32 }}
+                sx={{ bgcolor: '#e3f2fd', color: '#0A356B', fontWeight: 600, height: 32 }}
               />
             )}
           </Box>
         </Paper>
 
-        {/* Franchises Table */}
-        <Paper className="admin-table-container">
-          {loading && (
-            <Box display="flex" justifyContent="center" alignItems="center" py={6}>
-              <CircularProgress size={40} sx={{ color: '#0A356B' }} />
+        {/* Show appropriate content based on mode */}
+        {startDate && endDate ? (
+          /* MTOF Mode - Show applications for report generation */
+          <Paper className="admin-table-container">
+            <Box sx={{ p: 2, borderBottom: '1px solid #e0e0e0', bgcolor: '#f5f8fc' }}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#0A356B' }}>
+                Franchise Applications for MTOF Report ({filteredFranchises.length} found)
+              </Typography>
             </Box>
-          )}
-
-          {!loading && (
-            <TableContainer className="admin-table-wrapper">
-              <Table className="admin-table" stickyHeader>
-                <TableHead>
-                  <TableRow>
-                    <TableCell className="admin-table-header-cell col-id">Franchise Number</TableCell>
-                    <TableCell className="admin-table-header-cell col-name">Operator Name</TableCell>
-                    <TableCell className="admin-table-header-cell col-contact">Plate Number</TableCell>
-                    <TableCell className="admin-table-header-cell col-date">Date Approved</TableCell>
-                    <TableCell className="admin-table-header-cell col-contact">Resolution Number</TableCell>
-                    <TableCell className="admin-table-header-cell col-actions">Actions</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {filteredFranchises.length > 0 ? (
-                    filteredFranchises
-                      .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
-                      .map((franchise) => (
+            {loading ? (
+              <Box display="flex" justifyContent="center" alignItems="center" py={6}>
+                <CircularProgress size={40} sx={{ color: '#0A356B' }} />
+              </Box>
+            ) : (
+              <TableContainer className="admin-table-wrapper">
+                <Table className="admin-table" stickyHeader>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell className="admin-table-header-cell">Franchise Number</TableCell>
+                      <TableCell className="admin-table-header-cell">Operator Name</TableCell>
+                      <TableCell className="admin-table-header-cell">Plate Number</TableCell>
+                      <TableCell className="admin-table-header-cell">Application Type</TableCell>
+                      <TableCell className="admin-table-header-cell">Date</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {filteredFranchises.length > 0 ? (
+                      filteredFranchises.map((franchise) => (
                         <TableRow className="admin-table-row" hover key={franchise._id}>
-                          <TableCell className="admin-table-cell col-id">
-                            {franchise.franchiseNumber}
+                          <TableCell className="admin-table-cell">{franchise.franchiseNumber || 'Pending'}</TableCell>
+                          <TableCell className="admin-table-cell">{franchise.operatorName}</TableCell>
+                          <TableCell className="admin-table-cell">{franchise.mvPlateNo}</TableCell>
+                          <TableCell className="admin-table-cell">
+                            <Chip 
+                              label={(franchise.applicationType || 'N/A').toUpperCase()} 
+                              size="small"
+                              sx={{ 
+                                fontWeight: 600,
+                                bgcolor: franchise.applicationType === 'new' ? '#e8f5e9' : 
+                                        franchise.applicationType === 'renewal' ? '#e3f2fd' : '#fff3e0',
+                                color: franchise.applicationType === 'new' ? '#2e7d32' : 
+                                       franchise.applicationType === 'renewal' ? '#1976d2' : '#ed6c02'
+                              }}
+                            />
                           </TableCell>
-                          <TableCell className="admin-table-cell col-name">{franchise.operatorName}</TableCell>
-                          <TableCell className="admin-table-cell col-contact">{franchise.mvPlateNo}</TableCell>
-                          <TableCell className="admin-table-cell col-date">{formatDate(franchise.sbApprovedAt || franchise.createdAt)}</TableCell>
-                          <TableCell className="admin-table-cell col-contact">{franchise.resolutionNumber || franchise.sbResolutionNumber || 'N/A'}</TableCell>
-                          <TableCell className="admin-table-cell col-actions">
-                            <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'center' }}>
-                              <Tooltip title="View Details">
-                                <IconButton
-                                  size="small"
-                                  sx={{ color: '#0A356B', '&:hover': { bgcolor: 'rgba(10, 53, 107, 0.08)' } }}
-                                  onClick={(e) => { e.stopPropagation(); handleViewFranchise(franchise); }}
-                                >
-                                  <VisibilityIcon fontSize="small" />
-                                </IconButton>
-                              </Tooltip>
-                              <Tooltip title="Generate Certificate">
-                                <IconButton
-                                  size="small"
-                                  sx={{ color: '#2e7d32', '&:hover': { bgcolor: 'rgba(46, 125, 50, 0.08)' } }}
-                                  onClick={(e) => { e.stopPropagation(); setSelectedFranchise(franchise); setOpenCertModal(true); }}
-                                >
-                                  <ArticleIcon fontSize="small" />
-                                </IconButton>
-                              </Tooltip>
-                            </Box>
-                          </TableCell>
+                          <TableCell className="admin-table-cell">{formatDate(franchise.createdAt)}</TableCell>
                         </TableRow>
                       ))
-                  ) : (
-                    <TableRow className="admin-table-row">
-                      <TableCell className="admin-table-cell" colSpan={6} align="center">
-                        <Box py={4}>
-                          <Typography variant="body1" color="text.secondary">
-                            No approved franchises found
-                          </Typography>
-                        </Box>
-                      </TableCell>
+                    ) : (
+                      <TableRow>
+                        <TableCell colSpan={5} align="center">
+                          <Box py={4}>
+                            <Typography variant="body1" color="text.secondary">
+                              No applications found for selected date range
+                            </Typography>
+                          </Box>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            )}
+          </Paper>
+        ) : (
+          /* Individual Mode - Show approved franchises for individual certificates */
+          <Paper className="admin-table-container">
+            {loading ? (
+              <Box display="flex" justifyContent="center" alignItems="center" py={6}>
+                <CircularProgress size={40} sx={{ color: '#0A356B' }} />
+              </Box>
+            ) : (
+              <TableContainer className="admin-table-wrapper">
+                <Table className="admin-table" stickyHeader>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell className="admin-table-header-cell col-id">Franchise Number</TableCell>
+                      <TableCell className="admin-table-header-cell col-name">Operator Name</TableCell>
+                      <TableCell className="admin-table-header-cell col-contact">Plate Number</TableCell>
+                      <TableCell className="admin-table-header-cell col-date">Date Approved</TableCell>
+                      <TableCell className="admin-table-header-cell col-contact">Resolution Number</TableCell>
+                      <TableCell className="admin-table-header-cell col-actions">Actions</TableCell>
                     </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          )}
+                  </TableHead>
+                  <TableBody>
+                    {filteredFranchises.length > 0 ? (
+                      filteredFranchises
+                        .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
+                        .map((franchise) => (
+                          <TableRow className="admin-table-row" hover key={franchise._id}>
+                            <TableCell className="admin-table-cell col-id">
+                              {franchise.franchiseNumber}
+                            </TableCell>
+                            <TableCell className="admin-table-cell col-name">{franchise.operatorName}</TableCell>
+                            <TableCell className="admin-table-cell col-contact">{franchise.mvPlateNo}</TableCell>
+                            <TableCell className="admin-table-cell col-date">{formatDate(franchise.sbApprovedAt || franchise.createdAt)}</TableCell>
+                            <TableCell className="admin-table-cell col-contact">{franchise.resolutionNumber || franchise.sbResolutionNumber || 'N/A'}</TableCell>
+                            <TableCell className="admin-table-cell col-actions">
+                              <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'center' }}>
+                                <Tooltip title="View Details">
+                                  <IconButton
+                                    size="small"
+                                    sx={{ color: '#0A356B', '&:hover': { bgcolor: 'rgba(10, 53, 107, 0.08)' } }}
+                                    onClick={(e) => { e.stopPropagation(); handleViewFranchise(franchise); }}
+                                  >
+                                    <VisibilityIcon fontSize="small" />
+                                  </IconButton>
+                                </Tooltip>
+                                <Tooltip title="Generate Certificate">
+                                  <IconButton
+                                    size="small"
+                                    sx={{ color: '#2e7d32', '&:hover': { bgcolor: 'rgba(46, 125, 50, 0.08)' } }}
+                                    onClick={(e) => { e.stopPropagation(); setSelectedFranchise(franchise); setOpenCertModal(true); }}
+                                  >
+                                    <ArticleIcon fontSize="small" />
+                                  </IconButton>
+                                </Tooltip>
+                              </Box>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                    ) : (
+                      <TableRow className="admin-table-row">
+                        <TableCell className="admin-table-cell" colSpan={6} align="center">
+                          <Box py={4}>
+                            <Typography variant="body1" color="text.secondary">
+                              No approved franchises found
+                            </Typography>
+                          </Box>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            )}
 
-          {!loading && filteredFranchises.length > 0 && (
-            <TablePagination
-              className="admin-table-pagination"
-              rowsPerPageOptions={[10, 15, 25, 50]}
-              component="div"
-              count={filteredFranchises.length}
-              rowsPerPage={rowsPerPage}
-              page={page}
-              onPageChange={handleChangePage}
-              onRowsPerPageChange={handleChangeRowsPerPage}
-            />
-          )}
-        </Paper>
+            {!loading && filteredFranchises.length > 0 && !startDate && !endDate && (
+              <TablePagination
+                className="admin-table-pagination"
+                rowsPerPageOptions={[10, 15, 25, 50]}
+                component="div"
+                count={filteredFranchises.length}
+                rowsPerPage={rowsPerPage}
+                page={page}
+                onPageChange={handleChangePage}
+                onRowsPerPageChange={handleChangeRowsPerPage}
+              />
+            )}
+          </Paper>
+        )}
+
+        {/* MTOF Report Menu */}
+        <Menu
+          anchorEl={anchorEl}
+          open={Boolean(anchorEl)}
+          onClose={handleCertMenuClose}
+          PaperProps={{
+            elevation: 8,
+            sx: { mt: 1, minWidth: '420px', borderRadius: '12px', overflow: 'hidden' }
+          }}
+          TransitionComponent={Fade}
+        >
+          <Box sx={{ px: 2, py: 1.5, bgcolor: '#e3f2fd', borderBottom: '1px solid #bbdefb' }}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#0A356B' }}>
+              Select MTOF Report Type
+            </Typography>
+          </Box>
+          {Object.values(CERTIFICATE_TYPES)
+            .filter(cert => cert.id === CERTIFICATE_TYPES.MTOF_DATE.id || cert.id === CERTIFICATE_TYPES.MTOF_SUMMARY.id)
+            .map((cert) => {
+            const Icon = cert.icon;
+            return (
+              <MenuItem
+                key={cert.id}
+                onClick={() => handleSelectCertType(cert.id)}
+                sx={{
+                  py: 2,
+                  px: 2,
+                  '&:hover': { bgcolor: 'rgba(10, 53, 107, 0.04)' },
+                  borderBottom: '1px solid #f5f5f5'
+                }}
+              >
+                <Box sx={{ display: 'flex', alignItems: 'center', width: '100%', gap: 2 }}>
+                  <Box 
+                    sx={{ 
+                      width: 48, 
+                      height: 48, 
+                      borderRadius: '8px', 
+                      bgcolor: `${cert.color}15`, 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      justifyContent: 'center',
+                      flexShrink: 0
+                    }}
+                  >
+                    <Icon sx={{ color: cert.color, fontSize: 24 }} />
+                  </Box>
+                  <Box sx={{ flex: 1, minWidth: 0 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 600, color: '#333' }}>
+                        {cert.name}
+                      </Typography>
+                      <Chip 
+                        label={cert.fileType.toUpperCase()} 
+                        size="small" 
+                        sx={{ height: 20, fontSize: '0.65rem', bgcolor: cert.color, color: 'white', fontWeight: 600 }}
+                      />
+                    </Box>
+                    <Typography variant="caption" sx={{ color: '#666', display: 'block' }}>
+                      {cert.description}
+                    </Typography>
+                  </Box>
+                </Box>
+              </MenuItem>
+            );
+          })}
+        </Menu>
 
         {/* View Franchise Modal */}
         <StyledModal 
@@ -1090,7 +1156,7 @@ function Certificate() {
           }}
         >
           <Fade in={openCertModal}>
-            <ModalContent>
+            <ModalContent sx={{ maxWidth: '650px' }}>
               <Box sx={{ px: 3, py: 2.5, borderBottom: '2px solid #0A356B', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <Typography variant="h6" sx={{ fontWeight: 700, color: '#0A356B' }}>Select Certificate Type</Typography>
                 <IconButton onClick={() => setOpenCertModal(false)} sx={{ color: '#666' }}><CloseIcon /></IconButton>
@@ -1108,42 +1174,21 @@ function Certificate() {
                   ).map((cert) => {
                     const Icon = cert.icon;
                     return (
-                      <Grid item xs={12} key={cert.id}>
+                      <Grid item xs={12} key={cert.id} sx={{ width: '100%' }}>
                         <Box
-                          sx={{
-                            cursor: 'pointer',
-                            transition: 'all 0.2s',
-                            border: '2px solid #e0e0e0',
-                            borderRadius: '8px',
-                            p: 2.5,
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 2.5,
-                            '&:hover': { 
-                              bgcolor: '#f5f5f5',
-                              borderColor: cert.color,
-                              boxShadow: 1
-                            }
-                          }}
+                          className="cert-type-item"
                           onClick={() => handleGenerateCertificate(selectedFranchise, cert.id)}
+                          sx={{ '--cert-color': cert.color }}
                         >
                           <Box 
-                            sx={{ 
-                              width: 60, 
-                              height: 60, 
-                              borderRadius: '8px', 
-                              bgcolor: `${cert.color}15`, 
-                              display: 'flex', 
-                              alignItems: 'center', 
-                              justifyContent: 'center',
-                              flexShrink: 0
-                            }}
+                            className="cert-type-item-icon"
+                            sx={{ bgcolor: `${cert.color}15` }}
                           >
                             <Icon sx={{ fontSize: 32, color: cert.color }} />
                           </Box>
-                          <Box sx={{ flex: 1 }}>
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 0.5 }}>
-                              <Typography variant="h6" sx={{ fontWeight: 700, color: '#0A356B' }}>
+                          <Box className="cert-type-item-content">
+                            <Box className="cert-type-item-header">
+                              <Typography className="cert-type-item-title" variant="h6">
                                 {cert.name}
                               </Typography>
                               <Chip 
@@ -1152,11 +1197,11 @@ function Certificate() {
                                 sx={{ bgcolor: cert.color, color: 'white', fontWeight: 700, height: 22, fontSize: '0.75rem' }} 
                               />
                             </Box>
-                            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                            <Typography variant="body2" color="text.secondary">
                               {cert.description}
                             </Typography>
                           </Box>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0 }}>
+                          <Box className="cert-type-item-badge">
                             <Chip 
                               label={cert.fileType.toUpperCase()} 
                               size="small"
@@ -1264,6 +1309,18 @@ function Certificate() {
                             {certificateData.franchises?.length || 0}
                           </Typography>
                         </Box>
+                        {certificateData.dateRange && (
+                          <>
+                            <Box>
+                              <Typography variant="caption" sx={{ color: '#666', fontWeight: 600, textTransform: 'uppercase', fontSize: '0.65rem' }}>Date Range Start</Typography>
+                              <Typography variant="body2">{certificateData.dateRange.start}</Typography>
+                            </Box>
+                            <Box>
+                              <Typography variant="caption" sx={{ color: '#666', fontWeight: 600, textTransform: 'uppercase', fontSize: '0.65rem' }}>Date Range End</Typography>
+                              <Typography variant="body2">{certificateData.dateRange.end}</Typography>
+                            </Box>
+                          </>
+                        )}
                       </Box>
                     </Paper>
 

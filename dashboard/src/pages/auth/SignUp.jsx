@@ -1,9 +1,12 @@
 
 import React, { useState } from "react";
 import { useNavigate } from 'react-router-dom';
-import { Box, Button, TextField, Typography, InputAdornment, IconButton, Divider, Paper, ThemeProvider, createTheme } from "@mui/material";
+import { Box, Button, TextField, Typography, InputAdornment, IconButton, Divider, Paper, ThemeProvider, createTheme, FormControlLabel, Checkbox } from "@mui/material";
 import { Visibility, VisibilityOff } from "@mui/icons-material";
+import GoogleIcon from "@mui/icons-material/Google";
 import AccountVerificationModal from '../Services/AccountVerificationModal';
+import TermsAndConditionsModal from '../../components/TermsAndConditionsModal';
+import PrivacyPolicyModal from '../../components/PrivacyPolicyModal';
 import api from '../Services/api';
 import '../../Styles/SignupCss/signup.css';
 
@@ -15,6 +18,8 @@ const poppinsTheme = createTheme({
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
+
+
 const SignUp = () => {
   const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
@@ -24,8 +29,7 @@ const SignUp = () => {
     username: "",
     email: "",
     password: "",
-    confirmPassword: "",
-    phoneNumber: ""
+    confirmPassword: ""
   });
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -33,6 +37,10 @@ const SignUp = () => {
   const [confirmPasswordError, setConfirmPasswordError] = useState("");
   const [showVerificationModal, setShowVerificationModal] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [agreedToPrivacy, setAgreedToPrivacy] = useState(false);
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [showTermsModal, setShowTermsModal] = useState(false);
+  const [showPrivacyModal, setShowPrivacyModal] = useState(false);
 
   const handleClickShowPassword = () => setShowPassword((show) => !show);
   const handleClickShowConfirmPassword = () => setShowConfirmPassword((show) => !show);
@@ -107,62 +115,70 @@ const SignUp = () => {
       setError("Please fill out all fields");
       return;
     }
+
+    // Validate checkbox
+    if (!agreedToPrivacy || !agreedToTerms) {
+      setError("You must agree to the Privacy Policy and Terms & Conditions to continue");
+      return;
+    }
     
     console.log("All validations passed, making API call"); // Debug log
     
-    setIsLoading(true); // Disable button while loading
     try {
       // Instead of creating the account immediately, request an OTP first
       // and open the verification modal. Account creation will happen after
       // the OTP is successfully verified.
       console.log("Requesting OTP for:", form.email);
-      const response = await api.post('/auth/request-otp', { 
-        email: form.email 
+      const otpResponse = await fetch(`${API_BASE_URL}/auth/request-otp`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: form.email })
       });
-      
-      if (response.data) {
-        setShowVerificationModal(true);
+      const otpData = await otpResponse.json().catch(() => ({}));
+      if (!otpResponse.ok) {
+        // Still open the modal in some cases? For now show error to user
+        setError(otpData.error || 'Failed to request verification code');
+        return;
       }
+      setShowVerificationModal(true);
     } catch (error) {
-      console.error("OTP request error:", error);
-      setError(error.response?.data?.error || 'Failed to request verification code');
-    } finally {
-      setIsLoading(false); // Re-enable button
+      console.error("OTP request network error:", error);
+      setError("Network error. Please try again.");
     }
   };
 
   const handleVerificationSuccess = () => {
     // After OTP verification, create the actual user account
     (async () => {
-      setIsLoading(true); // Disable during account creation
       try {
-        // Use /auth/signup endpoint instead of /users
-        const response = await api.post('/auth/signup', {
-          name: form.fullName,
-          username: form.username,
-          email: form.email,
-          password: form.password,
-          phoneNumber: form.phoneNumber || undefined
+        const res = await fetch(`${API_BASE_URL}/users`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: form.fullName,
+            username: form.username,
+            email: form.email,
+            password: form.password
+          })
         });
-        
-        const data = response.data;
-        if (data) {
-          setSuccess('Account created and verified! You can now log in.');
-          setForm({ fullName: '', username: '', email: '', password: '', confirmPassword: '', phoneNumber: '' });
-          setPasswordError('');
-          setConfirmPasswordError('');
-          
-          // Redirect to login after 2 seconds
-          setTimeout(() => {
+        const data = await res.json();
+        if (!res.ok) {
+          setError(data.error || 'Registration failed');
+          } else {
+            setSuccess('Account created and verified! You can now log in.');
+            setForm({ fullName: '', username: '', email: '', password: '', confirmPassword: '' });
+            setPasswordError('');
+            setConfirmPasswordError('');
+            // Sarap ni luke po, best green flag nang bayan
             navigate('/login');
-          }, 2000);
-        }
-      } catch (error) {
-        console.error('Create user error:', error);
-        setError(error.response?.data?.error || 'Registration failed');
-        setIsLoading(false); // Re-enable button on error
+          }
+      } catch (err) {
+        console.error('Create user network error:', err);
+        setError('Network error. Please try again.');
       }
     })();
+    // Optionally redirect to login page
+    // window.location.href = '/login';
   };
   
   return (
@@ -185,7 +201,7 @@ const SignUp = () => {
             </Typography>
           )}
           <form onSubmit={handleSubmit}>
-          <Box style={{ maxWidth: '400px', margin: '0 auto' }}>
+          <Box sx={{ maxWidth: '400px', margin: '0 auto', width: '100%', '@media (max-width: 768px)': { maxWidth: '100%', px: 0 } }}>
           <TextField 
             label="Full Name" 
             name="fullName"
@@ -217,18 +233,6 @@ const SignUp = () => {
             fullWidth 
             margin="normal" 
             className="signup-input" 
-            InputLabelProps={{ style: { fontFamily: 'Poppins, sans-serif' } }} 
-          />
-          <TextField 
-            label="Phone Number" 
-            name="phoneNumber"
-            value={form.phoneNumber}
-            onChange={handleChange}
-            variant="outlined" 
-            fullWidth 
-            margin="normal" 
-            className="signup-input" 
-            placeholder="+63"
             InputLabelProps={{ style: { fontFamily: 'Poppins, sans-serif' } }} 
           />
           <TextField
@@ -279,24 +283,108 @@ const SignUp = () => {
               ),
             }}
           />
-                     <Button
+                     <Box sx={{ mt: 2, mb: 2, display: 'flex', flexDirection: 'column', gap: 1 }}>
+            {/* Privacy Policy Checkbox */}
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={agreedToPrivacy}
+                  onChange={(e) => setAgreedToPrivacy(e.target.checked)}
+                  sx={{
+                    color: '#1976d2',
+                    '&.Mui-checked': {
+                      color: '#1B4B75'
+                    }
+                  }}
+                />
+              }
+              label={
+                <Typography sx={{ fontFamily: 'Poppins, sans-serif', fontSize: '13px', color: '#333' }}>
+                  I agree to the{' '}
+                  <span
+                    onClick={() => setShowPrivacyModal(true)}
+                    style={{
+                      color: '#1B4B75',
+                      textDecoration: 'underline',
+                      cursor: 'pointer',
+                      fontWeight: '500'
+                    }}
+                  >
+                    Privacy Policy
+                  </span>
+                </Typography>
+              }
+            />
+
+            {/* Terms & Conditions Checkbox */}
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={agreedToTerms}
+                  onChange={(e) => setAgreedToTerms(e.target.checked)}
+                  sx={{
+                    color: '#1976d2',
+                    '&.Mui-checked': {
+                      color: '#1B4B75'
+                    }
+                  }}
+                />
+              }
+              label={
+                <Typography sx={{ fontFamily: 'Poppins, sans-serif', fontSize: '13px', color: '#333' }}>
+                  I agree to the{' '}
+                  <span
+                    onClick={() => setShowTermsModal(true)}
+                    style={{
+                      color: '#1B4B75',
+                      textDecoration: 'underline',
+                      cursor: 'pointer',
+                      fontWeight: '500'
+                    }}
+                  >
+                    Terms & Conditions
+                  </span>
+                </Typography>
+              }
+            />
+          </Box>
+            <Button
               type="submit"
               variant="contained"
               color="primary"
               fullWidth
               className="signup-create-btn"
               style={{ fontFamily: 'Poppins, sans-serif' }}
-              disabled={isLoading}
             >
-              {isLoading ? 'Creating Account...' : 'Create'}
+              Create
             </Button>
+
+            <Box sx={{ textAlign: 'center', mt: 2, mb: 2 }}>
+              <Typography variant="body2" sx={{ fontFamily: 'Poppins, sans-serif', fontSize: { xs: '12px', sm: '13px', md: '14px' }, color: '#666' }}>
+                Already have an account?{' '}
+                <a href="/login" style={{ color: '#1B4B75', textDecoration: 'none', fontWeight: '600', cursor: 'pointer' }}>
+                  Sign in
+                </a>
+              </Typography>
+            </Box>
+            
+            <Box className="signup-divider-box">
+              <hr className="signup-divider-line" />
+            <span className="signup-divider-text">⸻ OR ⸻</span>
+            <hr className="signup-divider-line" />
+                            </Box>
+          <Button
+            variant="outlined"
+            startIcon={<GoogleIcon />}
+            fullWidth
+            className="signup-google-btn"
+            style={{ fontFamily: 'Poppins, sans-serif' }}
+            onClick={() => { window.location.href = `${API_BASE_URL}/auth/google`; }}
+          >
+            Continue with Google
+          </Button>
           </Box>
           </form>
-          <Box style={{ textAlign: 'center', marginTop: '16px' }}>
-            <Typography variant="body2" style={{ fontFamily: 'Poppins, sans-serif', fontSize: '0.9rem' }}>
-              Already have an account? <a href="/login" style={{ color: '#1976d2', textDecoration: 'none', fontWeight: '500' }}>Sign in</a>
-            </Typography>
-          </Box>
         </Paper>
         <Box className="signup-right">
           <img src="/Logos/login-right.gif" alt="Sign Up Animation" className="signup-right-gif" />
@@ -307,6 +395,20 @@ const SignUp = () => {
           onClose={() => setShowVerificationModal(false)}
           email={form.email}
           onVerificationSuccess={handleVerificationSuccess}
+        />
+
+        <TermsAndConditionsModal
+          open={showTermsModal}
+          onClose={() => setShowTermsModal(false)}
+          onAgree={() => setAgreedToTerms(true)}
+          onDecline={() => setAgreedToTerms(false)}
+        />
+
+        <PrivacyPolicyModal
+          open={showPrivacyModal}
+          onClose={() => setShowPrivacyModal(false)}
+          onAgree={() => setAgreedToPrivacy(true)}
+          onDecline={() => setAgreedToPrivacy(false)}
         />
       </Box>
     </ThemeProvider>

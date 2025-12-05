@@ -708,14 +708,14 @@ function FranchiseeListOperatorSide() {
       />
       
 
-  <Box sx={{ background: '#083d77', width: '100vw', minHeight: 220, position: 'relative', pt: 3, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-        <Box sx={{ position: 'relative', width: '100vw', mt: 4, display: 'flex', alignItems: 'flex-start', justifyContent: 'flex-start', pl: '120px' }}>
-          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 200 }}>
+  <Box sx={{ background: '#083d77', width: '100%', minHeight: 'auto', position: 'relative', pt: { xs: 3, sm: 4, md: 6 }, pb: { xs: 2, sm: 3, md: 3 }, display: 'flex', flexDirection: 'column', alignItems: 'center', mt: { xs: '80px', sm: '85px', md: '20px' }, px: { xs: 1, sm: 2, md: 0 } }}>
+        <Box sx={{ position: 'relative', width: '100%', maxWidth: '1400px', mt: { xs: 2, sm: 3, md: 4 }, display: 'flex', flexDirection: { xs: 'column', md: 'row' }, alignItems: { xs: 'center', md: 'flex-start' }, justifyContent: { xs: 'center', md: 'flex-start' }, pl: { xs: '16px', sm: '20px', md: '120px' }, pr: { xs: '16px', sm: '20px', md: '0px' }, gap: { xs: 2, sm: 3, md: 4 } }}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: { xs: 'auto', md: 200 } }}>
             {/* If blob is a PDF we can't render it inside Avatar - show a PDF placeholder and allow preview on click */}
             {idBlobUrl && idBlobIsPdf ? (
               <Avatar
                 onClick={() => window.open(idBlobUrl, '_blank')}
-                sx={{ width: 140, height: 140, mb: 2, boxShadow: '0 2px 8px rgba(0,0,0,0.10)', border: '6px solid #fff', bgcolor: '#fff', color: '#d32f2f', cursor: 'pointer' }}
+                sx={{ width: { xs: 100, sm: 120, md: 140 }, height: { xs: 100, sm: 120, md: 140 }, mb: { xs: 0.5, sm: 1, md: 2 }, boxShadow: '0 2px 8px rgba(0,0,0,0.10)', border: '4px solid #fff', bgcolor: '#fff', color: '#d32f2f', cursor: 'pointer', fontSize: { xs: '1.5rem', md: '2.5rem' } }}
               >
                 PDF
               </Avatar>
@@ -736,7 +736,7 @@ function FranchiseeListOperatorSide() {
                   )
                 }
                 alt="Profile"
-                sx={{ width: 140, height: 140, mb: 2, boxShadow: '0 2px 8px rgba(0,0,0,0.10)', border: '6px solid #fff' }}
+                sx={{ width: { xs: 100, sm: 120, md: 140 }, height: { xs: 100, sm: 120, md: 140 }, mb: { xs: 0.5, sm: 1, md: 2 }, boxShadow: '0 2px 8px rgba(0,0,0,0.10)', border: '4px solid #fff' }}
               />
             )}
           </Box>
@@ -744,15 +744,15 @@ function FranchiseeListOperatorSide() {
           {/* Dev debug panel for chosen ID file */}
             {/* DEV debug UI removed - debug info is logged to console only */}
 
-          <Box sx={{ ml: 4, pt: 2, flex: '0 0 auto' }}>
-            <Typography variant="h4" sx={{ color: '#fff', fontWeight: 700, mb: 1 }}>
+          <Box sx={{ ml: { xs: 0, md: 4 }, pt: { xs: 0, md: 2 }, flex: '0 0 auto', textAlign: { xs: 'center', md: 'left' }, width: { xs: '100%', md: 'auto' } }}>
+            <Typography variant="h4" sx={{ color: '#fff', fontWeight: 700, mb: { xs: 0.5, sm: 0.75, md: 1 }, fontSize: { xs: '1.5rem', sm: '1.75rem', md: '2rem' } }}>
               {user?.name || 'User Name'}
             </Typography>
-            <Typography sx={{ color: '#fff', fontWeight: 500, fontSize: 16 }}>
+            <Typography sx={{ color: '#fff', fontWeight: 500, fontSize: { xs: '0.875rem', sm: '1rem', md: '1rem' }, mb: { xs: 0.5, md: 0 } }}>
              
               {matchedFranchise?.operatorAddress || user?.address || matchedFranchise?.address || matchedFranchise?.driverAddress || t.addressNotProvided}
             </Typography>
-            <Typography sx={{ color: '#fff', fontWeight: 500, fontSize: 16 }}>
+            <Typography sx={{ color: '#fff', fontWeight: 500, fontSize: { xs: '0.875rem', sm: '1rem', md: '1rem' } }}>
               
               { 
                 // Check if coOwnerName exists and is not empty
@@ -768,7 +768,7 @@ function FranchiseeListOperatorSide() {
               }
             </Typography>
             {/* QR is displayed on the right panel (see the blue card area) */}
-            <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
+            <Box sx={{ display: 'flex', gap: 1, mt: { xs: 1.5, md: 1 }, flexDirection: { xs: 'column', sm: 'row' }, width: { xs: '100%', md: 'auto' }, alignItems: { xs: 'center', md: 'flex-start' } }}>
               <Button 
                 variant="contained" 
                 onClick={handleOpenFranchisePage}
@@ -777,9 +777,12 @@ function FranchiseeListOperatorSide() {
                   color: '#fff', 
                   fontWeight: 700, 
                   borderRadius: 2, 
-                  px: 3, 
+                  px: { xs: 2, md: 3 }, 
+                  py: { xs: 1, md: 'auto' },
                   boxShadow: 2, 
-                  textTransform: 'none', 
+                  textTransform: 'none',
+                  fontSize: { xs: '0.875rem', sm: '1rem' },
+                  width: { xs: '100%', sm: 'auto' },
                   '&:hover': { 
                     background: franchiseStatus ? '#27ae60' : '#c0392b' 
                   } 
@@ -793,7 +796,7 @@ function FranchiseeListOperatorSide() {
                   sx={{
                     background: '#2ecc71',
                     color: '#fff',
-                    width: 40,
+                    width: { xs: '100%', sm: 40 },
                     height: 40,
                     borderRadius: 2,
                     '&:hover': {
@@ -812,11 +815,11 @@ function FranchiseeListOperatorSide() {
 
       {/* Main Content - redesigned to match provided card layout */}
       <div className="driver-id-wrapper">
-        <div className="driver-id-card">
+        <div className="driver-id-card" id="franchise-card">
           <div className="id-left">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-              <h3 className="id-title">MOTORIZED TRICYCLE OPERATORS FRANCHISE</h3>
-              <Box sx={{ display: 'flex', gap: 1 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: { xs: 'center', sm: 'center', md: 'center' }, marginBottom: 1, flexDirection: { xs: 'row', md: 'row' }, gap: { xs: 1, md: 1 }, flexWrap: 'wrap' }}>
+              <h3 className="id-title" style={{ flex: '0 0 auto', minWidth: 'auto' }}>TRICYCLE OPERATORS FRANCHISE</h3>
+              <Box sx={{ display: 'flex', gap: 1, flexDirection: { xs: 'row', md: 'row' }, width: { xs: 'auto', md: 'auto' } }}>
                 {/* Show Renewal button if franchise expires within 3 months or is expired */}
                 {(() => {
                   const expiryDate = fields.expiryDate && fields.expiryDate.isValid && fields.expiryDate.isValid() 
@@ -893,7 +896,7 @@ function FranchiseeListOperatorSide() {
                   Make Amendment
                 </Button>
               </Box>
-            </div>
+            </Box>
             <div className="divider" />
 
             <div className="fields-grid">

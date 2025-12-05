@@ -76,6 +76,7 @@ exports.getAllFranchiseInformation = async (req, res, next) => {
       ...result
     });
   } catch (error) {
+    console.error('[getAllFranchiseInformation] Error:', error);
     return next(error);
   }
 };
@@ -285,6 +286,130 @@ exports.getFranchiseInformation = async (req, res, next) => {
   } catch (error) {
     if (error?.name === 'CastError') {
       return res.status(400).json({ error: 'Invalid id format' });
+    }
+    return next(error);
+  }
+};
+
+// ========================================
+// UPDATE FRANCHISE INFORMATION
+// ========================================
+
+/**
+ * PUT /franchise-information/:id
+ * Update franchise information (admin only)
+ * 
+ * Purpose: Allow admins to update franchise details
+ * Params: id - Franchise document ID
+ * Body: Updated franchise fields
+ * Returns: Updated franchise information
+ */
+exports.updateFranchiseInformation = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    
+    if (!id) {
+      return res.status(400).json({ 
+        success: false,
+        error: 'Franchise ID is required' 
+      });
+    }
+    
+    const FranchiseInformation = require('../models/franchiseInformationModel');
+    
+    // Find the franchise
+    const franchise = await FranchiseInformation.findById(id);
+    
+    if (!franchise) {
+      return res.status(404).json({ 
+        success: false,
+        error: 'Franchise not found' 
+      });
+    }
+    
+    // Define allowed fields for update (security - prevent updating sensitive fields)
+    const allowedFields = [
+      'operatorName',
+      'operatorAddress',
+      'operatorBarangay',
+      'operatorContactNumber',
+      'operatorEmail',
+      'operatorBirthPlace',
+      'operatorBirthDate',
+      'operatorCivilStatus',
+      'operatorCitizenship',
+      'todaMembership',
+      'coOwnerName',
+      'coOwnerAddress',
+      'driverName',
+      'driversAddress',
+      'driversID',
+      'franchiseStatus',
+      'rate',
+      'resolutionNumber',
+      'sbResolutionNumber',
+      'officialReceiptNumber',
+      'unitModel',
+      'colorMotor',
+      'sideCarColor',
+      'mvPlateNo',
+      'motorEngineNo',
+      'chasisNo'
+    ];
+    
+    // Update only allowed fields
+    const updateData = {};
+    for (const field of allowedFields) {
+      if (req.body[field] !== undefined) {
+        updateData[field] = req.body[field];
+      }
+    }
+    
+    // Track who made the change
+    updateData.changedBy = req.user?.username || 'admin';
+    updateData.changedAt = new Date();
+    
+    // Update the franchise
+    const updatedFranchise = await FranchiseInformation.findByIdAndUpdate(
+      id,
+      { $set: updateData },
+      { new: true, runValidators: true }
+    )
+    .populate('linkedUser', 'username email _id')
+    .populate('previousVersion', 'version changeType changedAt franchiseStatus');
+    
+    console.log('[updateFranchiseInformation] Updated franchise:', id, 'by:', updateData.changedBy);
+    
+    // Notify via WebSocket if available
+    if (req.app.get('io')) {
+      req.app.get('io').to('sb-admins').emit('franchisee-updated', {
+        franchiseId: id,
+        franchiseNumber: updatedFranchise.franchiseNumber,
+        updatedBy: updateData.changedBy,
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    return res.status(200).json({
+      success: true,
+      message: 'Franchise information updated successfully',
+      data: updatedFranchise
+    });
+    
+  } catch (error) {
+    console.error('[updateFranchiseInformation] Error:', error);
+    if (error?.name === 'CastError') {
+      return res.status(400).json({ 
+        success: false,
+        error: 'Invalid franchise ID format' 
+      });
+    }
+    if (error?.name === 'ValidationError') {
+      return res.status(400).json({ 
+        success: false,
+        error: 'Validation failed',
+        message: error.message 
+      });
     }
     return next(error);
   }

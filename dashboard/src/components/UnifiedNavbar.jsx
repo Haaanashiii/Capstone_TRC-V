@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
-  AppBar,
   Toolbar,
   Box,
   Typography,
@@ -99,6 +98,23 @@ const UnifiedNavbar = () => {
 
   const userHasFranchise = checkHasFranchise();
 
+  // Check if user is admin
+  const checkIsAdmin = () => {
+    try {
+      const token = sessionStorage.getItem('accessToken');
+      if (token) {
+        const decoded = JSON.parse(atob(token.split('.')[1]));
+        const adminRoles = ['super-admin', 'sb-admin', 'bplo-admin'];
+        return adminRoles.includes(decoded.role);
+      }
+    } catch {
+      return false;
+    }
+    return false;
+  };
+
+  const userIsAdmin = checkIsAdmin();
+
   const handleLogout = async () => {
     console.log('[UnifiedNavbar] Logout initiated');
     handleMenuClose();
@@ -117,6 +133,29 @@ const UnifiedNavbar = () => {
     setActiveFranchiseDialogOpen(false);
   };
 
+  // Handle scroll to announcements section
+  const handleAnnouncementsClick = (e) => {
+    e.preventDefault();
+    
+    // Function to scroll to announcements
+    const scrollToAnnouncements = () => {
+      const announcementsSection = document.getElementById('announcements');
+      if (announcementsSection) {
+        announcementsSection.scrollIntoView({ behavior: 'smooth' });
+      }
+    };
+    
+    if (isLandingPage || location.pathname === '/') {
+      // Already on landing page, scroll immediately
+      setTimeout(scrollToAnnouncements, 0);
+    } else {
+      // Navigate to landing page first
+      navigate('/');
+      // Then scroll after navigation completes
+      setTimeout(scrollToAnnouncements, 300);
+    }
+  };
+
   // Get navigation items based on mode
   const getNavigationItems = () => {
     if (isLandingPage) {
@@ -124,30 +163,32 @@ const UnifiedNavbar = () => {
       if (displayName && displayName !== 'Loading...') {
         // User is logged in - show HOME, ANNOUNCEMENTS, MY FRANCHISE, NEW APPLICATION
         return [
-          { label: t("navbar.home"), path: "/", isActive: true, disabled: false },
-          { label: t("navbar.announcements"), path: "/", isActive: false, disabled: false },
+          { label: t("navbar.home"), path: "/operator/franchise", isActive: true, disabled: false },
+          { label: t("navbar.announcements"), path: "/#announcements", isActive: false, disabled: false, onClick: handleAnnouncementsClick },
           { label: t("navbar.myFranchise"), path: "/operator/franchise", isActive: false, disabled: false },
           { label: t("navbar.newApplication"), path: "/operator/franchise/application", isActive: false, disabled: false }
         ];
       } else {
-        // User is not logged in - show HOME, ANNOUNCEMENTS, NEW APPLICATION
+        // User is not logged in - show only NEW APPLICATION
         return [
-          { label: t("navbar.home"), path: "/", isActive: true, disabled: false },
-          { label: t("navbar.announcements"), path: "/", isActive: false, disabled: false },
           { label: t("navbar.newApplication"), path: "/operator/franchise/application", isActive: false, disabled: false }
         ];
       }
     } else {
-      // Logged in operator mode
+      // Logged in operator/admin mode
+      // For non-admin users, point announcements to landing page section
+      const announcementsPath = userIsAdmin ? "/announcements" : "/#announcements";
+      const announcementsIsActive = location.pathname === "/announcements";
+      
       if (!userHasFranchise) {
         return [
-          { label: t("navbar.announcements"), path: "/", isActive: location.pathname === "/", disabled: false },
+          { label: t("navbar.announcements"), path: announcementsPath, isActive: announcementsIsActive, disabled: false, onClick: !userIsAdmin ? handleAnnouncementsClick : undefined },
           { label: t("navbar.myFranchise"), path: "/operator/franchise", isActive: location.pathname === "/operator/franchise", disabled: false },
         ];
       }
       
       return [
-        { label: t("navbar.announcements"), path: "/", isActive: location.pathname === "/", disabled: false },
+        { label: t("navbar.announcements"), path: announcementsPath, isActive: announcementsIsActive, disabled: false, onClick: !userIsAdmin ? handleAnnouncementsClick : undefined },
         { label: t("navbar.myFranchise"), path: "/operator/franchise", isActive: location.pathname === "/operator/franchise", disabled: false },
         { label: t("navbar.requestAmendment"), path: "/operator/request-amendment", isActive: location.pathname === "/operator/request-amendment", disabled: false },
         { label: t("navbar.operatorId"), path: "/operator/id", isActive: location.pathname === "/operator/id", disabled: false },
@@ -159,9 +200,19 @@ const UnifiedNavbar = () => {
 
   return (
     <>
-      <AppBar 
-        position="sticky" 
+      <Box
+        component="nav" 
         className={`unified-navbar ${isLandingPage ? 'landing-mode' : 'logged-in-mode'}`}
+        sx={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          zIndex: 1200,
+          backgroundColor: '#083d77',
+          boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+          width: '100%',
+        }}
       >
         <Toolbar className="unified-navbar-toolbar">
           {/* Logo Section */}
@@ -221,11 +272,11 @@ const UnifiedNavbar = () => {
                   {navigationItems.map((item, index) => (
                     <Button
                       key={index}
-                      component={item.disabled ? 'button' : Link}
-                      to={item.disabled ? undefined : item.path}
+                      component={item.onClick ? 'button' : (item.disabled ? 'button' : Link)}
+                      to={item.onClick || item.disabled ? undefined : item.path}
                       className={`unified-nav-button ${item.isActive ? 'active' : ''} ${item.disabled ? 'disabled' : ''}`}
                       disabled={item.disabled}
-                      onClick={item.disabled ? (e) => e.preventDefault() : undefined}
+                      onClick={item.onClick || (item.disabled ? (e) => e.preventDefault() : undefined)}
                       title={item.title || undefined}
                     >
                       {item.label}
@@ -291,7 +342,7 @@ const UnifiedNavbar = () => {
             </Box>
           )}
         </Toolbar>
-      </AppBar>
+      </Box>
 
       {/* Mobile Drawer Menu */}
       <Drawer
@@ -321,9 +372,16 @@ const UnifiedNavbar = () => {
           {navigationItems.map((item, index) => (
             <ListItem key={index} disablePadding>
               <ListItemButton
-                component={item.disabled ? 'button' : Link}
-                to={item.disabled ? undefined : item.path}
-                onClick={item.disabled ? undefined : handleMobileMenuClose}
+                component={item.onClick ? 'button' : (item.disabled ? 'button' : Link)}
+                to={item.onClick || item.disabled ? undefined : item.path}
+                onClick={(e) => {
+                  if (item.onClick) {
+                    item.onClick(e);
+                  }
+                  if (!item.disabled && !item.onClick) {
+                    handleMobileMenuClose();
+                  }
+                }}
                 disabled={item.disabled}
                 sx={{
                   py: 2,

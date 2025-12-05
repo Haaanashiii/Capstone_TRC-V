@@ -13,6 +13,7 @@
     padding: 32px;
     margin-left: 240px;
     width: calc(100% - 240px);
+    background-color: #f5f7fa;
 }
 
 .audit-trail-container .page-title {
@@ -53,6 +54,10 @@
 /* Filters Section */
 .audit-trail-container .filters-section {
     margin-bottom: 24px;
+    background: white;
+    padding: 20px;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(10, 53, 107, 0.08);
 }
 
 .audit-trail-container .filters-row {

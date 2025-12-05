@@ -677,6 +677,20 @@ export const adminAPI = {
   deactivate: (id) => api.patch(`/admins/${id}/deactivate`),
 
   /**
+   * Activate admin account
+   * @param {string} id - Admin ID (adminId or _id)
+   * @returns {Promise} Response
+   */
+  activate: (id) => api.patch(`/admins/${id}/activate`),
+
+  /**
+   * Toggle admin account status (active/inactive)
+   * @param {string} id - Admin ID (adminId or _id)
+   * @returns {Promise} Response with updated status
+   */
+  toggleStatus: (id) => api.patch(`/admins/${id}/toggle-status`),
+
+  /**
    * Delete admin account (hard delete)
    * @param {string} id - Admin ID (adminId or _id)
    * @returns {Promise} Response
@@ -858,75 +872,90 @@ export const announcementAPI = {
 };
 
 // ====================================================================
-// REPORTS API METHODS
+// INCIDENT REPORTS API METHODS
 // ====================================================================
 
-export const reportsAPI = {
+export const incidentReportsAPI = {
   /**
-   * Get all reports
-   * @param {object} params - Query parameters
-   * @returns {Promise} Response with reports array
+   * Get available incident categories
+   * @returns {Promise} Response with categories array
    */
-  getAll: (params = {}) => api.get('/api/reports', { params }),
+  getCategories: () => api.get('/api/incident-reports/categories'),
 
   /**
-   * Get report statistics
-   * @returns {Promise} Response with statistics
+   * Get all incident reports with filtering
+   * @param {object} params - Query parameters (page, limit, search, status, category, sortBy, sortOrder)
+   * @returns {Promise} Response with reports array and pagination
    */
-  getStatistics: () => api.get('/api/reports/statistics'),
+  getAll: (params = {}) => api.get('/api/incident-reports', { params }),
 
   /**
-   * Get monthly reports
+   * Get incident report statistics
+   * @returns {Promise} Response with statistics including category breakdown
+   */
+  getStatistics: () => api.get('/api/incident-reports/statistics'),
+
+  /**
+   * Get monthly incident reports with optional filters
    * @param {number} year - Year
    * @param {number} month - Month
+   * @param {object} filters - Optional filters (category, status)
    * @returns {Promise} Response with monthly reports
    */
-  getMonthly: (year, month) => api.get('/api/reports/monthly', { params: { year, month } }),
+  getMonthly: (year, month, filters = {}) => api.get('/api/incident-reports/monthly', { 
+    params: { year, month, ...filters } 
+  }),
 
   /**
-   * Get reports by date range
+   * Get incident reports by date range with optional filters
    * @param {string} startDate - Start date (YYYY-MM-DD)
    * @param {string} endDate - End date (YYYY-MM-DD)
+   * @param {object} filters - Optional filters (category, status, format)
    * @returns {Promise} Response with reports
    */
-  getByDateRange: (startDate, endDate) => api.get('/api/reports/date-range', { params: { startDate, endDate } }),
+  getByDateRange: (startDate, endDate, filters = {}) => api.get('/api/incident-reports/date-range', { 
+    params: { startDate, endDate, ...filters } 
+  }),
 
   /**
-   * Get report by ID
+   * Get incident report by ID
    * @param {string} id - Report ID
    * @returns {Promise} Response with report details
    */
-  getById: (id) => api.get(`/api/reports/${id}`),
+  getById: (id) => api.get(`/api/incident-reports/${id}`),
 
   /**
-   * Create new report
-   * @param {object} reportData - Report data
+   * Create new incident report (authenticated)
+   * @param {object} reportData - Report data including category
    * @returns {Promise} Response with created report
    */
-  create: (reportData) => api.post('/api/reports', reportData),
+  create: (reportData) => api.post('/api/incident-reports', reportData),
 
   /**
-   * Create public report (no auth required)
-   * @param {object} reportData - Report data
+   * Create public incident report (no auth required)
+   * @param {object} reportData - Report data including category
    * @returns {Promise} Response with created report
    */
-  createPublic: (reportData) => api.post('/api/reports/public', reportData),
+  createPublic: (reportData) => api.post('/api/incident-reports/public', reportData),
 
   /**
-   * Update report
+   * Update incident report
    * @param {string} id - Report ID
    * @param {object} data - Updated report data
    * @returns {Promise} Response with updated report
    */
-  update: (id, data) => api.put(`/api/reports/${id}`, data),
+  update: (id, data) => api.put(`/api/incident-reports/${id}`, data),
 
   /**
-   * Delete report
+   * Delete incident report
    * @param {string} id - Report ID
    * @returns {Promise} Response
    */
-  delete: (id) => api.delete(`/api/reports/${id}`)
+  delete: (id) => api.delete(`/api/incident-reports/${id}`)
 };
+
+// Legacy alias for backward compatibility
+export const reportsAPI = incidentReportsAPI;
 
 // ====================================================================
 // QR CODE API METHODS

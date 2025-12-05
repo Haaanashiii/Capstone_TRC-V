@@ -543,3 +543,85 @@
   border-bottom: 2px solid #0A356B !important;
   padding: 20px 24px !important;
 }
+
+/* Filter Panel Styles */
+.admin-filter-panel {
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%) !important;
+  border: 1px solid rgba(10, 53, 107, 0.1) !important;
+}
+
+.admin-filter-panel .MuiToggleButtonGroup-root {
+  background: white;
+  border-radius: 8px;
+}
+
+.admin-filter-panel .MuiToggleButton-root {
+  border-color: rgba(10, 53, 107, 0.2);
+  text-transform: none;
+  font-weight: 500;
+  padding: 6px 16px;
+}
+
+.admin-filter-panel .MuiToggleButton-root.Mui-selected {
+  background-color: #0A356B;
+  color: white;
+}
+
+.admin-filter-panel .MuiToggleButton-root.Mui-selected:hover {
+  background-color: #083057;
+}
+
+/* Status Toggle Switch */
+.MuiSwitch-root .MuiSwitch-switchBase.Mui-checked {
+  color: #2e7d32;
+}
+
+.MuiSwitch-root .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track {
+  background-color: #2e7d32;
+}
+
+/* Inactive Row Styling */
+.admin-table-row.inactive-row {
+  background-color: rgba(0, 0, 0, 0.02) !important;
+}
+
+.admin-table-row.inactive-row:hover {
+  background-color: rgba(0, 0, 0, 0.06) !important;
+}
+
+/* Action Button Improvements */
+.action-icon-button.edit {
+  color: #0A356B;
+  transition: all 0.2s ease;
+}
+
+.action-icon-button.edit:hover {
+  background-color: rgba(10, 53, 107, 0.1);
+  transform: scale(1.1);
+}
+
+/* Responsive Toolbar */
+@media (max-width: 768px) {
+  .user-management-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .user-management-toolbar > div:first-child {
+    flex-direction: column;
+    width: 100%;
+  }
+  
+  .add-user-btn {
+    width: 100%;
+  }
+  
+  .admin-filter-panel .MuiStack-root {
+    flex-direction: column !important;
+    width: 100%;
+  }
+  
+  .admin-filter-panel .MuiDivider-root {
+    display: none !important;
+  }
+}

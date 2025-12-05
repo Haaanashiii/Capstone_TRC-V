@@ -14,11 +14,11 @@ const rolePageAccessSchema = new mongoose.Schema({
       'franchisee-list',
       'franchise-management',
       'certificate',
-      'fare-reports',
+      'incident-reports',
       'analytics',
       'announcements',
       'audit-trail',
-      'user-management',
+      'admin-management',
       'settings'
     ]
   }],

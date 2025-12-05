@@ -11,62 +11,48 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: clamp(40px, 8vh, 58px) 0 clamp(35px, 7vh, 50px) 0;
+  justify-content: center;
+  padding: 58px 0 50px 0;
   margin-top: 0;
-}
-
-/* --- Added for mobile responsiveness */
-@media (max-width: 960px) {
-  .announcements-section {
-    padding: 40px 0;
-  }
-  
-  .announcements-title {
-    font-size: 1.5rem;
-    padding: 10px 32px;
-    margin-bottom: 24px;
-  }
-  
-  .announcement-card {
-    width: 100% !important;
-    max-width: 100% !important;
-    min-height: auto !important;
-  }
+  margin-left: 0;
+  margin-right: 0;
+  box-sizing: border-box;
 }
 .announcements-title {
-  background: #ffe066;
-  color: #143c6e;
-  font-size: clamp(1.25rem, 3vw, 2rem);
+  background: linear-gradient(135deg, #083d77 0%, #0a3970 100%);
+  color: #fff;
+  font-size: 2rem;
   font-weight: 700;
   text-align: center;
-  padding: clamp(10px, 2vw, 12px) clamp(32px, 6vw, 48px);
-  border-radius: clamp(4px, 1vw, 6px);
-  margin-bottom: clamp(24px, 5vw, 32px);
-  letter-spacing: clamp(0.5px, 0.2vw, 1px);
+  padding: 16px 56px;
+  border-radius: 12px;
+  margin-bottom: 48px;
+  letter-spacing: 1.5px;
+  box-shadow: 0 4px 15px rgba(8, 61, 119, 0.25);
+  text-transform: uppercase;
+  font-family: 'Poppins', sans-serif;
 }
 .announcements-list {
   display: flex;
-  gap: clamp(8px, 2vw, 12px);
+  gap: 8px;
   justify-content: center;
   width: 100%;
   max-width: 1200px;
-  flex-wrap: wrap;
-  padding: 0 clamp(8px, 2vw, 16px);
 }
 .announcement-card {
   background: #f7f3e6;
-  border-radius: clamp(8px, 1.5vw, 10px);
+  border-radius: 0;
   box-shadow: none;
-  width: clamp(280px, 45vw, 340px);
+  width: 340px;
   max-width: 100%;
   height: auto;
   flex-direction: column;
-  padding: 0 clamp(16px, 3vw, 24px) clamp(20px, 4vw, 24px) clamp(16px, 3vw, 24px);
+  padding: 0 24px 24px 24px;
   margin-bottom: 0;
   justify-content: flex-start;
   align-items: flex-start;
   box-sizing: border-box;
-  border-top: clamp(40px, 7vw, 48px) solid #143c6e;
+  border-top: 48px solid #143c6e;
 }
 .announcement-card-header {
   font-size: 1.35rem;
@@ -80,24 +66,24 @@
   display: block;
 }
 .announcement-card-header {
-  font-size: clamp(1.125rem, 2.5vw, 1.35rem);
+  font-size: 1.35rem;
   font-weight: 700;
   color: #143c6e;
   text-align: left;
-  margin-top: clamp(8px, 2vw, 10px);
-  margin-bottom: clamp(6px, 1.5vw, 8px);
+  margin-top: 10px;
+  margin-bottom: 8px;
   line-height: 1.2;
   width: 100%;
   display: block;
 }
 .announcement-card-date {
-  font-size: clamp(0.938rem, 2vw, 1.05rem);
+  font-size: 1.05rem;
   font-weight: 700;
   color: #143c6e;
-  margin-bottom: clamp(12px, 2.5vw, 16px);
+  margin-bottom: 16px;
 }
 .announcement-card-body {
-  font-size: clamp(0.875rem, 1.8vw, 1rem);
+  font-size: 1rem;
   color: #143c6e;
   line-height: 1.6;
   margin-bottom: 0;
@@ -137,35 +123,16 @@
   overflow-x: hidden;
   display: flex;
   flex-direction: column;
+  position: relative;
+  line-height: 1;
 }
 .landing-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  background: #083d77;
   /* For landing main content */
   padding: 20px 60px 20px 40px;
-}
-
-/* --- Added for mobile responsiveness */
-@media (max-width: 960px) {
-  .landing-header {
-    flex-direction: column;
-    padding: 16px 20px;
-    gap: 16px;
-    align-items: flex-start;
-  }
-  
-  .landing-nav {
-    width: 100%;
-    flex-wrap: wrap;
-    margin-left: 0 !important;
-    justify-content: center;
-  }
-  
-  .nav-link, .nav-login {
-    font-size: 0.9rem;
-    padding: 6px 12px;
-  }
 }
 .logo-title {
   display: flex;
@@ -242,14 +209,16 @@
 }
 .landing-main {
   display: flex;
-  align-items: center;
+  /* anchor content to the top of the main area so it sits closer under the header */
+  align-items: flex-start;
   justify-content: space-between;
-  padding: 0 90px 0 260px;
+  padding: 0 90px 20px 80px;
+  margin-top: 20px;
+  margin-bottom: 0;
   width: 100%;
-  height: calc(100vh - 80px);
-  max-height: 660px;
   box-sizing: border-box;
   gap: 40px;
+  min-height: auto;
 }
 
 /* --- Added for tablet/mobile responsiveness */
@@ -257,28 +226,39 @@
   .landing-main {
     flex-direction: column;
     padding: 20px 30px;
-    align-items: center;
-    text-align: center;
+    align-items: flex-start;
+    text-align: left;
   }
   
   .main-content {
     max-width: 100%;
+    text-align: left;
   }
   
   .main-content h1 {
-    font-size: 2.5rem;
+    font-size: 2.4rem;
     margin-left: 0 !important;
   }
   
-  .main-buttons {
+  .main-hero-description {
+    text-align: left;
+  }
+  
+  .main-buttons-container {
     margin-left: 0 !important;
-    justify-content: center;
-    width: 100%;
+    justify-content: flex-start;
+    width: auto;
+  }
+  
+  .btn-main-text,
+  .btn-sub-text {
+    text-align: left;
   }
   
   .main-image {
     margin-top: 20px;
     justify-content: center;
+    width: 100%;
   }
   
   .main-image img {
@@ -294,43 +274,121 @@
   
   .main-content h1 {
     font-size: 1.8rem;
-    margin-bottom: 24px;
+    margin-bottom: 16px;
   }
   
-  .main-btn {
+  .main-hero-description {
     font-size: 0.95rem;
-    padding: 12px 20px;
+    margin-bottom: 20px;
+  }
+  
+  .main-buttons-container {
+    flex-wrap: wrap;
+    gap: 0;
+    width: 100%;
+  }
+  
+  .main-btn-ready {
+    min-width: 100% !important;
+    margin-bottom: 10px;
+  }
+  
+  .main-btn-view {
+    width: 100% !important;
+    margin-left: 0 !important;
   }
 }
 .main-content {
-  max-width: 520px;
+  max-width: 550px;
+  flex-shrink: 0;
+  margin-top: 90px;
 }
-/*  For the header  Tricy kenemerut */
+/* For the header */
 .main-content h1 {
-  font-size: 3.7rem;
-  font-weight: 600;
-  margin-top: 60px;
-  margin-bottom: 98px;
-  line-height: 1.2;
-  margin-left: -100px;
+  font-size: 3.0rem;
+  font-weight: 700;
+  margin-top: 0;
+  margin-bottom: 16px;
+  line-height: 1.25;
+  color: #fff;
+  font-family: 'Poppins', sans-serif;
+  margin-left: 0;
+  padding-left: 0;
 }
-.main-desc {
-  font-size: 1.1rem;
-  margin-bottom: 80px;
+.main-hero-description {
+  font-size: 0.95rem;
+  margin-bottom: 24px;
   color: #f3d856;
+  line-height: 1.5;
+  font-family: 'Poppins', sans-serif;
+  font-weight: 400;
+  max-width: 500px;
 }
-.main-buttons {
+.main-buttons-container {
   display: flex;
-  gap: 32px;
-  justify-content: center;
-  /* smaller top margin so buttons sit nearer the headline */
+  gap: -12px;
+  justify-content: flex-start;
+  align-items: center;
+  flex-wrap: wrap;
   margin-top: 24px;
-  border: none !important;
-  width: 450px;
-  max-width: 100%;
+  position: relative;
+}
+.ready-to-apply-label {
+  background: #F4D77E;
+  color: #1B4B75;
+  border-radius: 8px;
+  padding: 14px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
   height: auto;
-  margin-left: -100px;
-
+  min-height: 70px;
+  width: auto;
+  min-width: 340px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+.btn-main-text {
+  font-size: 1rem;
+  font-weight: 700;
+  display: block;
+  text-align: left;
+  white-space: nowrap;
+  line-height: 1.1;
+}
+.btn-sub-text {
+  font-size: 0.8rem;
+  font-weight: 600;
+  display: block;
+  text-align: left;
+  line-height: 1.15;
+  max-width: 300px;
+}
+.main-btn-view {
+  background: #1B4B75 !important;
+  color: #F4D77E !important;
+  border: none !important;
+  border-radius: 8px !important;
+  padding: 14px 40px !important;
+  text-transform: none !important;
+  font-family: 'Poppins', sans-serif !important;
+  font-size: 1rem !important;
+  font-weight: 700 !important;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
+  transition: all 0.3s ease !important;
+  min-height: auto !important;
+  height: 55px !important;
+  margin-left: -20px !important;
+  z-index: 1;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  white-space: nowrap !important;
+}
+.main-btn-view:hover {
+  background: #143c6e !important;
+  box-shadow: 0 6px 16px rgba(0,0,0,0.2) !important;
+  transform: translateY(-2px);
 }
 .main-image {
   flex: 1;
@@ -371,23 +429,19 @@
   background: #F4D35E;
   border-color: #F4D35E;
 }
-/* --- Enhanced responsive adjustments */
+/* Responsive adjustments */
 @media (max-width: 1100px) {
   .landing-main {
     flex-direction: column;
-    align-items: center;
+    align-items: flex-start;
     justify-content: flex-start;
     padding: 40px 20px 0 20px;
   }
   .main-image {
     margin-top: 32px;
-    justify-content: center;
-  }
-  .main-content {
-    text-align: center;
+    justify-content: flex-start;
   }
 }
-
 @media (max-width: 700px) {
   .landing-header {
     flex-direction: column;
@@ -404,11 +458,17 @@
   .main-btn {
     padding: 10px 16px;
     font-size: 1rem;
-    width: auto;
-    margin: 0 4px;
   }
   .tricycle-img {
     width: 220px;
+  }
+  .landing-header {
+    padding: 16px 20px;
+    flex-wrap: wrap;
+  }
+  .logo-title {
+    flex: 1;
+    min-width: 200px;
   }
   .logo-img {
     width: 50px;
@@ -419,6 +479,178 @@
   .trc-subtitle {
     font-size: 0.75rem;
   }
+  .landing-nav {
+    display: none;
+  }
+  .landing-main {
+    flex-direction: column;
+    padding: 20px 16px;
+    gap: 20px;
+  }
+  .main-content {
+    max-width: 100%;
+    margin-top: 30px;
+  }
+  .main-content h1 {
+    font-size: 2.2rem;
+  }
+  .main-image {
+    width: 100% !important;
+    margin-right: 0 !important;
+  }
+  .main-image img {
+    max-width: 100%;
+    margin-right: 0 !important;
+  }
+  .ready-to-apply-label {
+    flex-direction: column;
+    padding: 12px 16px;
+    min-width: unset;
+    width: 100%;
+    max-width: 100%;
+  }
+  .btn-main-text {
+    white-space: normal;
+    font-size: 0.95rem;
+  }
+  .main-btn-view {
+    margin-left: 0 !important;
+    width: 100% !important;
+    padding: 14px 20px !important;
+  }
+  .announcements-section {
+    padding: 40px 0;
+  }
+  .announcements-title {
+    font-size: 1.5rem;
+    padding: 8px 20px;
+    margin-bottom: 20px;
+  }
 }
 
-/* Footer is now fully handled by MUI Box components with responsive sx props */
+@media (max-width: 480px) {
+  .landing-header {
+    padding: 12px 16px;
+  }
+  .trc-title {
+    font-size: 1.4rem;
+  }
+  .main-content h1 {
+    font-size: 1.8rem;
+    margin-bottom: 12px;
+  }
+  .main-content p {
+    font-size: 0.9rem;
+  }
+  .announcements-title {
+    font-size: 1.2rem;
+  }
+  .main-buttons-container {
+    flex-direction: column;
+    gap: 12px;
+    align-items: stretch;
+  }
+  .ready-to-apply-label {
+    padding: 12px 16px;
+    min-width: unset;
+    width: 100%;
+    max-width: 100%;
+  }
+  .btn-main-text {
+    white-space: normal;
+    font-size: 0.95rem;
+  }
+}
+
+/* Features Section Mobile Responsiveness */
+@media (max-width: 960px) {
+  .min-h-screen.bg-\[#F4D77E\] > div > div {
+    display: flex !important;
+    flex-direction: column;
+    gap: 40px !important;
+    max-width: 100% !important;
+    padding: 0 20px !important;
+  }
+  
+  .min-h-screen.bg-\[#F4D77E\] > div > div > div {
+    width: 100% !important;
+    max-width: 300px !important;
+    margin: 0 auto !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .min-h-screen.bg-\[#F4D77E\] > div {
+    padding: 30px 0 !important;
+  }
+  
+  .min-h-screen.bg-\[#F4D77E\] > div > div:first-child {
+    padding: 10px 30px !important;
+    font-size: 20px !important;
+  }
+  
+  .min-h-screen.bg-\[#F4D77E\] > div > div > div {
+    width: 100% !important;
+    max-width: 280px !important;
+  }
+  
+  .min-h-screen.bg-\[#F4D77E\] > div > div > div > div {
+    width: 140px !important;
+    height: 140px !important;
+  }
+  
+  .min-h-screen.bg-\[#F4D77E\] > div > div > div > div > img {
+    width: 120px !important;
+    height: 120px !important;
+  }
+  
+  .min-h-screen.bg-\[#F4D77E\] > div > div > div > h3 {
+    font-size: 14px !important;
+    margin-top: 15px !important;
+  }
+  
+  .min-h-screen.bg-\[#F4D77E\] > div > div > div > p {
+    font-size: 13px !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .min-h-screen.bg-\[#F4D77E\] > div {
+    padding: 20px 0 !important;
+  }
+  
+  .min-h-screen.bg-\[#F4D77E\] > div > div:first-child {
+    padding: 8px 20px !important;
+    font-size: 16px !important;
+    margin-bottom: 20px !important;
+  }
+  
+  .min-h-screen.bg-\[#F4D77E\] > div > div {
+    gap: 30px !important;
+  }
+  
+  .min-h-screen.bg-\[#F4D77E\] > div > div > div {
+    width: 100% !important;
+    max-width: 260px !important;
+  }
+  
+  .min-h-screen.bg-\[#F4D77E\] > div > div > div > div {
+    width: 120px !important;
+    height: 120px !important;
+  }
+  
+  .min-h-screen.bg-\[#F4D77E\] > div > div > div > div > img {
+    width: 100px !important;
+    height: 100px !important;
+  }
+  
+  .min-h-screen.bg-\[#F4D77E\] > div > div > div > h3 {
+    font-size: 13px !important;
+    margin-top: 12px !important;
+  }
+  
+  .min-h-screen.bg-\[#F4D77E\] > div > div > div > p {
+    font-size: 12px !important;
+    margin-top: 8px !important;
+  }
+}

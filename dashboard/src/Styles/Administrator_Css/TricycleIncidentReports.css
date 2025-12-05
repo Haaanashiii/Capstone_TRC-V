@@ -1,0 +1,391 @@
+/**
+ * TricycleIncidentReports.css
+ * Styles for the Tricycle Incident Reporting page
+ * Follows mobile-first responsive design approach
+ */
+
+* {
+  font-family: 'Poppins', sans-serif !important;
+}
+
+/* ========================================
+   LAYOUT CONTAINERS
+   ======================================== */
+
+.incident-reports-container {
+  display: flex;
+  min-height: 100vh;
+  background-color: #f5f7fa;
+  position: relative;
+}
+
+.content-container {
+  flex: 1;
+  padding: 24px;
+  margin-left: 240px;
+  width: calc(100% - 240px);
+  box-sizing: border-box;
+}
+
+/* ========================================
+   HEADER SECTION
+   ======================================== */
+
+.header-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.page-title {
+  font-size: clamp(24px, 4vw, 36px);
+  font-weight: 700;
+  color: #0A356B;
+  margin: 0;
+  letter-spacing: -0.5px;
+  line-height: 1.2;
+}
+
+/* ========================================
+   CONTROLS ROW - SEARCH & FILTERS
+   ======================================== */
+
+.controls-row {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 24px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.search-container {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex: 1;
+  min-width: 280px;
+  max-width: 400px;
+}
+
+.search-field {
+  flex: 1;
+}
+
+.search-field .MuiOutlinedInput-root {
+  background-color: white;
+  border-radius: 8px;
+}
+
+.search-field .MuiOutlinedInput-notchedOutline {
+  border-color: rgba(10, 53, 107, 0.2);
+}
+
+.search-field .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline {
+  border-color: rgba(10, 53, 107, 0.4);
+}
+
+.search-button {
+  background-color: #0A356B !important;
+  color: white !important;
+  font-weight: 600 !important;
+  padding: 8px 16px !important;
+  border-radius: 8px !important;
+  min-width: 50px !important;
+  height: 40px;
+  box-shadow: 0 2px 8px rgba(10, 53, 107, 0.2) !important;
+  transition: all 0.2s ease !important;
+}
+
+.search-button:hover {
+  background-color: #083057 !important;
+  box-shadow: 0 4px 12px rgba(10, 53, 107, 0.3) !important;
+  transform: translateY(-1px);
+}
+
+/* ========================================
+   CATEGORY & STATUS BADGES
+   ======================================== */
+
+.category-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: white;
+  text-transform: capitalize;
+  white-space: nowrap;
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: capitalize;
+  white-space: nowrap;
+}
+
+.status-pending { background-color: #ff9800; color: white; }
+.status-investigating { background-color: #2196f3; color: white; }
+.status-resolved { background-color: #4caf50; color: white; }
+.status-dismissed { background-color: #757575; color: white; }
+
+/* ========================================
+   MODAL STYLES
+   ======================================== */
+
+.modal-container {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: calc(100% - 32px);
+  max-width: 650px;
+  background-color: white;
+  border-radius: 16px;
+  box-shadow: 0 20px 60px rgba(10, 53, 107, 0.25);
+  padding: 24px;
+  max-height: calc(100vh - 64px);
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 2px solid #0A356B;
+  gap: 16px;
+}
+
+.modal-header h2 {
+  color: #0A356B;
+  font-weight: 700;
+  font-size: clamp(1rem, 3vw, 1.25rem);
+  margin: 0;
+}
+
+.section-header {
+  color: #0A356B;
+  font-weight: 600;
+  margin-bottom: 16px;
+  font-size: 1rem;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(10, 53, 107, 0.1);
+}
+
+.info-grid {
+  display: grid;
+  grid-template-columns: minmax(100px, 120px) 1fr;
+  gap: 12px 16px;
+  align-items: start;
+}
+
+.info-grid .label {
+  color: #666;
+  font-weight: 500;
+  font-size: 0.875rem;
+}
+
+.info-grid .MuiTypography-root:not(.label) {
+  color: #333;
+  font-size: 0.9rem;
+  word-break: break-word;
+}
+
+/* ========================================
+   FILTER DIALOG STYLES
+   ======================================== */
+
+.filter-dialog .MuiDialog-paper {
+  border-radius: 16px;
+  margin: 16px;
+  max-height: calc(100vh - 32px);
+}
+
+.filter-dialog-title {
+  background-color: #0A356B;
+  color: white;
+  padding: 16px 24px;
+}
+
+.filter-dialog-content {
+  padding: 24px !important;
+}
+
+.filter-dialog-actions {
+  padding: 16px 24px;
+  border-top: 1px solid rgba(10, 53, 107, 0.1);
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* ========================================
+   ACTION BUTTONS
+   ======================================== */
+
+.action-icon-button {
+  transition: all 0.2s ease !important;
+}
+
+.action-icon-button.view {
+  color: #0A356B !important;
+}
+
+.action-icon-button.view:hover {
+  background-color: rgba(10, 53, 107, 0.1) !important;
+  transform: scale(1.1);
+}
+
+/* ========================================
+   TABLE COLUMN WIDTHS
+   ======================================== */
+
+.col-id { width: 100px; min-width: 80px; }
+.col-category { width: 160px; min-width: 140px; }
+.col-name { width: auto; min-width: 150px; }
+.col-date { width: 160px; min-width: 140px; }
+.col-status { width: 110px; min-width: 100px; }
+.col-actions { width: 70px; min-width: 60px; }
+
+/* ========================================
+   RESPONSIVE BREAKPOINTS
+   ======================================== */
+
+/* Large tablets and small desktops */
+@media (max-width: 1200px) {
+  .controls-row {
+    gap: 10px;
+  }
+  
+  .search-container {
+    min-width: 250px;
+    max-width: 350px;
+  }
+}
+
+/* Tablets */
+@media (max-width: 992px) {
+  .content-container {
+    margin-left: 200px;
+    width: calc(100% - 200px);
+    padding: 20px;
+  }
+  
+  .controls-row {
+    flex-wrap: wrap;
+  }
+  
+  .search-container {
+    flex: 1 1 100%;
+    max-width: none;
+    margin-bottom: 8px;
+  }
+}
+
+/* Mobile landscape and small tablets */
+@media (max-width: 768px) {
+  .content-container {
+    margin-left: 0;
+    width: 100%;
+    padding: 16px;
+  }
+  
+  .page-title {
+    font-size: 24px;
+  }
+  
+  .controls-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+  
+  .search-container {
+    min-width: 100%;
+  }
+  
+  .modal-container {
+    width: calc(100% - 24px);
+    padding: 20px;
+    margin: 12px;
+  }
+  
+  .info-grid {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  
+  .info-grid .label {
+    margin-top: 12px;
+    font-weight: 600;
+    color: #0A356B;
+  }
+  
+  .info-grid .label:first-child {
+    margin-top: 0;
+  }
+  
+  /* Hide less important table columns on mobile */
+  .col-date {
+    display: none;
+  }
+  
+  .filter-dialog-actions {
+    justify-content: center;
+  }
+}
+
+/* Mobile portrait */
+@media (max-width: 480px) {
+  .content-container {
+    padding: 12px;
+  }
+  
+  .page-title {
+    font-size: 20px;
+  }
+  
+  .modal-container {
+    padding: 16px;
+  }
+  
+  .modal-header h2 {
+    font-size: 1rem;
+  }
+  
+  /* Stack export buttons */
+  .controls-row > button {
+    flex: 1 1 calc(50% - 6px);
+    min-width: 120px;
+  }
+}
+
+/* Print styles */
+@media print {
+  .incident-reports-container {
+    display: block;
+  }
+  
+  .content-container {
+    margin-left: 0;
+    width: 100%;
+    padding: 0;
+  }
+  
+  .controls-row,
+  .admin-table-pagination,
+  .action-icon-button {
+    display: none !important;
+  }
+}

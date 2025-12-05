@@ -392,9 +392,12 @@
 }
 
 /* Mobile Responsiveness - Hide right panel on small screens */
-@media (max-width: 768px) {
+@media (max-width: 1024px) {
   .signup-root {
     flex-direction: column;
+    height: auto;
+    min-height: 100vh;
+    overflow-y: auto;
   }
   .signup-right {
     display: none;
@@ -402,5 +405,39 @@
   .signup-left {
     width: 100%;
     padding: clamp(16px, 4vw, 32px);
+    min-height: 100vh;
+    justify-content: center;
+  }
+  .signup-input {
+    max-width: 100%;
+  }
+  .signup-create-btn,
+  .signup-google-btn {
+    max-width: 100%;
+  }
+  .signup-divider-box {
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 768px) {
+  .signup-left {
+    padding: 20px 16px;
+  }
+  .signup-header {
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+  .signup-logo {
+    width: 44px;
+    height: 44px;
+  }
+  .signup-qr {
+    width: 32px;
+    height: 32px;
+  }
+  .signup-title {
+    font-size: 1.3rem;
+    margin-bottom: 16px;
   }
 }

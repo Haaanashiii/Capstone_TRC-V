@@ -272,6 +272,7 @@ const OperatorHomePage = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeFranchises, setActiveFranchises] = useState([]);
   const [loadingFranchises, setLoadingFranchises] = useState(true);
+  const [openORConfirmModal, setOpenORConfirmModal] = useState(false);
   const navigate = useNavigate();
 
   // Fetch user's active franchises from franchiseInformation collection
@@ -610,7 +611,7 @@ const OperatorHomePage = () => {
     setOrFileInput(null);
   };
 
-  const handleSubmitOR = async () => {
+  const handleSubmitOR = () => {
     if (!orNumberInput.trim() || !orFileInput) {
       Swal.fire({
         ...alertStyle.warningAlert,
@@ -620,7 +621,13 @@ const OperatorHomePage = () => {
       return;
     }
 
+    // Show confirmation modal instead of submitting directly
+    setOpenORConfirmModal(true);
+  };
+
+  const handleConfirmORSubmit = async () => {
     setIsSubmitting(true);
+    setOpenORConfirmModal(false);
 
     try {
       const formData = new FormData();
@@ -654,6 +661,10 @@ const OperatorHomePage = () => {
     }
   };
 
+  const handleCancelORConfirm = () => {
+    setOpenORConfirmModal(false);
+  };
+
 
 
   return (
@@ -670,6 +681,7 @@ const OperatorHomePage = () => {
         flexDirection: 'column',
         alignItems: 'center',
         padding: '24px',
+        paddingTop: '120px',
         maxWidth: '1200px',
         margin: '0 auto',
         width: '100%'
@@ -1560,21 +1572,24 @@ const OperatorHomePage = () => {
         PaperProps={{
           sx: {
             borderRadius: '24px',
-            padding: '32px',
-            maxWidth: '550px'
+            padding: '48px',
+            maxWidth: '500px',
+            boxShadow: '0 20px 60px rgba(23, 77, 122, 0.3)',
+            animation: 'slideUp 0.3s ease-out'
           }
         }}
       >
         <DialogContent sx={{ padding: 0 }}>
           {/* Modal Header */}
-          <Box sx={{ marginBottom: '8px' }}>
+          <Box sx={{ marginBottom: '12px' }}>
             <Typography
               sx={{
                 fontSize: '28px',
                 fontWeight: 700,
-                color: '#000',
+                color: '#0A356B',
                 fontFamily: 'Poppins, sans-serif',
-                marginBottom: '4px'
+                marginBottom: '8px',
+                letterSpacing: '-0.5px'
               }}
             >
               Franchise Link
@@ -1582,9 +1597,9 @@ const OperatorHomePage = () => {
             <Typography
               sx={{
                 fontSize: '14px',
-                color: '#6b7280',
+                color: '#666',
                 fontFamily: 'Poppins, sans-serif',
-                marginBottom: '24px'
+                marginBottom: '32px'
               }}
             >
               Link your existing franchise to TRC-V for easy management of tricycle franchise
@@ -1592,14 +1607,14 @@ const OperatorHomePage = () => {
           </Box>
 
           {/* Franchise Number Input */}
-          <Box sx={{ marginBottom: '24px' }}>
+          <Box sx={{ marginBottom: '32px' }}>
             <Typography
               sx={{
-                fontSize: '16px',
+                fontSize: '15px',
                 fontWeight: 600,
-                color: '#000',
+                color: '#222',
                 fontFamily: 'Poppins, sans-serif',
-                marginBottom: '8px'
+                marginBottom: '10px'
               }}
             >
               Franchise Number
@@ -1620,22 +1635,24 @@ const OperatorHomePage = () => {
               variant="outlined"
               sx={{
                 '& .MuiOutlinedInput-root': {
-                  borderRadius: '8px',
+                  borderRadius: '12px',
                   fontFamily: 'Poppins, sans-serif',
+                  fontSize: '15px',
                   '& fieldset': {
-                    borderColor: '#e5e7eb',
+                    borderColor: '#e0e0e0',
                   },
                   '&:hover fieldset': {
-                    borderColor: '#d1d5db',
+                    borderColor: '#d0d0d0',
                   },
                   '&.Mui-focused fieldset': {
                     borderColor: '#174D7A',
+                    borderWidth: '2px'
                   }
                 }
               }}
             />
             {orWarning && (
-              <Typography sx={{ color: '#b71c1c', fontSize: '14px', marginTop: '4px', fontFamily: 'Poppins, sans-serif' }}>
+              <Typography sx={{ color: '#b71c1c', fontSize: '13px', marginTop: '6px', fontFamily: 'Poppins, sans-serif' }}>
                 ⚠️ {orWarning}
               </Typography>
             )}
@@ -1645,11 +1662,11 @@ const OperatorHomePage = () => {
           <Box sx={{ marginBottom: '32px' }}>
             <Typography
               sx={{
-                fontSize: '16px',
+                fontSize: '15px',
                 fontWeight: 600,
-                color: '#000',
+                color: '#222',
                 fontFamily: 'Poppins, sans-serif',
-                marginBottom: '8px'
+                marginBottom: '10px'
               }}
             >
               Upload MTOF Document
@@ -1658,30 +1675,57 @@ const OperatorHomePage = () => {
             {/* Upload Box */}
             <Box
               sx={{
-                border: '2px dashed #174D7A',
-                borderRadius: '12px',
-                padding: '32px',
+                border: '2.5px dashed #174D7A',
+                borderRadius: '20px',
+                padding: '48px 32px',
                 textAlign: 'center',
-                backgroundColor: '#f9fafb',
+                background: 'linear-gradient(135deg, #f0f7ff 0%, #e8f1ff 100%)',
                 cursor: 'pointer',
                 transition: 'all 0.3s ease',
+                boxShadow: 'inset 0 2px 8px rgba(23, 77, 122, 0.05)',
                 '&:hover': {
-                  backgroundColor: '#f3f4f6',
-                  borderColor: '#0f3a5f'
+                  backgroundColor: 'rgba(224, 242, 255, 0.9)',
+                  borderColor: '#0A356B',
+                  boxShadow: 'inset 0 2px 12px rgba(23, 77, 122, 0.1), 0 4px 12px rgba(23, 77, 122, 0.1)'
                 }
               }}
               onClick={() => document.getElementById('mtop-upload').click()}
             >
-              <CloudUploadIcon sx={{ fontSize: 48, color: '#174D7A', marginBottom: '8px' }} />
+              <svg width="64" height="64" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                  <linearGradient id="iconGrad2" x1="0%" y1="0%" x2="0%" y2="100%">
+                    <stop offset="0%" style={{stopColor: '#174D7A'}} />
+                    <stop offset="100%" style={{stopColor: '#0A356B'}} />
+                  </linearGradient>
+                </defs>
+                {/* Cloud shape */}
+                <path d="M19 13c1.1 0 2-.9 2-2 0-1.05-.84-1.9-1.9-1.95C18.6 5.9 16 3 13 3c-2.5 0-4.6 1.7-5.1 4-.05.02-.1.02-.15.02C5.6 7 4 8.6 4 10.5 4 12.4 5.5 14 7.1 14" stroke="url(#iconGrad2)" strokeWidth="2.2" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+                {/* Upload arrow */}
+                <g stroke="url(#iconGrad2)" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="12" y1="10" x2="12" y2="18" />
+                  <polyline points="9 15 12 18 15 15" />
+                </g>
+              </svg>
               <Typography
                 sx={{
-                  fontSize: '14px',
+                  fontSize: '17px',
                   color: '#174D7A',
                   fontFamily: 'Poppins, sans-serif',
-                  fontWeight: 500
+                  fontWeight: 700,
+                  marginBottom: '6px'
                 }}
               >
                 Browse Files to upload
+              </Typography>
+              <Typography
+                sx={{
+                  fontSize: '13px',
+                  color: '#999',
+                  fontFamily: 'Poppins, sans-serif',
+                  fontWeight: 400
+                }}
+              >
+                or drag and drop
               </Typography>
               <input
                 id="mtop-upload"
@@ -1696,17 +1740,19 @@ const OperatorHomePage = () => {
             <Box
               sx={{
                 marginTop: '12px',
-                padding: '12px 16px',
-                backgroundColor: '#e8f4f8',
-                borderRadius: '8px',
-                textAlign: 'center'
+                padding: '14px 16px',
+                backgroundColor: '#f8f9fa',
+                borderRadius: '12px',
+                textAlign: 'center',
+                border: '1px solid #e0e0e0'
               }}
             >
               <Typography
                 sx={{
-                  fontSize: '14px',
-                  color: '#374151',
-                  fontFamily: 'Poppins, sans-serif'
+                  fontSize: '15px',
+                  color: '#333',
+                  fontFamily: 'Poppins, sans-serif',
+                  fontWeight: 500
                 }}
               >
                 {mtopFile ? mtopFile.name : 'No selected File -'}
@@ -1715,23 +1761,23 @@ const OperatorHomePage = () => {
           </Box>
 
           {/* Action Buttons */}
-          <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center' }}>
+          <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
             <Button
               variant="outlined"
               onClick={() => setShowModal(false)}
               sx={{
-                borderRadius: '8px',
-                padding: '12px 32px',
-                fontSize: '16px',
+                borderRadius: '12px',
+                padding: '12px 28px',
+                fontSize: '15px',
                 fontWeight: 600,
                 fontFamily: 'Poppins, sans-serif',
                 textTransform: 'none',
-                borderColor: '#d1d5db',
-                color: '#6b7280',
-                minWidth: '120px',
+                borderColor: '#e0e0e0',
+                color: '#666',
+                minWidth: '110px',
                 '&:hover': {
-                  borderColor: '#9ca3af',
-                  backgroundColor: '#f9fafb'
+                  borderColor: '#d0d0d0',
+                  backgroundColor: '#f5f5f5'
                 }
               }}
             >
@@ -1741,16 +1787,20 @@ const OperatorHomePage = () => {
               variant="contained"
               onClick={handleSubmitFranchiseLink}
               sx={{
-                borderRadius: '8px',
-                padding: '12px 32px',
-                fontSize: '16px',
+                borderRadius: '12px',
+                padding: '12px 28px',
+                fontSize: '15px',
                 fontWeight: 600,
                 fontFamily: 'Poppins, sans-serif',
                 textTransform: 'none',
                 backgroundColor: '#174D7A',
-                minWidth: '120px',
+                minWidth: '110px',
+                boxShadow: '0 4px 12px rgba(23, 77, 122, 0.3)',
+                transition: 'all 0.2s ease',
                 '&:hover': {
-                  backgroundColor: '#0f3a5f'
+                  backgroundColor: '#0f3a5f',
+                  boxShadow: '0 6px 16px rgba(23, 77, 122, 0.4)',
+                  transform: 'translateY(-1px)'
                 }
               }}
             >
@@ -2104,6 +2154,263 @@ const OperatorHomePage = () => {
                 }}
               >
                 {isSubmitting ? 'Submitting...' : 'Submit OR'}
+              </Button>
+            </Box>
+          </Box>
+        </Box>
+      </Modal>
+
+      {/* OR Confirmation Modal */}
+      <Modal
+        open={openORConfirmModal}
+        onClose={handleCancelORConfirm}
+        aria-labelledby="or-confirm-modal-title"
+      >
+        <Box sx={{
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          width: { xs: 'calc(100vw - 32px)', sm: 500, md: 550 },
+          maxWidth: '550px',
+          maxHeight: { xs: 'calc(100vh - 64px)', sm: '90vh' },
+          overflow: 'auto',
+          bgcolor: 'background.paper',
+          borderRadius: '16px',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.2)'
+        }}>
+          {/* Modal Header */}
+          <Box sx={{ 
+            background: '#174D7A', 
+            padding: { xs: '16px 20px', sm: '24px 32px' },
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center'
+          }}>
+            <Typography id="or-confirm-modal-title" variant="h5" component="h2" sx={{ 
+              color: '#fff', 
+              fontWeight: 700,
+              fontFamily: 'Poppins, sans-serif',
+              fontSize: { xs: '1.25rem', sm: '1.5rem' }
+            }}>
+              Verify Information
+            </Typography>
+            <IconButton 
+              onClick={handleCancelORConfirm}
+              sx={{ 
+                color: '#fff',
+                '&:hover': {
+                  backgroundColor: 'rgba(255,255,255,0.1)'
+                }
+              }}
+            >
+              <CloseIcon />
+            </IconButton>
+          </Box>
+          
+          {/* Modal Body */}
+          <Box sx={{ padding: { xs: '20px', sm: '32px' } }}>
+            {/* Warning Box */}
+            <Box sx={{ 
+              backgroundColor: '#FFF3CD', 
+              padding: '16px', 
+              borderRadius: '8px',
+              marginBottom: '24px',
+              borderLeft: '4px solid #FFC107',
+              display: 'flex',
+              gap: '12px'
+            }}>
+              <Typography sx={{ 
+                color: '#856404',
+                fontSize: '20px',
+                lineHeight: 1
+              }}>
+                ⚠️
+              </Typography>
+              <Typography sx={{ 
+                color: '#856404',
+                fontSize: '14px',
+                fontFamily: 'Poppins, sans-serif',
+                lineHeight: 1.6
+              }}>
+                Please make sure the Official Receipt number you have inputted is correct. Review it carefully before proceeding.
+              </Typography>
+            </Box>
+
+            {/* Application Details */}
+            {selectedAppForOR && (
+              <Box sx={{ 
+                bgcolor: '#e3f2fd', 
+                p: 2, 
+                borderRadius: 1, 
+                mb: 3 
+              }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 1 }}>
+                  Application Details:
+                </Typography>
+                <Typography variant="body2">
+                  Plate Number: {selectedAppForOR.mvPlateNo}
+                </Typography>
+                <Typography variant="body2">
+                  Operator: {selectedAppForOR.operatorName}
+                </Typography>
+              </Box>
+            )}
+
+            {/* OR Number Display */}
+            <Box sx={{ 
+              bgcolor: '#f5f5f5', 
+              p: 3, 
+              borderRadius: '8px',
+              marginBottom: '24px',
+              border: '2px solid #FEDE05'
+            }}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#666', mb: 1 }}>
+                Official Receipt Number:
+              </Typography>
+              <Typography variant="h6" sx={{ 
+                color: '#174D7A', 
+                fontWeight: 700,
+                fontFamily: 'Poppins, sans-serif',
+                fontSize: '18px',
+                wordBreak: 'break-word'
+              }}>
+                {orNumberInput}
+              </Typography>
+            </Box>
+
+            {/* File Info */}
+            {orFileInput && (
+              <Box sx={{ 
+                bgcolor: '#f0f7ff', 
+                p: 2, 
+                borderRadius: '8px',
+                marginBottom: '24px',
+                border: '1px solid #B3E5FC'
+              }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#666', mb: 2 }}>
+                  Official Receipt Document:
+                </Typography>
+                <Typography variant="body2" sx={{ color: '#174D7A', mb: 2 }}>
+                  ✓ {orFileInput.name}
+                </Typography>
+                
+                {/* Document Preview */}
+                <Box sx={{ 
+                  bgcolor: '#fff', 
+                  p: 2, 
+                  borderRadius: '8px',
+                  border: '1px solid #E0E0E0',
+                  overflow: 'hidden'
+                }}>
+                  {orFileInput.type.startsWith('image/') ? (
+                    // Image Preview
+                    <img 
+                      src={URL.createObjectURL(orFileInput)} 
+                      alt="OR Preview"
+                      style={{
+                        width: '100%',
+                        maxHeight: '400px',
+                        borderRadius: '4px',
+                        objectFit: 'contain'
+                      }}
+                    />
+                  ) : orFileInput.type === 'application/pdf' ? (
+                    // PDF Preview - Embedded iframe (view only, no download)
+                    <iframe
+                      src={`${URL.createObjectURL(orFileInput)}#toolbar=0&navpanes=0&scrollbar=0`}
+                      type="application/pdf"
+                      width="100%"
+                      height="400px"
+                      style={{ borderRadius: '4px', border: 'none' }}
+                      title="OR PDF Preview"
+                    />
+                  ) : (
+                    // Unsupported format
+                    <Box sx={{ textAlign: 'center', py: 4 }}>
+                      <Typography sx={{ fontSize: '48px', mb: 1 }}>📁</Typography>
+                      <Typography variant="body2" sx={{ color: '#666' }}>
+                        {orFileInput.name}
+                      </Typography>
+                    </Box>
+                  )}
+                </Box>
+              </Box>
+            )}
+
+            {/* Confirmation Question */}
+            <Box sx={{ 
+              backgroundColor: '#e8f5e9', 
+              padding: '16px', 
+              borderRadius: '8px',
+              marginBottom: '24px',
+              borderLeft: '4px solid #4CAF50'
+            }}>
+              <Typography sx={{ 
+                color: '#2e7d32',
+                fontSize: '14px',
+                fontFamily: 'Poppins, sans-serif',
+                fontWeight: 600,
+                lineHeight: 1.6
+              }}>
+                Is the information above correct?
+              </Typography>
+            </Box>
+            
+            {/* Action Buttons */}
+            <Box sx={{ 
+              display: 'flex', 
+              flexDirection: { xs: 'column', sm: 'row' },
+              gap: '12px', 
+              marginTop: '24px' 
+            }}>
+              <Button
+                onClick={handleCancelORConfirm}
+                disabled={isSubmitting}
+                sx={{
+                  flex: 1,
+                  backgroundColor: '#f44336',
+                  color: '#fff',
+                  padding: '12px',
+                  borderRadius: '8px',
+                  fontWeight: 600,
+                  fontFamily: 'Poppins, sans-serif',
+                  textTransform: 'none',
+                  minHeight: '48px',
+                  '&:hover': {
+                    backgroundColor: '#d32f2f'
+                  },
+                  '&:disabled': {
+                    backgroundColor: '#f0f0f0',
+                    color: '#999'
+                  }
+                }}
+              >
+                No, Edit OR Number
+              </Button>
+              <Button
+                onClick={handleConfirmORSubmit}
+                disabled={isSubmitting}
+                sx={{
+                  flex: 1,
+                  backgroundColor: '#4CAF50',
+                  color: '#fff',
+                  padding: '12px',
+                  borderRadius: '8px',
+                  fontWeight: 600,
+                  fontFamily: 'Poppins, sans-serif',
+                  textTransform: 'none',
+                  minHeight: '48px',
+                  '&:hover': {
+                    backgroundColor: '#388E3C'
+                  },
+                  '&:disabled': {
+                    backgroundColor: '#f0f0f0',
+                    color: '#999'
+                  }
+                }}
+              >
+                {isSubmitting ? 'Submitting...' : 'Yes, It\'s Correct'}
               </Button>
             </Box>
           </Box>

@@ -254,3 +254,66 @@ exports.getAnalytics = async (req, res, next) => {
     next(error);
   }
 };
+
+/**
+ * Get franchises expiring in a specific month
+ * @param {number} month - Month (1-12)
+ * @param {number} year - Year (e.g., 2025)
+ */
+exports.getExpiringFranchises = async (req, res, next) => {
+  try {
+    const { month, year } = req.query;
+    
+    // Validate parameters
+    const monthNum = parseInt(month, 10);
+    const yearNum = parseInt(year, 10);
+    
+    if (isNaN(monthNum) || monthNum < 1 || monthNum > 12) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid month parameter. Must be between 1 and 12.'
+      });
+    }
+    
+    if (isNaN(yearNum) || yearNum < 2000 || yearNum > 2100) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid year parameter.'
+      });
+    }
+    
+    // Create date range for the specified month
+    const startDate = new Date(yearNum, monthNum - 1, 1);
+    const endDate = new Date(yearNum, monthNum, 0, 23, 59, 59, 999);
+    
+    console.log(`[Dashboard] Fetching expiring franchises for ${monthNum}/${yearNum}`);
+    console.log(`[Dashboard] Date range: ${startDate.toISOString()} to ${endDate.toISOString()}`);
+    
+    // Find franchises expiring in the specified month
+    const expiringFranchises = await FranchiseInformation.find({
+      isCurrentVersion: true,
+      expiryDate: {
+        $gte: startDate,
+        $lte: endDate
+      }
+    })
+    .select('franchiseNumber operatorName operatorContactNumber operatorBarangay expiryDate franchiseStatus')
+    .sort({ expiryDate: 1 })
+    .lean();
+    
+    console.log(`[Dashboard] Found ${expiringFranchises.length} expiring franchises`);
+    
+    res.status(200).json({
+      success: true,
+      data: expiringFranchises,
+      count: expiringFranchises.length,
+      dateRange: {
+        start: startDate.toISOString(),
+        end: endDate.toISOString()
+      }
+    });
+  } catch (error) {
+    console.error('[Dashboard] Error fetching expiring franchises:', error);
+    next(error);
+  }
+};

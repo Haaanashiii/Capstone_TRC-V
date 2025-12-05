@@ -9,9 +9,18 @@ import {
   Dialog,
   DialogContent,
   IconButton,
-  TextField
+  TextField,
+  FormControlLabel,
+  Checkbox,
+  MenuItem,
+  Select,
+  Stepper,
+  Step,
+  StepLabel
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked';
 import dayjs from 'dayjs';
 import swal from '../../utils/sweetAlert';
 import SBFareImage from '../../assets/SB Fare.jpeg';
@@ -24,8 +33,12 @@ function QROperatorID() {
   const [loading, setLoading] = useState(true);
   const [fareMatrixOpen, setFareMatrixOpen] = useState(false);
   const [reportModalOpen, setReportModalOpen] = useState(false);
+  const [reportStep, setReportStep] = useState(0); // 0: Category, 1: Details, 2: Terms & Conditions
   const [submittingReport, setSubmittingReport] = useState(false);
   const [reportSuccess, setReportSuccess] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState('');
+  const [agreeTerms, setAgreeTerms] = useState(false);
+  const [agreePrivacy, setAgreePrivacy] = useState(false);
   const [reportData, setReportData] = useState({
     fullName: '',
     contactNumber: '',
@@ -33,6 +46,15 @@ function QROperatorID() {
     expectedFare: '',
     description: ''
   });
+
+  const reportCategories = [
+    { value: 'fare-issues', label: 'Fare-Related Issues', example: 'ex.: fare overpricing' },
+    { value: 'driver-conduct', label: 'Driver Conduct & Behavior', example: 'ex.: rude behavior, refusal to convey' },
+    { value: 'vehicle-condition', label: 'Vehicle Condition & Roadworthiness', example: 'ex.: smoke belching' },
+    { value: 'franchise-violations', label: 'Franchise & Permit Violations', example: 'ex.: colorum, expired franchise' },
+    { value: 'safety-violations', label: 'Safety Violations', example: 'ex.: overloading, traffic violation' },
+    { value: 'other-concerns', label: 'Other Concerns', example: 'ex.: lost item' }
+  ];
 
   // Fetch franchise info by hashed MTOP (operatorId)
   useEffect(() => {
@@ -520,7 +542,7 @@ function QROperatorID() {
           </Box>
 
           {/* Action Buttons */}
-          <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center', px: 2 }}>
+          <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center', px: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
             <Button
               fullWidth
               variant="contained"
@@ -529,16 +551,31 @@ function QROperatorID() {
                 color: 'black',
                 fontWeight: 'bold',
                 textTransform: 'none',
-                py: 1.5,
-                fontSize: { xs: '0.75rem', sm: '0.85rem' },
+                py: { xs: 3.5, sm: 2 },
+                fontSize: { xs: '1.15rem', sm: '1rem' },
                 boxShadow: 2,
+                letterSpacing: '0.5px',
                 '&:hover': {
                   bgcolor: '#FFB300'
                 }
               }}
-              onClick={() => setReportModalOpen(true)}
+              onClick={() => {
+                setReportStep(0);
+                setSelectedCategory('');
+                setReportData({
+                  fullName: '',
+                  contactNumber: '',
+                  amountCharged: '',
+                  expectedFare: '',
+                  description: ''
+                });
+                setAgreeTerms(false);
+                setAgreePrivacy(false);
+                setReportSuccess(false);
+                setReportModalOpen(true);
+              }}
             >
-              REPORT OVERPRICING
+              REPORT INCIDENT
             </Button>
             <Button
               fullWidth
@@ -548,9 +585,10 @@ function QROperatorID() {
                 color: 'white',
                 fontWeight: 'bold',
                 textTransform: 'none',
-                py: 1.5,
-                fontSize: { xs: '0.75rem', sm: '0.85rem' },
+                py: { xs: 3.5, sm: 2 },
+                fontSize: { xs: '1.15rem', sm: '1rem' },
                 boxShadow: 2,
+                letterSpacing: '0.5px',
                 '&:hover': {
                   bgcolor: '#002850'
                 }
@@ -565,7 +603,7 @@ function QROperatorID() {
         </Box>
       </Box>
 
-      {/* Report Overpricing Modal */}
+      {/* Report Incident Modal - Multi-Step */}
       <Dialog
         open={reportModalOpen}
         onClose={() => setReportModalOpen(false)}
@@ -592,273 +630,541 @@ function QROperatorID() {
             <CloseIcon />
           </IconButton>
           <DialogContent sx={{ p: 4, pt: 3 }}>
-            <Typography variant="h5" sx={{ fontWeight: 'bold', mb: 1 }}>
-              Report Overpricing
-            </Typography>
-            <Typography variant="body2" sx={{ mb: 3, color: 'text.secondary' }}>
-              Help maintain fair fare practices in Solano. Please provide accurate details of your overpricing experience.
-            </Typography>
-
-            {/* HIDDEN HONEYPOT FIELDS - for bot detection */}
-            <TextField
-              id="honeypot_email"
-              type="email"
-              placeholder="Leave blank"
-              sx={{ 
-                display: 'none'
-              }}
-              tabIndex="-1"
-              autoComplete="off"
-            />
-            <TextField
-              id="honeypot_phone"
-              type="tel"
-              placeholder="Leave blank"
-              sx={{ 
-                display: 'none'
-              }}
-              tabIndex="-1"
-              autoComplete="off"
-            />
-
-            {/* Your Contact Information */}
-            <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 2 }}>
-              Your Contact Information
-            </Typography>
-
-            <TextField
-              fullWidth
-              label="Full Name"
-              value={reportData.fullName}
-              onChange={(e) => setReportData({ ...reportData, fullName: e.target.value })}
-              inputProps={{ maxLength: 100 }}
-              sx={{ mb: 2 }}
-            />
-
-            <TextField
-              fullWidth
-              label="Contact Number"
-              placeholder="09123456789"
-              value={reportData.contactNumber}
-              onChange={(e) => setReportData({ ...reportData, contactNumber: e.target.value })}
-              inputProps={{ maxLength: 20 }}
-              sx={{ mb: 3 }}
-            />
-
-            {/* Report Details */}
-            <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 2 }}>
-              Report Details
-            </Typography>
-
-            <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
-              <Box sx={{ flex: 1 }}>
-                <Typography variant="caption" sx={{ color: 'text.secondary', mb: 0.5, display: 'block' }}>
-                  Amount Charged
+            
+            {/* Step 1: Select Incident Category */}
+            {reportStep === 0 && (
+              <Box>
+                <Typography variant="h5" sx={{ fontWeight: 'bold', mb: 1, color: '#083d77' }}>
+                  Report an Incident
                 </Typography>
+                <Typography variant="body2" sx={{ mb: 4, color: 'text.secondary' }}>
+                  What type of incident are you reporting? Please select the category that best describes your concern.
+                </Typography>
+
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                  {reportCategories.map((category) => (
+                    <Box
+                      key={category.value}
+                      onClick={() => setSelectedCategory(category.value)}
+                      sx={{
+                        p: 2,
+                        border: '2px solid',
+                        borderColor: selectedCategory === category.value ? '#083d77' : '#E0E0E0',
+                        borderRadius: '8px',
+                        cursor: 'pointer',
+                        transition: 'all 0.3s ease',
+                        bgcolor: selectedCategory === category.value ? 'rgba(8, 61, 119, 0.05)' : 'white',
+                        '&:hover': {
+                          borderColor: '#083d77',
+                          bgcolor: 'rgba(8, 61, 119, 0.03)',
+                          transform: 'translateX(4px)'
+                        },
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 2
+                      }}
+                    >
+                      <Box sx={{ fontSize: '1.5rem' }}>
+                        {selectedCategory === category.value ? (
+                          <CheckCircleIcon sx={{ color: '#083d77', fontSize: '1.5rem' }} />
+                        ) : (
+                          <RadioButtonUncheckedIcon sx={{ color: '#BDBDBD', fontSize: '1.5rem' }} />
+                        )}
+                      </Box>
+                      <Box sx={{ flex: 1 }}>
+                        <Typography sx={{ fontWeight: 'bold', color: '#000', fontSize: '0.95rem' }}>
+                          {category.label}
+                        </Typography>
+                        <Typography sx={{ color: 'text.secondary', fontSize: '0.85rem' }}>
+                          {category.example}
+                        </Typography>
+                      </Box>
+                    </Box>
+                  ))}
+                </Box>
+
+                <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end', mt: 4, flexDirection: { xs: 'column', sm: 'row' } }}>
+                  <Button
+                    variant="contained"
+                    onClick={() => setReportModalOpen(false)}
+                    sx={{
+                      bgcolor: '#9E9E9E',
+                      color: 'white',
+                      textTransform: 'none',
+                      px: { xs: 3, sm: 4 },
+                      py: { xs: 2, sm: 1.2 },
+                      fontSize: { xs: '1rem', sm: '0.95rem' },
+                      fontWeight: 'bold',
+                      '&:hover': {
+                        bgcolor: '#757575'
+                      }
+                    }}
+                  >
+                    CANCEL
+                  </Button>
+                  <Button
+                    variant="contained"
+                    disabled={!selectedCategory}
+                    onClick={() => setReportStep(1)}
+                    sx={{
+                      bgcolor: selectedCategory ? '#083d77' : '#BDBDBD',
+                      color: 'white',
+                      textTransform: 'none',
+                      px: { xs: 3, sm: 4 },
+                      py: { xs: 2, sm: 1.2 },
+                      fontSize: { xs: '1rem', sm: '0.95rem' },
+                      fontWeight: 'bold',
+                      '&:hover': {
+                        bgcolor: selectedCategory ? '#062847' : '#BDBDBD'
+                      }
+                    }}
+                  >
+                    NEXT
+                  </Button>
+                </Box>
+              </Box>
+            )}
+
+            {/* Step 2: Fill in Report Details */}
+            {reportStep === 1 && (
+              <Box>
+                <Typography variant="h5" sx={{ fontWeight: 'bold', mb: 1, color: '#083d77' }}>
+                  Report Details
+                </Typography>
+                <Typography variant="body2" sx={{ mb: 3, color: 'text.secondary' }}>
+                  Please provide information about your incident. The more details you share, the better we can help.
+                </Typography>
+
+                {/* HIDDEN HONEYPOT FIELDS */}
+                <TextField
+                  id="honeypot_email"
+                  type="email"
+                  placeholder="Leave blank"
+                  sx={{ display: 'none' }}
+                  tabIndex="-1"
+                  autoComplete="off"
+                />
+                <TextField
+                  id="honeypot_phone"
+                  type="tel"
+                  placeholder="Leave blank"
+                  sx={{ display: 'none' }}
+                  tabIndex="-1"
+                  autoComplete="off"
+                />
+
+                <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 2, color: '#000' }}>
+                  Your Contact Information
+                </Typography>
+
                 <TextField
                   fullWidth
-                  value={reportData.amountCharged}
-                  onChange={(e) => setReportData({ ...reportData, amountCharged: e.target.value })}
-                  InputProps={{
-                    startAdornment: (
-                      <Typography sx={{ color: 'text.primary', mr: 1, fontWeight: 500 }}>
-                        ₱
-                      </Typography>
-                    ),
-                  }}
-                  sx={{
+                  label="Name (Optional)"
+                  placeholder="Your name (optional)"
+                  value={reportData.fullName}
+                  onChange={(e) => setReportData({ ...reportData, fullName: e.target.value })}
+                  inputProps={{ maxLength: 100 }}
+                  sx={{ 
+                    mb: 2,
                     '& .MuiOutlinedInput-root': {
-                      '& input': {
-                        pl: 0
-                      }
+                      padding: { xs: '16px 14px', sm: '8px 14px' }
+                    },
+                    '& .MuiInputBase-input': {
+                      fontSize: { xs: '1rem', sm: '0.875rem' }
                     }
                   }}
                 />
-              </Box>
-              <Box sx={{ flex: 1 }}>
-                <Typography variant="caption" sx={{ color: 'text.secondary', mb: 0.5, display: 'block' }}>
-                  Expected Fare
-                </Typography>
+
                 <TextField
                   fullWidth
-                  value={reportData.expectedFare}
-                  onChange={(e) => setReportData({ ...reportData, expectedFare: e.target.value })}
-                  InputProps={{
-                    startAdornment: (
-                      <Typography sx={{ color: 'text.primary', mr: 1, fontWeight: 500 }}>
-                        ₱
-                      </Typography>
-                    ),
-                  }}
-                  sx={{
+                  label="Contact Number *"
+                  placeholder="09123456789"
+                  value={reportData.contactNumber}
+                  onChange={(e) => setReportData({ ...reportData, contactNumber: e.target.value })}
+                  inputProps={{ maxLength: 20 }}
+                  sx={{ 
+                    mb: 3,
                     '& .MuiOutlinedInput-root': {
-                      '& input': {
-                        pl: 0
-                      }
+                      padding: { xs: '16px 14px', sm: '8px 14px' }
+                    },
+                    '& .MuiInputBase-input': {
+                      fontSize: { xs: '1rem', sm: '0.875rem' }
                     }
                   }}
                 />
+
+                <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 2, color: '#000' }}>
+                  Incident Details
+                </Typography>
+
+                {selectedCategory === 'fare-issues' && (
+                  <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
+                    <Box sx={{ flex: 1 }}>
+                      <Typography variant="caption" sx={{ color: 'text.secondary', mb: 0.5, display: 'block' }}>
+                        Amount Charged
+                      </Typography>
+                      <TextField
+                        fullWidth
+                        value={reportData.amountCharged}
+                        onChange={(e) => setReportData({ ...reportData, amountCharged: e.target.value })}
+                        InputProps={{
+                          startAdornment: (
+                            <Typography sx={{ color: 'text.primary', mr: 1, fontWeight: 500 }}>
+                              ₱
+                            </Typography>
+                          ),
+                        }}
+                        sx={{
+                          '& .MuiOutlinedInput-root': {
+                            '& input': {
+                              pl: 0
+                            }
+                          }
+                        }}
+                      />
+                    </Box>
+                    <Box sx={{ flex: 1 }}>
+                      <Typography variant="caption" sx={{ color: 'text.secondary', mb: 0.5, display: 'block' }}>
+                        Expected Fare
+                      </Typography>
+                      <TextField
+                        fullWidth
+                        value={reportData.expectedFare}
+                        onChange={(e) => setReportData({ ...reportData, expectedFare: e.target.value })}
+                        InputProps={{
+                          startAdornment: (
+                            <Typography sx={{ color: 'text.primary', mr: 1, fontWeight: 500 }}>
+                              ₱
+                            </Typography>
+                          ),
+                        }}
+                        sx={{
+                          '& .MuiOutlinedInput-root': {
+                            '& input': {
+                              pl: 0
+                            }
+                          }
+                        }}
+                      />
+                    </Box>
+                  </Box>
+                )}
+
+                <TextField
+                  fullWidth
+                  label="Brief description of what happened *"
+                  placeholder="Tell us briefly what happened..."
+                  value={reportData.description}
+                  onChange={(e) => setReportData({ ...reportData, description: e.target.value })}
+                  multiline
+                  rows={4}
+                  inputProps={{ maxLength: 1000 }}
+                  helperText={`${reportData.description.length}/1000 characters`}
+                  sx={{ 
+                    mb: 4,
+                    '& .MuiOutlinedInput-root': {
+                      padding: { xs: '12px 14px', sm: '8px 14px' }
+                    },
+                    '& .MuiInputBase-input': {
+                      fontSize: { xs: '1rem', sm: '0.875rem' }
+                    }
+                  }}
+                />
+
+                <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end', flexDirection: { xs: 'column', sm: 'row' }, mt: 2 }}>
+                  <Button
+                    variant="contained"
+                    onClick={() => setReportStep(0)}
+                    sx={{
+                      bgcolor: '#083d77',
+                      color: 'white',
+                      textTransform: 'none',
+                      px: { xs: 3, sm: 4 },
+                      py: { xs: 2, sm: 1.2 },
+                      fontSize: { xs: '1rem', sm: '0.95rem' },
+                      fontWeight: 'bold',
+                      cursor: 'pointer',
+                      '&:hover': {
+                        bgcolor: '#062847'
+                      }
+                    }}
+                  >
+                    BACK
+                  </Button>
+                  <Button
+                    variant="contained"
+                    disabled={!reportData.contactNumber || !reportData.description}
+                    onClick={() => setReportStep(2)}
+                    sx={{
+                      bgcolor: (reportData.contactNumber && reportData.description) ? '#FFC107' : '#BDBDBD',
+                      color: (reportData.contactNumber && reportData.description) ? 'black' : 'white',
+                      textTransform: 'none',
+                      px: { xs: 3, sm: 4 },
+                      py: { xs: 2, sm: 1.2 },
+                      fontSize: { xs: '1rem', sm: '0.95rem' },
+                      fontWeight: 'bold',
+                      '&:hover': {
+                        bgcolor: (reportData.contactNumber && reportData.description) ? '#FFB300' : '#BDBDBD'
+                      }
+                    }}
+                  >
+                    NEXT
+                  </Button>
+                </Box>
               </Box>
-            </Box>
+            )}
 
-            <TextField
-              fullWidth
-              label="Description"
-              value={reportData.description}
-              onChange={(e) => setReportData({ ...reportData, description: e.target.value })}
-              multiline
-              rows={4}
-              inputProps={{ maxLength: 1000 }}
-              helperText={`${reportData.description.length}/1000 characters`}
-              sx={{ mb: 3 }}
-            />
+            {/* Step 3: Terms & Conditions */}
+            {reportStep === 2 && !reportSuccess && (
+              <Box>
+                <Typography variant="h5" sx={{ fontWeight: 'bold', mb: 1, color: '#083d77' }}>
+                  Terms & Conditions
+                </Typography>
+                <Typography variant="body2" sx={{ mb: 3, color: 'text.secondary' }}>
+                  Please review and accept our terms and privacy policy before submitting your report.
+                </Typography>
 
-            {/* Action Buttons */}
-            <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
-              <Button
-                variant="contained"
-                onClick={() => setReportModalOpen(false)}
-                sx={{
-                  bgcolor: '#9E9E9E',
-                  color: 'white',
-                  textTransform: 'none',
-                  px: 4,
-                  py: 1.5,
-                  fontWeight: 'bold',
-                  '&:hover': {
-                    bgcolor: '#757575'
-                  }
-                }}
-              >
-                CANCEL
-              </Button>
-              <Button
-                variant="contained"
-                disabled={submittingReport}
-                onClick={async () => {
-                  // ANTI-BOT: Check honeypot fields (should remain empty)
-                  const honeypotEmail = document.getElementById('honeypot_email')?.value;
-                  const honeypotPhone = document.getElementById('honeypot_phone')?.value;
-                  
-                  if (honeypotEmail || honeypotPhone) {
-                    console.warn('[FRAUD] Honeypot triggered - suspected bot submission');
-                    // Silently fail to confuse attackers
-                    swal.success('Thank you! Your report has been submitted.');
-                    setReportModalOpen(false);
-                    return;
-                  }
+                <Box
+                  sx={{
+                    bgcolor: '#f5f5f5',
+                    border: '2px solid #083d77',
+                    borderRadius: '8px',
+                    p: 2.5,
+                    mb: 2,
+                    maxHeight: '280px',
+                    overflowY: 'auto',
+                    '&::-webkit-scrollbar': {
+                      width: '8px'
+                    },
+                    '&::-webkit-scrollbar-track': {
+                      backgroundColor: '#f1f1f1',
+                      borderRadius: '8px'
+                    },
+                    '&::-webkit-scrollbar-thumb': {
+                      backgroundColor: '#083d77',
+                      borderRadius: '8px',
+                      '&:hover': {
+                        backgroundColor: '#062847'
+                      }
+                    }
+                  }}
+                >
+                  <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 1.5, color: '#083d77', fontSize: '1rem' }}>
+                    Terms of Service
+                  </Typography>
+                  <Typography variant="body2" sx={{ color: '#333', lineHeight: 1.7, mb: 2.5, fontSize: '0.9rem' }}>
+                    By submitting this report, you confirm that all information provided is accurate and truthful to the best of your knowledge. 
+                    False or malicious reports may result in legal consequences. This report will be used solely for regulatory and quality assurance purposes 
+                    by the Municipality of Solano Transportation Regulatory Commission. We appreciate your cooperation in maintaining service quality.
+                  </Typography>
 
-                  // Validate all fields
-                  if (!reportData.fullName || !reportData.contactNumber || 
-                      !reportData.amountCharged || !reportData.expectedFare || 
-                      !reportData.description) {
-                    swal.warning('Please fill in all fields');
-                    return;
-                  }
+                  <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 1.5, color: '#083d77', fontSize: '1rem', mt: 2.5 }}>
+                    Privacy Policy
+                  </Typography>
+                  <Typography variant="body2" sx={{ color: '#333', lineHeight: 1.7, fontSize: '0.9rem' }}>
+                    Your personal information will be kept confidential and used only for investigating your report. 
+                    We will not share your contact details with unauthorized parties. Your data is protected under applicable data privacy laws and regulations. 
+                    All reports are treated with strict confidentiality and are accessible only to authorized personnel.
+                  </Typography>
+                </Box>
 
-                  // Validate name format
-                  if (!/^[a-zA-Z\s\-.']+$/.test(reportData.fullName)) {
-                    swal.warning('Please enter a valid name (letters only)');
-                    return;
-                  }
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, mb: 3 }}>
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={agreeTerms}
+                        onChange={(e) => setAgreeTerms(e.target.checked)}
+                        sx={{
+                          color: '#083d77',
+                          '&.Mui-checked': {
+                            color: '#083d77'
+                          }
+                        }}
+                      />
+                    }
+                    label={
+                      <Typography sx={{ color: '#000', fontSize: '0.9rem' }}>
+                        I agree to the Terms of Service
+                      </Typography>
+                    }
+                  />
 
-                  // Validate phone number (Philippine format)
-                  const phoneClean = reportData.contactNumber.replace(/[\s\-]/g, '');
-                  if (!/^(\+63|0)?9\d{9}$/.test(phoneClean)) {
-                    swal.warning('Please enter a valid Philippine mobile number (e.g., 09123456789)');
-                    return;
-                  }
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={agreePrivacy}
+                        onChange={(e) => setAgreePrivacy(e.target.checked)}
+                        sx={{
+                          color: '#083d77',
+                          '&.Mui-checked': {
+                            color: '#083d77'
+                          }
+                        }}
+                      />
+                    }
+                    label={
+                      <Typography sx={{ color: '#000', fontSize: '0.9rem' }}>
+                        I agree to the Privacy Policy
+                      </Typography>
+                    }
+                  />
+                </Box>
 
-                  // Validate amounts are positive numbers
-                  const charged = parseFloat(reportData.amountCharged);
-                  const expected = parseFloat(reportData.expectedFare);
-
-                  if (isNaN(charged) || charged <= 0 || charged > 10000) {
-                    swal.warning('Please enter a valid amount charged (1-10000)');
-                    return;
-                  }
-
-                  if (isNaN(expected) || expected <= 0 || expected > 10000) {
-                    swal.warning('Please enter a valid expected fare (1-10000)');
-                    return;
-                  }
-
-                  // Validate that it's actually overpricing
-                  if (charged <= expected) {
-                    swal.warning('Amount charged must be higher than expected fare to report overpricing');
-                    return;
-                  }
-
-                  // Validate description length
-                  if (reportData.description.length > 1000) {
-                    swal.warning('Description is too long (max 1000 characters)');
-                    return;
-                  }
-
-                  setSubmittingReport(true);
-
-                  try {
-                    const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170';
-                    const response = await fetch(`${API_BASE_URL}/api/reports/public`, {
-                      method: 'POST',
-                      headers: {
-                        'Content-Type': 'application/json'
-                      },
-                      body: JSON.stringify({
-                        operatorId: storedOperatorId,
-                        fullName: reportData.fullName.trim(),
-                        contactNumber: reportData.contactNumber.trim(),
-                        amountCharged: parseFloat(reportData.amountCharged),
-                        expectedFare: parseFloat(reportData.expectedFare),
-                        description: reportData.description.trim()
-                      })
-                    });
-
-                    const result = await response.json();
-
-                    if (response.ok && result.success) {
-                      setReportSuccess(true);
-                      swal.success('Thank you! Your report has been submitted successfully.');
-                      setTimeout(() => {
+                <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end', flexDirection: { xs: 'column', sm: 'row' } }}>
+                  <Button
+                    variant="contained"
+                    onClick={() => setReportStep(1)}
+                    sx={{
+                      bgcolor: '#083d77',
+                      color: 'white',
+                      textTransform: 'none',
+                      px: { xs: 3, sm: 4 },
+                      py: { xs: 2, sm: 1.2 },
+                      fontSize: { xs: '1rem', sm: '0.95rem' },
+                      fontWeight: 'bold',
+                      cursor: 'pointer',
+                      '&:hover': {
+                        bgcolor: '#062847'
+                      }
+                    }}
+                  >
+                    BACK
+                  </Button>
+                  <Button
+                    variant="contained"
+                    disabled={!agreeTerms || !agreePrivacy || submittingReport}
+                    onClick={async () => {
+                      // ANTI-BOT: Check honeypot fields
+                      const honeypotEmail = document.getElementById('honeypot_email')?.value;
+                      const honeypotPhone = document.getElementById('honeypot_phone')?.value;
+                      
+                      if (honeypotEmail || honeypotPhone) {
+                        console.warn('[FRAUD] Honeypot triggered');
+                        swal.success('Thank you! Your report has been submitted.');
                         setReportModalOpen(false);
-                        setReportSuccess(false);
-                        setReportData({
-                          fullName: '',
-                          contactNumber: '',
-                          amountCharged: '',
-                          expectedFare: '',
-                          description: ''
+                        return;
+                      }
+
+                      // Validate name format (if provided)
+                      if (reportData.fullName && !/^[a-zA-Z\s\-.']+$/.test(reportData.fullName)) {
+                        swal.warning('Please enter a valid name (letters only)');
+                        return;
+                      }
+
+                      // Validate phone number
+                      const phoneClean = reportData.contactNumber.replace(/[\s\-]/g, '');
+                      if (!/^(\+63|0)?9\d{9}$/.test(phoneClean)) {
+                        swal.warning('Please enter a valid Philippine mobile number (e.g., 09123456789)');
+                        return;
+                      }
+
+                      // Validate fare amounts if fare-related
+                      if (selectedCategory === 'fare-issues') {
+                        const charged = parseFloat(reportData.amountCharged);
+                        const expected = parseFloat(reportData.expectedFare);
+
+                        if (isNaN(charged) || charged <= 0 || charged > 10000) {
+                          swal.warning('Please enter a valid amount charged (1-10000)');
+                          return;
+                        }
+
+                        if (isNaN(expected) || expected <= 0 || expected > 10000) {
+                          swal.warning('Please enter a valid expected fare (1-10000)');
+                          return;
+                        }
+
+                        if (charged <= expected) {
+                          swal.warning('Amount charged must be higher than expected fare');
+                          return;
+                        }
+                      }
+
+                      setSubmittingReport(true);
+
+                      try {
+                        const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170';
+                        const payload = {
+                          operatorId: storedOperatorId,
+                          category: selectedCategory,
+                          fullName: reportData.fullName.trim(),
+                          contactNumber: reportData.contactNumber.trim(),
+                          description: reportData.description.trim()
+                        };
+
+                        if (selectedCategory === 'fare-issues') {
+                          payload.amountCharged = parseFloat(reportData.amountCharged);
+                          payload.expectedFare = parseFloat(reportData.expectedFare);
+                        }
+
+                        const response = await fetch(`${API_BASE_URL}/api/reports/public`, {
+                          method: 'POST',
+                          headers: {
+                            'Content-Type': 'application/json'
+                          },
+                          body: JSON.stringify(payload)
                         });
-                      }, 2000);
-                    } else {
-                      swal.error(result.error || 'Failed to submit report. Please try again.');
-                    }
-                  } catch (error) {
-                    console.error('Error submitting report:', error);
-                    swal.error('Failed to submit report. Please check your connection and try again.');
-                  } finally {
-                    setSubmittingReport(false);
-                  }
-                }}
-                sx={{
-                  bgcolor: reportSuccess ? '#4CAF50' : '#FFA726',
-                  color: 'white',
-                  textTransform: 'none',
-                  px: 4,
-                  py: 1.5,
-                  fontWeight: 'bold',
-                  '&:hover': {
-                    bgcolor: reportSuccess ? '#45a049' : '#FF9800'
-                  },
-                  '&:disabled': {
-                    bgcolor: '#BDBDBD',
-                    color: 'white'
-                  }
-                }}
-              >
-                {submittingReport ? 'SUBMITTING...' : reportSuccess ? '✓ SUBMITTED' : 'SUBMIT'}
-              </Button>
-            </Box>
+
+                        const result = await response.json();
+
+                        if (response.ok && result.success) {
+                          setReportSuccess(true);
+                          swal.success('Thank you! Your report has been submitted successfully.');
+                          setTimeout(() => {
+                            setReportModalOpen(false);
+                            setReportSuccess(false);
+                            setReportStep(0);
+                            setSelectedCategory('');
+                            setAgreeTerms(false);
+                            setAgreePrivacy(false);
+                            setReportData({
+                              fullName: '',
+                              contactNumber: '',
+                              amountCharged: '',
+                              expectedFare: '',
+                              description: ''
+                            });
+                          }, 2000);
+                        } else {
+                          swal.error(result.error || 'Failed to submit report. Please try again.');
+                        }
+                      } catch (error) {
+                        console.error('Error submitting report:', error);
+                        swal.error('Failed to submit report. Please check your connection and try again.');
+                      } finally {
+                        setSubmittingReport(false);
+                      }
+                    }}
+                    sx={{
+                      bgcolor: (agreeTerms && agreePrivacy) ? '#4CAF50' : '#BDBDBD',
+                      color: 'white',
+                      textTransform: 'none',
+                      px: { xs: 3, sm: 4 },
+                      py: { xs: 2, sm: 1.2 },
+                      fontSize: { xs: '1rem', sm: '0.95rem' },
+                      fontWeight: 'bold',
+                      '&:hover': {
+                        bgcolor: (agreeTerms && agreePrivacy) ? '#45a049' : '#BDBDBD'
+                      }
+                    }}
+                  >
+                    {submittingReport ? 'SUBMITTING...' : 'SUBMIT REPORT'}
+                  </Button>
+                </Box>
+              </Box>
+            )}
+
+            {/* Success State */}
+            {reportStep === 2 && reportSuccess && (
+              <Box sx={{ textAlign: 'center', py: 3 }}>
+                <CheckCircleIcon sx={{ fontSize: '4rem', color: '#4CAF50', mb: 2 }} />
+                <Typography variant="h5" sx={{ fontWeight: 'bold', mb: 1, color: '#4CAF50' }}>
+                  Report Submitted Successfully!
+                </Typography>
+                <Typography variant="body2" sx={{ color: 'text.secondary', mb: 3 }}>
+                  Thank you for helping us maintain service quality in Solano. Your report has been recorded and will be investigated.
+                </Typography>
+              </Box>
+            )}
           </DialogContent>
         </Box>
       </Dialog>

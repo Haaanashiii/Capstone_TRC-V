@@ -1,21 +1,19 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import '../../Styles/LandingCss/LandingPage.css';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTranslation } from '../../hooks/useTranslation';
 import websocketService from '../../services/websocket';
 import UnifiedNavbar from '../../components/UnifiedNavbar';
-import { Button, Typography, Box, useMediaQuery, useTheme, MobileStepper, Accordion, AccordionSummary, AccordionDetails, Dialog, DialogContent, IconButton } from '@mui/material';
+import { Button, Typography, Box, useMediaQuery, useTheme, MobileStepper, Accordion, AccordionSummary, AccordionDetails, Dialog, DialogContent, IconButton, Menu, MenuItem, ListItemIcon, Drawer } from '@mui/material';
+import { useNavigate } from 'react-router-dom';
 import CloseIcon from '@mui/icons-material/Close';
-import SwipeableViews from 'react-swipeable-views';
-import { autoPlay } from 'react-swipeable-views-utils';
+import MenuIcon from '@mui/icons-material/Menu';
 import KeyboardArrowLeft from '@mui/icons-material/KeyboardArrowLeft';
 import KeyboardArrowRight from '@mui/icons-material/KeyboardArrowRight';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import PermIdentityIcon from '@mui/icons-material/PermIdentity';
+import LogoutIcon from '@mui/icons-material/Logout';
 import SBFareImage from '../../assets/SB Fare.jpeg';
-
-// --- Added for mobile carousel auto-play
-const AutoPlaySwipeableViews = autoPlay(SwipeableViews);
-
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170';
 
 const Card = ({ children, className }) => (
@@ -23,17 +21,26 @@ const Card = ({ children, className }) => (
 );
 
 const LandingPage = () => {
-  const { login } = useAuth();
+  const navigate = useNavigate();
+  const { login, user, logout } = useAuth();
   const { t, loading: translationsLoading } = useTranslation();
   const [announcements, setAnnouncements] = useState([]);
   const [loadingAnnouncements, setLoadingAnnouncements] = useState(true);
   const [openFareModal, setOpenFareModal] = useState(false);
+  const [activeTab, setActiveTab] = useState('documents');
+  const [currentAnnouncementIndex, setCurrentAnnouncementIndex] = useState(0);
+  const [_announcementDirection, setAnnouncementDirection] = useState(0);
+  const [isPaused, setIsPaused] = useState(false);
+  const [anchorEl, setAnchorEl] = useState(null);
+  const menuOpen = Boolean(anchorEl);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   
-  // --- Added for responsiveness and carousel
+  // --- Added for responsiveness
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
-  const [activeAnnouncementStep, setActiveAnnouncementStep] = useState(0);
-  const [activeFeatureStep, setActiveFeatureStep] = useState(0);
+  
+  // Determine display name from user
+  const displayName = user?.full_name || user?.name || user?.username || null;
   
   // Fetch published announcements
   useEffect(() => {
@@ -114,17 +121,16 @@ const LandingPage = () => {
         const params = new URLSearchParams(hash.substring(1));
         const token = params.get('access_token');
         if (token) {
-          // Store in sessionStorage (secure) instead of localStorage
-          sessionStorage.setItem('accessToken', token);
+          localStorage.setItem('accessToken', token);
           // Also notify AuthContext about the new login so components update immediately
           try {
             const decoded = JSON.parse(atob(token.split('.')[1]));
             const userInfo = {
               id: decoded.id,
               role: decoded.role,
-              name: decoded.name,
-              accountType: decoded.accountType,
-              hasOperator: decoded.hasOperator
+              name: decoded.name || decoded.username || decoded.email,
+              full_name: decoded.full_name || decoded.name || decoded.username,
+              username: decoded.username,
             };
             // call AuthContext login if available
             if (typeof login === 'function') {
@@ -148,51 +154,70 @@ const LandingPage = () => {
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).toUpperCase();
   };
   
-  // --- Added for mobile carousel navigation (Announcements)
-  const handleAnnouncementNext = () => {
-    setActiveAnnouncementStep((prevStep) => (prevStep + 1) % Math.max(announcements.length, 1));
+  // Group announcements into slides (2 per slide)
+  const announcementSlides = [];
+  for (let i = 0; i < announcements.length; i += 2) {
+    announcementSlides.push(announcements.slice(i, i + 2));
+  }
+
+  const paginateAnnouncements = useCallback((newDirection) => {
+    if (announcementSlides.length === 0) return;
+    setAnnouncementDirection(newDirection);
+    setCurrentAnnouncementIndex((prev) => {
+      const next = prev + newDirection;
+      return next < 0 ? announcementSlides.length - 1 : next % announcementSlides.length;
+    });
+  }, [announcementSlides.length]);
+
+  const goToAnnouncementSlide = (index) => {
+    setAnnouncementDirection(index > currentAnnouncementIndex ? 1 : -1);
+    setCurrentAnnouncementIndex(index);
   };
 
-  const handleAnnouncementBack = () => {
-    setActiveAnnouncementStep((prevStep) => (prevStep - 1 + Math.max(announcements.length, 1)) % Math.max(announcements.length, 1));
+  // Auto-slide announcements
+  useEffect(() => {
+    if (announcementSlides.length === 0 || isPaused || loadingAnnouncements) return;
+
+    const interval = setInterval(() => {
+      paginateAnnouncements(1);
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [announcementSlides.length, isPaused, loadingAnnouncements, paginateAnnouncements]);
+  
+  // Menu handlers
+  const handleMenuOpen = (event) => {
+    setAnchorEl(event.currentTarget);
   };
 
-  const handleAnnouncementStepChange = (step) => {
-    setActiveAnnouncementStep(step);
+  const handleMenuClose = () => {
+    setAnchorEl(null);
+  };
+
+  const handleLogout = () => {
+    if (logout) logout();
+    handleMenuClose();
+    navigate('/');
+  };
+
+  const handleGoToId = () => {
+    handleMenuClose();
+    navigate('/operator-id');
+  };
+
+  const handleMobileMenuOpen = () => {
+    setMobileMenuOpen(true);
+  };
+
+  const handleMobileMenuClose = () => {
+    setMobileMenuOpen(false);
+  };
+
+  const handleMobileNavClick = (path) => {
+    navigate(path);
+    handleMobileMenuClose();
   };
   
-  // --- Added for mobile carousel navigation (Features)
-  const handleFeatureNext = () => {
-    setActiveFeatureStep((prevStep) => (prevStep + 1) % 3);
-  };
-
-  const handleFeatureBack = () => {
-    setActiveFeatureStep((prevStep) => (prevStep - 1 + 3) % 3);
-  };
-
-  const handleFeatureStepChange = (step) => {
-    setActiveFeatureStep(step);
-  };
-  
-  // --- Features data
-  const features = [
-    {
-      icon: '/Logos/2.png',
-      title: t("landing.feature1Title"),
-      description: t("landing.feature1Description")
-    },
-    {
-      icon: '/Logos/4.png',
-      title: t("landing.feature2Title"),
-      description: t("landing.feature2Description")
-    },
-    {
-      icon: '/Logos/6.png',
-      title: t("landing.feature3Title"),
-      description: t("landing.feature3Description")
-    }
-  ];
-
   // Don't render content until translations are loaded to prevent showing raw translation keys
   if (translationsLoading) {
     return (
@@ -204,33 +229,115 @@ const LandingPage = () => {
 
   
   return (
-    <div className="landing-root">
-      {/* Use UnifiedNavbar - automatically handles landing page mode */}
-      <UnifiedNavbar />
+    /* Adjust nyo nalang kung ayaw ko design hehe */ 
 
-      {/* Main Content */}
+
+    <div className="landing-root">
+      <header className="landing-header">
+        <div className="logo-title">
+          <img src="/Logos/TRC-vLogo.png" alt="TRC-V Logo" className="logo-img" />
+          <div className="title-group">
+            <span className="trc-title">TRC-V</span>
+            <span className="trc-subtitle">TRICYCLE VERIFICATION SYSTEM</span>
+          </div>
+        </div>
+        {isMobile ? (
+          <>
+            <IconButton onClick={handleMobileMenuOpen} sx={{ color: '#fff' }}>
+              <MenuIcon />
+            </IconButton>
+            <Drawer anchor="right" open={mobileMenuOpen} onClose={handleMobileMenuClose}>
+              <Box sx={{ width: 280, padding: 2, background: '#083d77', height: '100%', display: 'flex', flexDirection: 'column', gap: 1 }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                  <Typography sx={{ color: '#fff', fontWeight: 'bold' }}>Menu</Typography>
+                  <IconButton onClick={handleMobileMenuClose} sx={{ color: '#fff' }}>
+                    <CloseIcon />
+                  </IconButton>
+                </Box>
+                {displayName && (
+                  <Button fullWidth onClick={() => handleMobileNavClick('/operator/franchise')} sx={{ color: '#fff', justifyContent: 'flex-start', textTransform: 'none', fontSize: '16px' }}>
+                    HOME
+                  </Button>
+                )}
+                {displayName && (
+                  <Button fullWidth onClick={() => handleMobileNavClick('/operator/request-amendment')} sx={{ color: '#fff', justifyContent: 'flex-start', textTransform: 'none', fontSize: '16px' }}>
+                    REQUEST FOR AMENDMENT
+                  </Button>
+                )}
+                <Button fullWidth onClick={() => handleMobileNavClick('/login')} sx={{ color: '#fff', justifyContent: 'flex-start', textTransform: 'none', fontSize: '16px' }}>
+                  NEW APPLICATION
+                </Button>
+                {displayName ? (
+                  <>
+                    <Button fullWidth onClick={() => { navigate('/operator-id'); handleMobileMenuClose(); }} sx={{ color: '#FFD700', justifyContent: 'flex-start', textTransform: 'none', fontSize: '16px', mt: 2 }}>
+                      {displayName} (Operator ID)
+                    </Button>
+                    <Button fullWidth onClick={handleLogout} sx={{ color: '#fff', justifyContent: 'flex-start', textTransform: 'none', fontSize: '16px' }}>
+                      LOGOUT
+                    </Button>
+                  </>
+                ) : (
+                  <Button fullWidth onClick={() => handleMobileNavClick('/login')} sx={{ background: '#143c6e', color: '#fff', justifyContent: 'center', textTransform: 'none', fontSize: '16px', mt: 2, borderRadius: '20px' }}>
+                    LOGIN
+                  </Button>
+                )}
+              </Box>
+            </Drawer>
+          </>
+        ) : (
+          <nav className="landing-nav">
+            {displayName && (
+              <button className="nav-link" onClick={() => navigate('/operator/franchise')}>HOME</button>
+            )}
+            {displayName && (
+              <button className="nav-link" onClick={() => navigate('/operator/request-amendment')}>REQUEST FOR AMENDMENT</button>
+            )}
+            <button className="nav-link" onClick={() => navigate('/login')}>NEW APPLICATION</button>
+            {/* If user is logged in show name and menu, otherwise show Login button */}
+            {displayName ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                
+                <div style={{ background: 'rgba(255,255,255,0.12)', padding: '6px 10px', borderRadius: 28, display: 'flex', alignItems: 'center' }}>
+                 
+                  <div onClick={handleMenuOpen} style={{ background: '#143c6e', color: '#fff', padding: '6px 16px', borderRadius: 20, fontWeight: 700, cursor: 'pointer', boxShadow: '0 4px 12px rgba(0,0,0,0.12)' }}>{displayName}</div>
+                </div>
+                <Menu anchorEl={anchorEl} open={menuOpen} onClose={handleMenuClose} anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }} transformOrigin={{ vertical: 'top', horizontal: 'right' }} PaperProps={{ sx: { borderRadius: 2, minWidth: 200 } }}>
+                  <MenuItem onClick={handleGoToId}>
+                    <ListItemIcon sx={{ minWidth: 40 }}>
+                      <PermIdentityIcon fontSize="small" />
+                    </ListItemIcon>
+                    Operator ID
+                  </MenuItem>
+                  <MenuItem onClick={handleLogout}>
+                    <ListItemIcon sx={{ minWidth: 40 }}>
+                      <LogoutIcon fontSize="small" />
+                    </ListItemIcon>
+                    Logout
+                  </MenuItem>
+                </Menu>
+              </div>
+            ) : (
+              <button className="nav-login" onClick={() => navigate('/login')}>LOGIN</button>
+            )}
+          </nav>
+        )}
+      </header>
       <main className="landing-main">
-        
         <div className="main-content">
-          <h1 dangerouslySetInnerHTML={{ __html: t("landing.heroSubtitle") }}></h1>
-          <Button 
-            variant="contained" 
-            sx={{ 
-              mt: 3, 
-              backgroundColor: '#1B4B75',
-              color: '#F4D77E',
-              fontWeight: 'bold',
-              padding: '12px 30px',
-              fontSize: '16px',
-              fontFamily: 'Poppins, sans-serif',
-              '&:hover': {
-                backgroundColor: '#143c6e'
-              }
-            }}
-            onClick={() => setOpenFareModal(true)}
-          >
-            View Fare Matrix
-          </Button>
+          <h1>{t("landing.heroMainTitle")}</h1>
+          <p className="main-hero-description">{t("landing.heroDescription")}</p>
+          <div className="main-buttons-container">
+            <div className="ready-to-apply-label">
+              <span className="btn-main-text">{t("landing.readyToApplyBtn")}</span>
+              <span className="btn-sub-text">{t("landing.viewRequirementsText")}</span>
+            </div>
+            <Button 
+              className="main-btn-view"
+              onClick={() => setOpenFareModal(true)}
+            >
+              {t("landing.viewBtn")}
+            </Button>
+          </div>
         </div>
         <div className="main-image" style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', height: '100%' }}>
           <img
@@ -242,8 +349,8 @@ const LandingPage = () => {
       </main>
 
       {/* FAQ Accordion Section */}
-      <section style={{ background: '#fff', padding: '60px 20px' }}>
-        <Box sx={{ maxWidth: '1100px', margin: '0 auto' }}>
+      <section style={{ background: '#fff', padding: '0 20px', width: '100%', boxSizing: 'border-box', margin: 0, display: 'flex', justifyContent: 'center' }}>
+        <Box sx={{ width: '100%', maxWidth: '1100px', padding: '60px 0' }}>
           <Typography 
             variant="h4" 
             sx={{ 
@@ -258,21 +365,21 @@ const LandingPage = () => {
           </Typography>
           
           <Accordion sx={{ mb: 2, boxShadow: '0 2px 8px rgba(0,0,0,0.1)', borderRadius: '8px !important', '&:before': { display: 'none' } }}>
-            <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ background: '#f5f5f5' }}>
-              <Typography sx={{ fontWeight: 600, fontFamily: 'Poppins, sans-serif' }}>
+            <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ background: '#f5f5f5', borderLeft: '4px solid #083d77' }}>
+              <Typography sx={{ fontWeight: 600, fontFamily: 'Poppins, sans-serif', color: '#083d77' }}>
                 {t("landing.faq1Question")}
               </Typography>
             </AccordionSummary>
             <AccordionDetails>
-              <Typography sx={{ fontFamily: 'Poppins, sans-serif' }}>
+              <Typography sx={{ fontFamily: 'Poppins, sans-serif', whiteSpace: 'pre-line' }}>
                 {t("landing.faq1Answer")}
               </Typography>
             </AccordionDetails>
           </Accordion>
 
           <Accordion sx={{ mb: 2, boxShadow: '0 2px 8px rgba(0,0,0,0.1)', borderRadius: '8px !important', '&:before': { display: 'none' } }}>
-            <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ background: '#f5f5f5' }}>
-              <Typography sx={{ fontWeight: 600, fontFamily: 'Poppins, sans-serif' }}>
+            <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ background: '#f5f5f5', borderLeft: '4px solid #083d77' }}>
+              <Typography sx={{ fontWeight: 600, fontFamily: 'Poppins, sans-serif', color: '#083d77' }}>
                 {t("landing.faq2Question")}
               </Typography>
             </AccordionSummary>
@@ -284,8 +391,8 @@ const LandingPage = () => {
           </Accordion>
 
           <Accordion sx={{ mb: 2, boxShadow: '0 2px 8px rgba(0,0,0,0.1)', borderRadius: '8px !important', '&:before': { display: 'none' } }}>
-            <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ background: '#f5f5f5' }}>
-              <Typography sx={{ fontWeight: 600, fontFamily: 'Poppins, sans-serif' }}>
+            <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ background: '#f5f5f5', borderLeft: '4px solid #083d77' }}>
+              <Typography sx={{ fontWeight: 600, fontFamily: 'Poppins, sans-serif', color: '#083d77' }}>
                 {t("landing.faq3Question")}
               </Typography>
             </AccordionSummary>
@@ -297,8 +404,8 @@ const LandingPage = () => {
           </Accordion>
 
           <Accordion sx={{ mb: 2, boxShadow: '0 2px 8px rgba(0,0,0,0.1)', borderRadius: '8px !important', '&:before': { display: 'none' } }}>
-            <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ background: '#f5f5f5' }}>
-              <Typography sx={{ fontWeight: 600, fontFamily: 'Poppins, sans-serif' }}>
+            <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ background: '#f5f5f5', borderLeft: '4px solid #083d77' }}>
+              <Typography sx={{ fontWeight: 600, fontFamily: 'Poppins, sans-serif', color: '#083d77' }}>
                 {t("landing.faq4Question")}
               </Typography>
             </AccordionSummary>
@@ -310,8 +417,8 @@ const LandingPage = () => {
           </Accordion>
 
           <Accordion sx={{ mb: 2, boxShadow: '0 2px 8px rgba(0,0,0,0.1)', borderRadius: '8px !important', '&:before': { display: 'none' } }}>
-            <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ background: '#f5f5f5' }}>
-              <Typography sx={{ fontWeight: 600, fontFamily: 'Poppins, sans-serif' }}>
+            <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ background: '#f5f5f5', borderLeft: '4px solid #083d77' }}>
+              <Typography sx={{ fontWeight: 600, fontFamily: 'Poppins, sans-serif', color: '#083d77' }}>
                 {t("landing.faq5Question")}
               </Typography>
             </AccordionSummary>
@@ -324,103 +431,195 @@ const LandingPage = () => {
         </Box>
       </section>
 
-      {/* Announcements Section - Dynamic with Mobile Carousel */}
-      <section className="announcements-section">
+      {/* Announcements Section - Carousel with 2 per slide */}
+      <section className="announcements-section" id="announcements" style={{ width: '100%', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: '80px' }}>
         <div className="announcements-title">{t("landing.announcementsTitle")}</div>
         
-        {/* --- Mobile carousel wrapper (< md breakpoint) */}
-        {isMobile ? (
-          <Box sx={{ maxWidth: '100%', px: 2, position: 'relative' }}>
+        <div
+          style={{ width: '100%', maxWidth: '1200px', padding: '20px', boxSizing: 'border-box' }}
+          onMouseEnter={() => setIsPaused(true)}
+          onMouseLeave={() => setIsPaused(false)}
+        >
+          {/* Main Carousel Container */}
+          <div style={{ position: 'relative', width: '100%', overflow: 'hidden' }}>
             {loadingAnnouncements ? (
-              <div className="announcement-card">
-                <div className="announcement-card-body" style={{ textAlign: 'center', padding: '40px' }}>
-                  Loading announcements...
-                </div>
+              <div style={{ textAlign: 'center', padding: '60px 20px' }}>
+                <p style={{ color: '#666', fontSize: '16px' }}>Loading announcements...</p>
               </div>
-            ) : announcements.length > 0 ? (
-              <>
-                <AutoPlaySwipeableViews
-                  axis={theme.direction === 'rtl' ? 'x-reverse' : 'x'}
-                  index={activeAnnouncementStep}
-                  onChangeIndex={handleAnnouncementStepChange}
-                  enableMouseEvents
-                  interval={5000}
-                >
-                  {announcements.map((announcement) => (
-                    <Box key={announcement._id} sx={{ px: 1 }}>
-                      <div className="announcement-card">
-                        <div className="announcement-card-header">{announcement.title}</div>
-                        <div className="announcement-card-date">{formatDate(announcement.date)}</div>
-                        <div className="announcement-card-body">
-                          {announcement.description}
-                        </div>
-                      </div>
-                    </Box>
-                  ))}
-                </AutoPlaySwipeableViews>
-                <MobileStepper
-                  steps={announcements.length}
-                  position="static"
-                  activeStep={activeAnnouncementStep}
-                  sx={{ 
-                    background: 'transparent', 
-                    justifyContent: 'center',
-                    mt: 2,
-                    '& .MuiMobileStepper-dot': {
-                      backgroundColor: '#ddd'
-                    },
-                    '& .MuiMobileStepper-dotActive': {
-                      backgroundColor: '#143c6e'
-                    }
-                  }}
-                  nextButton={
-                    <Button size="small" onClick={handleAnnouncementNext}>
-                      <KeyboardArrowRight />
-                    </Button>
-                  }
-                  backButton={
-                    <Button size="small" onClick={handleAnnouncementBack}>
-                      <KeyboardArrowLeft />
-                    </Button>
-                  }
-                />
-              </>
+            ) : announcementSlides.length === 0 ? (
+              <div style={{ 
+                textAlign: 'center', 
+                padding: '60px 20px',
+                backgroundColor: '#f5f5f5',
+                borderRadius: '8px',
+                border: '2px dashed #ddd'
+              }}>
+                <p style={{ color: '#666', fontSize: '16px', fontWeight: '500', margin: '0' }}>No announcements at this time.</p>
+              </div>
             ) : (
-              <div className="announcement-card">
-                <div className="announcement-card-body" style={{ textAlign: 'center', padding: '40px' }}>
-                  No announcements at this time.
+              <>
+                {/* Two-Column Grid for Announcements */}
+                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '24px', padding: '24px', animation: 'fadeIn 0.3s ease-in' }}>
+                  {announcementSlides[currentAnnouncementIndex].map((announcement) => (
+                    <div
+                      key={announcement._id}
+                      style={{
+                        backgroundColor: '#fff',
+                        borderRadius: '8px',
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                        overflow: 'hidden',
+                        border: '1px solid #e5e5e5',
+                        transition: 'box-shadow 0.3s ease',
+                        cursor: 'pointer'
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)'}
+                      onMouseLeave={(e) => e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)'}
+                    >
+                      {/* Accent Bar */}
+                      <div style={{ height: '6px', backgroundColor: '#083D77' }} />
+
+                      {/* Card Header with Badge */}
+                      <div style={{ padding: '24px 24px 8px' }}>
+                        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px', marginBottom: '8px' }}>
+                          <h3 style={{ fontSize: '18px', fontWeight: '600', color: '#1a1a1a', margin: 0, lineHeight: '1.3', flex: 1 }}>
+                            {announcement.title}
+                          </h3>
+                          <span style={{
+                            display: 'inline-block',
+                            backgroundColor: '#083D77',
+                            color: '#FFEB62',
+                            fontSize: '11px',
+                            fontWeight: 'bold',
+                            padding: '4px 10px',
+                            borderRadius: '4px',
+                            whiteSpace: 'nowrap',
+                            flexShrink: 0
+                          }}>
+                            NEW
+                          </span>
+                        </div>
+                        <p style={{ fontSize: '13px', color: '#888', fontWeight: '500', margin: 0 }}>
+                          {formatDate(announcement.date)}
+                        </p>
+                      </div>
+
+                      {/* Card Body */}
+                      <div style={{ padding: '12px 24px 24px' }}>
+                        <p style={{
+                          fontSize: '14px',
+                          color: '#444',
+                          lineHeight: '1.5',
+                          margin: 0,
+                          display: '-webkit-box',
+                          WebkitLineClamp: 3,
+                          WebkitBoxOrient: 'vertical',
+                          overflow: 'hidden'
+                        }}>
+                          {announcement.description}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* Empty Placeholder if odd number of items */}
+                  {announcementSlides[currentAnnouncementIndex].length === 1 && (
+                    <div style={{
+                      backgroundColor: '#f5f5f5',
+                      borderRadius: '8px',
+                      border: '2px dashed #d5d5d5'
+                    }} />
+                  )}
                 </div>
-              </div>
-            )}
-          </Box>
-        ) : (
-          // --- Desktop layout (>= md breakpoint) - unchanged
-          <div className="announcements-list">
-            {loadingAnnouncements ? (
-              <div className="announcement-card">
-                <div className="announcement-card-body" style={{ textAlign: 'center', padding: '40px' }}>
-                  {t("landing.loadingAnnouncements")}
+
+                {/* Navigation Buttons */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px' }}>
+                  <button
+                    onClick={() => paginateAnnouncements(-1)}
+                    disabled={announcementSlides.length === 0}
+                    style={{
+                      padding: '8px 12px',
+                      border: '1px solid #ccc',
+                      backgroundColor: '#fff',
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      opacity: announcementSlides.length === 0 ? 0.5 : 1,
+                      transition: 'all 0.2s ease'
+                    }}
+                    onMouseEnter={(e) => !announcementSlides.length === 0 && (e.currentTarget.style.backgroundColor = '#f5f5f5')}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#fff'}
+                  >
+                    <KeyboardArrowLeft style={{ fontSize: '20px', color: '#555' }} />
+                  </button>
+
+                  {/* Dots Navigation */}
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    {announcementSlides.map((_, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => goToAnnouncementSlide(idx)}
+                        style={{
+                          height: '10px',
+                          borderRadius: '50%',
+                          border: 'none',
+                          cursor: 'pointer',
+                          transition: 'all 0.3s ease',
+                          backgroundColor: idx === currentAnnouncementIndex ? '#083D77' : '#ddd',
+                          width: idx === currentAnnouncementIndex ? '32px' : '10px'
+                        }}
+                        aria-label={`Go to slide ${idx + 1}`}
+                      />
+                    ))}
+                  </div>
+
+                  <button
+                    onClick={() => paginateAnnouncements(1)}
+                    disabled={announcementSlides.length === 0}
+                    style={{
+                      padding: '8px 12px',
+                      border: '1px solid #ccc',
+                      backgroundColor: '#fff',
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      opacity: announcementSlides.length === 0 ? 0.5 : 1,
+                      transition: 'all 0.2s ease'
+                    }}
+                    onMouseEnter={(e) => !announcementSlides.length === 0 && (e.currentTarget.style.backgroundColor = '#f5f5f5')}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#fff'}
+                  >
+                    <KeyboardArrowRight style={{ fontSize: '20px', color: '#555' }} />
+                  </button>
                 </div>
-              </div>
-            ) : announcements.length > 0 ? (
-              announcements.map((announcement) => (
-                <div className="announcement-card" key={announcement._id}>
-                  <div className="announcement-card-header">{announcement.title}</div>
-                  <div className="announcement-card-date">{formatDate(announcement.date)}</div>
-                  <div className="announcement-card-body">
-                    {announcement.description}
+
+                {/* Progress Indicator */}
+                <div style={{ padding: '0 16px 8px' }}>
+                  <div style={{ height: '4px', backgroundColor: '#e5e5e5', borderRadius: '2px', overflow: 'hidden' }}>
+                    <div
+                      style={{
+                        height: '100%',
+                        backgroundColor: '#083D77',
+                        width: `${((currentAnnouncementIndex + 1) / announcementSlides.length) * 100}%`,
+                        transition: 'width 0.5s ease'
+                      }}
+                    />
                   </div>
                 </div>
-              ))
-            ) : (
-              <div className="announcement-card">
-                <div className="announcement-card-body" style={{ textAlign: 'center', padding: '40px' }}>
-                  {t("landing.noAnnouncements")}
+
+                {/* Slide Counter */}
+                <div style={{ textAlign: 'center', paddingBottom: '8px' }}>
+                  <span style={{ fontSize: '13px', color: '#888', fontWeight: '500' }}>
+                    Slide {currentAnnouncementIndex + 1} of {announcementSlides.length}
+                  </span>
                 </div>
-              </div>
+              </>
             )}
           </div>
-        )}
+        </div>
       </section>
 
 
@@ -428,136 +627,97 @@ const LandingPage = () => {
 
 
 
-      <div className="min-h-screen bg-[#F4D77E]">
+      <div className="min-h-screen bg-[#F4D77E]" style={{ width: '100%', boxSizing: 'border-box', margin: 0, padding: 0 }}>
       
 
-        {/* FEATURES Section with Mobile Carousel */}
-        <div style={{ background: '#F4D77E', padding: '40px 0' }}>
-          <div style={{ background: '#1B4B75', color: '#F4D77E', display: 'inline-block', padding: '10px 50px', borderRadius: '2px', fontWeight: 'bold', fontSize: '28px', boxShadow: '2px 2px 6px #b3a04a', fontFamily: 'Poppins, sans-serif' }}>
-            {t("landing.featuresTitle")}
-          </div>
-          
-          {/* --- Mobile carousel wrapper (< md breakpoint) */}
-          {isMobile ? (
-            <Box sx={{ maxWidth: '100%', px: 2, mt: 3, position: 'relative' }}>
-              <SwipeableViews
-                axis={theme.direction === 'rtl' ? 'x-reverse' : 'x'}
-                index={activeFeatureStep}
-                onChangeIndex={handleFeatureStepChange}
-                enableMouseEvents
-              >
-                {features.map((feature, index) => (
-                  <Box key={index} sx={{ px: 2, display: 'flex', justifyContent: 'center' }}>
-                    <div style={{ textAlign: 'center', maxWidth: '320px', width: '100%' }}>
-                      <div style={{ background: '#1B4B75', borderRadius: '50%', width: '170px', height: '170px', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <img src={feature.icon} alt={feature.title} style={{ width: '150px', height: '150px' }} />
-                      </div>
-                      <h3 style={{ fontWeight: 'bold', marginTop: '20px', color: '#111', fontFamily: 'Poppins, sans-serif' }}>{feature.title}</h3>
-                      <p style={{ fontSize: '15px', marginTop: '10px', color: '#111', fontFamily: 'Poppins, sans-serif' }}>{feature.description}</p>
-                    </div>
-                  </Box>
-                ))}
-              </SwipeableViews>
-              <MobileStepper
-                steps={3}
-                position="static"
-                activeStep={activeFeatureStep}
-                sx={{ 
-                  background: 'transparent', 
-                  justifyContent: 'center',
-                  mt: 2,
-                  '& .MuiMobileStepper-dot': {
-                    backgroundColor: '#ddd'
-                  },
-                  '& .MuiMobileStepper-dotActive': {
-                    backgroundColor: '#1B4B75'
-                  }
-                }}
-                nextButton={
-                  <Button size="small" onClick={handleFeatureNext}>
-                    <KeyboardArrowRight />
-                  </Button>
-                }
-                backButton={
-                  <Button size="small" onClick={handleFeatureBack}>
-                    <KeyboardArrowLeft />
-                  </Button>
-                }
-              />
-            </Box>
-          ) : (
-            // --- Desktop layout (>= md breakpoint) - unchanged
-            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'flex-start', gap: '60px', maxWidth: '1100px', margin: '0 auto' }}>
-              {features.map((feature, index) => (
-                <div key={index} style={{ textAlign: 'center', width: '300px' }}>
-                  <div style={{ background: '#1B4B75', borderRadius: '50%', width: '170px', height: '170px', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <img src={feature.icon} alt={feature.title} style={{ width: '150px', height: '150px' }} />
-                  </div>
-                  <h3 style={{ fontWeight: 'bold', marginTop: '20px', color: '#111', fontFamily: 'Poppins, sans-serif' }}>{feature.title}</h3>
-                  <p style={{ fontSize: '15px', marginTop: '10px', color: '#111', fontFamily: 'Poppins, sans-serif' }}>{feature.description}</p>
-                </div>
-              ))}
+        {/* FEATURES Hatdog */}
+        <div style={{ background: '#F4D77E', padding: '40px 0', width: '100%', boxSizing: 'border-box', margin: 0 }}>
+             <div style={{ background: '#1B4B75', color: '#F4D77E', display: 'inline-block', padding: '10px 50px', borderRadius: '2px', fontWeight: 'bold', fontSize: '28px', boxShadow: '2px 2px 6px #b3a04a', fontFamily: 'Poppins, sans-serif', marginBottom: isMobile ? '30px' : '0' }}>
+              FEATURES
             </div>
-          )}
+          <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'center', alignItems: 'center', gap: isMobile ? '30px' : '60px', maxWidth: '1100px', margin: '0 auto', padding: isMobile ? '0 20px' : '0' }}>
+          
+            <div style={{ textAlign: 'center', width: isMobile ? '100%' : '300px', maxWidth: '280px' }}>
+              <div style={{ background: '#1B4B75', borderRadius: '50%', width: isMobile ? '140px' : '170px', height: isMobile ? '140px' : '170px', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <img src="/Logos/2.png" alt="Tricycle Verification" style={{ width: isMobile ? '120px' : '150px', height: isMobile ? '120px' : '150px' }} />
+              </div>
+              <h3 style={{ fontWeight: 'bold', marginTop: '20px', color: '#111', fontFamily: 'Poppins, sans-serif', fontSize: isMobile ? '14px' : '16px' }}>TRICYCLE VERIFICATION</h3>
+              <p style={{ fontSize: isMobile ? '13px' : '15px', marginTop: '10px', color: '#111', fontFamily: 'Poppins, sans-serif' }}>Instantly check if a tricycle is registered and franchised by scanning its QR code.</p>
+            </div>
+           
+            <div style={{ textAlign: 'center', width: isMobile ? '100%' : '300px', maxWidth: '280px' }}>
+              <div style={{ background: '#1B4B75', borderRadius: '50%', width: isMobile ? '140px' : '170px', height: isMobile ? '140px' : '170px', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <img src="/Logos/4.png" alt="Franchise Application" style={{ width: isMobile ? '120px' : '150px', height: isMobile ? '120px' : '150px' }} />
+              </div>
+              <h3 style={{ fontWeight: 'bold', marginTop: '20px', color: '#111', fontFamily: 'Poppins, sans-serif', fontSize: isMobile ? '14px' : '16px' }}>FRANCHISE APPLICATION AND RENEWAL</h3>
+              <p style={{ fontSize: isMobile ? '13px' : '15px', marginTop: '10px', color: '#111', fontFamily: 'Poppins, sans-serif' }}>Submit new franchise applications or renew your existing one online with ease.</p>
+            </div>
+           
+            <div style={{ textAlign: 'center', width: isMobile ? '100%' : '300px', maxWidth: '280px' }}>
+              <div style={{ background: '#1B4B75', borderRadius: '50%', width: isMobile ? '140px' : '170px', height: isMobile ? '140px' : '170px', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <img src="/Logos/6.png" alt="Reporting Function" style={{ width: isMobile ? '120px' : '150px', height: isMobile ? '120px' : '150px' }} />
+              </div>
+              <h3 style={{ fontWeight: 'bold', marginTop: '20px', color: '#111', fontFamily: 'Poppins, sans-serif', fontSize: isMobile ? '14px' : '16px' }}>REPORTING FUNCTION</h3>
+              <p style={{ fontSize: isMobile ? '13px' : '15px', marginTop: '10px', color: '#111', fontFamily: 'Poppins, sans-serif' }}>Report instances of overpricing or fare disputes, ensuring passengers are charged fairly.</p>
+            </div>
+          </div>
           <div style={{ textAlign: 'right', maxWidth: '1100px', margin: '20px auto 0' }}>
           
           </div>
         </div>
-      
-      </div> 
+      </div>
 
-    {/* Footer Section - Responsive */}
-    <Box
-      component="footer"
-      sx={{
-        background: '#f7f7f7',
-        py: { xs: 3, md: 4 },
-        mt: 5,
-        width: '100%',
+    {/* Footer Sectionsz */}
+    <footer
+  style={{
+    background: "linear-gradient(90deg, #f7f7f7 0%, #f7f7f7 100%)",
+    padding: "32px 0 24px 0",
+    marginTop: "40px",
+    width: "100%",
+    boxSizing: "border-box",
+    margin: 0,
+  }}
+>
+  <div
+    style={{
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "flex-start",
+      maxWidth: "1400px",
+      margin: "0 auto",
+      flexWrap: "wrap",
+      gap: "40px",
+      width: "100%",
+      boxSizing: "border-box",
+      padding: "0 40px",
+    }}
+  >
+
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: "18px",
+        minWidth: "300px",
       }}
     >
-      <Box
-        sx={{
-          display: 'flex',
-          flexDirection: { xs: 'column', md: 'row' },
-          justifyContent: 'space-between',
-          alignItems: { xs: 'center', md: 'flex-start' },
-          maxWidth: '1400px',
-          margin: '0 auto',
-          px: { xs: 2, sm: 3, md: 4 },
-          gap: { xs: 4, md: 5 },
-          textAlign: { xs: 'center', md: 'left' },
-        }}
-      >
-        {/* Logo Section */}
-        <Box
-          sx={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 2,
-            flexWrap: 'wrap',
-          }}
-        >
-          <Box
-            component="img"
-            src="/Logos/SBLogo.png"
-            alt="SB Logo"
-            sx={{ width: { xs: 70, md: 100 }, height: { xs: 70, md: 100 }, objectFit: 'contain' }}
-          />
-          <Box
-            component="img"
-            src="/Logos/TRC-vLogo.png"
-            alt="TRC-V Logo"
-            sx={{ width: { xs: 70, md: 100 }, height: { xs: 70, md: 100 }, objectFit: 'contain' }}
-          />
-          <Box
-            component="img"
-            src="/Logos/vm.png"
-            alt="Vice Mayor Logo"
-            sx={{ width: { xs: 70, md: 100 }, height: { xs: 70, md: 100 }, objectFit: 'contain' }}
-          />
-        </Box>
+      <img
+        src="/Logos/SBLogo.png"
+        
+        alt="SB Logo"
+        style={{ width: "100px", height: "100px", objectFit: "contain" }}
+      />
+      <img
+        src="/Logos/TRC-vLogo.png"
+        alt="Vice Mayor Logo"
+        style={{ width: "100px", height: "100px", objectFit: "contain" }}
+      />
+      <img
+        src="/Logos/vm.png"
+        alt="Municipality Logo"
+        style={{ width: "100px", height: "100px", objectFit: "contain" }}
+      />
+    </div>
 
         {/* Main Info Section */}
         <Box sx={{ flex: 1, minWidth: { xs: '100%', md: '300px' }, maxWidth: { xs: '100%', md: '500px' } }}>
@@ -644,10 +804,10 @@ const LandingPage = () => {
             {t("landing.r2tmcLabel")} - <a href="tel:09068195569">0906 819 5569</a>
           </Box>
         </Box>
-      </Box>
-    </Box>
+      </div>
+    </footer>
 
-    {/* Fare Matrix Modal */}
+    {/* Franchise Application Modal */}
     <Dialog 
       open={openFareModal} 
       onClose={() => setOpenFareModal(false)}
@@ -657,7 +817,7 @@ const LandingPage = () => {
         sx: {
           borderRadius: '16px',
           boxShadow: '0 12px 48px rgba(0,0,0,0.25)',
-          backgroundColor: '#f8f9fa',
+          backgroundColor: '#fff',
           maxHeight: '90vh'
         }
       }}
@@ -666,10 +826,10 @@ const LandingPage = () => {
         sx={{
           position: 'relative',
           p: 0,
-          backgroundColor: '#f8f9fa',
+          backgroundColor: '#fff',
           display: 'flex',
           flexDirection: 'column',
-          alignItems: 'center',
+          alignItems: 'stretch',
           maxHeight: '90vh',
           overflow: 'hidden'
         }}
@@ -694,7 +854,7 @@ const LandingPage = () => {
               mb: 0.5
             }}
           >
-            TRICYCLE FARE MATRIX
+            TRICYCLE FRANCHISE APPLICATION
           </Typography>
           <Typography 
             sx={{ 
@@ -703,7 +863,7 @@ const LandingPage = () => {
               fontSize: '14px'
             }}
           >
-            Municipality of Solano
+            Complete all requirements below
           </Typography>
           
           {/* Close Button */}
@@ -724,37 +884,156 @@ const LandingPage = () => {
           </IconButton>
         </Box>
 
-        {/* Image Container - Scrollable */}
+        {/* Tab Navigation */}
+        <Box sx={{
+          display: 'flex',
+          borderBottom: '1px solid #e0e0e0',
+          backgroundColor: '#f5f5f5',
+          p: 2,
+          gap: 2
+        }}>
+          <Button
+            onClick={() => setActiveTab('documents')}
+            sx={{
+              fontFamily: 'Poppins, sans-serif',
+              fontWeight: '600',
+              fontSize: '14px',
+              color: activeTab === 'documents' ? '#1B4B75' : '#666',
+              backgroundColor: activeTab === 'documents' ? '#fff' : 'transparent',
+              border: activeTab === 'documents' ? '1px solid #ddd' : 'none',
+              borderRadius: '6px',
+              padding: '8px 16px',
+              textTransform: 'none',
+              cursor: 'pointer'
+            }}
+          >
+            📄 Documents
+        
+          </Button>
+          <Button
+            onClick={() => setActiveTab('fareMatrix')}
+            sx={{
+              fontFamily: 'Poppins, sans-serif',
+              fontWeight: '600',
+              fontSize: '14px',
+              color: activeTab === 'fareMatrix' ? '#1B4B75' : '#666',
+              backgroundColor: activeTab === 'fareMatrix' ? '#fff' : 'transparent',
+              border: activeTab === 'fareMatrix' ? '1px solid #ddd' : 'none',
+              borderRadius: '6px',
+              padding: '8px 16px',
+              textTransform: 'none',
+              cursor: 'pointer'
+            }}
+          >
+            📋 Fare Matrix
+          </Button>
+        </Box>
+
+        {/* Content Section */}
         <Box sx={{ 
           width: '100%',
-          p: { xs: 2, sm: 3 },
+          p: { xs: 3, sm: 4 },
           display: 'flex',
-          justifyContent: 'center',
+          flexDirection: 'column',
           alignItems: 'flex-start',
+          justifyContent: 'flex-start',
           backgroundColor: '#fff',
-          borderRadius: '0 0 16px 16px',
           overflowY: 'auto',
-          overflowX: 'hidden',
-          flex: 1
+          flex: 1,
+          minHeight: '300px'
         }}>
-          <Box
-            component="img"
-            src={SBFareImage}
-            alt="SB Fare Matrix"
-            sx={{
-              width: '100%',
-              height: 'auto',
-              objectFit: 'contain',
-              borderRadius: '8px',
-              boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
-            }}
-          />
+          {activeTab === 'documents' ? (
+            <>
+              {/* Documents Tab Content - View Only */}
+              <Box sx={{
+                width: '100%',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 1.5
+              }}>
+                <Box sx={{
+                  backgroundColor: '#E3F2FD',
+                  border: '1px solid #BBDEFB',
+                  borderRadius: '8px',
+                  p: 2,
+                  mb: 1
+                }}>
+                  <Typography sx={{ color: '#1976D2', fontSize: '14px', fontWeight: '600' }}>
+                    ℹ️ Submission Location
+                  </Typography>
+                  <Typography sx={{ color: '#1976D2', fontSize: '12px', mt: 1 }}>
+                    Business Permit & Licensing Section (BPLS)
+                  </Typography>
+                </Box>
+
+                <Typography sx={{ fontSize: '13px', color: '#666', fontFamily: 'Poppins, sans-serif', fontWeight: '600', mb: 1 }}>
+                  Required Documents:
+                </Typography>
+
+                {['Photocopy of Registration', 'Photocopy of Barangay Clearance', 'Photocopy of Cedula', 'Photocopy of Driver\'s License', 'Photocopy of Voters Affidavit', 'Stencil (Motor and Chassis Number)', '1 pc picture (1x1 or 2x2)', 'Long folder with fastener'].map((doc, idx) => (
+                  <Box key={idx} sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5 }}>
+                    <Typography sx={{ fontSize: '14px', color: '#333', fontFamily: 'Poppins, sans-serif', mt: 0.5 }}>•</Typography>
+                    <Typography sx={{ fontSize: '14px', color: '#333', fontFamily: 'Poppins, sans-serif' }}>
+                      {doc}
+                    </Typography>
+                  </Box>
+                ))}
+              </Box>
+            </>
+          ) : (
+            <>
+              {/* Fare Matrix Tab - Image Display */}
+              <Box sx={{
+                width: '100%',
+                height: '100%',
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'flex-start',
+                overflow: 'auto'
+              }}>
+                <Box
+                  component="img"
+                  src={SBFareImage}
+                  alt="SB Fare Matrix"
+                  sx={{
+                    width: '100%',
+                    height: 'auto',
+                    objectFit: 'contain',
+                    borderRadius: '8px'
+                  }}
+                />
+              </Box>
+            </>
+          )}
         </Box>
       </DialogContent>
+
+      {/* Modal Footer */}
+      <Box sx={{
+        display: 'flex',
+        justifyContent: 'flex-end',
+        gap: 2,
+        p: 2,
+        backgroundColor: '#f8f9fa',
+        borderTop: '1px solid #eee'
+      }}>
+        <Button 
+          onClick={() => setOpenFareModal(false)}
+          sx={{
+            color: '#333',
+            fontFamily: 'Poppins, sans-serif',
+            fontWeight: '600',
+            textTransform: 'none',
+            fontSize: '14px'
+          }}
+        >
+          Cancel
+        </Button>
+      </Box>
     </Dialog>
 
-  </div> 
-);
+    </div>
+  );
 };
 
 export default LandingPage;
