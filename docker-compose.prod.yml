@@ -1,0 +1,72 @@
+# TRC-V Docker Compose - Production Overrides
+# =============================================
+# 
+# USAGE:
+#   docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# This file overrides settings for production environment
+#
+
+version: '3.8'
+
+services:
+  backend:
+    # In production, use pre-built image or build with no cache
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+      args:
+        - NODE_ENV=production
+    environment:
+      - NODE_ENV=production
+    # Production logging
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+    # Scale for production (PM2 inside each container also clusters)
+    deploy:
+      mode: replicated
+      replicas: 2  # 2 containers x 2 PM2 instances = 4 Node.js processes
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 512M
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+
+  mongo:
+    # Production: More resources for MongoDB
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+        reservations:
+          cpus: '1'
+          memory: 1G
+    # Enable authentication in production
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=${MONGO_ROOT_USER:-admin}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_ROOT_PASS:-changeme}
+    command: ["mongod", "--auth", "--bind_ip_all"]
+
+  nginx:
+    # Production nginx config
+    volumes:
+      - ./nginx/nginx.prod.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./dashboard/dist:/usr/share/nginx/html:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro  # SSL certificates
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "3"

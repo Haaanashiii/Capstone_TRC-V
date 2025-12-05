@@ -116,17 +116,18 @@ class AuditLogService {
         return null;
       }
 
-      // Extract user information from JWT (UUID only)
-      const userId = user.id || user.userId; // Use UUID from JWT
-      const username = user.username || user.email || 'Unknown';
-      const name = user.name || username; // Actual full name
+      // Extract user information from JWT
+      // JWT payload contains: id, _id, role, name, accountType, adminId (for admins)
+      const userId = user.id || user.userId || user.adminId || user._id;
+      const name = user.name || 'System'; // name is always in JWT
+      const username = user.username || user.email || name; // Fallback to name if no username/email
       const role = user.role || 'unknown';
       const accountType = user.accountType || 'user';
-      const email = user.email;
+      const email = user.email || null; // May not be in JWT
 
       // Check if this is an admin account and extract admin info from JWT
       const isAdmin = accountType === 'admin';
-      const adminId = isAdmin ? (user.adminId || user.id || user.userId) : null; // Use UUID for admin
+      const adminId = isAdmin ? (user.adminId || user.id || user.userId) : null;
       const department = isAdmin ? user.department : null;
       const position = isAdmin ? user.position : null;
 
@@ -229,6 +230,41 @@ class AuditLogService {
         return `${name} approved application${details?.applicantName ? ` for ${details.applicantName}` : ''}`;
       case 'REJECT_APPLICATION':
         return `${name} rejected application${details?.applicantName ? ` for ${details.applicantName}` : ''}`;
+      
+      // Backup & Recovery Actions
+      case 'SYSTEM_AUTOMATIC_BACKUP':
+        return `System automatically created backup${details?.backupId ? `: ${details.backupId}` : ''} (${details?.formattedSize || 'N/A'})`;
+      case 'ADMIN_MANUAL_BACKUP':
+        return `${name} manually created backup${details?.backupId ? `: ${details.backupId}` : ''} (${details?.formattedSize || 'N/A'})`;
+      case 'ADMIN_EMERGENCY_BACKUP':
+        return `${name} created EMERGENCY backup${details?.backupId ? `: ${details.backupId}` : ''} (Protected)`;
+      case 'ADMIN_PRE_UPDATE_BACKUP':
+        return `${name} created pre-update backup before: ${details?.updateDescription || 'system update'}`;
+      case 'ADMIN_RESTORE_BACKUP':
+        return `[WARNING] ${name} RESTORED database from backup: ${details?.backupId || 'N/A'} (${details?.totalDocuments || 0} documents)`;
+      case 'SYSTEM_AUTO_RECOVERY':
+        return `[WARNING] System automatically recovered database from backup: ${details?.backupId || 'last good backup'}`;
+      case 'ADMIN_DELETE_BACKUP':
+        return `${name} deleted backup: ${details?.backupId || 'N/A'}`;
+      case 'ADMIN_DOWNLOAD_BACKUP':
+        return `${name} downloaded backup file: ${details?.backupId || 'N/A'}`;
+      case 'ADMIN_FULL_DATABASE_EXPORT':
+        return `${name} exported FULL DATABASE for external storage (${details?.formattedSize || 'N/A'}, ${details?.totalDocuments || 0} documents)`;
+      case 'ADMIN_IMPORT_FROM_EXTERNAL':
+        return `[WARNING] ${name} IMPORTED database from external backup file (${details?.totalDocuments || 0} documents)`;
+      case 'ADMIN_ARCHIVE_OLD_DATA':
+        return `${name} archived ${details?.totalArchivedDocuments || 0} old documents${details?.deleteAfterArchive ? ' and DELETED from database' : ''}`;
+      case 'ADMIN_RESTORE_FROM_ARCHIVE':
+        return `${name} restored ${details?.totalRestored || 0} documents from archive: ${details?.archiveId || 'N/A'}`;
+      case 'ADMIN_PROTECT_BACKUP':
+        return `${name} protected backup from auto-deletion: ${details?.backupId || 'N/A'}`;
+      case 'ADMIN_UNPROTECT_BACKUP':
+        return `${name} removed protection from backup: ${details?.backupId || 'N/A'}`;
+      case 'ADMIN_VERIFY_BACKUP':
+        return `${name} verified backup ${details?.backupId || 'N/A'}: ${details?.valid ? 'VALID' : 'CORRUPTED'}`;
+      case 'ADMIN_UPDATE_BACKUP_CONFIG':
+        return `${name} updated backup system configuration`;
+      
       default:
         return action.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, l => l.toUpperCase());
     }
@@ -883,6 +919,441 @@ class AuditLogService {
       details: {
         email: user.email,
         authProvider: user.oauthProvider || 'local'
+      }
+    });
+  }
+
+  // ==========================================
+  // BACKUP & RECOVERY AUDIT LOGGING
+  // ==========================================
+
+  /**
+   * Log automatic backup (system-initiated)
+   */
+  async logAutomaticBackup(backupResult, success = true, errorMessage = null) {
+    const systemUser = {
+      id: 'SYSTEM',
+      userId: 'SYSTEM',
+      username: 'System',
+      name: 'Automated Backup System',
+      role: 'super-admin',
+      accountType: 'admin'
+    };
+
+    return this.logAction({
+      user: systemUser,
+      method: 'POST',
+      route: '/api/backup/automatic',
+      action: 'SYSTEM_AUTOMATIC_BACKUP',
+      description: success 
+        ? `System automatically created backup: ${backupResult.backupId} (${backupResult.formattedSize || 'N/A'}, ${backupResult.totalDocuments || 0} documents)`
+        : `System automatic backup failed: ${errorMessage}`,
+      statusCode: success ? 201 : 500,
+      ipAddress: '127.0.0.1',
+      userAgent: 'System Scheduler',
+      resourceType: 'backup',
+      resourceId: backupResult?.backupId,
+      errorMessage: success ? null : errorMessage,
+      details: {
+        backupId: backupResult?.backupId,
+        backupType: 'automatic',
+        fileSize: backupResult?.fileSize,
+        formattedSize: backupResult?.formattedSize,
+        totalDocuments: backupResult?.totalDocuments,
+        totalCollections: backupResult?.collections,
+        durationMs: backupResult?.durationMs,
+        checksum: backupResult?.checksum,
+        scheduledTime: new Date().toISOString()
+      }
+    });
+  }
+
+  /**
+   * Log manual backup (admin-initiated)
+   */
+  async logManualBackup(backupResult, user, req, success = true, errorMessage = null) {
+    return this.logAction({
+      user,
+      method: 'POST',
+      route: '/api/backup/create',
+      action: 'ADMIN_MANUAL_BACKUP',
+      description: success
+        ? `${user.name || user.username} manually created backup: ${backupResult.backupId} (${backupResult.formattedSize || 'N/A'})`
+        : `${user.name || user.username} attempted manual backup but failed: ${errorMessage}`,
+      statusCode: success ? 201 : 500,
+      ipAddress: getClientIp(req),
+      userAgent: req.headers['user-agent'],
+      resourceType: 'backup',
+      resourceId: backupResult?.backupId,
+      errorMessage: success ? null : errorMessage,
+      details: {
+        backupId: backupResult?.backupId,
+        backupType: 'manual',
+        fileSize: backupResult?.fileSize,
+        formattedSize: backupResult?.formattedSize,
+        totalDocuments: backupResult?.totalDocuments,
+        totalCollections: backupResult?.collections,
+        durationMs: backupResult?.durationMs,
+        notes: backupResult?.notes
+      }
+    });
+  }
+
+  /**
+   * Log emergency backup
+   */
+  async logEmergencyBackup(backupResult, user, req, success = true, errorMessage = null) {
+    return this.logAction({
+      user,
+      method: 'POST',
+      route: '/api/backup/emergency',
+      action: 'ADMIN_EMERGENCY_BACKUP',
+      description: success
+        ? `${user.name || user.username} created EMERGENCY backup: ${backupResult.backupId} (${backupResult.formattedSize || 'N/A'})`
+        : `${user.name || user.username} attempted emergency backup but failed: ${errorMessage}`,
+      statusCode: success ? 201 : 500,
+      ipAddress: getClientIp(req),
+      userAgent: req.headers['user-agent'],
+      resourceType: 'backup',
+      resourceId: backupResult?.backupId,
+      errorMessage: success ? null : errorMessage,
+      details: {
+        backupId: backupResult?.backupId,
+        backupType: 'emergency',
+        fileSize: backupResult?.fileSize,
+        formattedSize: backupResult?.formattedSize,
+        totalDocuments: backupResult?.totalDocuments,
+        isProtected: true,
+        reason: 'Emergency backup - protected from auto-deletion'
+      }
+    });
+  }
+
+  /**
+   * Log pre-update backup
+   */
+  async logPreUpdateBackup(backupResult, user, req, updateDescription = null, success = true, errorMessage = null) {
+    return this.logAction({
+      user,
+      method: 'POST',
+      route: '/api/backup/pre-update',
+      action: 'ADMIN_PRE_UPDATE_BACKUP',
+      description: success
+        ? `${user.name || user.username} created pre-update backup before: ${updateDescription || 'system update'}`
+        : `${user.name || user.username} attempted pre-update backup but failed: ${errorMessage}`,
+      statusCode: success ? 201 : 500,
+      ipAddress: getClientIp(req),
+      userAgent: req.headers['user-agent'],
+      resourceType: 'backup',
+      resourceId: backupResult?.backupId,
+      errorMessage: success ? null : errorMessage,
+      details: {
+        backupId: backupResult?.backupId,
+        backupType: 'pre-update',
+        updateDescription,
+        fileSize: backupResult?.fileSize,
+        formattedSize: backupResult?.formattedSize,
+        totalDocuments: backupResult?.totalDocuments
+      }
+    });
+  }
+
+  /**
+   * Log backup restore/rollback
+   */
+  async logBackupRestore(backupId, restoreResult, user, req, success = true, errorMessage = null) {
+    return this.logAction({
+      user,
+      method: 'POST',
+      route: `/api/backup/${backupId}/restore`,
+      action: 'ADMIN_RESTORE_BACKUP',
+      description: success
+        ? `${user.name || user.username} RESTORED database from backup: ${backupId} (${restoreResult.totalDocuments || 0} documents restored)`
+        : `${user.name || user.username} attempted to restore from backup ${backupId} but failed: ${errorMessage}`,
+      statusCode: success ? 200 : 500,
+      ipAddress: getClientIp(req),
+      userAgent: req.headers['user-agent'],
+      resourceType: 'backup',
+      resourceId: backupId,
+      errorMessage: success ? null : errorMessage,
+      details: {
+        backupId,
+        restoredCollections: restoreResult?.restoredCollections,
+        totalDocuments: restoreResult?.totalDocuments,
+        dropExisting: restoreResult?.dropExisting || false,
+        dryRun: restoreResult?.dryRun || false,
+        warning: 'DATABASE RESTORE OPERATION - Data may have been overwritten'
+      }
+    });
+  }
+
+  /**
+   * Log auto-recovery attempt
+   */
+  async logAutoRecovery(recoveryResult, triggeredBy = 'system', success = true, errorMessage = null) {
+    const systemUser = {
+      id: 'SYSTEM',
+      userId: 'SYSTEM',
+      username: 'System',
+      name: 'Auto-Recovery System',
+      role: 'super-admin',
+      accountType: 'admin'
+    };
+
+    return this.logAction({
+      user: systemUser,
+      method: 'POST',
+      route: '/api/backup/recover',
+      action: 'SYSTEM_AUTO_RECOVERY',
+      description: success
+        ? `System automatically recovered database from backup: ${recoveryResult?.backupId || 'last good backup'}`
+        : `System auto-recovery failed: ${errorMessage}`,
+      statusCode: success ? 200 : 500,
+      ipAddress: '127.0.0.1',
+      userAgent: 'Health Monitor',
+      resourceType: 'backup',
+      resourceId: recoveryResult?.backupId,
+      errorMessage: success ? null : errorMessage,
+      details: {
+        triggeredBy,
+        backupId: recoveryResult?.backupId,
+        totalDocuments: recoveryResult?.totalDocuments,
+        collectionsRestored: recoveryResult?.restoredCollections?.length,
+        criticalAlert: true
+      }
+    });
+  }
+
+  /**
+   * Log backup deletion
+   */
+  async logBackupDeletion(backupId, user, req, success = true, errorMessage = null) {
+    return this.logAction({
+      user,
+      method: 'DELETE',
+      route: `/api/backup/${backupId}`,
+      action: 'ADMIN_DELETE_BACKUP',
+      description: success
+        ? `${user.name || user.username} deleted backup: ${backupId}`
+        : `${user.name || user.username} attempted to delete backup ${backupId} but failed: ${errorMessage}`,
+      statusCode: success ? 200 : 500,
+      ipAddress: getClientIp(req),
+      userAgent: req.headers['user-agent'],
+      resourceType: 'backup',
+      resourceId: backupId,
+      errorMessage: success ? null : errorMessage,
+      details: {
+        backupId,
+        action: 'permanent_deletion'
+      }
+    });
+  }
+
+  /**
+   * Log backup download
+   */
+  async logBackupDownload(backupId, user, req) {
+    return this.logAction({
+      user,
+      method: 'GET',
+      route: `/api/backup/${backupId}/download`,
+      action: 'ADMIN_DOWNLOAD_BACKUP',
+      description: `${user.name || user.username} downloaded backup file: ${backupId}`,
+      statusCode: 200,
+      ipAddress: getClientIp(req),
+      userAgent: req.headers['user-agent'],
+      resourceType: 'backup',
+      resourceId: backupId,
+      details: {
+        backupId,
+        action: 'file_download'
+      }
+    });
+  }
+
+  /**
+   * Log full database export (for Hard Disk storage)
+   */
+  async logFullExport(exportResult, user, req, success = true, errorMessage = null) {
+    return this.logAction({
+      user,
+      method: 'POST',
+      route: '/api/backup/export-full',
+      action: 'ADMIN_FULL_DATABASE_EXPORT',
+      description: success
+        ? `${user.name || user.username} exported FULL DATABASE for external storage: ${exportResult.exportId} (${exportResult.formattedSize || 'N/A'}, ${exportResult.totalDocuments || 0} documents)`
+        : `${user.name || user.username} attempted full database export but failed: ${errorMessage}`,
+      statusCode: success ? 201 : 500,
+      ipAddress: getClientIp(req),
+      userAgent: req.headers['user-agent'],
+      resourceType: 'backup',
+      resourceId: exportResult?.exportId,
+      errorMessage: success ? null : errorMessage,
+      details: {
+        exportId: exportResult?.exportId,
+        fileName: exportResult?.fileName,
+        fileSize: exportResult?.fileSize,
+        formattedSize: exportResult?.formattedSize,
+        totalDocuments: exportResult?.totalDocuments,
+        totalCollections: exportResult?.totalCollections,
+        purpose: 'External storage / Hard Disk backup'
+      }
+    });
+  }
+
+  /**
+   * Log database import from external file (from Hard Disk)
+   */
+  async logDatabaseImport(importResult, user, req, success = true, errorMessage = null) {
+    return this.logAction({
+      user,
+      method: 'POST',
+      route: '/api/backup/import',
+      action: 'ADMIN_IMPORT_FROM_EXTERNAL',
+      description: success
+        ? `${user.name || user.username} IMPORTED database from external backup file (${importResult.totalDocuments || 0} documents restored)`
+        : `${user.name || user.username} attempted to import from external backup but failed: ${errorMessage}`,
+      statusCode: success ? 200 : 500,
+      ipAddress: getClientIp(req),
+      userAgent: req.headers['user-agent'],
+      resourceType: 'backup',
+      resourceId: importResult?.sourceBackupId,
+      errorMessage: success ? null : errorMessage,
+      details: {
+        sourceBackupId: importResult?.sourceBackupId,
+        sourceCreatedAt: importResult?.sourceCreatedAt,
+        totalDocuments: importResult?.totalDocuments,
+        collections: importResult?.collections,
+        source: 'External file (Hard Disk)',
+        warning: 'DATA IMPORT OPERATION - Database content modified'
+      }
+    });
+  }
+
+  /**
+   * Log data archival
+   */
+  async logDataArchive(archiveResult, user, req, success = true, errorMessage = null) {
+    return this.logAction({
+      user,
+      method: 'POST',
+      route: '/api/backup/archive',
+      action: 'ADMIN_ARCHIVE_OLD_DATA',
+      description: success
+        ? `${user.name || user.username} archived ${archiveResult.totalArchivedDocuments || 0} old documents (${archiveResult.olderThanYears}+ years)${archiveResult.deleteAfterArchive ? ' and DELETED from database' : ''}`
+        : `${user.name || user.username} attempted to archive old data but failed: ${errorMessage}`,
+      statusCode: success ? 201 : 500,
+      ipAddress: getClientIp(req),
+      userAgent: req.headers['user-agent'],
+      resourceType: 'backup',
+      resourceId: archiveResult?.archiveId,
+      errorMessage: success ? null : errorMessage,
+      details: {
+        archiveId: archiveResult?.archiveId,
+        olderThanYears: archiveResult?.olderThanYears,
+        cutoffDate: archiveResult?.cutoffDate,
+        totalArchivedDocuments: archiveResult?.totalArchivedDocuments,
+        totalDeletedDocuments: archiveResult?.totalDeletedDocuments,
+        deleteAfterArchive: archiveResult?.deleteAfterArchive,
+        collections: archiveResult?.collections
+      }
+    });
+  }
+
+  /**
+   * Log restore from archive
+   */
+  async logRestoreFromArchive(archiveId, restoreResult, user, req, success = true, errorMessage = null) {
+    return this.logAction({
+      user,
+      method: 'POST',
+      route: `/api/backup/archive/${archiveId}/restore`,
+      action: 'ADMIN_RESTORE_FROM_ARCHIVE',
+      description: success
+        ? `${user.name || user.username} restored ${restoreResult.totalRestored || 0} documents from archive: ${archiveId}`
+        : `${user.name || user.username} attempted to restore from archive ${archiveId} but failed: ${errorMessage}`,
+      statusCode: success ? 200 : 500,
+      ipAddress: getClientIp(req),
+      userAgent: req.headers['user-agent'],
+      resourceType: 'backup',
+      resourceId: archiveId,
+      errorMessage: success ? null : errorMessage,
+      details: {
+        archiveId,
+        totalRestored: restoreResult?.totalRestored,
+        collections: restoreResult?.collections
+      }
+    });
+  }
+
+  /**
+   * Log backup protection toggle
+   */
+  async logBackupProtectionToggle(backupId, isProtected, user, req) {
+    return this.logAction({
+      user,
+      method: 'PUT',
+      route: `/api/backup/${backupId}/protection`,
+      action: isProtected ? 'ADMIN_PROTECT_BACKUP' : 'ADMIN_UNPROTECT_BACKUP',
+      description: `${user.name || user.username} ${isProtected ? 'protected' : 'unprotected'} backup: ${backupId}`,
+      statusCode: 200,
+      ipAddress: getClientIp(req),
+      userAgent: req.headers['user-agent'],
+      resourceType: 'backup',
+      resourceId: backupId,
+      details: {
+        backupId,
+        isProtected,
+        action: isProtected ? 'Backup protected from auto-deletion' : 'Backup can now be auto-deleted'
+      }
+    });
+  }
+
+  /**
+   * Log backup verification
+   */
+  async logBackupVerification(backupId, verificationResult, user, req) {
+    const isValid = verificationResult?.valid;
+    
+    return this.logAction({
+      user,
+      method: 'POST',
+      route: `/api/backup/${backupId}/verify`,
+      action: 'ADMIN_VERIFY_BACKUP',
+      description: `${user.name || user.username} verified backup ${backupId}: ${isValid ? 'VALID' : 'CORRUPTED/INVALID'}`,
+      statusCode: isValid ? 200 : 400,
+      ipAddress: getClientIp(req),
+      userAgent: req.headers['user-agent'],
+      resourceType: 'backup',
+      resourceId: backupId,
+      errorMessage: isValid ? null : verificationResult?.error,
+      details: {
+        backupId,
+        valid: isValid,
+        checksum: verificationResult?.checksum,
+        verifiedAt: verificationResult?.verifiedAt,
+        error: verificationResult?.error
+      }
+    });
+  }
+
+  /**
+   * Log backup config update
+   */
+  async logBackupConfigUpdate(newConfig, user, req) {
+    return this.logAction({
+      user,
+      method: 'PUT',
+      route: '/api/backup/config',
+      action: 'ADMIN_UPDATE_BACKUP_CONFIG',
+      description: `${user.name || user.username} updated backup configuration`,
+      statusCode: 200,
+      ipAddress: getClientIp(req),
+      userAgent: req.headers['user-agent'],
+      resourceType: 'backup',
+      details: {
+        newConfig,
+        action: 'Backup system configuration modified'
       }
     });
   }

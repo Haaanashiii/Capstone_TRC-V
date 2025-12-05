@@ -171,7 +171,7 @@ async function sendOTPEmail(to, otp) {
                     
                     <div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 16px 20px; margin-top: 30px; border-radius: 6px;">
                       <p style="color: #92400e; font-size: 13px; margin: 0; line-height: 1.6; font-family: 'Poppins', sans-serif;">
-                        <strong style="display: block; margin-bottom: 5px;">🔒 Security Notice</strong>
+                        <strong style="display: block; margin-bottom: 5px;">Security Notice</strong>
                         Never share this code with anyone. TRC-V staff will never ask for your OTP code.
                       </p>
                     </div>
@@ -253,26 +253,26 @@ async function sendFranchiseExpiryEmail(to, operatorName, mtopNumber, expiryDate
   let subject, urgencyLevel, mainMessage, actionMessage, urgencyColor, urgencyIcon;
   
   if (daysUntilExpiry === 0) {
-    subject = '🚨 URGENT: Your Franchise Has Expired';
+    subject = 'URGENT: Your Franchise Has Expired';
     urgencyLevel = 'EXPIRED';
     mainMessage = 'Your tricycle franchise has expired today.';
     actionMessage = 'Your franchise is no longer valid. Please renew immediately to continue operations.';
     urgencyColor = '#dc2626'; // Red
-    urgencyIcon = '🚨';
+    urgencyIcon = '[!]';
   } else if (daysUntilExpiry <= 7) {
-    subject = '⚠️ FINAL NOTICE: Franchise Expiring in 7 Days';
+    subject = 'FINAL NOTICE: Franchise Expiring in 7 Days';
     urgencyLevel = 'URGENT - 7 DAYS';
     mainMessage = `Your tricycle franchise will expire in <strong>${daysUntilExpiry} ${daysUntilExpiry === 1 ? 'day' : 'days'}</strong>.`;
     actionMessage = 'This is your final reminder. Please process your renewal as soon as possible to avoid service interruption.';
     urgencyColor = '#ea580c'; // Orange
-    urgencyIcon = '⚠️';
+    urgencyIcon = '[!]';
   } else if (daysUntilExpiry <= 30) {
-    subject = '📢 Reminder: Franchise Expiring in 30 Days';
+    subject = 'Reminder: Franchise Expiring in 30 Days';
     urgencyLevel = 'REMINDER - 30 DAYS';
     mainMessage = `Your tricycle franchise will expire in <strong>${daysUntilExpiry} days</strong>.`;
     actionMessage = 'We recommend starting your renewal process now to ensure uninterrupted service.';
     urgencyColor = '#f59e0b'; // Amber
-    urgencyIcon = '📢';
+    urgencyIcon = '[i]';
   }
   
   const mailOptions = {
@@ -350,7 +350,7 @@ async function sendFranchiseExpiryEmail(to, operatorName, mtopNumber, expiryDate
                     
                     <div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 16px 20px; margin: 25px 0; border-radius: 6px;">
                       <p style="color: #92400e; font-size: 14px; margin: 0; line-height: 1.6; font-family: 'Poppins', sans-serif;">
-                        <strong style="display: block; margin-bottom: 8px;">⚠️ Action Required</strong>
+                        <strong style="display: block; margin-bottom: 8px;">Action Required</strong>
                         ${actionMessage}
                       </p>
                     </div>
@@ -475,7 +475,7 @@ async function sendFranchiseCreatedEmail(to, operatorName, franchiseNumber) {
                 <!-- Main Content -->
                 <tr>
                   <td style="padding: 45px 40px;">
-                    <h2 style="color: #1e293b; margin: 0 0 15px 0; font-size: 28px; font-weight: 700; text-align: center; font-family: 'Poppins', sans-serif;">🎉 Congratulations!</h2>
+                    <h2 style="color: #1e293b; margin: 0 0 15px 0; font-size: 28px; font-weight: 700; text-align: center; font-family: 'Poppins', sans-serif;">Congratulations!</h2>
                     <p style="color: #64748b; font-size: 16px; line-height: 1.6; margin: 0 0 30px 0; text-align: center; font-family: 'Poppins', sans-serif;">
                       Your franchise application has been <strong style="color: #10b981;">approved</strong> by the Sangguniang Bayan!
                     </p>
@@ -908,7 +908,7 @@ async function sendBPLOApprovalNotification(application) {
                     
                     <!-- Next Steps -->
                     <div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 20px; margin: 30px 0; border-radius: 6px;">
-                      <h3 style="color: #1e293b; margin: 0 0 15px 0; font-size: 18px; font-weight: 600; font-family: 'Poppins', sans-serif;">📋 Next Steps:</h3>
+                      <h3 style="color: #1e293b; margin: 0 0 15px 0; font-size: 18px; font-weight: 600; font-family: 'Poppins', sans-serif;">Next Steps:</h3>
                       <ol style="color: #64748b; font-size: 14px; line-height: 1.8; margin: 0; padding-left: 20px; font-family: 'Poppins', sans-serif;">
                         <li><strong>Visit the BPLO office</strong> for tricycle inspection</li>
                         <li><strong>Bring your tricycle</strong> and all required documents</li>
@@ -919,7 +919,7 @@ async function sendBPLOApprovalNotification(application) {
                     
                     <div style="background-color: #dbeafe; border-left: 4px solid #3b82f6; padding: 16px 20px; margin: 25px 0; border-radius: 6px;">
                       <p style="color: #1e3a8a; font-size: 14px; margin: 0; line-height: 1.6; font-family: 'Poppins', sans-serif;">
-                        <strong style="display: block; margin-bottom: 8px;">💡 Important Reminder</strong>
+                        <strong style="display: block; margin-bottom: 8px;">Important Reminder</strong>
                         Please complete the inspection and OR submission as soon as possible. Your application will proceed to SB (Sangguniang Bayan) approval after these steps are completed.
                       </p>
                     </div>

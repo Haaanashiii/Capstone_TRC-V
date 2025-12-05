@@ -2,10 +2,64 @@ const crypto = require('crypto');
 const QRCode = require('qrcode');
 const FranchiseInformation = require('../models/franchiseInformationModel');
 
+// In-memory cache for hash -> franchiseNumber mapping
+// Prevents full collection scan on every QR lookup
+const hashCache = new Map();
+const HASH_CACHE_TTL = 10 * 60 * 1000; // 10 minutes
+let lastCacheRefresh = 0;
+
 // Generate SHA-256 hashed franchise number (first 16 chars)
 function generateHashedFranchiseNo(franchiseNo) {
   const hash = crypto.createHash('sha256').update(franchiseNo).digest('hex');
   return hash.substring(0, 16);
+}
+
+/**
+ * Reverse lookup: Find franchise number from hash
+ * Uses cached mapping to avoid full collection scan
+ * @param {string} hashedMTOP - The 16-char hash from QR code
+ * @returns {Promise<string|null>} - The original franchise number or null
+ */
+async function findFranchiseNumberByHash(hashedMTOP) {
+  // Check if cache needs refresh
+  const now = Date.now();
+  if (now - lastCacheRefresh > HASH_CACHE_TTL || hashCache.size === 0) {
+    await refreshHashCache();
+  }
+  
+  return hashCache.get(hashedMTOP) || null;
+}
+
+/**
+ * Refresh the hash -> franchiseNumber cache
+ * Only fetches franchise numbers (minimal data) for efficiency
+ */
+async function refreshHashCache() {
+  try {
+    // Only fetch franchise numbers (very lightweight query)
+    const franchises = await FranchiseInformation.find({ isCurrentVersion: true })
+      .select('franchiseNumber')
+      .lean();
+    
+    hashCache.clear();
+    
+    for (const f of franchises) {
+      const hash = generateHashedFranchiseNo(f.franchiseNumber);
+      hashCache.set(hash, f.franchiseNumber);
+    }
+    
+    lastCacheRefresh = Date.now();
+    console.log(`[HashCache] Refreshed with ${hashCache.size} entries`);
+  } catch (error) {
+    console.error('[HashCache] Refresh error:', error.message);
+  }
+}
+
+/**
+ * Invalidate hash cache (call when franchise numbers change)
+ */
+function invalidateHashCache() {
+  lastCacheRefresh = 0;
 }
 
 // Generate QR code buffer for franchise verification
@@ -42,6 +96,9 @@ async function handleVersionControl(franchiseNo, changeType, session = null) {
     { isCurrentVersion: false },
     { session }
   );
+  
+  // Invalidate cache since franchise data changed
+  invalidateHashCache();
 
   return {
     version: (currentFranchise.version || 1) + 1,
@@ -68,6 +125,9 @@ function validateFranchiseStatus(franchise, applicationType) {
 
 module.exports = {
   generateHashedFranchiseNo,
+  findFranchiseNumberByHash,
+  refreshHashCache,
+  invalidateHashCache,
   generateQRCodeBuffer,
   handleVersionControl,
   validateFranchiseStatus

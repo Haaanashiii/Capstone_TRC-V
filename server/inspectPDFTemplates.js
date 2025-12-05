@@ -35,13 +35,13 @@ async function inspectAllTemplates() {
                     console.log(`   ${index + 1}. ${field.name} (${field.type})`);
                 });
             } else {
-                console.log('   ⚠️  No form fields found - this might not be a fillable PDF');
+                console.log('   [WARN] No form fields found - this might not be a fillable PDF');
             }
             
             console.log('\n' + '─'.repeat(80) + '\n');
             
         } catch (error) {
-            console.error(`   ❌ Error: ${error.message}\n`);
+            console.error(`   [ERROR] ${error.message}\n`);
         }
     }
     

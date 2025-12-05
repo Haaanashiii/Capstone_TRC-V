@@ -132,8 +132,31 @@ franchiseInformationSchema.index({ franchiseStatus: 1 });
 franchiseInformationSchema.index({ expiryDate: 1 });
 franchiseInformationSchema.index({ operatorBarangay: 1 });
 franchiseInformationSchema.index({ changeType: 1 });
+
 // Compound indexes for common queries
 franchiseInformationSchema.index({ isCurrentVersion: 1, franchiseStatus: 1 });
 franchiseInformationSchema.index({ linkedUser: 1, isCurrentVersion: 1 });
+
+// NEW: Indexes for year-based and date-range queries (10K+ optimization)
+franchiseInformationSchema.index({ approvedAt: -1 });
+franchiseInformationSchema.index({ createdAt: -1 });
+franchiseInformationSchema.index({ isCurrentVersion: 1, approvedAt: -1 });
+franchiseInformationSchema.index({ operatorBarangay: 1, isCurrentVersion: 1, franchiseStatus: 1 });
+
+// Text index for search functionality
+franchiseInformationSchema.index({
+  operatorName: 'text',
+  franchiseNumber: 'text',
+  operatorAddress: 'text',
+  driverName: 'text'
+}, {
+  weights: {
+    franchiseNumber: 10,
+    operatorName: 5,
+    driverName: 3,
+    operatorAddress: 1
+  },
+  name: 'franchise_text_search'
+});
 
 module.exports = mongoose.model('Franchise Information', franchiseInformationSchema);

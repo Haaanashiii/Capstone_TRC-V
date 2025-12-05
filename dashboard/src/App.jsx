@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, useNavigate } from 'react-router-dom';
 import ProtectedRoute from './components/ProtectedRoute';
 import PageProtectedRoute from './components/PageProtectedRoute';
+import PWAUpdatePrompt from './components/PWAUpdatePrompt';
 import SignUp from './pages/auth/SignUp';
 import OAuthCallback from './pages/auth/OAuthCallback';
 import './utils/envCheck'; // Check environment variables on app load
@@ -40,6 +41,7 @@ function UserRoutesWrapper({ children }) {
 function App() {
   return (
     <Router>
+      <PWAUpdatePrompt />
       <Routes>
         <Route path="/" element={<UserRoutesWrapper><LandingPage /></UserRoutesWrapper>} />
         <Route path="/signup" element={<UserRoutesWrapper><SignUp /></UserRoutesWrapper>} />

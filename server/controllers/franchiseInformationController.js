@@ -1,106 +1,79 @@
 const franchiseInformationRepository = require('../repositories/franchiseInformationRepository');
 const { generateOperatorQRCode, deleteQRCode } = require('../services/qrCodeService');
-const { getFileFromR2 } = require('../services/cloudflareService');
+const storage = require('../services/storageAdapter');
 const { getClientIp } = require('../utils/ipHelper');
-const { generateHashedFranchiseNo } = require('../utils/franchiseHelpers');
+const { generateHashedFranchiseNo, findFranchiseNumberByHash } = require('../utils/franchiseHelpers');
 
-
-
-// ========================================
-// READ FRANCHISES
-// ========================================
-
-// Get all franchises (latest version per owner, real-time updates)
+// Get all franchises with pagination
 exports.getAllFranchiseInformation = async (req, res, next) => {
   try {
     const FranchiseInformation = require('../models/franchiseInformationModel');
-    const { startDate, endDate, search } = req.query;
+    const cacheManager = require('../utils/cache');
     
-    // Build filter
-    const filter = {};
+    // Parse query parameters
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 50));
+    const skip = (page - 1) * limit;
+    const { status, barangay, search } = req.query;
     
-    // Date range filter for MTOF reports
-    if (startDate || endDate) {
-      const dateConditions = [];
-      const startDateTime = startDate ? new Date(startDate) : null;
-      const endDateTime = endDate ? new Date(new Date(endDate).setHours(23, 59, 59, 999)) : null;
-      
-      const dateFilter = {};
-      if (startDateTime) dateFilter.$gte = startDateTime;
-      if (endDateTime) dateFilter.$lte = endDateTime;
-      
-      // Match by sbApprovedAt, createdAt, or approvedAt
-      dateConditions.push({ sbApprovedAt: dateFilter });
-      dateConditions.push({ createdAt: dateFilter });
-      dateConditions.push({ approvedAt: dateFilter });
-      
-      filter.$or = dateConditions;
-    }
-    
-    // Search filter
-    if (search && search.trim()) {
-      const searchRegex = new RegExp(search.trim(), 'i');
-      const searchConditions = [
-        { operatorName: searchRegex },
-        { franchiseNumber: searchRegex },
-        { mvPlateNo: searchRegex }
+    // Build query
+    const query = { isCurrentVersion: true };
+    if (status) query.franchiseStatus = status;
+    if (barangay) query.operatorBarangay = barangay;
+    if (search) {
+      query.$or = [
+        { franchiseNumber: { $regex: search, $options: 'i' } },
+        { operatorName: { $regex: search, $options: 'i' } }
       ];
-      
-      if (filter.$or) {
-        // Combine date filter with search using $and
-        filter.$and = [
-          { $or: filter.$or },
-          { $or: searchConditions }
-        ];
-        delete filter.$or;
-      } else {
-        filter.$or = searchConditions;
-      }
     }
     
-    console.log('[getAllFranchiseInformation] Filter:', JSON.stringify(filter, null, 2));
+    // Create cache key for this specific query
+    const cacheKey = `franchises-${page}-${limit}-${status || 'all'}-${barangay || 'all'}-${search || 'none'}`;
+    const cached = cacheManager.get(cacheKey);
     
-    // Get franchises with filter
-    const allFranchises = await FranchiseInformation.find(filter)
-      .populate('linkedUser', 'username email')
-      .populate('previousVersion', 'version changeType changedAt')
-      .sort({ franchiseChainId: 1, version: -1 });
-    
-    // Group by chain ID, keep latest version per owner (unless date filter is applied)
-    const franchiseMap = new Map();
-    for (const franchise of allFranchises) {
-      const chainId = franchise.franchiseChainId;
-      if (!franchiseMap.has(chainId)) {
-        franchiseMap.set(chainId, franchise);
-      }
-    }
-    
-    // Sort by franchise number
-    const franchises = Array.from(franchiseMap.values())
-      .sort((a, b) => {
-        const numA = parseInt(a.franchiseNumber.match(/\d+/)?.[0] || 0);
-        const numB = parseInt(b.franchiseNumber.match(/\d+/)?.[0] || 0);
-        return numA - numB;
+    if (cached) {
+      return res.status(200).json({
+        success: true,
+        ...cached,
+        cached: true
       });
+    }
     
-    console.log(`[getAllFranchiseInformation] Found ${franchises.length} franchises`);
+    // Execute query with pagination
+    const [franchises, total] = await Promise.all([
+      FranchiseInformation.find(query)
+        .select('-documents') // Exclude heavy document references for list view
+        .populate('linkedUser', 'username email')
+        .sort({ franchiseNumber: 1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      FranchiseInformation.countDocuments(query)
+    ]);
     
-    // Notify admins about updated franchise list
-    if (req.app.get('io')) {
+    const result = {
+      count: franchises.length,
+      total,
+      page,
+      limit,
+      pages: Math.ceil(total / limit),
+      data: franchises
+    };
+    
+    // Cache for 30 seconds (list view can be slightly stale)
+    cacheManager.set(cacheKey, result, 30);
+    
+    // Notify admins about updated franchise list (only if no filters applied)
+    if (!status && !barangay && !search && page === 1 && req.app.get('io')) {
       req.app.get('io').to('bplo-admins').emit('franchises-list-updated', {
-        count: franchises.length,
-        timestamp: new Date().toISOString()
-      });
-      req.app.get('io').to('sb-admins').emit('franchises-list-updated', {
-        count: franchises.length,
+        count: total,
         timestamp: new Date().toISOString()
       });
     }
     
     return res.status(200).json({ 
       success: true, 
-      count: franchises.length,
-      data: franchises 
+      ...result
     });
   } catch (error) {
     console.error('[getAllFranchiseInformation] Error:', error);
@@ -243,25 +216,7 @@ exports.getFranchiseHistory = async (req, res, next) => {
   }
 };
 
-/**
- * GET /franchise-information/chain/:franchiseChainId
- * Get all versions of a SPECIFIC FRANCHISE CHAIN (ONE OWNER)
- * 
- * Purpose: View complete lifecycle of one operator's franchise
- * Tied to specific user/operator (not recyclable like franchise number)
- * Shows ALL versions: active, renewed, amended, and if revoked
- * Params: franchiseChainId (format: "user-${userId}-${timestamp}")
- * 
- * Returns:
- * - All versions of this specific franchise chain
- * - Sorted chronologically (oldest to newest)
- * - Includes revoked franchises (shows full lifecycle)
- * - CRITICAL: Each chain belongs to ONE user only
- * 
- * Example:
- * - User A's franchise chain: "user-507f1f77bcf86cd799439011-1609459200"
- * - Shows all versions from creation → renewals → amendments → expiry → revoke
- */
+// Get all versions of a franchise chain (one owner only)
 exports.getFranchiseChainHistory = async (req, res, next) => {
   try {
     const { franchiseChainId } = req.params;
@@ -465,111 +420,97 @@ exports.updateFranchiseInformation = async (req, res, next) => {
 exports.getAvailableFranchiseNumbers = async (req, res, next) => {
   try {
     const FranchiseInformation = require('../models/franchiseInformationModel');
-
-    // Get latest version of each franchise
-    const allFranchises = await FranchiseInformation.find({
-      isCurrentVersion: true
-    })
-      .select('franchiseChainId franchiseNumber franchiseStatus expiryDate')
-      .lean()
-      .sort({ franchiseChainId: 1, version: -1 })
-      .exec();
-
-    // Group by owner, keep latest version per owner
-    const chainMap = new Map();
-    for (const franchise of allFranchises) {
-      if (!chainMap.has(franchise.franchiseChainId)) {
-        chainMap.set(franchise.franchiseChainId, franchise);
-      }
-    }
-
-    const allCurrentFranchises = Array.from(chainMap.values());
-
-    const now = new Date();
-    const threeYearsAgo = new Date(now);
-    threeYearsAgo.setFullYear(now.getFullYear() - 3);
-
-    // Store data efficiently
-    const franchiseMap = new Map();
-    let latestNumber = 0;
-    let activeCount = 0;
-    let revokedAvailableCount = 0;
-    let revokedUnavailableCount = 0;
-
-    // Process data in one loop
-    for (const franchise of allCurrentFranchises) {
-      // Extract only the digits (DB must store values like "0012", "1104"...)
-      const numberMatch = franchise.franchiseNumber.match(/^(\d{1,4})$/); 
-      if (!numberMatch) continue; // Skip invalid formats
-
-      const franchiseNum = parseInt(numberMatch[1], 10);
-      latestNumber = Math.max(latestNumber, franchiseNum);
-
-      const isRevoked = franchise.franchiseStatus === 'revoked';
-      const isExpired3Years =
-        franchise.expiryDate && new Date(franchise.expiryDate) <= threeYearsAgo;
-
-      // Franchise becomes available for reuse after 3 years of being revoked
-      const isAvailable = isRevoked && isExpired3Years;
-
-      franchiseMap.set(franchiseNum, {
-        fullNumber: franchise.franchiseNumber,
-        status: franchise.franchiseStatus,
-        available: isAvailable
+    const cacheManager = require('../utils/cache');
+    
+    // This data doesn't change frequently - cache for 5 minutes
+    const cacheKey = 'available-franchise-numbers';
+    const cached = cacheManager.get(cacheKey);
+    
+    if (cached) {
+      return res.status(200).json({
+        success: true,
+        data: cached,
+        cached: true
       });
-
-      // Counters
-      if (franchise.franchiseStatus === 'active') {
-        activeCount++;
-      } else if (isRevoked) {
-        if (isAvailable) revokedAvailableCount++;
-        else revokedUnavailableCount++;
-      }
     }
 
-    // Find gaps (numbers never used or available for reuse)
-    const availableNumbers = [];
-    for (let i = 1; i <= latestNumber; i++) {
-      const franchise = franchiseMap.get(i);
-
-      if (!franchise) {
-        availableNumbers.push(String(i).padStart(4, '0')); // gap
-      } else if (franchise.available) {
-        availableNumbers.push(String(i).padStart(4, '0')); // reusable
-      }
-    }
-
-    // Next available franchise number
-    const nextNum = latestNumber + 1;
-    const nextFranchiseNumber = String(nextNum).padStart(4, '0');
-
-    // LIMIT DISPLAY FOR FRONTEND (faster UI)
-    const displayLimit = 100;
-    const displayedAvailable = availableNumbers.slice(0, displayLimit);
-
-    // Respond
-    return res.status(200).json({
-      success: true,
-      data: {
-        availableNumbers: displayedAvailable,
-        hasMore: availableNumbers.length > displayLimit,
-        totalAvailable: availableNumbers.length,
-        nextNumber: nextFranchiseNumber,
-        recommendation:
-          availableNumbers.length > 0
-            ? `${availableNumbers.length} available number${availableNumbers.length > 1 ? 's' : ''} (showing first ${Math.min(displayLimit, availableNumbers.length)})`
-            : `Use next number: ${nextFranchiseNumber}`,
-        statistics: {
-          totalFranchises: allCurrentFranchises.length,
-          totalActive: activeCount,
-          totalRevoked: revokedAvailableCount + revokedUnavailableCount,
-          revokedAvailable: revokedAvailableCount,
-          revokedUnavailable: revokedUnavailableCount,
-          gaps: availableNumbers.length - revokedAvailableCount,
-          latestNumber: latestNumber,
-          nextNumber: nextNum
+    // Use aggregation pipeline instead of loading all documents
+    const stats = await FranchiseInformation.aggregate([
+      // Only current versions
+      { $match: { isCurrentVersion: true } },
+      
+      // Extract numeric part of franchise number and project only needed fields
+      {
+        $project: {
+          franchiseNumber: 1,
+          franchiseStatus: 1,
+          expiryDate: 1,
+          numericPart: {
+            $toInt: {
+              $cond: {
+                if: { $regexMatch: { input: '$franchiseNumber', regex: /^\d{1,4}$/ } },
+                then: '$franchiseNumber',
+                else: '0'
+              }
+            }
+          }
+        }
+      },
+      
+      // Group to get stats
+      {
+        $group: {
+          _id: null,
+          maxNumber: { $max: '$numericPart' },
+          usedNumbers: { $addToSet: '$numericPart' },
+          activeCount: { $sum: { $cond: [{ $eq: ['$franchiseStatus', 'Active'] }, 1, 0] } },
+          expiredCount: { $sum: { $cond: [{ $eq: ['$franchiseStatus', 'Expired'] }, 1, 0] } },
+          revokedCount: { $sum: { $cond: [{ $eq: ['$franchiseStatus', 'Revoked'] }, 1, 0] } },
+          total: { $sum: 1 }
         }
       }
+    ]);
+
+    const result = stats[0] || { maxNumber: 0, usedNumbers: [], activeCount: 0, expiredCount: 0, revokedCount: 0, total: 0 };
+    
+    // Find gaps (numbers not in use)
+    const usedSet = new Set(result.usedNumbers);
+    const availableNumbers = [];
+    
+    for (let i = 1; i <= result.maxNumber && availableNumbers.length < 100; i++) {
+      if (!usedSet.has(i)) {
+        availableNumbers.push(String(i).padStart(4, '0'));
+      }
+    }
+    
+    const nextNum = result.maxNumber + 1;
+    const nextFranchiseNumber = String(nextNum).padStart(4, '0');
+
+    const responseData = {
+      availableNumbers: availableNumbers.slice(0, 100), // Limit to 100
+      hasMore: availableNumbers.length > 100,
+      totalAvailable: availableNumbers.length,
+      nextNumber: nextFranchiseNumber,
+      recommendation: availableNumbers.length > 0
+        ? `${availableNumbers.length} available number${availableNumbers.length > 1 ? 's' : ''} (showing first ${Math.min(100, availableNumbers.length)})`
+        : `Use next number: ${nextFranchiseNumber}`,
+      statistics: {
+        totalFranchises: result.total,
+        totalActive: result.activeCount,
+        totalExpired: result.expiredCount,
+        totalRevoked: result.revokedCount,
+        gaps: availableNumbers.length,
+        latestNumber: result.maxNumber,
+        nextNumber: nextNum
+      }
+    };
+    
+    // Cache for 5 minutes
+    cacheManager.set(cacheKey, responseData, 300);
+
+    return res.status(200).json({
+      success: true,
+      data: responseData
     });
 
   } catch (error) {
@@ -578,16 +519,7 @@ exports.getAvailableFranchiseNumbers = async (req, res, next) => {
   }
 };
 
-
-
-/**
- * GET /franchise-information/by-user/:userId
- * Get all active franchises for a specific user
- * 
- * Purpose: Fetch franchises linked to a specific user ID
- * Returns only current versions (isCurrentVersion: true)
- * Used by: Operator home page to display their active franchises
- */
+// Get all active franchises for a specific user
 exports.getFranchisesByUser = async (req, res, next) => {
   try {
     const { userId } = req.params;
@@ -634,18 +566,7 @@ exports.getFranchisesByUser = async (req, res, next) => {
   }
 };
 
-// ========================================
-// FRANCHISE LINKING - OPERATOR LINKING EXISTING FRANCHISE
-// ========================================
-
-/**
- * POST /franchise-information/link
- * Link existing franchise to operator account
- * 
- * Purpose: Allow operators to link their approved franchise to their account
- * Body: { franchiseNumber, mtofDocument }
- * Returns: Updated franchise with linkedUser set
- */
+// Link existing franchise to operator account
 exports.linkFranchise = async (req, res, next) => {
   try {
     const { franchiseNumber } = req.body;
@@ -726,26 +647,7 @@ exports.linkFranchise = async (req, res, next) => {
   }
 };
 
-// ========================================
-// QR CODE LOOKUP - DRIVER VERIFICATION
-// ========================================
-
-
-/**
- * GET /franchise-information/qr/hash/:hashedMTOP
- * QR code verification endpoint - returns DRIVER details from LATEST franchise version
- * 
- * Purpose: Verify tricycle via QR code scan
- * PUBLIC - Rate limited, returns driver info for verification
- * 
- * Logic:
- * 1. Hash is computed from franchiseNumber (4-digit: "0001", "1234", etc.)
- * 2. Finds franchise matching the hash
- * 3. Returns LATEST VERSION of that franchise chain
- * 4. Shows driver info + franchise status
- * 
- * Returns: Driver name, picture, address, TODA membership, franchise status
- */
+// QR code verification - returns driver details (uses hash cache for O(1) lookup)
 exports.franchiseQRLookupByHash = async (req, res, next) => {
   try {
     const { hashedMTOP } = req.params;
@@ -754,22 +656,24 @@ exports.franchiseQRLookupByHash = async (req, res, next) => {
       return res.status(400).json({ error: 'Invalid QR code' });
     }
     
-    // Get current version franchises and find matching QR code
-    const FranchiseInformation = require('../models/franchiseInformationModel');
-    const allCurrentFranchises = await FranchiseInformation.find({ 
-      isCurrentVersion: true 
-    })
-    .sort({ franchiseChainId: 1, version: -1 });
+    // Use cached reverse lookup (O(1) instead of full collection scan)
+    const franchiseNumber = await findFranchiseNumberByHash(hashedMTOP);
     
-    // Find franchise with matching hash
-    let franchiseInformation = null;
-    for (const franchise of allCurrentFranchises) {
-      const computedHash = generateHashedFranchiseNo(franchise.franchiseNumber);
-      if (computedHash === hashedMTOP) {
-        franchiseInformation = franchise;
-        break;
-      }
+    if (!franchiseNumber) {
+      return res.status(404).json({ 
+        error: 'Franchise not found',
+        message: 'This QR code is invalid or the franchise has been revoked' 
+      });
     }
+    
+    // Direct indexed lookup by franchise number (very fast)
+    const FranchiseInformation = require('../models/franchiseInformationModel');
+    const franchiseInformation = await FranchiseInformation.findOne({
+      franchiseNumber: franchiseNumber,
+      isCurrentVersion: true
+    })
+    .select('franchiseNumber franchiseChainId franchiseStatus operatorName operatorAddress operatorBarangay todaMembership expiryDate version isCurrentVersion documents.operatorPictureObj')
+    .lean();
     
     if (!franchiseInformation) {
       return res.status(404).json({ 
@@ -823,8 +727,7 @@ exports.proxyCloudflareFile = async (req, res, next) => {
     const { url } = req.query;
     if (!url) return res.status(400).json({ error: 'Missing url parameter' });
     
-    const key = url.startsWith('r2://') ? url.substring(5) : url;
-    const { buffer, contentType } = await getFileFromR2(key);
+    const { buffer, contentType } = await storage.getFile(url);
     
     res.setHeader('Content-Type', contentType);
     res.setHeader('Cache-Control', 'public, max-age=3600');

@@ -9,14 +9,14 @@ const API_BASE_URL = 'http://localhost:5170';
 const TOKEN = process.env.TEST_TOKEN || 'YOUR_SUPER_ADMIN_TOKEN_HERE';
 
 async function testPageAccessAPI() {
-  console.log('🧪 Testing Role Page Access API...\n');
-  console.log(`📍 API URL: ${API_BASE_URL}`);
-  console.log(`🔐 Using token: ${TOKEN.substring(0, 20)}...\n`);
+  console.log('[TEST] Testing Role Page Access API...\n');
+  console.log(`[TEST] API URL: ${API_BASE_URL}`);
+  console.log(`[TEST] Using token: ${TOKEN.substring(0, 20)}...\n`);
 
   try {
     // Test 1: Get all page access
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log('1️⃣  Testing GET /api/role-page-access');
+console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('[TEST 1] Testing GET /api/role-page-access');
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     
     const response1 = await fetch(`${API_BASE_URL}/api/role-page-access`, {
@@ -31,18 +31,18 @@ async function testPageAccessAPI() {
     console.log('Response:', JSON.stringify(result1, null, 2));
     
     if (result1.success && result1.data) {
-      console.log(`✅ Found ${result1.data.length} role configurations`);
+      console.log(`[OK] Found ${result1.data.length} role configurations`);
       result1.data.forEach(role => {
         console.log(`   - ${role.role}: ${role.allowedPages.length} pages`);
       });
     } else {
-      console.log('⚠️  No data returned or unsuccessful response');
+      console.log('[WARN] No data returned or unsuccessful response');
     }
     console.log();
 
     // Test 2: Get specific role (sb-admin)
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log('2️⃣  Testing GET /api/role-page-access/sb-admin');
+    console.log('[TEST 2] Testing GET /api/role-page-access/sb-admin');
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     
     const response2 = await fetch(`${API_BASE_URL}/api/role-page-access/sb-admin`, {
@@ -57,18 +57,18 @@ async function testPageAccessAPI() {
     console.log('Response:', JSON.stringify(result2, null, 2));
     
     if (result2.success && result2.data) {
-      console.log(`✅ SB Admin has access to: ${result2.data.allowedPages.join(', ')}`);
+      console.log(`[OK] SB Admin has access to: ${result2.data.allowedPages.join(', ')}`);
     }
     console.log();
 
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log('✅ All tests completed!');
+    console.log('[OK] All tests completed!');
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log('\n💡 To test UPDATE and RESET, uncomment those sections below');
+    console.log('\n[INFO] To test UPDATE and RESET, uncomment those sections below');
 
   } catch (error) {
-    console.error('❌ Test failed:', error.message);
-    console.error('\n💡 Make sure:');
+    console.error('[ERROR] Test failed:', error.message);
+    console.error('\n[INFO] Make sure:');
     console.error('   1. Server is running (npm start in server folder)');
     console.error('   2. MongoDB is connected');
     console.error('   3. You have a valid super-admin token');

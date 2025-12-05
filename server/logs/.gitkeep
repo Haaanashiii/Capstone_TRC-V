@@ -1,0 +1,5 @@
+# This folder stores PM2 logs
+# Add to .gitignore: logs/*.log
+
+*.log
+!.gitkeep

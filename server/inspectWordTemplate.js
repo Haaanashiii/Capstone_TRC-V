@@ -38,7 +38,7 @@ async function inspectWordTemplate(templateName) {
         console.log('========================================\n');
         
         if (tags.length === 0) {
-            console.log('⚠️  No template tags found!');
+            console.log('[WARN] No template tags found!');
             console.log('   Add placeholders like {fieldName} to the Word document.\n');
             return;
         }
@@ -76,7 +76,7 @@ async function inspectWordTemplate(templateName) {
                         }
                     }
                 } else {
-                    console.log(`  ⚠️  ${start} (missing closing tag {/${varName}})`);
+                    console.log(`  [WARN] ${start} (missing closing tag {/${varName}})`);
                 }
             });
             console.log('\n========================================\n');

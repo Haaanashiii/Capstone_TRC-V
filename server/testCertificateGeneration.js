@@ -60,11 +60,11 @@ async function testCertificateGeneration() {
         const outputPath = path.join(__dirname, 'TEST_MTOF_DATE.docx');
         await fs.writeFile(outputPath, buffer);
 
-        console.log(`\n✅ SUCCESS! Test document generated: ${outputPath}`);
+        console.log(`\n[OK] SUCCESS! Test document generated: ${outputPath}`);
         console.log('Open the file to verify the data is populated correctly.');
 
     } catch (error) {
-        console.error('\n❌ ERROR:', error.message);
+        console.error('\n[ERROR]', error.message);
         
         if (error.properties && error.properties.errors) {
             console.error('\nTemplate errors:');

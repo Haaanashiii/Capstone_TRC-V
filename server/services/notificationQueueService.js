@@ -2,9 +2,9 @@
  * Notification Queue Service - SIMPLIFIED
  * 
  * Smart orchestrator for SMS + Email notifications
- * ✅ Manages OTP attempt tracking (max 2 SMS, then email only)
- * ✅ Routes CRITICAL notifications to SMS + Email
- * ✅ Routes INFO notifications to Email only (cost optimization)
+ * - Manages OTP attempt tracking (max 2 SMS, then email only)
+ * - Routes CRITICAL notifications to SMS + Email
+ * - Routes INFO notifications to Email only (cost optimization)
  * 
  * Does NOT wrap emailService/smsService - calls them directly
  */
@@ -348,7 +348,7 @@ async function sendSBApprovalNotification(franchiseData, resolutionNumber) {
     };
 
     // SMS message
-    const smsMessage = `🎉 FINAL APPROVAL! Your franchise #${franchiseNumber} (Resolution: ${resolutionNumber}) is approved. Claim your certificate now! -TRC-V`;
+    const smsMessage = `FINAL APPROVAL! Your franchise #${franchiseNumber} (Resolution: ${resolutionNumber}) is approved. Claim your certificate now! -TRC-V`;
 
     // SMS
     if (rules.smsEnabled && operatorContactNumber) {
