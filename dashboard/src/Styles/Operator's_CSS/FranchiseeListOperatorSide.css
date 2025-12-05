@@ -90,7 +90,7 @@
 @media (max-width: 768px) {
   .MuiBox-root[style*="background: rgb(8, 61, 119)"],
   .MuiBox-root[style*="background:#083d77"] {
-    padding: 16px 12px !important;
+    padding: 12px 8px !important;
     min-height: auto !important;
   }
 
@@ -101,20 +101,36 @@
     text-align: center !important;
     gap: 12px !important;
     padding: 12px !important;
+    width: 100% !important;
   }
 
   /* Center avatar on mobile */
   .MuiBox-root[style*="background: rgb(8, 61, 119)"] .MuiAvatar-root,
   .MuiBox-root[style*="background:#083d77"] .MuiAvatar-root {
     margin: 0 auto !important;
+    width: 100px !important;
+    height: 100px !important;
   }
 
-  /* Ensure buttons stay visible */
+  /* Ensure buttons stay visible and responsive */
   .MuiBox-root[style*="background: rgb(8, 61, 119)"] .MuiButton-root,
   .MuiBox-root[style*="background:#083d77"] .MuiButton-root {
     width: 100% !important;
-    max-width: 300px !important;
+    max-width: 100% !important;
     margin: 8px auto !important;
+    font-size: 0.875rem !important;
+  }
+
+  .MuiBox-root[style*="background: rgb(8, 61, 119)"] .MuiIconButton-root,
+  .MuiBox-root[style*="background:#083d77"] .MuiIconButton-root {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  /* Mobile text sizing */
+  .MuiBox-root[style*="background: rgb(8, 61, 119)"] .MuiTypography-h4,
+  .MuiBox-root[style*="background:#083d77"] .MuiTypography-h4 {
+    font-size: 1.25rem !important;
   }
 }
 
@@ -234,18 +250,21 @@
   display:flex;
   justify-content:center;
   position:relative;
-  padding:clamp(16px, 4vw, 20px) clamp(16px, 3vw, 24px) clamp(20px, 5vh, 40px);
-  margin-top: clamp(60px, 10vh, 80px);
+  padding:clamp(50px, 7vw, 70px) clamp(8px, 2vw, 16px) clamp(30px, 5vh, 60px);
+  margin-top: clamp(8px, 1vh, 16px);
   box-sizing:border-box;
+  width:100%;
+  max-width:100%;
+  overflow:visible;
 }
 
 .driver-id-card{
   display:flex;
-  width:100%;
-  max-width:1200px;
-  min-height:clamp(100px, 15vh, 120px);
+  width:90%;
+  max-width:970px;
+  min-height:auto;
   border-radius:clamp(8px, 1.5vw, 12px);
-  overflow:hidden;
+  overflow:visible;
   box-shadow:0 6px 24px rgba(10,35,118,0.12);
   background:transparent;
   position:relative;
@@ -255,6 +274,14 @@
   transition: transform 0.3s ease, box-shadow 0.3s ease;
   -webkit-tap-highlight-color: transparent;
   user-select: none;
+}
+
+@media (max-width: 768px) {
+  .driver-id-card {
+    flex-direction: column !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -271,25 +298,52 @@
 
 .id-left{
   background:#f3efe9;
-  flex:1 1 0;
-  padding:clamp(10px, 2vw, 12px) clamp(12px, 3vw, 16px);
+  flex:1 1 auto;
+  padding:clamp(8px, 1vw, 10px) clamp(12px, 2vw, 16px);
   box-sizing:border-box;
+  overflow:visible;
+  max-height:none;
+  display:flex;
+  flex-direction:column;
+  min-width:0;
+  width:auto;
+}
+
+@media (max-width: 768px) {
+  .id-left {
+    width: 100% !important;
+    flex: 1 1 100% !important;
+    padding: clamp(12px, 2vw, 14px) !important;
+    order: 1;
+  }
 }
 
 .id-right{
-  width:clamp(300px, 35vw, 420px);
+  width:clamp(240px, 28vw, 360px);
   background:#083d77;
   display:flex;
   align-items:center;
   justify-content:center;
-  padding:clamp(16px, 3vw, 20px);
+  padding:clamp(10px, 1.5vw, 14px);
   box-sizing:border-box;
+  flex-shrink:0;
+  min-height:auto;
+}
+
+@media (max-width: 768px) {
+  .id-right {
+    width: 100% !important;
+    flex: 1 1 100% !important;
+    padding: clamp(12px, 2vw, 14px) !important;
+    min-height: 250px !important;
+    order: 2;
+  }
 }
 
 .driver-id-badge{
   position:absolute;
-  right:clamp(20px, 4vw, 40px);
-  top:clamp(-30px, -5vh, -36px);
+  right:clamp(16px, 3vw, 32px);
+  top:clamp(-10px, -1.5vh, 0px);
   background:#083d77;
   color:#ffffff;
   padding:clamp(8px, 1.5vw, 10px) clamp(14px, 3vw, 22px);
@@ -298,7 +352,7 @@
   font-weight:700;
   font-size:clamp(11px, 1.8vw, 13px);
   letter-spacing:0.2px;
-  z-index:60;
+  z-index:95;
   animation: badgePulse 0.6s ease-out 0.3s backwards;
   transition: transform 0.3s ease, box-shadow 0.3s ease;
   -webkit-tap-highlight-color: transparent;
@@ -324,21 +378,32 @@
 .id-title{
   color:#083d77;
   font-weight:700;
-  margin:0 0 clamp(4px, 1vw, 6px) 0;
-  font-size:clamp(14px, 2.5vw, 16px);
+  margin:0 0 clamp(6px, 1vw, 8px) 0;
+  font-size:clamp(13px, 2vw, 15px);
+  word-wrap:break-word;
+  white-space:normal;
 }
 
 .divider{
-  height:2px;
+  height:1px;
   background:#222;
   opacity:0.08;
-  margin:clamp(4px, 1vw, 6px) 0 clamp(10px, 2vw, 12px) 0;
+  margin:clamp(3px, 0.8vw, 5px) 0 clamp(6px, 1.5vw, 8px) 0;
 }
 
 .fields-grid{
   display:grid;
   grid-template-columns:1fr 1fr;
-  gap:clamp(6px, 1.5vw, 8px) clamp(10px, 2vw, 12px);
+  gap:clamp(8px, 2vw, 12px) clamp(12px, 2.5vw, 16px);
+  width:100%;
+  box-sizing:border-box;
+}
+
+@media (max-width: 768px) {
+  .fields-grid {
+    grid-template-columns: 1fr !important;
+    gap: clamp(6px, 1.5vw, 8px) !important;
+  }
 }
 
 .subheading{
@@ -357,13 +422,32 @@
 .value{
   background:#fff;
   border-radius:clamp(8px, 1.5vw, 12px);
-  padding:clamp(5px, 1vw, 6px) clamp(8px, 1.5vw, 10px);
+  padding:clamp(8px, 1.5vw, 10px) clamp(10px, 2vw, 12px);
   box-shadow:inset 0 1px 0 rgba(0,0,0,0.03);
   border:1px solid rgba(0,0,0,0.06);
-  font-weight:700;color:#111;font-size:clamp(11px, 1.8vw, 12px);min-height:clamp(24px, 4vw, 28px);display:flex;align-items:center
+  font-weight:700;
+  color:#111;
+  font-size:clamp(11px, 1.8vw, 12px);
+  min-height:clamp(28px, 5vw, 32px);
+  display:flex;
+  align-items:center;
+  word-wrap:break-word;
+  white-space:normal;
+  overflow:visible;
 }
 
-.qr-container{background:transparent;border-radius:clamp(6px, 1vw, 8px);padding:clamp(4px, 1vw, 6px)}
+.qr-container{background:transparent;border-radius:clamp(6px, 1vw, 8px);padding:clamp(4px, 1vw, 6px);display:flex;align-items:center;justify-content:center;width:100%;height:100%}
+
+@media (max-width: 768px) {
+  .qr-container {
+    min-height: 280px;
+    padding: clamp(8px, 2vw, 12px);
+  }
+  .qr-container img {
+    max-width: 100%;
+    height: auto !important;
+  }
+}
 
 @media (max-width: 1100px){
   .driver-id-card{width:92%}
@@ -371,21 +455,128 @@
 @media (max-width: 900px){
   .driver-id-wrapper{margin-top:clamp(20px, 4vh, 40px)}
   .driver-id-card{width:96%}
-  .driver-id-badge{ top:clamp(-40px, -6vh, -44px); padding:clamp(6px, 1.5vw, 8px) clamp(12px, 2.5vw, 14px); font-size:clamp(10px, 1.5vw, 12px); left:50%; transform:translateX(-50%); right:auto; }
+  .driver-id-badge{ top:clamp(8px, 2vh, 16px); padding:clamp(6px, 1.5vw, 8px) clamp(12px, 2.5vw, 14px); font-size:clamp(10px, 1.5vw, 12px); right:clamp(20px, 4vw, 40px); left:auto; transform:none; }
 }
 @media (max-width: 768px){
-  .driver-id-card{flex-direction:column;width:100%;max-width:500px}
-  .id-right{width:100%;padding:clamp(16px, 3vw, 18px);min-height:clamp(120px, 15vh, 150px)}
-  .id-left{padding:clamp(16px, 3vw, 20px)}
-  .fields-grid{grid-template-columns:1fr;gap:clamp(8px, 2vw, 12px)}
+  #franchise-card .driver-id-card{flex-direction:column;width:100%;max-width:100% !important}
+  .driver-id-card .id-right{width:100% !important;padding:clamp(12px, 3vw, 16px) !important;min-height:280px !important}
+  .driver-id-card .id-left{padding:clamp(12px, 3vw, 16px) !important;overflow-x:auto;min-width:100% !important;width:100% !important}
+  .fields-grid{grid-template-columns:1fr;gap:clamp(6px, 1.5vw, 10px)}
   .field-group.wide{grid-column:1}
+  .id-title{font-size:clamp(12px, 2.5vw, 13px);text-align:left;margin:0;line-height:1.3}
+  .divider{margin:clamp(3px, 0.8vw, 6px) 0 clamp(8px, 1.5vw, 10px) 0}
 }
 
 @media (max-width: 480px){
-  .driver-id-wrapper{padding:clamp(10px, 2.5vw, 12px);margin-top:clamp(70px, 10vh, 90px)}
-  .id-left{padding:clamp(14px, 3.5vw, 18px)}
-  .id-right{padding:clamp(16px, 3.5vw, 20px);min-height:clamp(100px, 12vh, 130px)}
-  .id-title{font-size:clamp(13px, 2.8vw, 15px);text-align:center}
-  .driver-id-badge{padding:clamp(7px, 1.5vw, 9px) clamp(12px, 2.5vw, 16px);font-size:clamp(10px, 1.8vw, 12px)}
-  .value{padding:clamp(6px, 1.2vw, 8px) clamp(9px, 1.8vw, 12px);font-size:clamp(10px, 1.6vw, 11px)}
+  .driver-id-wrapper{padding:clamp(12px, 2vw, 16px);margin-top:clamp(60px, 8vh, 80px)}
+  .id-left{padding:clamp(10px, 2vw, 14px);overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .id-right{padding:clamp(12px, 2vw, 16px);min-height:clamp(220px, 35vw, 260px)}
+  .id-title{font-size:clamp(11px, 2vw, 12px);text-align:center;white-space:normal;word-break:break-word;line-height:1.2;margin:0}
+  .driver-id-badge{padding:clamp(5px, 1vw, 7px) clamp(8px, 1.5vw, 10px);font-size:clamp(8px, 1.2vw, 9px)}
+  .value{padding:clamp(5px, 0.8vw, 7px) clamp(7px, 1.2vw, 9px);font-size:clamp(8px, 1.2vw, 9px);min-height:clamp(24px, 4vw, 28px)}
+  .label{font-size:clamp(7px, 1vw, 8px);margin-bottom:clamp(2px, 0.5vw, 3px)}
+  .fields-grid{gap:clamp(5px, 1vw, 7px) clamp(6px, 1.2vw, 8px)}
+  .subheading{font-size:clamp(9px, 1.5vw, 10px)}
+  .divider{margin:clamp(2px, 0.5vw, 4px) 0 clamp(6px, 1vw, 8px) 0}
+}
+
+/* ===== MOBILE VISIBILITY FIXES ===== */
+/* Ensure all content is visible on mobile */
+@media (max-width: 768px) {
+  .driver-id-wrapper {
+    padding: clamp(40px, 5vw, 55px) clamp(6px, 1.5vw, 12px) clamp(24px, 4vh, 40px) !important;
+    margin-top: clamp(4px, 0.5vh, 8px) !important;
+  }
+  
+  .driver-id-card {
+    flex-direction: column !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    display: flex !important;
+    visibility: visible !important;
+  }
+  
+  .id-left {
+    width: 100% !important;
+    flex: 1 1 100% !important;
+    display: flex !important;
+    flex-direction: column !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    min-height: auto !important;
+    height: auto !important;
+    padding: clamp(12px, 2vw, 14px) !important;
+  }
+  
+  .id-right {
+    width: 100% !important;
+    flex: 1 1 100% !important;
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    min-height: 240px !important;
+    padding: clamp(12px, 2vw, 14px) !important;
+  }
+  
+  .fields-grid {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    width: 100% !important;
+    visibility: visible !important;
+    gap: clamp(6px, 1.2vw, 8px) !important;
+  }
+  
+  .field-group {
+    display: flex !important;
+    visibility: visible !important;
+  }
+  
+  .label,
+  .value,
+  .subheading {
+    display: block !important;
+    visibility: visible !important;
+  }
+  
+  .id-title {
+    display: block !important;
+    visibility: visible !important;
+    font-size: clamp(11px, 2vw, 12px) !important;
+  }
+  
+  .driver-id-badge {
+    top: clamp(-8px, -1.2vh, 2px) !important;
+    bottom: auto !important;
+    right: clamp(10px, 2vw, 16px) !important;
+    z-index: 90 !important;
+    padding: clamp(6px, 1vw, 8px) clamp(10px, 2vw, 12px) !important;
+  }
+}
+
+/* Extra tight spacing for very small phones */
+@media (max-width: 480px) {
+  .driver-id-wrapper {
+    padding: clamp(32px, 4vw, 44px) clamp(4px, 1vw, 8px) clamp(20px, 3vh, 30px) !important;
+    margin-top: 0 !important;
+  }
+  
+  .id-left {
+    padding: clamp(10px, 1.8vw, 12px) !important;
+  }
+  
+  .id-right {
+    min-height: 220px !important;
+    padding: clamp(10px, 1.8vw, 12px) !important;
+  }
+  
+  .driver-id-badge {
+    top: clamp(-6px, -1vh, 4px) !important;
+    right: clamp(8px, 1.5vw, 12px) !important;
+    font-size: clamp(8px, 1.2vw, 9px) !important;
+    padding: clamp(5px, 0.8vw, 7px) clamp(8px, 1.5vw, 10px) !important;
+  }
+  
+  .fields-grid {
+    gap: clamp(4px, 1vw, 6px) !important;
+  }
 }

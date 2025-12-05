@@ -365,6 +365,10 @@ const AccountVerificationModal = ({ open, onClose, email, rememberMe = false, on
                   </button>
                 </Typography>
 
+                <Typography variant="caption" sx={{ display: 'block', marginTop: 1, color: '#ff9800', fontSize: '0.85rem' }}>
+                  💡 Tip: Check your spam or junk folder if you can't find the verification code in your inbox.
+                </Typography>
+
                 {/* Only show alternative method for regular users, not admins */}
                 {userType !== 'admin' && userPhoneNumber && (
                   <Typography variant="body2" className="verification-alternative">
