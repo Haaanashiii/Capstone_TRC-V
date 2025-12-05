@@ -12,7 +12,8 @@ import {
   Select,
   MenuItem,
   FormControl,
-  InputLabel,
+  IconButton,
+  Tooltip as MuiTooltip,
 } from '@mui/material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
@@ -23,6 +24,7 @@ import {
   EventBusy as EventBusyIcon,
   PendingActions as PendingActionsIcon,
   Report as ReportIcon,
+  Info as InfoIcon,
 } from '@mui/icons-material';
 import {
   LineChart,
@@ -509,7 +511,7 @@ function Dashboard() {
                 value={dashboardData.kpiData.pendingReports}
                 icon={ReportIcon}
                 iconColor="#EF4444"
-                route="/fare-reports"
+                route="/incident-reports"
               />
             </Box>
 
@@ -523,95 +525,167 @@ function Dashboard() {
               }}
             >
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 3, flexWrap: 'wrap', gap: 2 }}>
-                <Typography
-                  variant="h6"
-                  sx={{
-                    color: '#0A356B',
-                    fontWeight: 700,
-                    fontSize: '1.25rem',
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Typography
+                    variant="h6"
+                    sx={{
+                      color: '#0A356B',
+                      fontWeight: 700,
+                      fontSize: '1.25rem',
+                    }}
+                  >
+                    Franchise Health Over Time
+                  </Typography>
+                  <MuiTooltip
+                    title={
+                      <Box sx={{ p: 1 }}>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>
+                          About This Chart
+                        </Typography>
+                        <Typography variant="body2" sx={{ mb: 1 }}>
+                          This chart displays the health status of franchises over the selected time period.
+                        </Typography>
+                        <Typography variant="body2" sx={{ mb: 0.5 }}>
+                          <strong style={{ color: '#10B981' }}>• Active Franchises:</strong> Franchises with valid, non-expired registrations that are currently operating.
+                        </Typography>
+                        <Typography variant="body2" sx={{ mb: 1 }}>
+                          <strong style={{ color: '#EF4444' }}>• Expired Franchises:</strong> Franchises whose registration has lapsed and requires renewal.
+                        </Typography>
+                        <Divider sx={{ my: 1 }} />
+                        <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.5 }}>
+                          How This Helps
+                        </Typography>
+                        <Typography variant="body2" sx={{ mb: 0.5 }}>
+                          • Monitor franchise compliance trends at a glance
+                        </Typography>
+                        <Typography variant="body2" sx={{ mb: 0.5 }}>
+                          • Identify periods with high expiration rates
+                        </Typography>
+                        <Typography variant="body2" sx={{ mb: 0.5 }}>
+                          • Plan renewal reminders and outreach campaigns
+                        </Typography>
+                        <Typography variant="body2">
+                          • Track the effectiveness of compliance initiatives
+                        </Typography>
+                      </Box>
+                    }
+                    arrow
+                    placement="right"
+                    componentsProps={{
+                      tooltip: {
+                        sx: {
+                          bgcolor: '#ffffff',
+                          color: '#374151',
+                          boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
+                          borderRadius: '8px',
+                          border: '1px solid #E5E7EB',
+                          maxWidth: 380,
+                          '& .MuiTooltip-arrow': {
+                            color: '#ffffff',
+                            '&::before': {
+                              border: '1px solid #E5E7EB',
+                            },
+                          },
+                        },
+                      },
+                    }}
+                  >
+                    <IconButton
+                      size="small"
+                      sx={{
+                        color: '#0A356B',
+                        '&:hover': {
+                          backgroundColor: 'rgba(10, 53, 107, 0.1)',
+                        },
+                      }}
+                    >
+                      <InfoIcon fontSize="small" />
+                    </IconButton>
+                  </MuiTooltip>
+                </Box>
+                
+                {/* Compact Filter Controls */}
+                <Box 
+                  sx={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: 1.5,
+                    backgroundColor: '#F8FAFC',
+                    padding: '8px 12px',
+                    borderRadius: '8px',
+                    border: '1px solid #E2E8F0',
                   }}
                 >
-                  Franchise Health Over Time
-                </Typography>
-                
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, alignItems: 'flex-end' }}>
-                  {/* Date Range and Quick Select */}
-                  <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
-                    <FormControl size="small" sx={{ minWidth: 150 }}>
-                      <InputLabel id="date-range-label" sx={{ color: '#0A356B' }}>Quick Select</InputLabel>
-                      <Select
-                        labelId="date-range-label"
-                        label="Quick Select"
-                        value=""
-                        onChange={(e) => handleQuickRange(e.target.value)}
-                        sx={{
-                          backgroundColor: '#ffffff',
-                          '& .MuiOutlinedInput-notchedOutline': {
-                            borderColor: '#0A356B',
-                          },
-                          '&:hover .MuiOutlinedInput-notchedOutline': {
-                            borderColor: '#0A356B',
-                          },
-                          '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                            borderColor: '#0A356B',
-                          },
-                        }}
-                      >
-                        <MenuItem value="thisWeek">This Week</MenuItem>
-                        <MenuItem value="lastWeek">Last Week</MenuItem>
-                        <MenuItem value="thisMonth">This Month</MenuItem>
-                        <MenuItem value="lastMonth">Last Month</MenuItem>
-                        <MenuItem value="thisYear">This Year</MenuItem>
-                      </Select>
-                    </FormControl>
-                    
-                    <LocalizationProvider dateAdapter={AdapterDayjs}>
-                      <DatePicker
-                        label="Start Date"
-                        value={startDate}
-                        onChange={(newValue) => setStartDate(newValue)}
-                        slotProps={{
-                          textField: {
-                            size: 'small',
-                            sx: { minWidth: 150 }
+                  <FormControl size="small" sx={{ minWidth: 120 }}>
+                    <Select
+                      displayEmpty
+                      value=""
+                      onChange={(e) => handleQuickRange(e.target.value)}
+                      sx={{
+                        backgroundColor: '#ffffff',
+                        fontSize: '0.8125rem',
+                        '& .MuiOutlinedInput-notchedOutline': {
+                          borderColor: '#CBD5E1',
+                        },
+                        '&:hover .MuiOutlinedInput-notchedOutline': {
+                          borderColor: '#0A356B',
+                        },
+                        '& .MuiSelect-select': {
+                          py: '6px',
+                        },
+                      }}
+                    >
+                      <MenuItem value="" disabled>
+                        <em>Quick Select</em>
+                      </MenuItem>
+                      <MenuItem value="thisWeek">This Week</MenuItem>
+                      <MenuItem value="lastWeek">Last Week</MenuItem>
+                      <MenuItem value="thisMonth">This Month</MenuItem>
+                      <MenuItem value="lastMonth">Last Month</MenuItem>
+                      <MenuItem value="thisYear">This Year</MenuItem>
+                    </Select>
+                  </FormControl>
+                  
+                  <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
+                  
+                  <LocalizationProvider dateAdapter={AdapterDayjs}>
+                    <DatePicker
+                      value={startDate}
+                      onChange={(newValue) => setStartDate(newValue)}
+                      slotProps={{
+                        textField: {
+                          size: 'small',
+                          placeholder: 'From',
+                          sx: { 
+                            width: 130,
+                            '& .MuiInputBase-input': {
+                              fontSize: '0.8125rem',
+                              py: '6px',
+                            },
                           }
-                        }}
-                      />
-                      <DatePicker
-                        label="End Date"
-                        value={endDate}
-                        onChange={(newValue) => setEndDate(newValue)}
-                        minDate={startDate}
-                        slotProps={{
-                          textField: {
-                            size: 'small',
-                            sx: { minWidth: 150 }
+                        }
+                      }}
+                    />
+                    <Typography sx={{ color: '#94A3B8', fontSize: '0.75rem', mx: 0.5 }}>to</Typography>
+                    <DatePicker
+                      value={endDate}
+                      onChange={(newValue) => setEndDate(newValue)}
+                      minDate={startDate}
+                      slotProps={{
+                        textField: {
+                          size: 'small',
+                          placeholder: 'To',
+                          sx: { 
+                            width: 130,
+                            '& .MuiInputBase-input': {
+                              fontSize: '0.8125rem',
+                              py: '6px',
+                            },
                           }
-                        }}
-                      />
-                    </LocalizationProvider>
-                    
-                    {dashboardData?.trends?.currentMonth && (
-                      <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-                        <Chip
-                          label={`Active: ${dashboardData.trends.currentMonth.active}`}
-                          sx={{
-                            backgroundColor: '#10B981',
-                            color: '#ffffff',
-                            fontWeight: 600,
-                          }}
-                        />
-                        <Chip
-                          label={`Expired: ${dashboardData.trends.currentMonth.expired}`}
-                          sx={{
-                            backgroundColor: '#EF4444',
-                            color: '#ffffff',
-                            fontWeight: 600,
-                          }}
-                        />
-                      </Box>
-                    )}
-                  </Box>
+                        }
+                      }}
+                    />
+                  </LocalizationProvider>
                 </Box>
               </Box>
               

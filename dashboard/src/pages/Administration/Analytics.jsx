@@ -17,18 +17,102 @@ import {
   TextField,
   InputAdornment,
   Alert,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  IconButton,
+  Box,
+  Button,
+  Chip,
+  Tooltip,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel,
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
+import CloseIcon from '@mui/icons-material/Close';
+import DownloadIcon from '@mui/icons-material/Download';
+import SortIcon from '@mui/icons-material/Sort';
+import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
 import {
   Assessment,
   CheckCircle,
   Cancel,
   HourglassEmpty,
+  Autorenew,
+  InfoOutlined,
 } from '@mui/icons-material';
 import websocketService from '../../services/websocket';
 
+// ==================== Constants ====================
+const MONTHS = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December'
+];
+
+const TABLE_SORT_OPTIONS = {
+  HIGHEST_TOTAL: 'highest_total',
+  HIGHEST_ACTIVE: 'highest_active',
+  HIGHEST_EXPIRED: 'highest_expired',
+};
+
+const BARANGAY_FILTER_OPTIONS = {
+  HIGHEST_ACTIVE: 'highest_active',
+  HIGHEST_EXPIRED: 'highest_expired',
+};
+
 // API Configuration
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170';
+
+// ==================== Utility Functions ====================
+
+/**
+ * Get the current month index (0-11)
+ */
+const getCurrentMonthIndex = () => new Date().getMonth();
+
+/**
+ * Get the current year
+ */
+const getCurrentYear = () => new Date().getFullYear();
+
+/**
+ * Export data to CSV file
+ * @param {Array} data - Array of objects to export
+ * @param {string} filename - Name of the file without extension
+ */
+const exportToCSV = (data, filename) => {
+  if (!data || data.length === 0) {
+    console.warn('No data to export');
+    return;
+  }
+
+  const headers = Object.keys(data[0]);
+  const csvRows = [
+    headers.join(','),
+    ...data.map(row => 
+      headers.map(header => {
+        const value = row[header];
+        // Escape quotes and wrap in quotes if contains comma
+        const escaped = String(value).replace(/"/g, '""');
+        return escaped.includes(',') ? `"${escaped}"` : escaped;
+      }).join(',')
+    )
+  ];
+
+  const csvContent = csvRows.join('\n');
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  
+  const link = document.createElement('a');
+  link.setAttribute('href', url);
+  link.setAttribute('download', `${filename}_${new Date().toISOString().split('T')[0]}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+};
 
 function Analytics() {
   const [loading, setLoading] = useState(true);
@@ -36,6 +120,23 @@ function Analytics() {
   const [searchQuery, setSearchQuery] = useState('');
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(15);
+  
+  // Modal state for expired franchises
+  const [expiredModalOpen, setExpiredModalOpen] = useState(false);
+  const [selectedMonth, setSelectedMonth] = useState(getCurrentMonthIndex());
+  const [selectedYear, setSelectedYear] = useState(getCurrentYear());
+  const [expiringFranchisees, setExpiringFranchisees] = useState([]);
+  const [loadingExpiring, setLoadingExpiring] = useState(false);
+  
+  // Modal state for recyclable franchise numbers
+  const [recycleModalOpen, setRecycleModalOpen] = useState(false);
+  const [recyclableNumbers, setRecyclableNumbers] = useState([]);
+  const [recyclableStats, setRecyclableStats] = useState(null);
+  const [loadingRecyclable, setLoadingRecyclable] = useState(false);
+  
+  // Filter states
+  const [barangayFilter, setBarangayFilter] = useState(BARANGAY_FILTER_OPTIONS.HIGHEST_ACTIVE);
+  const [tableSortFilter, setTableSortFilter] = useState(TABLE_SORT_OPTIONS.HIGHEST_TOTAL);
   
   // Analytics data from API
   const [analyticsData, setAnalyticsData] = useState({
@@ -98,8 +199,55 @@ function Analytics() {
     }
   }, [getAuthToken]);
 
+  // Fetch recyclable franchise numbers
+  const fetchRecyclableNumbers = useCallback(async () => {
+    setLoadingRecyclable(true);
+    
+    try {
+      const token = getAuthToken();
+      
+      if (!token) {
+        setError('Authentication required. Please log in.');
+        setLoadingRecyclable(false);
+        return;
+      }
+
+      const response = await fetch(
+        `${API_BASE_URL}/api/franchise-information/available-numbers`,
+        {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch recyclable numbers: ${response.statusText}`);
+      }
+
+      const result = await response.json();
+      
+      if (result.success && result.data) {
+        setRecyclableNumbers(result.data.availableNumbers || []);
+        setRecyclableStats(result.data.statistics || null);
+      } else {
+        setRecyclableNumbers([]);
+        setRecyclableStats(null);
+      }
+    } catch (err) {
+      console.error('Error fetching recyclable numbers:', err);
+      setRecyclableNumbers([]);
+      setRecyclableStats(null);
+    } finally {
+      setLoadingRecyclable(false);
+    }
+  }, [getAuthToken]);
+
   useEffect(() => {
     fetchAnalyticsData();
+    fetchRecyclableNumbers(); // Fetch recyclable stats for KPI card
 
     // Connect to WebSocket for real-time updates
     if (!websocketService.isConnected()) {
@@ -111,6 +259,7 @@ function Analytics() {
     const handleAnalyticsUpdates = () => {
       console.log('[Analytics] WebSocket update - analytics-data');
       fetchAnalyticsData();
+      fetchRecyclableNumbers();
     };
 
     websocketService.on('analytics-data', handleAnalyticsUpdates);
@@ -122,7 +271,84 @@ function Analytics() {
       websocketService.off('franchise-updated', handleAnalyticsUpdates);
       websocketService.off('franchisee-updated', handleAnalyticsUpdates);
     };
-  }, [fetchAnalyticsData]);
+  }, [fetchAnalyticsData, fetchRecyclableNumbers]);
+
+  // Fetch expiring franchisees for selected month
+  const fetchExpiringFranchisees = useCallback(async (month, year) => {
+    setLoadingExpiring(true);
+    
+    try {
+      const token = getAuthToken();
+      
+      if (!token) {
+        setError('Authentication required. Please log in.');
+        setLoadingExpiring(false);
+        return;
+      }
+
+      const response = await fetch(
+        `${API_BASE_URL}/api/dashboard/expiring-franchises?month=${month + 1}&year=${year}`,
+        {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch expiring franchises: ${response.statusText}`);
+      }
+
+      const result = await response.json();
+      
+      if (result.success && result.data) {
+        setExpiringFranchisees(result.data);
+      } else {
+        setExpiringFranchisees([]);
+      }
+    } catch (err) {
+      console.error('Error fetching expiring franchises:', err);
+      setExpiringFranchisees([]);
+    } finally {
+      setLoadingExpiring(false);
+    }
+  }, [getAuthToken]);
+
+  // Handle recycle card click
+  const handleRecycleCardClick = useCallback(() => {
+    setRecycleModalOpen(true);
+    fetchRecyclableNumbers();
+  }, [fetchRecyclableNumbers]);
+
+  // Handle recycle modal close
+  const handleCloseRecycleModal = useCallback(() => {
+    setRecycleModalOpen(false);
+  }, []);
+
+  // Handle expired card click
+  const handleExpiredCardClick = useCallback(() => {
+    setExpiredModalOpen(true);
+    fetchExpiringFranchisees(selectedMonth, selectedYear);
+  }, [selectedMonth, selectedYear, fetchExpiringFranchisees]);
+
+  // Handle month filter change
+  const handleMonthChange = useCallback((month) => {
+    setSelectedMonth(month);
+    fetchExpiringFranchisees(month, selectedYear);
+  }, [selectedYear, fetchExpiringFranchisees]);
+
+  // Handle year change
+  const handleYearChange = useCallback((year) => {
+    setSelectedYear(year);
+    fetchExpiringFranchisees(selectedMonth, year);
+  }, [selectedMonth, fetchExpiringFranchisees]);
+
+  // Handle modal close
+  const handleCloseExpiredModal = useCallback(() => {
+    setExpiredModalOpen(false);
+  }, []);
 
   const handleChangePage = (event, newPage) => {
     setPage(newPage);
@@ -138,8 +364,32 @@ function Analytics() {
     setPage(0);
   };
 
-  // Filter and sort data with search
-  const filteredData = useMemo(() => {
+  // Handle barangay filter change
+  const handleBarangayFilterChange = (event) => {
+    setBarangayFilter(event.target.value);
+  };
+
+  // Handle table sort filter change
+  const handleTableSortChange = (event) => {
+    setTableSortFilter(event.target.value);
+    setPage(0);
+  };
+
+  // Top 5 Barangays - separate from table search/filter
+  const topBarangaysData = useMemo(() => {
+    const sortedData = [...analyticsData.barangayData];
+    
+    if (barangayFilter === BARANGAY_FILTER_OPTIONS.HIGHEST_ACTIVE) {
+      sortedData.sort((a, b) => b.active - a.active);
+    } else if (barangayFilter === BARANGAY_FILTER_OPTIONS.HIGHEST_EXPIRED) {
+      sortedData.sort((a, b) => b.expired - a.expired);
+    }
+    
+    return sortedData.slice(0, 5);
+  }, [analyticsData.barangayData, barangayFilter]);
+
+  // Filter data for table only (search applies only here)
+  const filteredTableData = useMemo(() => {
     if (!searchQuery.trim()) return analyticsData.barangayData;
     
     const query = searchQuery.toLowerCase();
@@ -148,21 +398,50 @@ function Analytics() {
     );
   }, [analyticsData.barangayData, searchQuery]);
   
-  const sortedData = useMemo(() => 
-    [...filteredData].sort((a, b) => b.active - a.active),
-    [filteredData]
-  );
+  // Sort table data based on selected filter
+  const sortedTableData = useMemo(() => {
+    const data = [...filteredTableData];
+    
+    switch (tableSortFilter) {
+      case TABLE_SORT_OPTIONS.HIGHEST_ACTIVE:
+        return data.sort((a, b) => b.active - a.active);
+      case TABLE_SORT_OPTIONS.HIGHEST_EXPIRED:
+        return data.sort((a, b) => b.expired - a.expired);
+      case TABLE_SORT_OPTIONS.HIGHEST_TOTAL:
+      default:
+        return data.sort((a, b) => b.total - a.total);
+    }
+  }, [filteredTableData, tableSortFilter]);
   
   const paginatedData = useMemo(() => 
-    sortedData.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage),
-    [sortedData, page, rowsPerPage]
+    sortedTableData.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage),
+    [sortedTableData, page, rowsPerPage]
   );
 
+  // Generate available years for filter
+  const availableYears = useMemo(() => {
+    const currentYear = getCurrentYear();
+    return [currentYear - 1, currentYear, currentYear + 1];
+  }, []);
+
+  // Export table data to CSV
+  const handleExportCSV = useCallback(() => {
+    const exportData = sortedTableData.map(item => ({
+      'Barangay': item.barangay,
+      'Active Franchises': item.active,
+      'Expired Franchises': item.expired,
+      'Total Franchises': item.total,
+      'Active Percentage (%)': item.total > 0 ? ((item.active / item.total) * 100).toFixed(1) : '0.0'
+    }));
+    
+    exportToCSV(exportData, 'barangay_franchise_analytics');
+  }, [sortedTableData]);
+
   return (
-    <div className="analytics-container">
+    <div className="analytics-container" style={{ overflowX: 'hidden' }}>
       <Sidebar />
       
-      <main className="analytics-content" role="main">
+      <main className="analytics-content" role="main" style={{ overflowX: 'hidden' }}>
         {/* Page Header */}
         <header className="analytics-header">
           <Typography variant="h4" className="page-title">
@@ -200,13 +479,36 @@ function Analytics() {
                   iconColor="#10B981"
                   aria-label={`Active franchises: ${analyticsData.activeFranchises}`}
                 />
-                <KpiCard
-                  title="Expired Franchises"
-                  value={analyticsData.expiredFranchises}
-                  icon={Cancel}
-                  iconColor="#EF4444"
-                  aria-label={`Expired franchises: ${analyticsData.expiredFranchises}`}
-                />
+                <Box 
+                  onClick={handleRecycleCardClick} 
+                  sx={{ cursor: 'pointer' }}
+                  role="button"
+                  tabIndex={0}
+                  onKeyPress={(e) => e.key === 'Enter' && handleRecycleCardClick()}
+                >
+                  <KpiCard
+                    title="Numbers to Recycle"
+                    value={recyclableStats?.gaps + recyclableStats?.revokedAvailable || '—'}
+                    icon={Autorenew}
+                    iconColor="#8B5CF6"
+                    aria-label="Franchise numbers available for recycling. Click to view details."
+                  />
+                </Box>
+                <Box 
+                  onClick={handleExpiredCardClick} 
+                  sx={{ cursor: 'pointer' }}
+                  role="button"
+                  tabIndex={0}
+                  onKeyPress={(e) => e.key === 'Enter' && handleExpiredCardClick()}
+                >
+                  <KpiCard
+                    title="Expired Franchises"
+                    value={analyticsData.expiredFranchises}
+                    icon={Cancel}
+                    iconColor="#EF4444"
+                    aria-label={`Expired franchises: ${analyticsData.expiredFranchises}. Click to view details.`}
+                  />
+                </Box>
                 <KpiCard
                   title="Pending Applications"
                   value={analyticsData.pendingApplications}
@@ -219,11 +521,42 @@ function Analytics() {
 
             {/* Top Barangays */}
             <section className="top-barangays-section" aria-labelledby="top-barangays-heading">
-              <div className="section-header">
-                <h2 id="top-barangays-heading" className="section-title">Top 5 Barangays</h2>
+              <div className="section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+                <h2 id="top-barangays-heading" className="section-title">
+                  Top 5 Barangays
+                </h2>
+                <FormControl size="small" sx={{ minWidth: 200 }}>
+                  <InputLabel id="barangay-filter-label">Sort By</InputLabel>
+                  <Select
+                    labelId="barangay-filter-label"
+                    id="barangay-filter"
+                    value={barangayFilter}
+                    label="Sort By"
+                    onChange={handleBarangayFilterChange}
+                    sx={{
+                      backgroundColor: '#fff',
+                      '& .MuiOutlinedInput-notchedOutline': {
+                        borderColor: '#e5e7eb',
+                      },
+                      '&:hover .MuiOutlinedInput-notchedOutline': {
+                        borderColor: '#0A356B',
+                      },
+                      '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                        borderColor: '#0A356B',
+                      },
+                    }}
+                  >
+                    <MenuItem value={BARANGAY_FILTER_OPTIONS.HIGHEST_ACTIVE}>
+                      Highest Active Franchises
+                    </MenuItem>
+                    <MenuItem value={BARANGAY_FILTER_OPTIONS.HIGHEST_EXPIRED}>
+                      Highest Expired Franchises
+                    </MenuItem>
+                  </Select>
+                </FormControl>
               </div>
 
-              {sortedData.length === 0 ? (
+              {topBarangaysData.length === 0 ? (
                 <div className="no-data-message">
                   <Typography variant="body1" color="text.secondary">
                     No barangay data available yet.
@@ -231,7 +564,7 @@ function Analytics() {
                 </div>
               ) : (
                 <div className="top-barangays-grid">
-                  {sortedData.slice(0, 5).map((item, index) => (
+                  {topBarangaysData.map((item, index) => (
                   <article 
                     key={item.barangay} 
                     className="barangay-card"
@@ -244,17 +577,29 @@ function Analytics() {
                       {item.barangay}
                     </h3>
                     <div className="barangay-active">
-                      <span className="active-count" aria-label={`${item.active} active franchises`}>
-                        {item.active}
+                      <span 
+                        className="active-count" 
+                        aria-label={`${barangayFilter === BARANGAY_FILTER_OPTIONS.HIGHEST_ACTIVE ? item.active : item.expired} ${barangayFilter === BARANGAY_FILTER_OPTIONS.HIGHEST_ACTIVE ? 'active' : 'expired'} franchises`}
+                        style={{ color: barangayFilter === BARANGAY_FILTER_OPTIONS.HIGHEST_ACTIVE ? '#10B981' : '#EF4444' }}
+                      >
+                        {barangayFilter === BARANGAY_FILTER_OPTIONS.HIGHEST_ACTIVE ? item.active : item.expired}
                       </span>
-                      <span className="active-label">Active Franchises</span>
+                      <span className="active-label">
+                        {barangayFilter === BARANGAY_FILTER_OPTIONS.HIGHEST_ACTIVE ? 'Active Franchises' : 'Expired Franchises'}
+                      </span>
                     </div>
                     <div className="barangay-stats">
                       <div className="stat-item">
-                        <span className="stat-value expired" aria-label={`${item.expired} expired`}>
-                          {item.expired}
+                        <span 
+                          className="stat-value" 
+                          style={{ color: barangayFilter === BARANGAY_FILTER_OPTIONS.HIGHEST_ACTIVE ? '#EF4444' : '#10B981' }}
+                          aria-label={`${barangayFilter === BARANGAY_FILTER_OPTIONS.HIGHEST_ACTIVE ? item.expired : item.active} ${barangayFilter === BARANGAY_FILTER_OPTIONS.HIGHEST_ACTIVE ? 'expired' : 'active'}`}
+                        >
+                          {barangayFilter === BARANGAY_FILTER_OPTIONS.HIGHEST_ACTIVE ? item.expired : item.active}
                         </span>
-                        <span className="stat-label">Expired</span>
+                        <span className="stat-label">
+                          {barangayFilter === BARANGAY_FILTER_OPTIONS.HIGHEST_ACTIVE ? 'Expired' : 'Active'}
+                        </span>
                       </div>
                       <div className="stat-divider" aria-hidden="true"></div>
                       <div className="stat-item">
@@ -273,24 +618,79 @@ function Analytics() {
             {/* Data Table */}
             <section className="barangay-table-section" aria-labelledby="all-barangays-heading">
               <Paper elevation={2} className="admin-table-container">
-                <div className="table-header-section">
-                  <Typography variant="h6" className="table-title">
-                    All Barangays
-                  </Typography>
-                  <TextField
-                    size="small"
-                    placeholder="Search barangay..."
-                    value={searchQuery}
-                    onChange={handleSearchChange}
-                    className="search-field"
-                    InputProps={{
-                      startAdornment: (
-                        <InputAdornment position="start">
-                          <SearchIcon sx={{ color: '#64748b' }} />
-                        </InputAdornment>
-                      ),
-                    }}
-                  />
+                <div className="table-header-section" style={{ flexDirection: 'column', alignItems: 'stretch', gap: '16px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+                    <Typography variant="h6" className="table-title">
+                      All Barangays
+                    </Typography>
+                    <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+                      <TextField
+                        size="small"
+                        placeholder="Search barangay..."
+                        value={searchQuery}
+                        onChange={handleSearchChange}
+                        className="search-field"
+                        InputProps={{
+                          startAdornment: (
+                            <InputAdornment position="start">
+                              <SearchIcon sx={{ color: '#64748b' }} />
+                            </InputAdornment>
+                          ),
+                        }}
+                      />
+                      <FormControl size="small" sx={{ minWidth: 180 }}>
+                        <InputLabel id="table-sort-label">
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                            <SortIcon sx={{ fontSize: 18 }} />
+                            Sort By
+                          </Box>
+                        </InputLabel>
+                        <Select
+                          labelId="table-sort-label"
+                          id="table-sort"
+                          value={tableSortFilter}
+                          label="Sort By"
+                          onChange={handleTableSortChange}
+                          sx={{
+                            backgroundColor: '#fff',
+                            '& .MuiOutlinedInput-notchedOutline': {
+                              borderColor: '#e5e7eb',
+                            },
+                            '&:hover .MuiOutlinedInput-notchedOutline': {
+                              borderColor: '#0A356B',
+                            },
+                            '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                              borderColor: '#0A356B',
+                            },
+                          }}
+                        >
+                          <MenuItem value={TABLE_SORT_OPTIONS.HIGHEST_TOTAL}>Highest Total</MenuItem>
+                          <MenuItem value={TABLE_SORT_OPTIONS.HIGHEST_ACTIVE}>Highest Active</MenuItem>
+                          <MenuItem value={TABLE_SORT_OPTIONS.HIGHEST_EXPIRED}>Highest Expired</MenuItem>
+                        </Select>
+                      </FormControl>
+                      <Tooltip title="Export to CSV">
+                        <Button
+                          variant="outlined"
+                          startIcon={<DownloadIcon />}
+                          onClick={handleExportCSV}
+                          disabled={sortedTableData.length === 0}
+                          sx={{
+                            borderColor: '#0A356B',
+                            color: '#0A356B',
+                            textTransform: 'none',
+                            fontWeight: 600,
+                            '&:hover': {
+                              borderColor: '#082548',
+                              backgroundColor: 'rgba(10, 53, 107, 0.04)',
+                            },
+                          }}
+                        >
+                          Export CSV
+                        </Button>
+                      </Tooltip>
+                    </div>
+                  </div>
                 </div>
                 <TableContainer className="admin-table-wrapper">
                   <Table className="admin-table" stickyHeader aria-label="Barangay franchise details table">
@@ -366,7 +766,7 @@ function Analytics() {
                   <TablePagination
                     rowsPerPageOptions={[10, 15, 25, 50]}
                     component="div"
-                    count={filteredData.length}
+                    count={sortedTableData.length}
                     rowsPerPage={rowsPerPage}
                     page={page}
                     onPageChange={handleChangePage}
@@ -381,6 +781,395 @@ function Analytics() {
             </section>
           </>
         )}
+
+        {/* Expired Franchises Modal */}
+        <Dialog
+          open={expiredModalOpen}
+          onClose={handleCloseExpiredModal}
+          maxWidth="lg"
+          fullWidth
+          PaperProps={{
+            sx: {
+              borderRadius: 3,
+              maxHeight: '90vh',
+            },
+          }}
+        >
+          <DialogTitle
+            sx={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              backgroundColor: '#0A356B',
+              color: '#fff',
+              py: 2,
+              px: 3,
+            }}
+          >
+            <Typography variant="h6" sx={{ fontWeight: 700 }}>
+              Franchises Expiring in {MONTHS[selectedMonth]} {selectedYear}
+            </Typography>
+            <IconButton
+              onClick={handleCloseExpiredModal}
+              sx={{ color: '#fff' }}
+              aria-label="Close modal"
+            >
+              <CloseIcon />
+            </IconButton>
+          </DialogTitle>
+          <DialogContent sx={{ p: 0 }}>
+            {/* Date Filter Section */}
+            <Box 
+              sx={{ 
+                p: 3, 
+                borderBottom: '1px solid #e5e7eb', 
+                backgroundColor: '#f8fafc',
+              }}
+            >
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 3, flexWrap: 'wrap' }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                  <CalendarMonthIcon sx={{ color: '#0A356B', fontSize: 24 }} />
+                  <Typography variant="subtitle1" sx={{ fontWeight: 600, color: '#0A356B' }}>
+                    Filter by Date:
+                  </Typography>
+                </Box>
+                
+                <FormControl size="small" sx={{ minWidth: 120 }}>
+                  <InputLabel id="year-select-label">Year</InputLabel>
+                  <Select
+                    labelId="year-select-label"
+                    id="year-select"
+                    value={selectedYear}
+                    label="Year"
+                    onChange={(e) => handleYearChange(e.target.value)}
+                    sx={{
+                      backgroundColor: '#fff',
+                      '& .MuiOutlinedInput-notchedOutline': {
+                        borderColor: '#e5e7eb',
+                      },
+                      '&:hover .MuiOutlinedInput-notchedOutline': {
+                        borderColor: '#0A356B',
+                      },
+                      '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                        borderColor: '#0A356B',
+                      },
+                    }}
+                  >
+                    {availableYears.map((year) => (
+                      <MenuItem key={year} value={year}>
+                        {year}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+
+                <FormControl size="small" sx={{ minWidth: 150 }}>
+                  <InputLabel id="month-select-label">Month</InputLabel>
+                  <Select
+                    labelId="month-select-label"
+                    id="month-select"
+                    value={selectedMonth}
+                    label="Month"
+                    onChange={(e) => handleMonthChange(e.target.value)}
+                    sx={{
+                      backgroundColor: '#fff',
+                      '& .MuiOutlinedInput-notchedOutline': {
+                        borderColor: '#e5e7eb',
+                      },
+                      '&:hover .MuiOutlinedInput-notchedOutline': {
+                        borderColor: '#0A356B',
+                      },
+                      '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                        borderColor: '#0A356B',
+                      },
+                    }}
+                  >
+                    {MONTHS.map((month, index) => (
+                      <MenuItem key={month} value={index}>
+                        {month}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+
+                <Chip
+                  label={`${MONTHS[selectedMonth]} ${selectedYear}`}
+                  sx={{
+                    backgroundColor: '#0A356B',
+                    color: '#fff',
+                    fontWeight: 600,
+                    fontSize: '0.875rem',
+                    height: 32,
+                  }}
+                />
+              </Box>
+            </Box>
+
+            {/* Expiring Franchisees Table */}
+            <Box sx={{ p: 3 }}>
+              {loadingExpiring ? (
+                <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
+                  <CircularProgress size={48} sx={{ color: '#0A356B' }} />
+                </Box>
+              ) : expiringFranchisees.length === 0 ? (
+                <Box sx={{ textAlign: 'center', py: 6 }}>
+                  <Typography variant="body1" sx={{ color: '#64748b' }}>
+                    No franchises expiring in {MONTHS[selectedMonth]} {selectedYear}.
+                  </Typography>
+                </Box>
+              ) : (
+                <>
+                  <Typography variant="body2" sx={{ mb: 2, color: '#64748b' }}>
+                    Found {expiringFranchisees.length} franchise(s) expiring in {MONTHS[selectedMonth]} {selectedYear}
+                  </Typography>
+                  <TableContainer sx={{ maxHeight: 400, border: '1px solid #e5e7eb', borderRadius: 2 }}>
+                    <Table stickyHeader size="small">
+                      <TableHead>
+                        <TableRow>
+                          <TableCell sx={{ backgroundColor: '#0A356B', color: '#fff', fontWeight: 600 }}>
+                            Franchise #
+                          </TableCell>
+                          <TableCell sx={{ backgroundColor: '#0A356B', color: '#fff', fontWeight: 600 }}>
+                            Operator Name
+                          </TableCell>
+                          <TableCell sx={{ backgroundColor: '#0A356B', color: '#fff', fontWeight: 600 }}>
+                            Contact
+                          </TableCell>
+                          <TableCell sx={{ backgroundColor: '#0A356B', color: '#fff', fontWeight: 600 }}>
+                            Barangay
+                          </TableCell>
+                          <TableCell sx={{ backgroundColor: '#0A356B', color: '#fff', fontWeight: 600 }}>
+                            Expiry Date
+                          </TableCell>
+                          <TableCell sx={{ backgroundColor: '#0A356B', color: '#fff', fontWeight: 600 }}>
+                            Days Until Expiry
+                          </TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {expiringFranchisees.map((franchise) => {
+                          const expiryDate = new Date(franchise.expiryDate);
+                          const today = new Date();
+                          const daysUntilExpiry = Math.ceil((expiryDate - today) / (1000 * 60 * 60 * 24));
+                          
+                          return (
+                            <TableRow key={franchise._id || franchise.franchiseNumber} hover>
+                              <TableCell sx={{ fontWeight: 600, color: '#0A356B' }}>
+                                {franchise.franchiseNumber}
+                              </TableCell>
+                              <TableCell>{franchise.operatorName}</TableCell>
+                              <TableCell>{franchise.operatorContactNumber || 'N/A'}</TableCell>
+                              <TableCell>{franchise.operatorBarangay}</TableCell>
+                              <TableCell>
+                                {expiryDate.toLocaleDateString('en-US', {
+                                  year: 'numeric',
+                                  month: 'short',
+                                  day: 'numeric',
+                                })}
+                              </TableCell>
+                              <TableCell>
+                                <Chip
+                                  size="small"
+                                  label={
+                                    daysUntilExpiry < 0
+                                      ? `Expired ${Math.abs(daysUntilExpiry)} days ago`
+                                      : daysUntilExpiry === 0
+                                      ? 'Expires today'
+                                      : `${daysUntilExpiry} days`
+                                  }
+                                  sx={{
+                                    fontWeight: 600,
+                                    backgroundColor:
+                                      daysUntilExpiry < 0
+                                        ? '#fee2e2'
+                                        : daysUntilExpiry <= 7
+                                        ? '#fef3c7'
+                                        : '#d1fae5',
+                                    color:
+                                      daysUntilExpiry < 0
+                                        ? '#991b1b'
+                                        : daysUntilExpiry <= 7
+                                        ? '#92400e'
+                                        : '#065f46',
+                                  }}
+                                />
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                </>
+              )}
+            </Box>
+          </DialogContent>
+        </Dialog>
+
+        {/* Recyclable Franchise Numbers Modal */}
+        <Dialog
+          open={recycleModalOpen}
+          onClose={handleCloseRecycleModal}
+          maxWidth="md"
+          fullWidth
+          PaperProps={{
+            sx: {
+              borderRadius: 3,
+              maxHeight: '90vh',
+            },
+          }}
+        >
+          <DialogTitle
+            sx={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              backgroundColor: '#8B5CF6',
+              color: '#fff',
+              py: 2,
+              px: 3,
+            }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+              <Autorenew sx={{ fontSize: 28 }} />
+              <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                Franchise Numbers Available for Recycling
+              </Typography>
+            </Box>
+            <IconButton
+              onClick={handleCloseRecycleModal}
+              sx={{ color: '#fff' }}
+              aria-label="Close modal"
+            >
+              <CloseIcon />
+            </IconButton>
+          </DialogTitle>
+          <DialogContent sx={{ p: 0 }}>
+            {/* Contextual Information Banner */}
+            <Box
+              sx={{
+                p: 3,
+                backgroundColor: '#faf5ff',
+                borderBottom: '1px solid #e9d5ff',
+              }}
+            >
+              <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start' }}>
+                <InfoOutlined sx={{ color: '#7c3aed', fontSize: 24, mt: 0.25 }} />
+                <Box>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#5b21b6', mb: 1 }}>
+                    What are recyclable franchise numbers?
+                  </Typography>
+                  <Typography variant="body2" sx={{ color: '#6b7280', lineHeight: 1.7 }}>
+                    These are franchise numbers from revoked franchises that have been expired for more than 6 years and can be reassigned to new applicants.
+                  </Typography>
+                </Box>
+              </Box>
+            </Box>
+
+            {/* Statistics Summary */}
+            {recyclableStats && (
+              <Box
+                sx={{
+                  p: 3,
+                  backgroundColor: '#fff',
+                  borderBottom: '1px solid #e5e7eb',
+                }}
+              >
+                <Box sx={{ display: 'flex', gap: 4, flexWrap: 'wrap', justifyContent: 'center' }}>
+                  <Box sx={{ textAlign: 'center', minWidth: 140, p: 2, backgroundColor: '#f0fdf4', borderRadius: 2 }}>
+                    <Typography variant="h3" sx={{ fontWeight: 700, color: '#10B981' }}>
+                      {recyclableStats.revokedAvailable || 0}
+                    </Typography>
+                    <Typography variant="body2" sx={{ color: '#065f46', fontWeight: 600, mt: 0.5 }}>
+                      Reusable Numbers
+                    </Typography>
+                  </Box>
+                  <Box sx={{ textAlign: 'center', minWidth: 140, p: 2, backgroundColor: '#eff6ff', borderRadius: 2 }}>
+                    <Typography variant="h3" sx={{ fontWeight: 700, color: '#0A356B' }}>
+                      {String(recyclableStats.nextNumber || 1).padStart(4, '0')}
+                    </Typography>
+                    <Typography variant="body2" sx={{ color: '#1e40af', fontWeight: 600, mt: 0.5 }}>
+                      Next New Number
+                    </Typography>
+                  </Box>
+                </Box>
+              </Box>
+            )}
+
+            {/* Recyclable Numbers List */}
+            <Box sx={{ p: 3 }}>
+              {loadingRecyclable ? (
+                <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
+                  <CircularProgress size={48} sx={{ color: '#8B5CF6' }} />
+                </Box>
+              ) : recyclableNumbers.length === 0 ? (
+                <Box sx={{ textAlign: 'center', py: 6 }}>
+                  <Autorenew sx={{ fontSize: 48, color: '#d1d5db', mb: 2 }} />
+                  <Typography variant="body1" sx={{ color: '#64748b', mb: 1 }}>
+                    No franchise numbers available for recycling.
+                  </Typography>
+                  <Typography variant="body2" sx={{ color: '#9ca3af' }}>
+                    All numbers are currently in use or not yet eligible for reuse.
+                  </Typography>
+                </Box>
+              ) : (
+                <>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                    <Typography variant="subtitle2" sx={{ color: '#64748b', fontWeight: 600 }}>
+                      AVAILABLE NUMBERS ({recyclableNumbers.length})
+                    </Typography>
+                    <Chip
+                      size="small"
+                      label="Ready for assignment"
+                      sx={{
+                        backgroundColor: '#d1fae5',
+                        color: '#065f46',
+                        fontWeight: 600,
+                      }}
+                    />
+                  </Box>
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      flexWrap: 'wrap',
+                      gap: 1.5,
+                      maxHeight: 300,
+                      overflowY: 'auto',
+                      p: 2,
+                      backgroundColor: '#f8fafc',
+                      borderRadius: 2,
+                      border: '1px solid #e5e7eb',
+                    }}
+                  >
+                    {recyclableNumbers.map((number) => (
+                      <Chip
+                        key={number}
+                        label={number}
+                        sx={{
+                          fontWeight: 700,
+                          fontSize: '0.9375rem',
+                          fontFamily: 'monospace',
+                          backgroundColor: '#fff',
+                          border: '2px solid #8B5CF6',
+                          color: '#5b21b6',
+                          height: 36,
+                          '&:hover': {
+                            backgroundColor: '#f3e8ff',
+                          },
+                        }}
+                      />
+                    ))}
+                  </Box>
+                  {recyclableStats?.hasMore && (
+                    <Typography variant="caption" sx={{ display: 'block', mt: 2, color: '#9ca3af', textAlign: 'center' }}>
+                      Showing first 100 numbers. Total available: {recyclableStats.totalAvailable || recyclableNumbers.length}
+                    </Typography>
+                  )}
+                </>
+              )}
+            </Box>
+          </DialogContent>
+        </Dialog>
       </main>
     </div>
   );

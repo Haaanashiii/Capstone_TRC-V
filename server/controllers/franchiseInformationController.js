@@ -14,13 +14,59 @@ const { generateHashedFranchiseNo } = require('../utils/franchiseHelpers');
 exports.getAllFranchiseInformation = async (req, res, next) => {
   try {
     const FranchiseInformation = require('../models/franchiseInformationModel');
+    const { startDate, endDate, search } = req.query;
     
-    // Get all franchises and group by owner, keep latest version per owner
-    const allFranchises = await FranchiseInformation.find()
+    // Build filter
+    const filter = {};
+    
+    // Date range filter for MTOF reports
+    if (startDate || endDate) {
+      const dateConditions = [];
+      const startDateTime = startDate ? new Date(startDate) : null;
+      const endDateTime = endDate ? new Date(new Date(endDate).setHours(23, 59, 59, 999)) : null;
+      
+      const dateFilter = {};
+      if (startDateTime) dateFilter.$gte = startDateTime;
+      if (endDateTime) dateFilter.$lte = endDateTime;
+      
+      // Match by sbApprovedAt, createdAt, or approvedAt
+      dateConditions.push({ sbApprovedAt: dateFilter });
+      dateConditions.push({ createdAt: dateFilter });
+      dateConditions.push({ approvedAt: dateFilter });
+      
+      filter.$or = dateConditions;
+    }
+    
+    // Search filter
+    if (search && search.trim()) {
+      const searchRegex = new RegExp(search.trim(), 'i');
+      const searchConditions = [
+        { operatorName: searchRegex },
+        { franchiseNumber: searchRegex },
+        { mvPlateNo: searchRegex }
+      ];
+      
+      if (filter.$or) {
+        // Combine date filter with search using $and
+        filter.$and = [
+          { $or: filter.$or },
+          { $or: searchConditions }
+        ];
+        delete filter.$or;
+      } else {
+        filter.$or = searchConditions;
+      }
+    }
+    
+    console.log('[getAllFranchiseInformation] Filter:', JSON.stringify(filter, null, 2));
+    
+    // Get franchises with filter
+    const allFranchises = await FranchiseInformation.find(filter)
       .populate('linkedUser', 'username email')
       .populate('previousVersion', 'version changeType changedAt')
       .sort({ franchiseChainId: 1, version: -1 });
     
+    // Group by chain ID, keep latest version per owner (unless date filter is applied)
     const franchiseMap = new Map();
     for (const franchise of allFranchises) {
       const chainId = franchise.franchiseChainId;
@@ -36,6 +82,8 @@ exports.getAllFranchiseInformation = async (req, res, next) => {
         const numB = parseInt(b.franchiseNumber.match(/\d+/)?.[0] || 0);
         return numA - numB;
       });
+    
+    console.log(`[getAllFranchiseInformation] Found ${franchises.length} franchises`);
     
     // Notify admins about updated franchise list
     if (req.app.get('io')) {
@@ -55,6 +103,7 @@ exports.getAllFranchiseInformation = async (req, res, next) => {
       data: franchises 
     });
   } catch (error) {
+    console.error('[getAllFranchiseInformation] Error:', error);
     return next(error);
   }
 };
@@ -282,6 +331,130 @@ exports.getFranchiseInformation = async (req, res, next) => {
   } catch (error) {
     if (error?.name === 'CastError') {
       return res.status(400).json({ error: 'Invalid id format' });
+    }
+    return next(error);
+  }
+};
+
+// ========================================
+// UPDATE FRANCHISE INFORMATION
+// ========================================
+
+/**
+ * PUT /franchise-information/:id
+ * Update franchise information (admin only)
+ * 
+ * Purpose: Allow admins to update franchise details
+ * Params: id - Franchise document ID
+ * Body: Updated franchise fields
+ * Returns: Updated franchise information
+ */
+exports.updateFranchiseInformation = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    
+    if (!id) {
+      return res.status(400).json({ 
+        success: false,
+        error: 'Franchise ID is required' 
+      });
+    }
+    
+    const FranchiseInformation = require('../models/franchiseInformationModel');
+    
+    // Find the franchise
+    const franchise = await FranchiseInformation.findById(id);
+    
+    if (!franchise) {
+      return res.status(404).json({ 
+        success: false,
+        error: 'Franchise not found' 
+      });
+    }
+    
+    // Define allowed fields for update (security - prevent updating sensitive fields)
+    const allowedFields = [
+      'operatorName',
+      'operatorAddress',
+      'operatorBarangay',
+      'operatorContactNumber',
+      'operatorEmail',
+      'operatorBirthPlace',
+      'operatorBirthDate',
+      'operatorCivilStatus',
+      'operatorCitizenship',
+      'todaMembership',
+      'coOwnerName',
+      'coOwnerAddress',
+      'driverName',
+      'driversAddress',
+      'driversID',
+      'franchiseStatus',
+      'rate',
+      'resolutionNumber',
+      'sbResolutionNumber',
+      'officialReceiptNumber',
+      'unitModel',
+      'colorMotor',
+      'sideCarColor',
+      'mvPlateNo',
+      'motorEngineNo',
+      'chasisNo'
+    ];
+    
+    // Update only allowed fields
+    const updateData = {};
+    for (const field of allowedFields) {
+      if (req.body[field] !== undefined) {
+        updateData[field] = req.body[field];
+      }
+    }
+    
+    // Track who made the change
+    updateData.changedBy = req.user?.username || 'admin';
+    updateData.changedAt = new Date();
+    
+    // Update the franchise
+    const updatedFranchise = await FranchiseInformation.findByIdAndUpdate(
+      id,
+      { $set: updateData },
+      { new: true, runValidators: true }
+    )
+    .populate('linkedUser', 'username email _id')
+    .populate('previousVersion', 'version changeType changedAt franchiseStatus');
+    
+    console.log('[updateFranchiseInformation] Updated franchise:', id, 'by:', updateData.changedBy);
+    
+    // Notify via WebSocket if available
+    if (req.app.get('io')) {
+      req.app.get('io').to('sb-admins').emit('franchisee-updated', {
+        franchiseId: id,
+        franchiseNumber: updatedFranchise.franchiseNumber,
+        updatedBy: updateData.changedBy,
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    return res.status(200).json({
+      success: true,
+      message: 'Franchise information updated successfully',
+      data: updatedFranchise
+    });
+    
+  } catch (error) {
+    console.error('[updateFranchiseInformation] Error:', error);
+    if (error?.name === 'CastError') {
+      return res.status(400).json({ 
+        success: false,
+        error: 'Invalid franchise ID format' 
+      });
+    }
+    if (error?.name === 'ValidationError') {
+      return res.status(400).json({ 
+        success: false,
+        error: 'Validation failed',
+        message: error.message 
+      });
     }
     return next(error);
   }

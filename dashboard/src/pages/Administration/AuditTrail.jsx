@@ -449,96 +449,96 @@ function AuditTrail() {
           </Alert>
         )}
 
-        <Paper elevation={2} className="admin-table-container">
-          {/* Search and Filters */}
-          <div className="filters-section">
-            <div className="filters-row">
-              <TextField
-                placeholder="Search by username, email, action, route, or IP..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                variant="outlined"
-                size="small"
-                className="search-field"
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <SearchIcon sx={{ color: '#64748b' }} />
-                    </InputAdornment>
-                  ),
-                }}
-              />
+        {/* Search and Filters - Separated from table */}
+        <div className="filters-section">
+          <div className="filters-row">
+            <TextField
+              placeholder="Search by username, email, action, route, or IP..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              variant="outlined"
+              size="small"
+              className="search-field"
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon sx={{ color: '#64748b' }} />
+                  </InputAdornment>
+                ),
+              }}
+            />
 
-              <FormControl size="small" className="filter-select">
-                <InputLabel>Action</InputLabel>
-                <Select
-                  value={filterAction}
-                  onChange={(e) => setFilterAction(e.target.value)}
-                  label="Action"
-                >
-                  <MenuItem value="all">All Actions</MenuItem>
-                  {uniqueActions.map(action => (
-                    <MenuItem key={action} value={action}>{action}</MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-
-              <FormControl size="small" className="filter-select">
-                <InputLabel>Role</InputLabel>
-                <Select
-                  value={filterRole}
-                  onChange={(e) => setFilterRole(e.target.value)}
-                  label="Role"
-                >
-                  <MenuItem value="all">All Roles</MenuItem>
-                  {uniqueRoles.map(role => (
-                    <MenuItem key={role} value={role}>{formatRoleLabel(role)}</MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-
-              <FormControl size="small" className="filter-select">
-                <InputLabel>Status</InputLabel>
-                <Select
-                  value={filterStatus}
-                  onChange={(e) => setFilterStatus(e.target.value)}
-                  label="Status"
-                >
-                  <MenuItem value="all">All Status</MenuItem>
-                  <MenuItem value="success">Success</MenuItem>
-                  <MenuItem value="failed">Failed</MenuItem>
-                </Select>
-              </FormControl>
-
-              <Tooltip title="Refresh">
-                <IconButton onClick={fetchAuditLogs} className="refresh-btn" disabled={loading}>
-                  <RefreshIcon />
-                </IconButton>
-              </Tooltip>
-
-              <Button
-                variant="outlined"
-                startIcon={<FilterListIcon />}
-                onClick={clearFilters}
-                size="small"
-                className="clear-filters-btn"
-                disabled={loading}
+            <FormControl size="small" className="filter-select">
+              <InputLabel>Action</InputLabel>
+              <Select
+                value={filterAction}
+                onChange={(e) => setFilterAction(e.target.value)}
+                label="Action"
               >
-                Clear
-              </Button>
+                <MenuItem value="all">All Actions</MenuItem>
+                {uniqueActions.map(action => (
+                  <MenuItem key={action} value={action}>{action}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
 
-              <Button
-                variant="contained"
-                startIcon={<FileDownloadIcon />}
-                onClick={handleExport}
-                disabled={filteredLogs.length === 0 || loading}
-                className="export-button"
+            <FormControl size="small" className="filter-select">
+              <InputLabel>Role</InputLabel>
+              <Select
+                value={filterRole}
+                onChange={(e) => setFilterRole(e.target.value)}
+                label="Role"
               >
-                Export
-              </Button>
-            </div>
+                <MenuItem value="all">All Roles</MenuItem>
+                {uniqueRoles.map(role => (
+                  <MenuItem key={role} value={role}>{formatRoleLabel(role)}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
+            <FormControl size="small" className="filter-select">
+              <InputLabel>Status</InputLabel>
+              <Select
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value)}
+                label="Status"
+              >
+                <MenuItem value="all">All Status</MenuItem>
+                <MenuItem value="success">Success</MenuItem>
+                <MenuItem value="failed">Failed</MenuItem>
+              </Select>
+            </FormControl>
+
+            <Tooltip title="Refresh">
+              <IconButton onClick={fetchAuditLogs} className="refresh-btn" disabled={loading}>
+                <RefreshIcon />
+              </IconButton>
+            </Tooltip>
+
+            <Button
+              variant="outlined"
+              startIcon={<FilterListIcon />}
+              onClick={clearFilters}
+              size="small"
+              className="clear-filters-btn"
+              disabled={loading}
+            >
+              Clear
+            </Button>
+
+            <Button
+              variant="contained"
+              startIcon={<FileDownloadIcon />}
+              onClick={handleExport}
+              disabled={filteredLogs.length === 0 || loading}
+              className="export-button"
+            >
+              Export
+            </Button>
           </div>
+        </div>
 
+        <Paper elevation={2} className="admin-table-container">
           {/* Audit Logs Table */}
           {loading ? (
             <div className="loading-container">

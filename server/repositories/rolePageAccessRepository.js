@@ -113,11 +113,11 @@ function getDefaultPageAccess(role) {
         'franchisee-list',
         'franchise-management',
         'certificate',
-        'fare-reports',
+        'incident-reports',
         'analytics',
         'announcements',
         'audit-trail',
-        'user-management',
+        'admin-management',
         'settings'
       ]
     },
@@ -128,7 +128,7 @@ function getDefaultPageAccess(role) {
         'franchisee-list',
         'franchise-management',
         'certificate',
-        'fare-reports'
+        'incident-reports'
       ]
     },
     'bplo-admin': {
@@ -138,7 +138,7 @@ function getDefaultPageAccess(role) {
         'franchisee-list',
         'franchise-management',
         'certificate',
-        'fare-reports'
+        'incident-reports'
       ]
     }
   };

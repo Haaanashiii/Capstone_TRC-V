@@ -173,10 +173,71 @@ exports.deactivateAdmin = async (req, res, next) => {
     
     const admin = await adminAccountRepository.deactivateAdmin(id);
     
+    // Get io instance for WebSocket broadcast
+    const io = req.app.get('io');
+    broadcastAdminUpdate(io, admin, 'admin-status-changed');
+    
     res.status(200).json({
       message: 'Admin account deactivated successfully',
       admin: {
         adminId: admin.adminId,
+        isActive: admin.isActive
+      }
+    });
+  } catch (err) {
+    if (err.message === 'Admin not found') {
+      return res.status(404).json({ error: 'Admin not found' });
+    }
+    next(err);
+  }
+};
+
+/**
+ * Activate admin account
+ */
+exports.activateAdmin = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    
+    const admin = await adminAccountRepository.activateAdmin(id);
+    
+    // Get io instance for WebSocket broadcast
+    const io = req.app.get('io');
+    broadcastAdminUpdate(io, admin, 'admin-status-changed');
+    
+    res.status(200).json({
+      message: 'Admin account activated successfully',
+      admin: {
+        adminId: admin.adminId,
+        isActive: admin.isActive
+      }
+    });
+  } catch (err) {
+    if (err.message === 'Admin not found') {
+      return res.status(404).json({ error: 'Admin not found' });
+    }
+    next(err);
+  }
+};
+
+/**
+ * Toggle admin account status (active/inactive)
+ */
+exports.toggleAdminStatus = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    
+    const admin = await adminAccountRepository.toggleAdminStatus(id);
+    
+    // Get io instance for WebSocket broadcast
+    const io = req.app.get('io');
+    broadcastAdminUpdate(io, admin, 'admin-status-changed');
+    
+    res.status(200).json({
+      message: `Admin account ${admin.isActive ? 'activated' : 'deactivated'} successfully`,
+      admin: {
+        adminId: admin.adminId,
+        name: admin.name,
         isActive: admin.isActive
       }
     });
