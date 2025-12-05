@@ -138,13 +138,12 @@ class AnnouncementRepository {
   }
 
   /**
-   * Get published announcements (max 3)
+   * Get published announcements (unlimited)
    */
   async getPublished() {
     try {
       const announcements = await Announcement.find({ published: true })
         .sort({ date: -1 })
-        .limit(3)
         .lean();
       
       return announcements;

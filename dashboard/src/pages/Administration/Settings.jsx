@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import Sidebar from './Sidebar';
 import '../../Styles/Administrator_Css/Settings.css';
 import {
@@ -38,6 +38,12 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import WarningIcon from '@mui/icons-material/Warning';
 import HistoryIcon from '@mui/icons-material/History';
 import FolderIcon from '@mui/icons-material/Folder';
+import VerifiedIcon from '@mui/icons-material/Verified';
+import LockIcon from '@mui/icons-material/Lock';
+import LockOpenIcon from '@mui/icons-material/LockOpen';
+
+// Import backup service
+import * as backupService from '../../services/backupService';
 
 // API Configuration
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170';
@@ -147,36 +153,50 @@ const ALL_PAGE_KEYS = PAGE_ACCESS_CONFIG.flatMap(category =>
   category.pages.map(page => page.key)
 );
 
-// Mock backup history data (Frontend only - will be replaced with API calls)
-const MOCK_BACKUP_HISTORY = [
-  {
-    id: 1,
-    fileName: 'backup_2024_12_04_143022.sql',
-    createdAt: '2024-12-04T14:30:22Z',
-    size: '24.5 MB',
-    type: 'full',
-    status: 'completed',
-    createdBy: 'System (Automated)',
-  },
-  {
-    id: 2,
-    fileName: 'backup_2024_12_03_020000.sql',
-    createdAt: '2024-12-03T02:00:00Z',
-    size: '23.8 MB',
-    type: 'full',
-    status: 'completed',
-    createdBy: 'System (Scheduled)',
-  },
-  {
-    id: 3,
-    fileName: 'backup_2024_12_01_143500.sql',
-    createdAt: '2024-12-01T14:35:00Z',
-    size: '22.1 MB',
-    type: 'manual',
-    status: 'completed',
-    createdBy: 'Admin User',
-  },
-];
+// Helper function to format file size
+const formatFileSize = (bytes) => {
+  if (!bytes || bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+};
+
+// Helper function to format date
+const formatBackupDate = (dateString) => {
+  if (!dateString) return 'N/A';
+  return new Date(dateString).toLocaleString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+};
+
+// Helper function to get backup type display label
+const getBackupTypeLabel = (type) => {
+  const typeLabels = {
+    'automatic': 'Scheduled',
+    'manual': 'Manual',
+    'emergency': 'Emergency',
+    'pre-update': 'Pre-Update',
+    'archive': 'Archive'
+  };
+  return typeLabels[type] || type;
+};
+
+// Helper function to get backup type color
+const getBackupTypeColor = (type) => {
+  const typeColors = {
+    'automatic': { bg: '#dcfce7', text: '#16a34a' },
+    'manual': { bg: '#dbeafe', text: '#1d4ed8' },
+    'emergency': { bg: '#fef3c7', text: '#d97706' },
+    'pre-update': { bg: '#e0e7ff', text: '#4338ca' },
+    'archive': { bg: '#f3e8ff', text: '#7c3aed' }
+  };
+  return typeColors[type] || { bg: '#f1f5f9', text: '#64748b' };
+};
 
 function Settings() {
   const [activeTab, setActiveTab] = useState(0);
@@ -198,7 +218,7 @@ function Settings() {
   const [loadingPageAccess, setLoadingPageAccess] = useState(true);
 
   // Backup & Recovery State
-  const [backupHistory, setBackupHistory] = useState(MOCK_BACKUP_HISTORY);
+  const [backupHistory, setBackupHistory] = useState([]);
   const [isCreatingBackup, setIsCreatingBackup] = useState(false);
   const [isRestoring, setIsRestoring] = useState(false);
   const [backupProgress, setBackupProgress] = useState(0);
@@ -206,7 +226,11 @@ function Settings() {
   const [selectedBackupFile, setSelectedBackupFile] = useState(null);
   const [autoBackupEnabled, setAutoBackupEnabled] = useState(true);
   const [backupFrequency, setBackupFrequency] = useState('daily');
-  const [lastBackupTime, setLastBackupTime] = useState('2024-12-04 14:30:22');
+  const [lastBackupTime, setLastBackupTime] = useState(null);
+  const [backupStats, setBackupStats] = useState({ totalBackups: 0, totalSize: 0 });
+  const [loadingBackups, setLoadingBackups] = useState(true);
+  const [backupConfig, setBackupConfig] = useState(null);
+  const fileInputRef = useRef(null);
 
   // Tab Change Handler
   const handleTabChange = useCallback((event, newValue) => {
@@ -592,164 +616,378 @@ function Settings() {
 
   // ==================== Backup & Recovery Handlers ====================
 
+  // Fetch backup history from the backend
+  const fetchBackupHistory = useCallback(async () => {
+    setLoadingBackups(true);
+    try {
+      const response = await backupService.getBackupHistory({ limit: 50, page: 1 });
+      if (response.success && response.data) {
+        const backups = response.data.backups || response.data;
+        setBackupHistory(Array.isArray(backups) ? backups : []);
+        
+        // Calculate total size
+        const totalSize = backups.reduce((acc, b) => acc + (b.fileSize || 0), 0);
+        setBackupStats({ 
+          totalBackups: backups.length, 
+          totalSize 
+        });
+      }
+    } catch (error) {
+      console.error('[Settings] Error fetching backup history:', error);
+      showNotification('Failed to load backup history', 'error');
+    } finally {
+      setLoadingBackups(false);
+    }
+  }, [showNotification]);
+
+  // Fetch last backup info
+  const fetchLastBackupInfo = useCallback(async () => {
+    try {
+      const response = await backupService.getLastBackupInfo();
+      if (response.success && response.data) {
+        const lastBackup = response.data;
+        if (lastBackup.createdAt) {
+          setLastBackupTime(formatBackupDate(lastBackup.createdAt));
+        }
+      }
+    } catch (error) {
+      console.error('[Settings] Error fetching last backup info:', error);
+    }
+  }, []);
+
+  // Fetch backup configuration
+  const fetchBackupConfig = useCallback(async () => {
+    try {
+      const response = await backupService.getBackupConfig();
+      if (response.success && response.data) {
+        setBackupConfig(response.data);
+        setAutoBackupEnabled(response.data.autoBackupEnabled !== false);
+        setBackupFrequency(response.data.frequency || 'daily');
+      }
+    } catch (error) {
+      console.error('[Settings] Error fetching backup config:', error);
+    }
+  }, []);
+
+  // Create a new manual backup
   const handleCreateBackup = useCallback(async () => {
     setIsCreatingBackup(true);
     setBackupProgress(0);
 
-    // Simulate backup progress (Frontend only - no backend yet)
+    // Simulate progress while waiting for API
     const progressInterval = setInterval(() => {
       setBackupProgress((prev) => {
-        if (prev >= 100) {
-          clearInterval(progressInterval);
-          return 100;
+        if (prev >= 90) {
+          return 90; // Cap at 90% until API responds
         }
-        return prev + Math.random() * 15;
+        return prev + Math.random() * 10;
       });
-    }, 300);
+    }, 500);
 
-    // Simulate backup completion
-    setTimeout(() => {
+    try {
+      const response = await backupService.createManualBackup('Manual backup from Settings page');
+      
       clearInterval(progressInterval);
       setBackupProgress(100);
       
-      const newBackup = {
-        id: Date.now(),
-        fileName: `backup_${new Date().toISOString().replace(/[-:T]/g, '_').slice(0, 19)}.sql`,
-        createdAt: new Date().toISOString(),
-        size: `${(20 + Math.random() * 10).toFixed(1)} MB`,
-        type: 'manual',
-        status: 'completed',
-        createdBy: 'Current User',
-      };
-      
-      setBackupHistory((prev) => [newBackup, ...prev]);
-      setLastBackupTime(new Date().toLocaleString());
-      
+      if (response.success) {
+        showNotification('Backup created successfully!', 'success');
+        // Refresh backup history and last backup info
+        await Promise.all([fetchBackupHistory(), fetchLastBackupInfo()]);
+      } else {
+        throw new Error(response.message || 'Failed to create backup');
+      }
+    } catch (error) {
+      clearInterval(progressInterval);
+      console.error('[Settings] Create backup error:', error);
+      showNotification(error.message || 'Failed to create backup', 'error');
+    } finally {
       setTimeout(() => {
         setIsCreatingBackup(false);
         setBackupProgress(0);
-        showNotification('Backup created successfully!', 'success');
       }, 500);
-    }, 3000);
-  }, [showNotification]);
+    }
+  }, [showNotification, fetchBackupHistory, fetchLastBackupInfo]);
 
+  // Restore from an existing backup
   const handleRestoreBackup = useCallback(async (backupId) => {
-    const backup = backupHistory.find((b) => b.id === backupId);
+    const backup = backupHistory.find((b) => b.backupId === backupId);
     if (!backup) return;
 
-    if (!window.confirm(`Are you sure you want to restore from "${backup.fileName}"? This will replace current data.`)) {
+    const fileName = backup.filePath?.split(/[/\\]/).pop() || backup.backupId;
+    
+    if (!window.confirm(
+      `⚠️ WARNING: Are you sure you want to restore from "${fileName}"?\n\n` +
+      `This will replace current data with the backup data.\n` +
+      `Created: ${formatBackupDate(backup.createdAt)}\n` +
+      `Documents: ${backup.metadata?.totalDocuments || 'N/A'}\n\n` +
+      `This action cannot be undone!`
+    )) {
       return;
     }
 
     setIsRestoring(true);
     setRestoreProgress(0);
 
-    // Simulate restore progress
+    // Simulate progress while waiting for API
     const progressInterval = setInterval(() => {
       setRestoreProgress((prev) => {
-        if (prev >= 100) {
-          clearInterval(progressInterval);
-          return 100;
+        if (prev >= 90) {
+          return 90;
         }
-        return prev + Math.random() * 12;
+        return prev + Math.random() * 8;
       });
-    }, 400);
+    }, 600);
 
-    setTimeout(() => {
+    try {
+      const response = await backupService.restoreBackup(backupId, {
+        dropExisting: false,
+        dryRun: false
+      });
+      
       clearInterval(progressInterval);
       setRestoreProgress(100);
       
+      if (response.success) {
+        showNotification('System restored successfully from backup!', 'success');
+        // Refresh data after restore
+        await fetchBackupHistory();
+      } else {
+        throw new Error(response.message || 'Failed to restore backup');
+      }
+    } catch (error) {
+      clearInterval(progressInterval);
+      console.error('[Settings] Restore backup error:', error);
+      showNotification(error.message || 'Failed to restore from backup', 'error');
+    } finally {
       setTimeout(() => {
         setIsRestoring(false);
         setRestoreProgress(0);
-        showNotification('System restored successfully from backup!', 'success');
       }, 500);
-    }, 4000);
-  }, [backupHistory, showNotification]);
+    }
+  }, [backupHistory, showNotification, fetchBackupHistory]);
 
-  const handleDeleteBackup = useCallback((backupId) => {
-    const backup = backupHistory.find((b) => b.id === backupId);
+  // Delete a backup
+  const handleDeleteBackup = useCallback(async (backupId) => {
+    const backup = backupHistory.find((b) => b.backupId === backupId);
     if (!backup) return;
 
-    if (!window.confirm(`Are you sure you want to delete "${backup.fileName}"? This action cannot be undone.`)) {
+    // Check if backup is protected
+    if (backup.isProtected) {
+      showNotification('Cannot delete a protected backup. Remove protection first.', 'error');
       return;
     }
 
-    setBackupHistory((prev) => prev.filter((b) => b.id !== backupId));
-    showNotification('Backup deleted successfully', 'success');
-  }, [backupHistory, showNotification]);
+    const fileName = backup.filePath?.split(/[/\\]/).pop() || backup.backupId;
+    
+    if (!window.confirm(`Are you sure you want to delete "${fileName}"? This action cannot be undone.`)) {
+      return;
+    }
 
-  const handleDownloadBackup = useCallback((backupId) => {
-    const backup = backupHistory.find((b) => b.id === backupId);
+    try {
+      const response = await backupService.deleteBackup(backupId);
+      
+      if (response.success) {
+        showNotification('Backup deleted successfully', 'success');
+        await fetchBackupHistory();
+      } else {
+        throw new Error(response.message || 'Failed to delete backup');
+      }
+    } catch (error) {
+      console.error('[Settings] Delete backup error:', error);
+      showNotification(error.message || 'Failed to delete backup', 'error');
+    }
+  }, [backupHistory, showNotification, fetchBackupHistory]);
+
+  // Download a backup file
+  const handleDownloadBackup = useCallback(async (backupId) => {
+    const backup = backupHistory.find((b) => b.backupId === backupId);
     if (!backup) return;
 
-    // Simulate download (Frontend only)
-    showNotification(`Downloading ${backup.fileName}...`, 'info');
-    
-    setTimeout(() => {
+    try {
+      showNotification('Preparing download...', 'info');
+      await backupService.downloadBackup(backupId);
       showNotification('Backup file downloaded successfully!', 'success');
-    }, 1500);
+    } catch (error) {
+      console.error('[Settings] Download backup error:', error);
+      showNotification(error.message || 'Failed to download backup', 'error');
+    }
   }, [backupHistory, showNotification]);
 
+  // Toggle backup protection
+  const handleToggleProtection = useCallback(async (backupId, currentlyProtected) => {
+    try {
+      const response = await backupService.toggleBackupProtection(backupId, !currentlyProtected);
+      
+      if (response.success) {
+        showNotification(
+          currentlyProtected ? 'Backup protection removed' : 'Backup is now protected',
+          'success'
+        );
+        await fetchBackupHistory();
+      } else {
+        throw new Error(response.message || 'Failed to toggle protection');
+      }
+    } catch (error) {
+      console.error('[Settings] Toggle protection error:', error);
+      showNotification(error.message || 'Failed to toggle protection', 'error');
+    }
+  }, [showNotification, fetchBackupHistory]);
+
+  // Verify backup integrity
+  const handleVerifyBackup = useCallback(async (backupId) => {
+    try {
+      showNotification('Verifying backup integrity...', 'info');
+      const response = await backupService.verifyBackup(backupId);
+      
+      if (response.success && response.data) {
+        if (response.data.valid) {
+          showNotification('✓ Backup verified successfully - integrity confirmed', 'success');
+        } else {
+          showNotification(`⚠ Backup verification failed: ${response.data.error || 'Unknown error'}`, 'error');
+        }
+      } else {
+        throw new Error(response.message || 'Verification failed');
+      }
+    } catch (error) {
+      console.error('[Settings] Verify backup error:', error);
+      showNotification(error.message || 'Failed to verify backup', 'error');
+    }
+  }, [showNotification]);
+
+  // Handle file selection for import
   const handleUploadBackup = useCallback((event) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    // Validate file type
-    if (!file.name.endsWith('.sql') && !file.name.endsWith('.zip')) {
-      showNotification('Please upload a valid backup file (.sql or .zip)', 'error');
+    // Validate file type - accept .gz, .json.gz, .json files
+    const validExtensions = ['.gz', '.json'];
+    const isValid = validExtensions.some(ext => file.name.toLowerCase().endsWith(ext));
+    
+    if (!isValid) {
+      showNotification('Please upload a valid backup file (.json.gz or .gz)', 'error');
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+      return;
+    }
+
+    // Validate file size (max 500MB)
+    const maxSize = 500 * 1024 * 1024;
+    if (file.size > maxSize) {
+      showNotification('Backup file must be less than 500MB', 'error');
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
       return;
     }
 
     setSelectedBackupFile(file);
-    showNotification(`Selected backup file: ${file.name}`, 'info');
+    showNotification(`Selected: ${file.name} (${formatFileSize(file.size)})`, 'info');
   }, [showNotification]);
 
-  const handleImportBackup = useCallback(() => {
+  // Import backup from uploaded file
+  const handleImportBackup = useCallback(async () => {
     if (!selectedBackupFile) {
       showNotification('Please select a backup file first', 'error');
       return;
     }
 
-    if (!window.confirm('Are you sure you want to restore from this uploaded backup? This will replace current data.')) {
+    if (!window.confirm(
+      '⚠️ WARNING: Are you sure you want to restore from this uploaded backup?\n\n' +
+      'This will import data from the backup file.\n' +
+      'Existing data will be merged with the backup data.\n\n' +
+      'This operation may take several minutes for large backups.'
+    )) {
       return;
     }
 
     setIsRestoring(true);
     setRestoreProgress(0);
 
+    // Simulate progress
     const progressInterval = setInterval(() => {
       setRestoreProgress((prev) => {
-        if (prev >= 100) {
-          clearInterval(progressInterval);
-          return 100;
-        }
-        return prev + Math.random() * 10;
+        if (prev >= 90) return 90;
+        return prev + Math.random() * 5;
       });
-    }, 400);
+    }, 800);
 
-    setTimeout(() => {
+    try {
+      const token = getAuthToken();
+      if (!token) {
+        throw new Error('Authentication required. Please log in.');
+      }
+
+      const formData = new FormData();
+      formData.append('file', selectedBackupFile);
+      formData.append('dropExisting', 'false');
+
+      const response = await fetch(`${API_BASE_URL}/api/backup/import`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+        body: formData,
+      });
+
+      const result = await response.json();
+      
       clearInterval(progressInterval);
       setRestoreProgress(100);
-      
+
+      if (!response.ok) {
+        throw new Error(result.message || 'Failed to import backup');
+      }
+
+      if (result.success) {
+        showNotification(
+          `Import completed! ${result.data?.totalDocuments || 0} documents restored.`,
+          'success'
+        );
+        setSelectedBackupFile(null);
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
+        await fetchBackupHistory();
+      } else {
+        throw new Error(result.message || 'Import failed');
+      }
+    } catch (error) {
+      clearInterval(progressInterval);
+      console.error('[Settings] Import backup error:', error);
+      showNotification(error.message || 'Failed to import backup', 'error');
+    } finally {
       setTimeout(() => {
         setIsRestoring(false);
         setRestoreProgress(0);
-        setSelectedBackupFile(null);
-        showNotification('System restored successfully from uploaded backup!', 'success');
       }, 500);
-    }, 5000);
-  }, [selectedBackupFile, showNotification]);
+    }
+  }, [selectedBackupFile, showNotification, getAuthToken, fetchBackupHistory]);
 
-  const formatBackupDate = useCallback((dateString) => {
-    return new Date(dateString).toLocaleString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  }, []);
+  // Toggle auto backup setting
+  const handleToggleAutoBackup = useCallback(async (enabled) => {
+    try {
+      const response = await backupService.updateBackupConfig({
+        autoBackupEnabled: enabled
+      });
+      
+      if (response.success) {
+        setAutoBackupEnabled(enabled);
+        showNotification(
+          enabled ? 'Automatic backups enabled' : 'Automatic backups disabled',
+          'success'
+        );
+      } else {
+        throw new Error(response.message || 'Failed to update settings');
+      }
+    } catch (error) {
+      console.error('[Settings] Toggle auto backup error:', error);
+      showNotification(error.message || 'Failed to update backup settings', 'error');
+      // Revert the switch state
+      setAutoBackupEnabled(!enabled);
+    }
+  }, [showNotification]);
 
   // Load existing fare matrix on mount
   useEffect(() => {
@@ -760,6 +998,15 @@ function Settings() {
   useEffect(() => {
     fetchAllPageAccess();
   }, [fetchAllPageAccess]);
+
+  // Load backup data when backup tab is active
+  useEffect(() => {
+    if (activeTab === 2) {
+      fetchBackupHistory();
+      fetchLastBackupInfo();
+      fetchBackupConfig();
+    }
+  }, [activeTab, fetchBackupHistory, fetchLastBackupInfo, fetchBackupConfig]);
 
   const permissionStats = useMemo(() => {
     const totalPages = PAGE_ACCESS_CONFIG.reduce((sum, cat) => sum + cat.pages.length, 0);
@@ -1123,7 +1370,7 @@ function Settings() {
                           Last Backup
                         </Typography>
                         <Typography variant="h6" sx={{ fontWeight: 600, color: '#1e293b' }}>
-                          {lastBackupTime}
+                          {lastBackupTime || 'No backups yet'}
                         </Typography>
                       </Box>
                     </Box>
@@ -1141,7 +1388,11 @@ function Settings() {
                           Total Backups
                         </Typography>
                         <Typography variant="h6" sx={{ fontWeight: 600, color: '#1e293b' }}>
-                          {backupHistory.length} Files
+                          {loadingBackups ? (
+                            <CircularProgress size={20} />
+                          ) : (
+                            `${backupStats.totalBackups} Files (${formatFileSize(backupStats.totalSize)})`
+                          )}
                         </Typography>
                       </Box>
                     </Box>
@@ -1164,7 +1415,7 @@ function Settings() {
                       </Box>
                       <Switch
                         checked={autoBackupEnabled}
-                        onChange={(e) => setAutoBackupEnabled(e.target.checked)}
+                        onChange={(e) => handleToggleAutoBackup(e.target.checked)}
                         color="primary"
                       />
                     </Box>
@@ -1206,12 +1457,13 @@ function Settings() {
                     </Typography>
                   </Box>
                   <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
-                    Upload and restore from an external backup file. Supported formats: .sql, .zip
+                    Upload and restore from an external backup file. Supported formats: .json.gz, .gz
                   </Typography>
                   
                   <Box sx={{ mb: 2 }}>
                     <input
-                      accept=".sql,.zip"
+                      ref={fileInputRef}
+                      accept=".gz,.json"
                       style={{ display: 'none' }}
                       id="backup-file-upload"
                       type="file"
@@ -1231,7 +1483,7 @@ function Settings() {
                     </label>
                     {selectedBackupFile && (
                       <Typography variant="body2" className="selected-backup-file">
-                        📁 {selectedBackupFile.name}
+                        📁 {selectedBackupFile.name} ({formatFileSize(selectedBackupFile.size)})
                       </Typography>
                     )}
                   </Box>
@@ -1265,7 +1517,11 @@ function Settings() {
 
                 <Divider sx={{ mb: 2 }} />
 
-                {backupHistory.length === 0 ? (
+                {loadingBackups ? (
+                  <Box display="flex" justifyContent="center" alignItems="center" minHeight="200px">
+                    <CircularProgress />
+                  </Box>
+                ) : backupHistory.length === 0 ? (
                   <Box className="no-backups-placeholder">
                     <StorageIcon sx={{ fontSize: 64, color: '#cbd5e1', mb: 2 }} />
                     <Typography variant="h6" color="textSecondary">
@@ -1277,79 +1533,138 @@ function Settings() {
                   </Box>
                 ) : (
                   <div className="backup-history-list">
-                    {backupHistory.map((backup) => (
-                      <Box key={backup.id} className="backup-history-item">
-                        <Box className="backup-item-info">
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                            <Box className={`backup-type-icon ${backup.type}`}>
-                              {backup.type === 'manual' ? <BackupIcon /> : <ScheduleIcon />}
-                            </Box>
-                            <Box>
-                              <Typography variant="body1" sx={{ fontWeight: 600, color: '#1e293b' }}>
-                                {backup.fileName}
-                              </Typography>
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mt: 0.5 }}>
-                                <Typography variant="caption" color="textSecondary">
-                                  {formatBackupDate(backup.createdAt)}
-                                </Typography>
-                                <Chip 
-                                  label={backup.size} 
-                                  size="small" 
-                                  sx={{ 
-                                    height: 20, 
-                                    fontSize: '11px',
-                                    backgroundColor: '#f1f5f9',
-                                    color: '#64748b'
-                                  }} 
-                                />
-                                <Chip 
-                                  label={backup.type === 'manual' ? 'Manual' : 'Scheduled'} 
-                                  size="small" 
-                                  sx={{ 
-                                    height: 20, 
-                                    fontSize: '11px',
-                                    backgroundColor: backup.type === 'manual' ? '#dbeafe' : '#dcfce7',
-                                    color: backup.type === 'manual' ? '#1d4ed8' : '#16a34a'
-                                  }} 
-                                />
+                    {backupHistory.map((backup) => {
+                      const fileName = backup.filePath?.split(/[/\\]/).pop() || backup.backupId;
+                      const typeColor = getBackupTypeColor(backup.backupType);
+                      const createdByName = backup.initiatedBy?.adminName || 
+                        (backup.backupType === 'automatic' ? 'System (Scheduled)' : 'Unknown');
+                      
+                      return (
+                        <Box key={backup.backupId || backup._id} className="backup-history-item">
+                          <Box className="backup-item-info">
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                              <Box className={`backup-type-icon ${backup.backupType}`}>
+                                {backup.backupType === 'automatic' ? <ScheduleIcon /> : 
+                                 backup.backupType === 'emergency' ? <WarningIcon /> :
+                                 backup.backupType === 'pre-update' ? <CloudUploadIcon /> :
+                                 <BackupIcon />}
                               </Box>
-                              <Typography variant="caption" color="textSecondary" sx={{ display: 'block', mt: 0.5 }}>
-                                Created by: {backup.createdBy}
-                              </Typography>
+                              <Box sx={{ flex: 1 }}>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                  <Typography variant="body1" sx={{ fontWeight: 600, color: '#1e293b' }}>
+                                    {fileName}
+                                  </Typography>
+                                  {backup.isProtected && (
+                                    <Tooltip title="Protected from auto-deletion">
+                                      <LockIcon sx={{ fontSize: 16, color: '#d97706' }} />
+                                    </Tooltip>
+                                  )}
+                                  {backup.status === 'completed' && (
+                                    <Tooltip title="Backup completed successfully">
+                                      <CheckCircleIcon sx={{ fontSize: 16, color: '#16a34a' }} />
+                                    </Tooltip>
+                                  )}
+                                </Box>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mt: 0.5, flexWrap: 'wrap' }}>
+                                  <Typography variant="caption" color="textSecondary">
+                                    {formatBackupDate(backup.createdAt)}
+                                  </Typography>
+                                  <Chip 
+                                    label={formatFileSize(backup.fileSize)} 
+                                    size="small" 
+                                    sx={{ 
+                                      height: 20, 
+                                      fontSize: '11px',
+                                      backgroundColor: '#f1f5f9',
+                                      color: '#64748b'
+                                    }} 
+                                  />
+                                  <Chip 
+                                    label={getBackupTypeLabel(backup.backupType)} 
+                                    size="small" 
+                                    sx={{ 
+                                      height: 20, 
+                                      fontSize: '11px',
+                                      backgroundColor: typeColor.bg,
+                                      color: typeColor.text
+                                    }} 
+                                  />
+                                  {backup.metadata?.totalDocuments && (
+                                    <Chip 
+                                      label={`${backup.metadata.totalDocuments.toLocaleString()} docs`} 
+                                      size="small" 
+                                      sx={{ 
+                                        height: 20, 
+                                        fontSize: '11px',
+                                        backgroundColor: '#f0fdf4',
+                                        color: '#15803d'
+                                      }} 
+                                    />
+                                  )}
+                                </Box>
+                                <Typography variant="caption" color="textSecondary" sx={{ display: 'block', mt: 0.5 }}>
+                                  Created by: {createdByName}
+                                </Typography>
+                              </Box>
                             </Box>
                           </Box>
+                          <Box className="backup-item-actions">
+                            <Tooltip title="Verify Backup Integrity">
+                              <IconButton 
+                                onClick={() => handleVerifyBackup(backup.backupId)}
+                                className="backup-item-btn verify"
+                                disabled={isRestoring || isCreatingBackup}
+                                size="small"
+                              >
+                                <VerifiedIcon />
+                              </IconButton>
+                            </Tooltip>
+                            <Tooltip title={backup.isProtected ? 'Remove Protection' : 'Protect Backup'}>
+                              <IconButton 
+                                onClick={() => handleToggleProtection(backup.backupId, backup.isProtected)}
+                                className="backup-item-btn protect"
+                                disabled={isRestoring || isCreatingBackup}
+                                size="small"
+                              >
+                                {backup.isProtected ? <LockOpenIcon /> : <LockIcon />}
+                              </IconButton>
+                            </Tooltip>
+                            <Tooltip title="Download Backup">
+                              <IconButton 
+                                onClick={() => handleDownloadBackup(backup.backupId)}
+                                className="backup-item-btn download"
+                                disabled={isRestoring || isCreatingBackup}
+                                size="small"
+                              >
+                                <CloudDownloadIcon />
+                              </IconButton>
+                            </Tooltip>
+                            <Tooltip title="Restore from this Backup">
+                              <IconButton 
+                                onClick={() => handleRestoreBackup(backup.backupId)}
+                                className="backup-item-btn restore"
+                                disabled={isRestoring || isCreatingBackup}
+                                size="small"
+                              >
+                                <RestoreIcon />
+                              </IconButton>
+                            </Tooltip>
+                            <Tooltip title={backup.isProtected ? 'Cannot delete protected backup' : 'Delete Backup'}>
+                              <span>
+                                <IconButton 
+                                  onClick={() => handleDeleteBackup(backup.backupId)}
+                                  className="backup-item-btn delete"
+                                  disabled={isRestoring || isCreatingBackup || backup.isProtected}
+                                  size="small"
+                                >
+                                  <DeleteIcon />
+                                </IconButton>
+                              </span>
+                            </Tooltip>
+                          </Box>
                         </Box>
-                        <Box className="backup-item-actions">
-                          <Tooltip title="Download Backup">
-                            <IconButton 
-                              onClick={() => handleDownloadBackup(backup.id)}
-                              className="backup-item-btn download"
-                              disabled={isRestoring || isCreatingBackup}
-                            >
-                              <CloudDownloadIcon />
-                            </IconButton>
-                          </Tooltip>
-                          <Tooltip title="Restore from this Backup">
-                            <IconButton 
-                              onClick={() => handleRestoreBackup(backup.id)}
-                              className="backup-item-btn restore"
-                              disabled={isRestoring || isCreatingBackup}
-                            >
-                              <RestoreIcon />
-                            </IconButton>
-                          </Tooltip>
-                          <Tooltip title="Delete Backup">
-                            <IconButton 
-                              onClick={() => handleDeleteBackup(backup.id)}
-                              className="backup-item-btn delete"
-                              disabled={isRestoring || isCreatingBackup}
-                            >
-                              <DeleteIcon />
-                            </IconButton>
-                          </Tooltip>
-                        </Box>
-                      </Box>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </Paper>

@@ -737,7 +737,21 @@ export const dashboardAPI = {
    * Get lightweight quick stats for frequent polling
    * @returns {Promise} Response with basic KPI numbers
    */
-  getQuickStats: () => api.get('/api/dashboard/quick-stats')
+  getQuickStats: () => api.get('/api/dashboard/quick-stats'),
+
+  /**
+   * Get analytics data (franchise distribution by barangay)
+   * @returns {Promise} Response with analytics data
+   */
+  getAnalytics: () => api.get('/api/dashboard/analytics'),
+
+  /**
+   * Get franchises expiring in a specific month/year
+   * @param {number} month - Month (1-12)
+   * @param {number} year - Year (e.g., 2025)
+   * @returns {Promise} Response with expiring franchises
+   */
+  getExpiringFranchises: (month, year) => api.get('/api/dashboard/expiring-franchises', { params: { month, year } })
 };
 
 // ====================================================================
@@ -814,7 +828,13 @@ export const franchiseInformationAPI = {
    * @param {string} franchiseChainId - Franchise chain ID (format: user-{userId}-{timestamp})
    * @returns {Promise} Response with franchise chain history and latest version
    */
-  getByChainId: (franchiseChainId) => api.get(`/api/franchise-information/chain/${franchiseChainId}`)
+  getByChainId: (franchiseChainId) => api.get(`/api/franchise-information/chain/${franchiseChainId}`),
+
+  /**
+   * Get available franchise numbers for recycling/reassignment
+   * @returns {Promise} Response with available numbers and statistics
+   */
+  getAvailableNumbers: () => api.get('/api/franchise-information/available-numbers')
 };
 
 // ====================================================================

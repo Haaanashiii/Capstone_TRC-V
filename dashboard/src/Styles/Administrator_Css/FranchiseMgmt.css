@@ -260,6 +260,21 @@
     color: #0A356B !important;
 }
 
+/* Modal Footer - Ensure buttons have proper spacing */
+.modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 16px;
+    padding: 20px 32px;
+    border-top: 1px solid #e0e0e0;
+    background: white;
+}
+
+.modal-footer > button,
+.modal-footer > .MuiButton-root {
+    margin: 0 !important;
+}
+
 .pending-header {
     margin-top: 24px;
     margin-bottom: 8px;

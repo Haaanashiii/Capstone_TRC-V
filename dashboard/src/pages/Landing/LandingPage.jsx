@@ -3,6 +3,7 @@ import '../../Styles/LandingCss/LandingPage.css';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTranslation } from '../../hooks/useTranslation';
 import websocketService from '../../services/websocket';
+import announcementService from '../../services/announcementService';
 import UnifiedNavbar from '../../components/UnifiedNavbar';
 import { Button, Typography, Box, useMediaQuery, useTheme, MobileStepper, Accordion, AccordionSummary, AccordionDetails, Dialog, DialogContent, IconButton, Menu, MenuItem, ListItemIcon, Drawer } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
@@ -14,7 +15,6 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import PermIdentityIcon from '@mui/icons-material/PermIdentity';
 import LogoutIcon from '@mui/icons-material/Logout';
 import SBFareImage from '../../assets/SB Fare.jpeg';
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170';
 
 const Card = ({ children, className }) => (
   <div className={className}>{children}</div>
@@ -47,15 +47,8 @@ const LandingPage = () => {
     const fetchPublishedAnnouncements = async () => {
       try {
         setLoadingAnnouncements(true);
-        const response = await fetch(`${API_BASE_URL}/announcements/published`);
-        
-        if (response.ok) {
-          const data = await response.json();
-          setAnnouncements(data.announcements || []);
-        } else {
-          console.error('Failed to fetch announcements');
-          setAnnouncements([]);
-        }
+        const data = await announcementService.getPublished();
+        setAnnouncements(data.announcements || []);
       } catch (error) {
         console.error('Error fetching announcements:', error);
         setAnnouncements([]);

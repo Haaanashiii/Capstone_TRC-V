@@ -44,6 +44,7 @@ import {
   InfoOutlined,
 } from '@mui/icons-material';
 import websocketService from '../../services/websocket';
+import { dashboardAPI, franchiseInformationAPI } from '../Services/api';
 
 // ==================== Constants ====================
 const MONTHS = [
@@ -61,9 +62,6 @@ const BARANGAY_FILTER_OPTIONS = {
   HIGHEST_ACTIVE: 'highest_active',
   HIGHEST_EXPIRED: 'highest_expired',
 };
-
-// API Configuration
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170';
 
 // ==================== Utility Functions ====================
 
@@ -147,91 +145,45 @@ function Analytics() {
     barangayData: [],
   });
 
-  // Get auth token from storage
-  const getAuthToken = useCallback(() => {
-    return sessionStorage.getItem('accessToken') || localStorage.getItem('accessToken');
-  }, []);
-
-  // Fetch analytics data from API
+  // Fetch analytics data from API using centralized dashboardAPI
   const fetchAnalyticsData = useCallback(async () => {
     setLoading(true);
     setError('');
     
     try {
-      const token = getAuthToken();
+      const response = await dashboardAPI.getAnalytics();
       
-      if (!token) {
-        setError('Authentication required. Please log in.');
-        setLoading(false);
-        return;
-      }
-
-      const response = await fetch(`${API_BASE_URL}/api/dashboard/analytics`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          throw new Error('Session expired. Please log in again.');
-        }
-        if (response.status === 403) {
-          throw new Error('You do not have permission to view analytics.');
-        }
-        throw new Error(`Failed to fetch analytics: ${response.statusText}`);
-      }
-
-      const result = await response.json();
-      
-      if (result.success && result.data) {
-        setAnalyticsData(result.data);
+      if (response.data?.success && response.data?.data) {
+        setAnalyticsData(response.data.data);
       } else {
         throw new Error('Invalid response format from server');
       }
     } catch (err) {
       console.error('Error fetching analytics:', err);
-      setError(err.message || 'Failed to fetch analytics. Please try again.');
+      
+      // Handle specific error cases
+      if (err.response?.status === 401) {
+        setError('Session expired. Please log in again.');
+      } else if (err.response?.status === 403) {
+        setError('You do not have permission to view analytics.');
+      } else {
+        setError(err.response?.data?.message || err.message || 'Failed to fetch analytics. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
-  }, [getAuthToken]);
+  }, []);
 
-  // Fetch recyclable franchise numbers
+  // Fetch recyclable franchise numbers using centralized franchiseInformationAPI
   const fetchRecyclableNumbers = useCallback(async () => {
     setLoadingRecyclable(true);
     
     try {
-      const token = getAuthToken();
+      const response = await franchiseInformationAPI.getAvailableNumbers();
       
-      if (!token) {
-        setError('Authentication required. Please log in.');
-        setLoadingRecyclable(false);
-        return;
-      }
-
-      const response = await fetch(
-        `${API_BASE_URL}/api/franchise-information/available-numbers`,
-        {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch recyclable numbers: ${response.statusText}`);
-      }
-
-      const result = await response.json();
-      
-      if (result.success && result.data) {
-        setRecyclableNumbers(result.data.availableNumbers || []);
-        setRecyclableStats(result.data.statistics || null);
+      if (response.data?.success && response.data?.data) {
+        setRecyclableNumbers(response.data.data.availableNumbers || []);
+        setRecyclableStats(response.data.data.statistics || null);
       } else {
         setRecyclableNumbers([]);
         setRecyclableStats(null);
@@ -243,7 +195,7 @@ function Analytics() {
     } finally {
       setLoadingRecyclable(false);
     }
-  }, [getAuthToken]);
+  }, []);
 
   useEffect(() => {
     fetchAnalyticsData();
@@ -273,38 +225,15 @@ function Analytics() {
     };
   }, [fetchAnalyticsData, fetchRecyclableNumbers]);
 
-  // Fetch expiring franchisees for selected month
+  // Fetch expiring franchisees for selected month using centralized dashboardAPI
   const fetchExpiringFranchisees = useCallback(async (month, year) => {
     setLoadingExpiring(true);
     
     try {
-      const token = getAuthToken();
+      const response = await dashboardAPI.getExpiringFranchises(month + 1, year);
       
-      if (!token) {
-        setError('Authentication required. Please log in.');
-        setLoadingExpiring(false);
-        return;
-      }
-
-      const response = await fetch(
-        `${API_BASE_URL}/api/dashboard/expiring-franchises?month=${month + 1}&year=${year}`,
-        {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch expiring franchises: ${response.statusText}`);
-      }
-
-      const result = await response.json();
-      
-      if (result.success && result.data) {
-        setExpiringFranchisees(result.data);
+      if (response.data?.success && response.data?.data) {
+        setExpiringFranchisees(response.data.data);
       } else {
         setExpiringFranchisees([]);
       }
@@ -314,7 +243,7 @@ function Analytics() {
     } finally {
       setLoadingExpiring(false);
     }
-  }, [getAuthToken]);
+  }, []);
 
   // Handle recycle card click
   const handleRecycleCardClick = useCallback(() => {
@@ -487,11 +416,11 @@ function Analytics() {
                   onKeyPress={(e) => e.key === 'Enter' && handleRecycleCardClick()}
                 >
                   <KpiCard
-                    title="Numbers to Recycle"
+                    title="Available Franchise"
                     value={recyclableStats?.gaps + recyclableStats?.revokedAvailable || '—'}
                     icon={Autorenew}
-                    iconColor="#8B5CF6"
-                    aria-label="Franchise numbers available for recycling. Click to view details."
+                    iconColor="#06B6D4"
+                    aria-label="Franchise numbers available for assignment. Click to view details."
                   />
                 </Box>
                 <Box 
@@ -1024,7 +953,7 @@ function Analytics() {
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
-              backgroundColor: '#8B5CF6',
+              backgroundColor: '#06B6D4',
               color: '#fff',
               py: 2,
               px: 3,
@@ -1033,7 +962,7 @@ function Analytics() {
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
               <Autorenew sx={{ fontSize: 28 }} />
               <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                Franchise Numbers Available for Recycling
+                Available Franchise Numbers
               </Typography>
             </Box>
             <IconButton
@@ -1049,15 +978,15 @@ function Analytics() {
             <Box
               sx={{
                 p: 3,
-                backgroundColor: '#faf5ff',
-                borderBottom: '1px solid #e9d5ff',
+                backgroundColor: '#ecfeff',
+                borderBottom: '1px solid #a5f3fc',
               }}
             >
               <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start' }}>
-                <InfoOutlined sx={{ color: '#7c3aed', fontSize: 24, mt: 0.25 }} />
+                <InfoOutlined sx={{ color: '#0891b2', fontSize: 24, mt: 0.25 }} />
                 <Box>
-                  <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#5b21b6', mb: 1 }}>
-                    What are recyclable franchise numbers?
+                  <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#0e7490', mb: 1 }}>
+                    What are available franchise numbers?
                   </Typography>
                   <Typography variant="body2" sx={{ color: '#6b7280', lineHeight: 1.7 }}>
                     These are franchise numbers from revoked franchises that have been expired for more than 6 years and can be reassigned to new applicants.
@@ -1100,7 +1029,7 @@ function Analytics() {
             <Box sx={{ p: 3 }}>
               {loadingRecyclable ? (
                 <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
-                  <CircularProgress size={48} sx={{ color: '#8B5CF6' }} />
+                  <CircularProgress size={48} sx={{ color: '#06B6D4' }} />
                 </Box>
               ) : recyclableNumbers.length === 0 ? (
                 <Box sx={{ textAlign: 'center', py: 6 }}>
@@ -1150,11 +1079,11 @@ function Analytics() {
                           fontSize: '0.9375rem',
                           fontFamily: 'monospace',
                           backgroundColor: '#fff',
-                          border: '2px solid #8B5CF6',
-                          color: '#5b21b6',
+                          border: '2px solid #06B6D4',
+                          color: '#0e7490',
                           height: 36,
                           '&:hover': {
-                            backgroundColor: '#f3e8ff',
+                            backgroundColor: '#ecfeff',
                           },
                         }}
                       />
