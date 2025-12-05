@@ -10,15 +10,15 @@ const fareMatrixSchema = new mongoose.Schema({
     index: true
   },
 
-  // Image URL (stored on Cloudflare R2)
+  // Image URL (stored in GridFS)
   imageUrl: { 
     type: String, 
     required: true,
     trim: true
   },
 
-  // R2 file path (for deletion/replacement)
-  r2FilePath: {
+  // GridFS file path (for deletion/replacement)
+  gridfsFilePath: {
     type: String,
     required: false,
     trim: true

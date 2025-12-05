@@ -1,22 +1,16 @@
-// Get visitor's real IP address (handles proxy servers)
+// Get visitor's real IP address (handles NGINX proxy)
 function getClientIp(req, debug = false) {
   let ip = null;
   let source = null;
 
-  // Check Cloudflare header first
-  if (req.headers['cf-connecting-ip']) {
-    ip = req.headers['cf-connecting-ip'];
-    source = 'cf-connecting-ip';
-  }
-  
-  // Check proxy forwarding header (used by Render, nginx, etc.)
-  else if (req.headers['x-forwarded-for']) {
+  // Check NGINX x-forwarded-for header (used by nginx reverse proxy)
+  if (req.headers['x-forwarded-for']) {
     const forwardedIps = req.headers['x-forwarded-for'].split(',').map(ip => ip.trim());
     ip = forwardedIps[0]; // Get first IP (original client)
     source = 'x-forwarded-for';
   }
   
-  // Check nginx header
+  // Check NGINX x-real-ip header
   else if (req.headers['x-real-ip']) {
     ip = req.headers['x-real-ip'];
     source = 'x-real-ip';
@@ -51,7 +45,6 @@ function getClientIp(req, debug = false) {
       source,
       ip,
       headers: {
-        'cf-connecting-ip': req.headers['cf-connecting-ip'],
         'x-forwarded-for': req.headers['x-forwarded-for'],
         'x-real-ip': req.headers['x-real-ip']
       },

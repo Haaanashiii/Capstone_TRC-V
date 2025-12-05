@@ -28,7 +28,7 @@ router.post('/sb/accept-renew-amend/:id', authenticate, authorize(['sb-admin', '
 router.post('/', authenticate, upload.uploadOperatorDocuments, controller.createFranchiseApplication);
 router.get('/', controller.getAllFranchiseApplications);
 router.get('/mine', authenticate, controller.getMyFranchiseApplication);
-router.get('/proxy-file', controller.proxyCloudflareFile);
+router.get('/proxy-file', controller.proxyFile);
 router.get('/:id', controller.getFranchiseApplication);
 router.put('/:id', controller.updateFranchiseApplication);
 router.put('/:id/approve', controller.approveFranchiseApplication);

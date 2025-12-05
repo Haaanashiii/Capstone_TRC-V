@@ -44,16 +44,16 @@ async function generateFranchiseQRCode(hashedMTOP, options = {}) {
     // Generate QR code as data URL
     const qrCodeDataURL = await QRCode.toDataURL(verificationUrl, qrOptions);
     
-    // Convert data URL to buffer for R2 upload or local save
+    // Convert data URL to buffer for GridFS upload or local save
     const base64Data = qrCodeDataURL.replace(/^data:image\/png;base64,/, '');
     const buffer = Buffer.from(base64Data, 'base64');
     
     let qrCodeFilePath = null;
     
-    // Return buffer for R2 upload (preferred) or save locally (legacy)
-    if (options.uploadToR2) {
-      // Caller will handle R2 upload using the buffer
-      qrCodeFilePath = 'pending-r2-upload';
+    // Return buffer for GridFS upload (preferred) or save locally (legacy)
+    if (options.uploadToStorage) {
+      // Caller will handle GridFS upload using the buffer
+      qrCodeFilePath = 'pending-storage-upload';
     } else if (options.saveToFile !== false) {
       // Legacy: Save to local filesystem
       const saveDir = options.folderPath || qrCodeDir;

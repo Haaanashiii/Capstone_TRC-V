@@ -3,6 +3,7 @@ const { generateOperatorQRCode, deleteQRCode } = require('../services/qrCodeServ
 const storage = require('../services/storageAdapter');
 const { getClientIp } = require('../utils/ipHelper');
 const { generateHashedFranchiseNo, findFranchiseNumberByHash } = require('../utils/franchiseHelpers');
+const { TTL } = require('../utils/cache');
 
 // Get all franchises with pagination
 exports.getAllFranchiseInformation = async (req, res, next) => {
@@ -60,8 +61,8 @@ exports.getAllFranchiseInformation = async (req, res, next) => {
       data: franchises
     };
     
-    // Cache for 30 seconds (list view can be slightly stale)
-    cacheManager.set(cacheKey, result, 30);
+    // Cache for 2 minutes (franchise list)
+    cacheManager.set(cacheKey, result, TTL.FRANCHISE_LIST);
     
     // Notify admins about updated franchise list (only if no filters applied)
     if (!status && !barangay && !search && page === 1 && req.app.get('io')) {
@@ -505,8 +506,8 @@ exports.getAvailableFranchiseNumbers = async (req, res, next) => {
       }
     };
     
-    // Cache for 5 minutes
-    cacheManager.set(cacheKey, responseData, 300);
+    // Cache for 5 minutes (reference data)
+    cacheManager.set(cacheKey, responseData, TTL.ANNOUNCEMENTS);
 
     return res.status(200).json({
       success: true,
@@ -721,8 +722,8 @@ exports.franchiseQRLookupByHash = async (req, res, next) => {
 
 
 
-// Proxy Cloudflare R2 files (bypass image access restrictions)
-exports.proxyCloudflareFile = async (req, res, next) => {
+// Proxy file from GridFS storage
+exports.proxyFile = async (req, res, next) => {
   try {
     const { url } = req.query;
     if (!url) return res.status(400).json({ error: 'Missing url parameter' });

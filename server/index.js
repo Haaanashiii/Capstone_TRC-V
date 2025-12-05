@@ -91,6 +91,7 @@ const getCachedToken = (token) => {
 };
 
 const cacheManager = require('./utils/cache');
+const { TTL } = require('./utils/cache');
 
 // Socket.IO allowed origins from CORS_ORIGIN env
 const socketCorsOrigin = process.env.CORS_ORIGIN 
@@ -238,7 +239,7 @@ io.on('connection', (socket) => {
             .sort({ submittedAt: -1 })
             .limit(50)
             .lean();
-          cacheManager.set(cacheKey, applications, 5);
+          cacheManager.set(cacheKey, applications, TTL.SOCKET_DATA);
         }
         
         socket.emit('approved-applications', applications);
@@ -252,7 +253,7 @@ io.on('connection', (socket) => {
             .sort({ submittedAt: -1 })
             .limit(50)
             .lean();
-          cacheManager.set(cacheKey, applications, 5);
+          cacheManager.set(cacheKey, applications, TTL.SOCKET_DATA);
         }
         
         socket.emit('pending-applications', applications);
@@ -273,7 +274,7 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => {});
 });
 
-// Trust proxy (for Nginx/Cloudflare)
+// Trust proxy (for NGINX reverse proxy)
 app.set('trust proxy', 1);
 
 // Content Security Policy
@@ -281,18 +282,18 @@ const cspDirectives = process.env.NODE_ENV === 'production'
   ? {
       defaultSrc: ["'self'"],
       scriptSrc: ["'self'"],
-      imgSrc: ["'self'", "data:", "https://pub-422a490d7e024793bffa369b66dfae83.r2.dev"],
+      imgSrc: ["'self'", "data:"],
       styleSrc: ["'self'", "'unsafe-inline'"],
       fontSrc: ["'self'"],
-      connectSrc: ["'self'", "https://trc-v.vercel.app"]
+      connectSrc: ["'self'"]
     }
   : {
       defaultSrc: ["'self'"],
       scriptSrc: ["'self'"],
-      imgSrc: ["'self'", "data:", "https://pub-422a490d7e024793bffa369b66dfae83.r2.dev"],
+      imgSrc: ["'self'", "data:"],
       styleSrc: ["'self'", "'unsafe-inline'"],
       fontSrc: ["'self'"],
-      connectSrc: ["'self'", "https://trc-v.vercel.app", "https://*.vercel.app", "https://*.workers.dev", "ws://localhost:5170", "ws://localhost:*"]
+      connectSrc: ["'self'", "ws://localhost:5170", "ws://localhost:*"]
     };
 
 app.use(helmet({
@@ -398,6 +399,42 @@ app.use('/api/backup', apiLimiter, backupRoutes);
 // Health check
 app.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// Cache stats endpoint (admin only in production)
+app.get('/api/admin/cache-stats', (req, res) => {
+  const cacheManager = require('./utils/cache');
+  
+  // In production, you should verify admin authentication here
+  // For now, basic stats are returned
+  const stats = cacheManager.getStats();
+  
+  res.json({
+    success: true,
+    data: stats,
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Cache management endpoint (admin only)
+app.post('/api/admin/cache-clear', (req, res) => {
+  const cacheManager = require('./utils/cache');
+  const { pattern } = req.body;
+  
+  // In production, verify admin authentication
+  if (pattern) {
+    const deleted = cacheManager.deletePattern(pattern);
+    res.json({
+      success: true,
+      message: `Cleared ${deleted} cache entries matching pattern: ${pattern}`
+    });
+  } else {
+    cacheManager.clear();
+    res.json({
+      success: true,
+      message: 'All cache entries cleared'
+    });
+  }
 });
 
 // Debug IP detection

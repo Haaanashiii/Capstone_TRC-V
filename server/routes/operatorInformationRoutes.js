@@ -1,14 +1,12 @@
 const express = require('express');
 const router = express.Router();
 
-const OperatorInformation = require('../models/operatorInformationModel');
-
 /**
  * GET /operators/qr/:operatorId
  * - Find OperatorInformation by operatorId
  * - Access franchiseInformations array (populated field)
  * - Return the franchise with QR code
- * - If qrCode points to R2 (r2:// or public R2 URL), return proxied URL
+ * - If qrCode points to GridFS (gridfs://), return proxied URL
  */
 router.get('/qr/:operatorId', async (req, res, next) => {
   try {
@@ -34,15 +32,11 @@ router.get('/qr/:operatorId', async (req, res, next) => {
 
     const qr = franchiseInfo.qrCode;
 
-    // Determine if we should return a proxied URL
-    const isR2Scheme = typeof qr === 'string' && qr.startsWith('r2://');
-    const isR2Public = typeof qr === 'string' && (
-      qr.includes('.r2.dev') ||
-      (process.env.CLOUDFLARE_R2_PUBLIC_URL && qr.startsWith(process.env.CLOUDFLARE_R2_PUBLIC_URL))
-    );
+    // Determine if we should return a proxied URL for GridFS files
+    const isGridFS = typeof qr === 'string' && qr.startsWith('gridfs://');
 
     let resolved = qr;
-    if (isR2Scheme || isR2Public) {
+    if (isGridFS) {
       const base = process.env.BASE_URL || `${req.protocol}://${req.get('host')}`;
       resolved = `${base.replace(/\/+$/,'')}/api/franchise-applications/proxy-file?url=${encodeURIComponent(qr)}`;
     }

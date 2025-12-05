@@ -2,6 +2,7 @@ const FranchiseApplication = require('../models/franchiseApplicationModel');
 const FranchiseInformation = require('../models/franchiseInformationModel');
 const Report = require('../models/reportsModel');
 const cacheManager = require('../utils/cache');
+const { TTL } = require('../utils/cache');
 
 // Get dashboard statistics (uses aggregation pipeline, cached 5min)
 exports.getDashboardStatistics = async (req, res, next) => {
@@ -98,8 +99,8 @@ exports.getDashboardStatistics = async (req, res, next) => {
       }
     };
 
-    // Cache for 5 minutes
-    cacheManager.set(cacheKey, statsData, 300);
+    // Cache dashboard stats (3 minutes - moderately changing data)
+    cacheManager.set(cacheKey, statsData, TTL.DASHBOARD_STATS);
 
     res.status(200).json({
       success: true,
@@ -163,7 +164,7 @@ exports.getQuickStats = async (req, res, next) => {
       pendingReports
     };
 
-    cacheManager.set(cacheKey, quickStats, 120);
+    cacheManager.set(cacheKey, quickStats, TTL.QUICK_STATS);
 
     res.status(200).json({
       success: true,
@@ -242,7 +243,7 @@ exports.getAnalytics = async (req, res, next) => {
       barangayData
     };
 
-    cacheManager.set(cacheKey, analyticsData, 600);
+    cacheManager.set(cacheKey, analyticsData, TTL.ANALYTICS);
 
     res.status(200).json({
       success: true,

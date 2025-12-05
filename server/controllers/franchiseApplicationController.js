@@ -80,7 +80,7 @@ exports.createNewApplication = async (req, res, next) => {
             validateFile(fileArray[0]);
             const result = await uploadFile(fileArray[0].buffer, fileArray[0].originalname, fileArray[0].mimetype,
               { baseFolder: 'franchiseApplications', subFolder: userId, applicationId: appId, category });
-            return result.cloudflare;
+            return result.url;
           };
           
           const [motorReg, barangay, cedula, license, affidavit, stencil, driverPic, operatorPic, orLTO, crLTO, orTreasurer] = await Promise.all([
@@ -264,7 +264,7 @@ exports.editPendingFranchise = async (req, res, next) => {
             validateFile(fileArray[0]);
             const result = await uploadFile(fileArray[0].buffer, fileArray[0].originalname, fileArray[0].mimetype,
               { baseFolder: 'franchiseApplications', subFolder: userId, applicationId: id, category });
-            return result.cloudflare;
+            return result.url;
           };
           
           const [motorReg, barangay, cedula, license, affidavit, stencil, driverPic, operatorPic, orLTO, crLTO] = await Promise.all([
@@ -493,7 +493,7 @@ exports.createRenewOrAmendment = async (req, res, next) => {
         validateFile(fileArray[0]);
         const result = await uploadFile(fileArray[0].buffer, fileArray[0].originalname, fileArray[0].mimetype, 
           { baseFolder: 'franchiseApplications', subFolder: userId, applicationId: String(application._id), category });
-        return result.cloudflare;
+        return result.url;
       };
       
       const docs = await Promise.all([
@@ -862,8 +862,8 @@ exports.editApprovedFranchise = async (req, res, next) => {
       validateFile(file);
       const result = await uploadFile(file.buffer, file.originalname, file.mimetype, 
         { baseFolder: 'franchiseApplications', subFolder: application.operatorInfo || 'pending', applicationId: id, category: 'Documentations' });
-      updateData['documents.oRTreasurerOfficeObj'] = result.cloudflare;
-      console.log('[editApprovedFranchise] OR document uploaded:', result.cloudflare);
+      updateData['documents.oRTreasurerOfficeObj'] = result.url;
+      console.log('[editApprovedFranchise] OR document uploaded:', result.url);
     } else {
       console.log('[editApprovedFranchise] WARNING: No OR document file provided');
     }
@@ -989,8 +989,8 @@ exports.approveFranchiseBySBAdmin = async (req, res, next) => {
         file.mimetype, 
         { baseFolder: 'franchiseApplications', subFolder: application.operatorInfo || 'pending', applicationId: id, category: 'Documentations' }
       );
-      updateData.sbResolutionDocument = result.cloudflare;
-      console.log('[SB Approval] Resolution document uploaded:', result.cloudflare);
+      updateData.sbResolutionDocument = result.url;
+      console.log('[SB Approval] Resolution document uploaded:', result.url);
     }
     
     const updated = await franchiseApplicationRepository.updateFranchiseApplication(id, updateData);
@@ -1155,7 +1155,7 @@ exports.sbAdminAcceptNewFranchise = async (req, res, next) => {
     
     if (previousFranchiseWithSameNumber?.qrCode) {
       // Recycled number - reuse previous QR code
-      qrResult = { cloudflare: previousFranchiseWithSameNumber.qrCode };
+      qrResult = { url: previousFranchiseWithSameNumber.qrCode };
       console.log('[sbAdminAcceptNewFranchise] Recycled revoked franchise number:', franchiseNo, '- Reusing previous QR code');
     } else {
       // New franchise number - generate new QR code with hashed franchise number (static)
@@ -1177,14 +1177,14 @@ exports.sbAdminAcceptNewFranchise = async (req, res, next) => {
         validateFile(file);
         const result = await uploadFile(file.buffer, file.originalname, file.mimetype,
           { baseFolder: 'franchiseInformations', subFolder: `${franchiseNo}/${franchiseChainId}`, category: 'Documentations', customKey: `version-${version}/Documentations/${file.originalname}` });
-        scannedReg = result.cloudflare;
+        scannedReg = result.url;
       }
       if (req.files.individualSessionReportObj) {
         const file = req.files.individualSessionReportObj[0];
         validateFile(file);
         const result = await uploadFile(file.buffer, file.originalname, file.mimetype,
           { baseFolder: 'franchiseInformations', subFolder: `${franchiseNo}/${franchiseChainId}`, category: 'Documentations', customKey: `version-${version}/Documentations/${file.originalname}` });
-        sessionReport = result.cloudflare;
+        sessionReport = result.url;
       }
     }
     
@@ -1214,7 +1214,7 @@ exports.sbAdminAcceptNewFranchise = async (req, res, next) => {
       mvPlateNo: application.mvPlateNo,
       motorEngineNo: application.motorEngineNo,
       chasisNo: application.chasisNo,
-      qrCode: qrResult.cloudflare,
+      qrCode: qrResult.url,
       approvedAt: new Date(),
       expiryDate: new Date(Date.now() + 3 * 365 * 24 * 60 * 60 * 1000), // 3 years
       resolutionNumber: application.sbResolutionNumber, // Copy resolution number from application
@@ -1443,14 +1443,14 @@ exports.sbAdminAcceptRenewOrAmendment = async (req, res, next) => {
         validateFile(file);
         const result = await uploadFile(file.buffer, file.originalname, file.mimetype,
           { baseFolder: 'franchiseInformations', subFolder: `${franchiseNo}/${franchiseChainId}`, category: 'Documentations', customKey: `version-${version}/Documentations/${file.originalname}` });
-        scannedReg = result.cloudflare;
+        scannedReg = result.url;
       }
       if (req.files.individualSessionReportObj) {
         const file = req.files.individualSessionReportObj[0];
         validateFile(file);
         const result = await uploadFile(file.buffer, file.originalname, file.mimetype,
           { baseFolder: 'franchiseInformations', subFolder: `${franchiseNo}/${franchiseChainId}`, category: 'Documentations', customKey: `version-${version}/Documentations/${file.originalname}` });
-        sessionReport = result.cloudflare;
+        sessionReport = result.url;
       }
     }
     
@@ -1459,7 +1459,7 @@ exports.sbAdminAcceptRenewOrAmendment = async (req, res, next) => {
     let qrResult;
     if (existingFranchise.qrCode) {
       // Reuse existing QR code from previous version (static for franchise number)
-      qrResult = { cloudflare: existingFranchise.qrCode };
+      qrResult = { url: existingFranchise.qrCode };
       console.log('[sbAdminAcceptRenewOrAmendment] Reusing static QR code for franchise:', franchiseNo);
     } else {
       // Generate new QR if somehow missing (shouldn't happen)
@@ -1482,7 +1482,7 @@ exports.sbAdminAcceptRenewOrAmendment = async (req, res, next) => {
       changeType: application.applicationType,
       changedBy: req.user?.username || 'SB Admin',
       changedAt: new Date(),
-      qrCode: qrResult.cloudflare,
+      qrCode: qrResult.url,
       approvedAt: new Date(),
       expiryDate: new Date(Date.now() + 3 * 365 * 24 * 60 * 60 * 1000),
       officialReceiptNumber: application.officialReceiptNumber || '', // Use new OR number from application (updated data)
@@ -1761,7 +1761,7 @@ exports.deleteFranchiseApplication = async (req, res, next) => {
     next(error);
   }
 };
-exports.proxyCloudflareFile = async (req, res, next) => {
+exports.proxyFile = async (req, res, next) => {
   try {
     const { url } = req.query;
     if (!url) return res.status(400).json({ error: 'Missing url parameter' });

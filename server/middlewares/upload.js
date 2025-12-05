@@ -4,7 +4,7 @@ const fs = require('fs');
 const crypto = require('crypto');
 
 // File upload handler for documents and photos
-// Files are temporarily stored in memory, then uploaded to Cloudflare R2 cloud storage
+// Files are temporarily stored in memory, then uploaded to GridFS storage
 
 // Create local backup folders if they don't exist
 const uploadDirs = {

@@ -34,7 +34,6 @@ services:
       - JWT_SECRET=${JWT_SECRET:?JWT_SECRET is required}
       - CORS_ORIGIN=${CORS_ORIGIN:-http://localhost}
       - DEBUG=${DEBUG:-false}
-      - STORAGE_BACKEND=${STORAGE_BACKEND:-gridfs}
     env_file:
       - .env  # Reads from project root .env
     depends_on:
