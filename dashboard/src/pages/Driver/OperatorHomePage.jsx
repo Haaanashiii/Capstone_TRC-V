@@ -598,6 +598,8 @@ const OperatorHomePage = () => {
   };
 
   const handleOpenORModal = (application) => {
+    console.log('[OperatorHomePage] Opening OR modal for application:', application);
+    console.log('[OperatorHomePage] Application _id:', application._id, 'type:', typeof application._id);
     setSelectedAppForOR(application);
     setOrNumberInput('');
     setOrFileInput(null);
@@ -634,7 +636,29 @@ const OperatorHomePage = () => {
       formData.append('officialReceiptNumber', orNumberInput.trim());
       formData.append('oRTreasurerOfficeObj', orFileInput);
 
-      await franchiseAPI.submitOR(selectedAppForOR._id, formData);
+      // Extract the ID - handle MongoDB Binary/Buffer format
+      let applicationId = null;
+      const rawId = selectedAppForOR._id;
+      
+      if (typeof rawId === 'string') {
+        applicationId = rawId;
+      } else if (rawId && rawId.buffer) {
+        // MongoDB Binary format - convert buffer bytes to hex string
+        const bytes = Object.values(rawId.buffer);
+        applicationId = bytes.map(b => b.toString(16).padStart(2, '0')).join('');
+      } else if (rawId && typeof rawId === 'object') {
+        applicationId = rawId.$oid || rawId.toString();
+      } else if (selectedAppForOR.id) {
+        applicationId = String(selectedAppForOR.id);
+      }
+      
+      console.log('[SubmitOR] Extracted Application ID:', applicationId);
+      
+      if (!applicationId || applicationId === '[object Object]') {
+        throw new Error('Could not extract valid application ID');
+      }
+      
+      await franchiseAPI.submitOR(applicationId, formData);
 
       Swal.fire({
         ...alertStyle.successAlert,

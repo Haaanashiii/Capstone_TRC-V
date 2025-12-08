@@ -3,6 +3,7 @@ const qrCodeRepository = require('../repositories/qrCodeRepository');
 const cacheManager = require('../utils/cache');
 const { TTL } = require('../utils/cache');
 const crypto = require('crypto');
+const storage = require('../services/storageAdapter');
 
 /**
  * QR Scan - Returns the LATEST ACTIVE franchise for a given franchise number
@@ -70,7 +71,7 @@ exports.scanQRCode = async (req, res, next) => {
       driver: {
         name: matchedFranchise.driverName,
         address: matchedFranchise.driversAddress,
-        pictureUrl: matchedFranchise.documents?.driverPictureObj || null
+        pictureUrl: storage.toHttpUrl(matchedFranchise.documents?.driverPictureObj) || null
       },
       operator: {
         name: matchedFranchise.operatorName,

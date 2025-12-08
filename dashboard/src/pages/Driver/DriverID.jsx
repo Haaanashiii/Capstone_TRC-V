@@ -410,10 +410,11 @@ function DriverID() {
       try {
         const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170').replace(/\/$/, '');
 
-        // If raw is an R2 scheme or Cloudflare public URL, route through backend proxy
         let fetchUrl = raw;
-        if (raw.startsWith('r2://') || /^https?:\/\/pub-[a-f0-9]+\.r2\.dev/i.test(raw) || (import.meta.env.VITE_CLOUDFLARE_R2_PUBLIC_URL && raw.startsWith(import.meta.env.VITE_CLOUDFLARE_R2_PUBLIC_URL))) {
-          fetchUrl = API_BASE_URL + '/api/franchise-applications/proxy-file?url=' + encodeURIComponent(raw);
+        // Handle GridFS URLs: gridfs://fileId -> /api/files/fileId
+        if (raw.startsWith('gridfs://')) {
+          const fileId = raw.substring(9);
+          fetchUrl = API_BASE_URL + '/api/files/' + fileId;
         } else if (!/^https?:\/\//i.test(raw)) {
           // Treat as server-relative path and prefix API base
           fetchUrl = API_BASE_URL + (raw.startsWith('/') ? raw : '/' + raw);
@@ -490,9 +491,10 @@ function DriverID() {
       
       const base = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170').replace(/\/$/, '');
       
-      // Route R2 URLs through backend proxy
-      if (raw.startsWith('r2://') || /^https?:\/\/pub-[a-f0-9]+\.r2\.dev/i.test(raw)) {
-        return base + '/api/franchise-applications/proxy-file?url=' + encodeURIComponent(raw);
+      // Handle GridFS URLs: gridfs://fileId -> /api/files/fileId
+      if (raw.startsWith('gridfs://')) {
+        const fileId = raw.substring(9); // Remove 'gridfs://' prefix
+        return base + '/api/files/' + fileId;
       }
       
       // Handle full HTTP URLs
@@ -597,10 +599,11 @@ function DriverID() {
         const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170')
         let fetchUrl = path;
 
-        // Route R2 or Cloudflare public URLs through the backend proxy to avoid CORS/auth problems
-        if (rawPath && (rawPath.startsWith('r2://') || /^https?:\/\/pub-[a-f0-9]+\.r2\.dev/i.test(rawPath))) {
-          fetchUrl = API_BASE_URL.replace(/\/$/, '') + '/api/franchise-applications/proxy-file?url=' + encodeURIComponent(rawPath)
-          console.debug('[DriverID] routing id fetch through proxy ->', fetchUrl)
+        // Handle GridFS URLs: gridfs://fileId -> /api/files/fileId
+        if (rawPath && rawPath.startsWith('gridfs://')) {
+          const fileId = rawPath.substring(9);
+          fetchUrl = API_BASE_URL.replace(/\/$/, '') + '/api/files/' + fileId;
+          console.debug('[DriverID] GridFS URL detected, converted to ->', fetchUrl);
         }
 
         const resp = await fetch(fetchUrl, { mode: 'cors' });
@@ -807,9 +810,10 @@ function DriverID() {
                   const raw = user.franchise.qrCode;
                   const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170').replace(/\/$/, '');
                   let serverUrl = /^https?:\/\//i.test(raw) ? raw : (API_BASE_URL + (raw.startsWith('/') ? raw : '/' + raw));
-                  // If R2 scheme or public R2 URL, point to backend proxy URL as fallback
-                  if (raw.startsWith('r2://') || /^https?:\/\/pub-[a-f0-9]+\.r2\.dev/i.test(raw) || (import.meta.env.VITE_CLOUDFLARE_R2_PUBLIC_URL && raw.startsWith(import.meta.env.VITE_CLOUDFLARE_R2_PUBLIC_URL))) {
-                    serverUrl = API_BASE_URL + '/api/franchise-applications/proxy-file?url=' + encodeURIComponent(raw);
+                  // Handle GridFS URLs: gridfs://fileId -> /api/files/fileId
+                  if (raw.startsWith('gridfs://')) {
+                    const fileId = raw.substring(9);
+                    serverUrl = API_BASE_URL + '/api/files/' + fileId;
                   }
                   return (
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>

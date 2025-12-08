@@ -447,10 +447,11 @@ function FranchiseeListOperatorSide() {
       try {
         const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170').replace(/\/$/, '');
 
-        // If raw is an R2 scheme or Cloudflare public URL, route through backend proxy
         let fetchUrl = raw;
-        if (raw.startsWith('r2://') || /^https?:\/\/pub-[a-f0-9]+\.r2\.dev/i.test(raw) || (import.meta.env.VITE_CLOUDFLARE_R2_PUBLIC_URL && raw.startsWith(import.meta.env.VITE_CLOUDFLARE_R2_PUBLIC_URL))) {
-          fetchUrl = API_BASE_URL + '/api/franchise-applications/proxy-file?url=' + encodeURIComponent(raw);
+        // Handle GridFS URLs: gridfs://fileId -> /api/files/fileId
+        if (raw.startsWith('gridfs://')) {
+          const fileId = raw.substring(9);
+          fetchUrl = API_BASE_URL + '/api/files/' + fileId;
         } else if (!/^https?:\/\//i.test(raw)) {
           // Treat as server-relative path and prefix API base
           fetchUrl = API_BASE_URL + (raw.startsWith('/') ? raw : '/' + raw);
@@ -527,9 +528,10 @@ function FranchiseeListOperatorSide() {
       
       const base = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170').replace(/\/$/, '');
       
-      // Route R2 URLs through backend proxy
-      if (raw.startsWith('r2://') || /^https?:\/\/pub-[a-f0-9]+\.r2\.dev/i.test(raw)) {
-        return base + '/api/franchise-applications/proxy-file?url=' + encodeURIComponent(raw);
+      // Handle GridFS URLs: gridfs://fileId -> /api/files/fileId
+      if (raw.startsWith('gridfs://')) {
+        const fileId = raw.substring(9); // Remove 'gridfs://' prefix
+        return base + '/api/files/' + fileId;
       }
       
       // Handle full HTTP URLs
@@ -624,36 +626,30 @@ function FranchiseeListOperatorSide() {
       return () => {};
     }
 
-    const isImage = /\.(png|jpe?g|webp|gif|bmp|svg)$/i.test(path) || String((matchedFranchise?.type || user?.type) || '').includes('image');
-    const isPdf = /\.pdf$/i.test(path) || String((matchedFranchise?.type || user?.type) || '').includes('pdf');
+    // Check for file extension OR /api/files/ path (GridFS files don't have extensions)
+    const hasExtension = /\.(png|jpe?g|webp|gif|bmp|svg|pdf)$/i.test(path);
+    const isApiFilesPath = /\/api\/files\/[a-f0-9]+/i.test(path);
+    const hasTypeHint = String((matchedFranchise?.type || user?.type) || '').includes('image') ||
+                        String((matchedFranchise?.type || user?.type) || '').includes('pdf');
 
-    if (!isImage && !isPdf) {
-      // Not an image/pdf — don't fetch; let Avatar use resolved URL fallback
+    // If no extension AND not an /api/files/ path AND no type hint, skip
+    if (!hasExtension && !isApiFilesPath && !hasTypeHint) {
       setIdBlobUrl(null);
       return () => {};
     }
 
     (async () => {
       try {
-        const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170')
-        let fetchUrl = path;
-
-        // Route R2 or Cloudflare public URLs through the backend proxy to avoid CORS/auth problems
-        if (rawPath && (rawPath.startsWith('r2://') || /^https?:\/\/pub-[a-f0-9]+\.r2\.dev/i.test(rawPath))) {
-          fetchUrl = API_BASE_URL.replace(/\/$/, '') + '/api/franchise-applications/proxy-file?url=' + encodeURIComponent(rawPath)
-          console.debug('[FranchiseeListOperatorSide] routing id fetch through proxy ->', fetchUrl)
-        }
-
-        const resp = await fetch(fetchUrl, { mode: 'cors' });
+        const resp = await fetch(path, { mode: 'cors' });
         if (!resp.ok) throw new Error('Failed fetching id file: ' + resp.status);
         const blob = await resp.blob();
         if (cancelled) return;
         const obj = URL.createObjectURL(blob);
         idBlobRef.current = obj;
         setIdBlobUrl(obj);
-        // detect if PDF
-        const mime = blob.type || '';
-        setIdBlobIsPdf(mime.includes('pdf') || /\.pdf$/i.test(rawPath || ''));
+        // Detect if PDF from response content-type
+        const contentType = resp.headers.get('Content-Type') || blob.type || '';
+        setIdBlobIsPdf(contentType.includes('pdf') || /\.pdf$/i.test(rawPath || ''));
       } catch (err) {
         console.warn('FranchiseeListOperatorSide: failed to fetch id blob, using direct path fallback', err);
         setIdBlobUrl(null);
@@ -942,9 +938,10 @@ function FranchiseeListOperatorSide() {
                   const raw = matchedFranchise?.qrCode || user?.franchise?.qrCode;
                   const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170').replace(/\/$/, '');
                   let serverUrl = /^https?:\/\//i.test(raw) ? raw : (API_BASE_URL + (raw.startsWith('/') ? raw : '/' + raw));
-                  // If R2 scheme or public R2 URL, point to backend proxy URL as fallback
-                  if (raw.startsWith('r2://') || /^https?:\/\/pub-[a-f0-9]+\.r2\.dev/i.test(raw) || (import.meta.env.VITE_CLOUDFLARE_R2_PUBLIC_URL && raw.startsWith(import.meta.env.VITE_CLOUDFLARE_R2_PUBLIC_URL))) {
-                    serverUrl = API_BASE_URL + '/api/franchise-applications/proxy-file?url=' + encodeURIComponent(raw);
+                  // Handle GridFS URLs: gridfs://fileId -> /api/files/fileId
+                  if (raw.startsWith('gridfs://')) {
+                    const fileId = raw.substring(9);
+                    serverUrl = API_BASE_URL + '/api/files/' + fileId;
                   }
                   return (
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>

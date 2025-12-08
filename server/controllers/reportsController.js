@@ -35,17 +35,21 @@ exports.createPublicReport = async (req, res, next) => {
             });
         }
         
-        if (!operatorId || !fullName || !contactNumber || !description) {
+        if (!operatorId || !contactNumber || !description) {
             return res.status(400).json({ 
-                error: 'Required fields: operatorId, fullName, contactNumber, description' 
+                error: 'Required fields: operatorId, contactNumber, description' 
             });
         }
 
-        if (fullName.length > 100 || contactNumber.length > 20 || description.length > 1000) {
+        if (fullName && fullName.length > 100) {
+            return res.status(400).json({ error: 'Name exceeds maximum length (100 characters)' });
+        }
+        
+        if (contactNumber.length > 20 || description.length > 1000) {
             return res.status(400).json({ error: 'Input exceeds maximum length' });
         }
 
-        if (!/^[a-zA-Z\s\-.']+$/.test(fullName)) {
+        if (fullName && !/^[a-zA-Z\s\-.']+$/.test(fullName)) {
             return res.status(400).json({ error: 'Invalid name format' });
         }
 
@@ -90,12 +94,15 @@ exports.createPublicReport = async (req, res, next) => {
         }
         
         // Direct indexed lookup (very fast)
+        console.log(`[REPORT] Looking up franchise: ${franchiseNumber}`);
         const franchise = await FranchiseInformation.findOne({
           franchiseNumber: franchiseNumber,
           isCurrentVersion: true
         })
         .select('franchiseNumber operatorName operatorBarangay barangay franchiseStatus')
         .lean();
+        
+        console.log(`[REPORT] Found franchise:`, franchise ? JSON.stringify(franchise) : 'null');
         
         if (!franchise) {
             console.warn(`[REPORT] Non-existent franchise hash: ${operatorId}, IP: ${clientIp}`);
@@ -123,9 +130,16 @@ exports.createPublicReport = async (req, res, next) => {
             });
         }
 
-        const reportData = {
+        // Log franchise data for debugging
+        console.log(`[REPORT] Franchise data:`, {
             franchiseNumber: franchise.franchiseNumber,
             operatorName: franchise.operatorName,
+            operatorBarangay: franchise.operatorBarangay
+        });
+
+        const reportData = {
+            franchiseNumber: franchise.franchiseNumber,
+            operatorName: franchise.operatorName || 'Unknown Operator',
             operatorBarangay: franchise.operatorBarangay || franchise.barangay,
             category: reportCategory,
             amountCharged: chargedAmount,
@@ -136,7 +150,7 @@ exports.createPublicReport = async (req, res, next) => {
                 hour12: true 
             }),
             description: description.trim(),
-            reporterName: fullName.trim(),
+            reporterName: fullName ? fullName.trim() : '',
             reporterContact: contactNumber,
             franchiseStatusAtTime: franchise.franchiseStatus,
             status: 'pending'

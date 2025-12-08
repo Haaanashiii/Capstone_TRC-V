@@ -75,12 +75,15 @@ async function generateQRCodeBuffer(hashedFranchiseNo) {
 }
 
 // Handle franchise version control - mark previous as non-current, calculate next version
-// Now supports MongoDB transactions for atomicity
+// Session parameter is optional - works with or without transactions
 async function handleVersionControl(franchiseNo, changeType, session = null) {
-  const currentFranchise = await FranchiseInformation.findOne({
+  const query = FranchiseInformation.findOne({
     franchiseNumber: franchiseNo,
     isCurrentVersion: true
-  }).session(session);
+  });
+  
+  // Only use session if provided (for replica set environments)
+  const currentFranchise = session ? await query.session(session) : await query;
 
   if (changeType === 'new') {
     return { version: 1, previousVersion: null };
@@ -91,10 +94,11 @@ async function handleVersionControl(franchiseNo, changeType, session = null) {
   }
 
   // Mark previous version as non-current
+  const updateOptions = session ? { session } : {};
   await FranchiseInformation.findByIdAndUpdate(
     currentFranchise._id, 
     { isCurrentVersion: false },
-    { session }
+    updateOptions
   );
   
   // Invalidate cache since franchise data changed

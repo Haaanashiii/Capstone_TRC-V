@@ -5,6 +5,32 @@ const { getClientIp } = require('../utils/ipHelper');
 const { generateHashedFranchiseNo, findFranchiseNumberByHash } = require('../utils/franchiseHelpers');
 const { TTL } = require('../utils/cache');
 
+// Helper to convert all gridfs:// URLs in data to HTTP URLs for frontend
+const convertToHttpUrls = (data) => storage.convertGridFSUrls(data);
+
+/**
+ * Enrich franchise data with proper document metadata
+ * Converts gridfs:// URLs and adds sanitized display names
+ * @param {Object} franchise - Franchise object (from DB or lean)
+ * @returns {Object} Enriched franchise with proper document metadata
+ */
+const enrichFranchiseData = async (franchise) => {
+  if (!franchise) return franchise;
+  
+  const franchiseObj = franchise.toObject ? franchise.toObject() : { ...franchise };
+  const converted = convertToHttpUrls(franchiseObj);
+  
+  // Enrich documents with metadata if they exist
+  if (converted.documents) {
+    converted.documents = await storage.enrichDocumentsWithMetadata(franchiseObj.documents, {
+      operatorName: franchiseObj.operatorName,
+      submittedAt: franchiseObj.approvedAt || franchiseObj.createdAt
+    });
+  }
+  
+  return converted;
+};
+
 // Get all franchises with pagination
 exports.getAllFranchiseInformation = async (req, res, next) => {
   try {
@@ -142,6 +168,11 @@ exports.searchFranchiseInformation = async (req, res, next) => {
       });
     }
     
+    // Enrich franchise data with proper document metadata
+    const enrichedFranchises = await Promise.all(
+      franchises.map(f => enrichFranchiseData(f))
+    );
+    
     return res.status(200).json({
       success: true,
       searchType: searchType,
@@ -152,7 +183,7 @@ exports.searchFranchiseInformation = async (req, res, next) => {
         : searchType === 'franchiseNumber'
         ? 'Returns ALL versions of this franchise number (may include different owners if number was recycled).'
         : 'Returns ALL versions (current and previous) of matching franchises.',
-      data: franchises
+      data: enrichedFranchises
     });
     
   } catch (error) {
@@ -280,9 +311,12 @@ exports.getFranchiseInformation = async (req, res, next) => {
       return res.status(404).json({ error: 'Franchise information not found' });
     }
     
+    // Convert gridfs:// URLs to HTTP URLs for frontend
+    const franchiseData = convertToHttpUrls(franchiseInformation.toObject());
+    
     return res.status(200).json({ 
       success: true, 
-      data: franchiseInformation 
+      data: franchiseData 
     });
   } catch (error) {
     if (error?.name === 'CastError') {
@@ -535,13 +569,30 @@ exports.getFranchisesByUser = async (req, res, next) => {
     }
     
     const FranchiseInformation = require('../models/franchiseInformationModel');
+    const UserAccount = require('../models/userAccountModel');
     
-    // Fetch all current franchises for this user
+    // First, find the user by their UUID userId to get their MongoDB _id
+    const user = await UserAccount.findOne({ userId: userId.trim() });
+    
+    if (!user) {
+      console.log('[getFranchisesByUser] User not found for userId:', userId);
+      return res.status(200).json({
+        success: true,
+        userId: userId.trim(),
+        count: 0,
+        data: [],
+        message: 'No user found with this ID'
+      });
+    }
+    
+    console.log('[getFranchisesByUser] Found user with _id:', user._id);
+    
+    // Fetch all current franchises for this user using their MongoDB _id
     const franchises = await FranchiseInformation.find({
-      linkedUser: userId.trim(),
+      linkedUser: user._id,
       isCurrentVersion: true
     })
-      .populate('linkedUser', 'username email _id')
+      .populate('linkedUser', 'username email _id userId')
       .populate('previousVersion', 'version changeType changedAt franchiseStatus')
       .sort({ franchiseNumber: 1 }); // Sort by franchise number
     
@@ -554,11 +605,16 @@ exports.getFranchisesByUser = async (req, res, next) => {
       });
     }
     
+    // Enrich franchise data with proper document metadata
+    const enrichedFranchises = await Promise.all(
+      franchises.map(f => enrichFranchiseData(f))
+    );
+    
     return res.status(200).json({
       success: true,
       userId: userId.trim(),
       count: franchises.length,
-      data: franchises
+      data: enrichedFranchises
     });
     
   } catch (error) {
@@ -690,8 +746,8 @@ exports.franchiseQRLookupByHash = async (req, res, next) => {
     // Get operator picture URL (proxy for image access)
     let operatorPictureUrl = null;
     if (franchiseInformation.documents?.operatorPictureObj) {
-      const API_BASE_URL = process.env.VITE_API_BASE_URL || process.env.API_BASE_URL || '';
-      operatorPictureUrl = `${API_BASE_URL.replace(/\/$/, '')}/api/franchise-information/proxy-file?url=${encodeURIComponent(franchiseInformation.documents.operatorPictureObj)}`;
+      // Convert gridfs:// URL to HTTP URL
+      operatorPictureUrl = storage.toHttpUrl(franchiseInformation.documents.operatorPictureObj);
     }
 
     // Build response with operator information
@@ -704,7 +760,7 @@ exports.franchiseQRLookupByHash = async (req, res, next) => {
       operatorAddress: franchiseInformation.operatorAddress,
       operatorBarangay: franchiseInformation.operatorBarangay,
       operatorPicture: operatorPictureUrl,
-      operatorPictureObj: franchiseInformation.documents?.operatorPictureObj || null,
+      operatorPictureObj: operatorPictureUrl, // Use HTTP URL for frontend
       todaMembership: franchiseInformation.todaMembership,
       isCurrentVersion: franchiseInformation.isCurrentVersion,
       expiryDate: franchiseInformation.expiryDate

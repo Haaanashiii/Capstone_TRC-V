@@ -493,14 +493,13 @@ exports.login = async (req, res, next) => {
         const User = require('../models/userAccountModel');
         const populatedUser = await User.findById(user._id)
           .populate('franchiseApplications')
-          .populate('franchiseInformation')
           .select('+password'); // Keep password for validation
         
         if (populatedUser) {
           user = populatedUser;
           console.log('[Login] Populated franchise data:', {
             applications: user.franchiseApplications?.length || 0,
-            franchises: user.franchiseInformation?.length || 0
+            franchiseChainIds: user.franchiseChainIds?.length || 0
           });
         }
       } catch (e) {
@@ -695,8 +694,7 @@ exports.refreshToken = async (req, res, next) => {
     } else {
       const User = require('../models/userAccountModel');
       user = await User.findById(session.userId)
-        .populate('franchiseApplications')
-        .populate('franchiseInformation');
+        .populate('franchiseApplications');
     }
     
     if (!user) {
@@ -759,19 +757,18 @@ exports.getCurrentUser = async (req, res, next) => {
     let user;
     if (mongoose.Types.ObjectId.isValid(req.user.id)) {
       user = await User.findById(req.user.id)
-        .populate('franchiseApplications')
-        .populate('franchiseInformation');
+        .populate('franchiseApplications');
     }
     if (!user) {
       // Fallback: try finding by userId field (for UUID tokens)
       user = await User.findOne({ userId: req.user.id })
-        .populate('franchiseApplications')
-        .populate('franchiseInformation');
+        .populate('franchiseApplications');
     }
     
     if (!user) return res.status(404).json({ error: 'User not found' });
     
     // Return comprehensive user info (excluding sensitive data)
+    // Note: franchiseChainIds are strings (not ObjectId refs), so we use them directly
     const userInfo = {
       id: user._id,
       userId: user.userId,
@@ -783,9 +780,10 @@ exports.getCurrentUser = async (req, res, next) => {
       dateCreated: user.createdAt,
       lastLogin: user.lastLogin,
       hasFranchiseApplications: !!(user.franchiseApplications && user.franchiseApplications.length > 0),
-      hasFranchiseInformation: !!(user.franchiseInformation && user.franchiseInformation.length > 0),
+      hasFranchiseChainIds: !!(user.franchiseChainIds && user.franchiseChainIds.length > 0),
       franchiseApplicationsCount: user.franchiseApplications ? user.franchiseApplications.length : 0,
-      franchiseInformationCount: user.franchiseInformation ? user.franchiseInformation.length : 0
+      franchiseChainIdsCount: user.franchiseChainIds ? user.franchiseChainIds.length : 0,
+      franchiseChainIds: user.franchiseChainIds || []
     };
     
     res.json({ user: userInfo });

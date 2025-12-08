@@ -80,7 +80,8 @@ async function uploadToGridFS(buffer, originalName, mimetype, options = {}) {
     subFolder = 'pending',
     applicationId = null,
     category = 'Documentations',
-    customKey = null
+    customKey = null,
+    documentType = null // e.g., 'motor-registration', 'barangay-clearance', etc.
   } = options;
 
   try {
@@ -93,15 +94,28 @@ async function uploadToGridFS(buffer, originalName, mimetype, options = {}) {
       finalBuffer = await compressPDF(buffer);
     }
 
-    const randomHash = crypto.randomBytes(8).toString('hex');
     const fileExt = path.extname(originalName).toLowerCase();
-    const baseName = path.basename(originalName, fileExt)
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '')
-      .substring(0, 50);
+    const timestamp = new Date().toISOString().slice(0, 10).replace(/-/g, ''); // YYYYMMDD
+    const shortId = crypto.randomBytes(4).toString('hex'); // 8 char unique ID
     
-    const fileName = `${baseName}-${randomHash}${fileExt}`;
+    // Create a clean, descriptive filename
+    let sanitizedName;
+    if (documentType) {
+      // Use the document type for cleaner naming (e.g., "motor-registration-20251205-a1b2c3d4.pdf")
+      sanitizedName = `${documentType}-${timestamp}-${shortId}${fileExt}`;
+    } else {
+      // Fallback: sanitize original filename
+      const baseName = path.basename(originalName, fileExt)
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')  // Replace non-alphanumeric with dash
+        .replace(/^-+|-+$/g, '')       // Trim leading/trailing dashes
+        .replace(/-{2,}/g, '-')        // Replace multiple dashes with single
+        .substring(0, 40);             // Limit length
+      
+      sanitizedName = `${baseName}-${shortId}${fileExt}`;
+    }
+    
+    const fileName = sanitizedName;
 
     let filePath;
     if (customKey) {
@@ -115,7 +129,8 @@ async function uploadToGridFS(buffer, originalName, mimetype, options = {}) {
     const uploadStream = bucket.openUploadStream(fileName, {
       metadata: {
         originalName, mimetype, filePath, baseFolder, subFolder,
-        applicationId, category, uploadedAt: new Date(), fileSize: finalBuffer.length
+        applicationId, category, documentType,
+        uploadedAt: new Date(), fileSize: finalBuffer.length
       }
     });
 
@@ -125,7 +140,12 @@ async function uploadToGridFS(buffer, originalName, mimetype, options = {}) {
     return new Promise((resolve, reject) => {
       bufferStream.pipe(uploadStream)
         .on('error', () => reject(new Error('Failed to upload file to GridFS')))
-        .on('finish', () => resolve(`gridfs://${uploadStream.id}`));
+        .on('finish', () => resolve({ 
+          url: `gridfs://${uploadStream.id}`,
+          id: uploadStream.id.toString(),
+          filename: fileName,
+          filePath: filePath
+        }));
     });
   } catch (error) {
     throw new Error('Failed to upload file to GridFS');
@@ -207,10 +227,12 @@ async function uploadQRToGridFS(qrBuffer, hashedMTOP) {
 
 async function uploadFileToGridFS(file, folder = 'general') {
   try {
-    const url = await uploadToGridFS(file.buffer, file.originalname, file.mimetype, {
+    const result = await uploadToGridFS(file.buffer, file.originalname, file.mimetype, {
       baseFolder: folder, subFolder: 'uploads', category: 'files'
     });
-    return { success: true, publicUrl: url, filePath: url.substring(9) };
+    // result is now { url, id, filename, filePath }
+    const url = typeof result === 'string' ? result : result.url;
+    return { success: true, publicUrl: url, filePath: result.id || url.substring(9), gridfsUrl: url };
   } catch (error) {
     return { success: false, error: error.message };
   }
@@ -218,6 +240,39 @@ async function uploadFileToGridFS(file, folder = 'general') {
 
 async function deleteFileFromGridFS(filePath) {
   await deleteFromGridFS(filePath);
+}
+
+/**
+ * Get file metadata from GridFS without downloading the file content
+ * @param {string} fileId - The GridFS file ID (with or without gridfs:// prefix)
+ * @returns {Object} File metadata including filename, mimetype, documentType, uploadedAt, etc.
+ */
+async function getFileMetadata(fileId) {
+  try {
+    const bucket = getBucket();
+    const id = fileId.startsWith('gridfs://') ? fileId.substring(9) : fileId;
+    const objectId = new mongoose.Types.ObjectId(id);
+    
+    const files = await bucket.find({ _id: objectId }).toArray();
+    if (files.length === 0) return null;
+    
+    const file = files[0];
+    return {
+      id: file._id.toString(),
+      filename: file.filename,
+      originalName: file.metadata?.originalName || file.filename,
+      mimetype: file.metadata?.mimetype || 'application/octet-stream',
+      documentType: file.metadata?.documentType || null,
+      category: file.metadata?.category || 'Documentations',
+      filePath: file.metadata?.filePath || null,
+      fileSize: file.length,
+      uploadedAt: file.uploadDate || file.metadata?.uploadedAt,
+      applicationId: file.metadata?.applicationId || null
+    };
+  } catch (error) {
+    console.error('[GridFS] Error getting file metadata:', error.message);
+    return null;
+  }
 }
 
 async function listFiles(pathPrefix) {
@@ -245,6 +300,7 @@ module.exports = {
   getBucket,
   uploadToGridFS,
   getFileFromGridFS,
+  getFileMetadata,
   deleteFromGridFS,
   moveFranchiseFiles,
   uploadQRToGridFS,

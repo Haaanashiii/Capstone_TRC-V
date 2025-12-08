@@ -36,6 +36,7 @@ const fareMatrixRoutes = require('./routes/fareMatrixRoutes');
 const rolePageAccessRoutes = require('./routes/rolePageAccessRoutes');
 const certificateRoutes = require('./routes/certificateRoutes');
 const backupRoutes = require('./routes/backupRoutes');
+const fileRoutes = require('./routes/fileRoutes');
 
 const app = express();
 const server = http.createServer(app);
@@ -395,6 +396,7 @@ app.use('/api/fare-matrix', apiLimiter, fareMatrixRoutes);
 app.use('/api/role-page-access', apiLimiter, rolePageAccessRoutes);
 app.use('/api/certificates', apiLimiter, certificateRoutes);
 app.use('/api/backup', apiLimiter, backupRoutes);
+app.use('/api/files', fileRoutes); // Serve GridFS files
 
 // Health check
 app.get('/health', (req, res) => {

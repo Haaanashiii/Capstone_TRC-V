@@ -52,9 +52,10 @@ async function uploadFile(buffer, originalname, mimetype, metadata) {
   };
   
   try {
-    const storageUrl = await storage.uploadFile(buffer, originalname, mimetype, metadata);
-    results.url = storageUrl;
-    console.log(`[Upload] GridFS OK`);
+    const storageResult = await storage.uploadFile(buffer, originalname, mimetype, metadata);
+    // storageResult can be either a string (legacy) or an object { url, id, filename, filePath }
+    results.url = typeof storageResult === 'string' ? storageResult : storageResult.url;
+    console.log(`[Upload] GridFS OK:`, results.url);
   } catch (err) {
     console.error(`[Upload] Storage error:`, err.message);
     throw new Error(`Failed to upload to storage: ${err.message}`);
