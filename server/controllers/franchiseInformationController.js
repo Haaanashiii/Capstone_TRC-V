@@ -455,6 +455,7 @@ exports.updateFranchiseInformation = async (req, res, next) => {
 exports.getAvailableFranchiseNumbers = async (req, res, next) => {
   try {
     const FranchiseInformation = require('../models/franchiseInformationModel');
+    const FranchiseApplication = require('../models/franchiseApplicationModel');
     const cacheManager = require('../utils/cache');
     
     // This data doesn't change frequently - cache for 5 minutes
@@ -469,73 +470,105 @@ exports.getAvailableFranchiseNumbers = async (req, res, next) => {
       });
     }
 
-    // Use aggregation pipeline instead of loading all documents
-    const stats = await FranchiseInformation.aggregate([
-      // Only current versions
-      { $match: { isCurrentVersion: true } },
-      
-      // Extract numeric part of franchise number and project only needed fields
-      {
-        $project: {
-          franchiseNumber: 1,
-          franchiseStatus: 1,
-          expiryDate: 1,
-          numericPart: {
-            $toInt: {
-              $cond: {
-                if: { $regexMatch: { input: '$franchiseNumber', regex: /^\d{1,4}$/ } },
-                then: '$franchiseNumber',
-                else: '0'
-              }
-            }
-          }
-        }
-      },
-      
-      // Group to get stats
-      {
-        $group: {
-          _id: null,
-          maxNumber: { $max: '$numericPart' },
-          usedNumbers: { $addToSet: '$numericPart' },
-          activeCount: { $sum: { $cond: [{ $eq: ['$franchiseStatus', 'Active'] }, 1, 0] } },
-          expiredCount: { $sum: { $cond: [{ $eq: ['$franchiseStatus', 'Expired'] }, 1, 0] } },
-          revokedCount: { $sum: { $cond: [{ $eq: ['$franchiseStatus', 'Revoked'] }, 1, 0] } },
-          total: { $sum: 1 }
-        }
-      }
-    ]);
-
-    const result = stats[0] || { maxNumber: 0, usedNumbers: [], activeCount: 0, expiredCount: 0, revokedCount: 0, total: 0 };
+    // Get all current version franchises with their status
+    const allCurrentFranchises = await FranchiseInformation.find({
+      isCurrentVersion: true
+    }).select('franchiseNumber franchiseStatus').lean().exec();
     
-    // Find gaps (numbers not in use)
-    const usedSet = new Set(result.usedNumbers);
+    // CRITICAL: Also check pending applications to avoid showing numbers that are being processed
+    const allPendingApplications = await FranchiseApplication.find({
+      applicationType: 'new',
+      franchiseNumber: { $exists: true, $ne: null },
+      statusOfBPLO: { $in: ['bplo-approved', 'awaiting-sb', 'sb-approved'] }
+    }).select('franchiseNumber').lean().exec();
+    
+    // Build a map of franchise numbers with their availability status
+    const franchiseMap = new Map();
+    let maxNumber = 0;
+    let activeCount = 0;
+    let expiredCount = 0;
+    let revokedCount = 0;
+    
+    // Process completed franchises
+    for (const franchise of allCurrentFranchises) {
+      const numberMatch = franchise.franchiseNumber?.match(/^(\d{1,4})$/);
+      if (!numberMatch) continue;
+      
+      const franchiseNum = parseInt(numberMatch[1], 10);
+      maxNumber = Math.max(maxNumber, franchiseNum);
+      
+      // Count by status
+      const status = franchise.franchiseStatus?.toLowerCase();
+      if (status === 'active') activeCount++;
+      else if (status === 'expired') expiredCount++;
+      else if (status === 'revoked') revokedCount++;
+      
+      // A franchise number is AVAILABLE for recycling if status is 'Revoked'
+      const isRevoked = status === 'revoked';
+      franchiseMap.set(franchiseNum, { 
+        available: isRevoked, 
+        reserved: false,
+        status: franchise.franchiseStatus,
+        isRevoked
+      });
+    }
+    
+    // Mark pending application numbers as RESERVED (not available)
+    for (const pendingApp of allPendingApplications) {
+      const numberMatch = pendingApp.franchiseNumber?.match(/^(\d{1,4})$/);
+      if (!numberMatch) continue;
+      
+      const franchiseNum = parseInt(numberMatch[1], 10);
+      maxNumber = Math.max(maxNumber, franchiseNum);
+      
+      // Mark as reserved - overrides any "available" status
+      franchiseMap.set(franchiseNum, { available: false, reserved: true, status: 'Pending' });
+    }
+    
+    // Find available numbers: (1) gaps (never assigned), OR (2) revoked franchises
     const availableNumbers = [];
+    const revokedNumbers = [];
+    const gapNumbers = [];
     
-    for (let i = 1; i <= result.maxNumber && availableNumbers.length < 100; i++) {
-      if (!usedSet.has(i)) {
-        availableNumbers.push(String(i).padStart(4, '0'));
+    for (let i = 1; i <= maxNumber && availableNumbers.length < 100; i++) {
+      const franchise = franchiseMap.get(i);
+      
+      if (!franchise) {
+        // Number was never assigned - it's a gap
+        const numStr = String(i).padStart(4, '0');
+        availableNumbers.push(numStr);
+        gapNumbers.push(numStr);
+      } else if (franchise.available && !franchise.reserved) {
+        // Number exists but franchise is revoked - can be reused
+        const numStr = String(i).padStart(4, '0');
+        availableNumbers.push(numStr);
+        revokedNumbers.push(numStr);
       }
     }
     
-    const nextNum = result.maxNumber + 1;
+    const nextNum = maxNumber + 1;
     const nextFranchiseNumber = String(nextNum).padStart(4, '0');
+    const totalFranchises = allCurrentFranchises.length;
 
     const responseData = {
       availableNumbers: availableNumbers.slice(0, 100), // Limit to 100
+      revokedNumbers: revokedNumbers.slice(0, 50), // Numbers from revoked franchises
+      gapNumbers: gapNumbers.slice(0, 50), // Numbers that were never assigned
       hasMore: availableNumbers.length > 100,
       totalAvailable: availableNumbers.length,
       nextNumber: nextFranchiseNumber,
       recommendation: availableNumbers.length > 0
-        ? `${availableNumbers.length} available number${availableNumbers.length > 1 ? 's' : ''} (showing first ${Math.min(100, availableNumbers.length)})`
+        ? `${availableNumbers.length} available number${availableNumbers.length > 1 ? 's' : ''} (${revokedNumbers.length} from revoked, ${gapNumbers.length} gaps)`
         : `Use next number: ${nextFranchiseNumber}`,
       statistics: {
-        totalFranchises: result.total,
-        totalActive: result.activeCount,
-        totalExpired: result.expiredCount,
-        totalRevoked: result.revokedCount,
-        gaps: availableNumbers.length,
-        latestNumber: result.maxNumber,
+        totalFranchises,
+        totalActive: activeCount,
+        totalExpired: expiredCount,
+        totalRevoked: revokedCount,
+        gaps: gapNumbers.length,
+        revokedAvailable: revokedNumbers.length, // Field name expected by frontend
+        recyclable: revokedNumbers.length, // Alias for clarity
+        latestNumber: maxNumber,
         nextNumber: nextNum
       }
     };

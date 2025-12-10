@@ -269,20 +269,278 @@ export const triggerCleanup = async (type = null) => {
   return handleResponse(response);
 };
 
+// ==========================================
+// DATABASE STATS & HEALTH MONITORING
+// ==========================================
+
+/**
+ * Get database storage statistics
+ */
+export const getDatabaseStats = async () => {
+  const response = await fetch(`${API_BASE_URL}/api/backup/stats`, {
+    method: 'GET',
+    headers: getAuthHeaders(),
+    credentials: 'include'
+  });
+  return handleResponse(response);
+};
+
+/**
+ * Get database health status
+ */
+export const getHealthStatus = async () => {
+  const response = await fetch(`${API_BASE_URL}/api/backup/health`, {
+    method: 'GET',
+    headers: getAuthHeaders(),
+    credentials: 'include'
+  });
+  return handleResponse(response);
+};
+
+/**
+ * Run manual health check
+ */
+export const runHealthCheck = async () => {
+  const response = await fetch(`${API_BASE_URL}/api/backup/health/check`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    credentials: 'include'
+  });
+  return handleResponse(response);
+};
+
+/**
+ * Trigger manual recovery from last good backup
+ */
+export const triggerRecovery = async (backupId = null) => {
+  const response = await fetch(`${API_BASE_URL}/api/backup/recover`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    credentials: 'include',
+    body: JSON.stringify({ backupId })
+  });
+  return handleResponse(response);
+};
+
+// ==========================================
+// DATA ARCHIVAL FUNCTIONS
+// ==========================================
+
+/**
+ * Preview what data would be archived (dry run)
+ * @param {Object} options - Archive options
+ * @param {number} options.olderThanYears - Archive data older than this many years
+ * @param {Array} options.collections - Specific collections to check
+ * @param {string} options.dateField - Date field to use for filtering
+ */
+export const previewArchive = async (options = {}) => {
+  const { olderThanYears = 10, collections, dateField = 'createdAt' } = options;
+  const response = await fetch(`${API_BASE_URL}/api/backup/archive/preview`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    credentials: 'include',
+    body: JSON.stringify({ olderThanYears, collections, dateField })
+  });
+  return handleResponse(response);
+};
+
+/**
+ * Archive old data and optionally delete from database
+ * @param {Object} options - Archive options
+ * @param {number} options.olderThanYears - Archive data older than this many years
+ * @param {boolean} options.deleteAfterArchive - Remove data from DB after archiving
+ * @param {Array} options.collections - Specific collections to archive
+ * @param {string} options.dateField - Date field to use for filtering
+ * @param {string} options.notes - Notes about the archive
+ */
+export const archiveOldData = async (options = {}) => {
+  const { 
+    olderThanYears = 10, 
+    deleteAfterArchive = false, 
+    collections, 
+    dateField = 'createdAt',
+    notes 
+  } = options;
+  const response = await fetch(`${API_BASE_URL}/api/backup/archive`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    credentials: 'include',
+    body: JSON.stringify({ olderThanYears, deleteAfterArchive, collections, dateField, notes })
+  });
+  return handleResponse(response);
+};
+
+/**
+ * Get archive history
+ */
+export const getArchiveHistory = async (options = {}) => {
+  const { limit = 20, page = 1 } = options;
+  const params = new URLSearchParams();
+  params.append('limit', limit.toString());
+  params.append('page', page.toString());
+  
+  const response = await fetch(`${API_BASE_URL}/api/backup/archive/history?${params}`, {
+    method: 'GET',
+    headers: getAuthHeaders(),
+    credentials: 'include'
+  });
+  return handleResponse(response);
+};
+
+/**
+ * Restore data from an archive back to the database
+ * @param {string} archiveId - The archive ID to restore from
+ * @param {Object} options - Restore options
+ * @param {Array} options.collections - Specific collections to restore
+ * @param {boolean} options.skipExisting - Skip documents that already exist
+ */
+export const restoreFromArchive = async (archiveId, options = {}) => {
+  const { collections, skipExisting = true } = options;
+  const response = await fetch(`${API_BASE_URL}/api/backup/archive/${archiveId}/restore`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    credentials: 'include',
+    body: JSON.stringify({ collections, skipExisting })
+  });
+  return handleResponse(response);
+};
+
+// ==========================================
+// FULL EXPORT/IMPORT FOR EXTERNAL STORAGE (HDD)
+// ==========================================
+
+/**
+ * Create a full database export for saving to external storage (Hard Disk)
+ * This includes ALL data and uploaded files (photos, documents via GridFS)
+ * 
+ * @param {Object} options - Export options
+ * @param {boolean} options.includeGridFSFiles - Include uploaded files (default: true)
+ * @param {string} options.notes - Notes about the export
+ */
+export const exportFullDatabase = async (options = {}) => {
+  const { includeGridFSFiles = true, notes = '' } = options;
+  const response = await fetch(`${API_BASE_URL}/api/backup/export-full`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    credentials: 'include',
+    body: JSON.stringify({ includeGridFSFiles, notes })
+  });
+  return handleResponse(response);
+};
+
+/**
+ * Download the full export file to save to Hard Disk
+ * @param {string} exportId - The export ID to download
+ */
+export const downloadFullExport = async (exportId) => {
+  const token = sessionStorage.getItem('accessToken') || 
+                localStorage.getItem('accessToken') || 
+                localStorage.getItem('token');
+  
+  const response = await fetch(`${API_BASE_URL}/api/backup/export/${exportId}/download`, {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${token}`
+    },
+    credentials: 'include'
+  });
+  
+  if (!response.ok) {
+    const data = await response.json();
+    throw new Error(data.message || 'Download failed');
+  }
+  
+  // Get filename from Content-Disposition header or use default
+  const contentDisposition = response.headers.get('Content-Disposition');
+  let filename = `full-export-${exportId}.json.gz`;
+  if (contentDisposition) {
+    const match = contentDisposition.match(/filename="?(.+)"?/);
+    if (match) filename = match[1];
+  }
+  
+  // Create blob and download
+  const blob = await response.blob();
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  window.URL.revokeObjectURL(url);
+  document.body.removeChild(a);
+  
+  return { success: true, filename };
+};
+
+/**
+ * Import database from an external backup file (from Hard Disk)
+ * Uses FormData for file upload
+ * @param {File} file - The backup file to import
+ * @param {Object} options - Import options
+ * @param {boolean} options.dropExisting - Whether to clear existing data before import
+ * @param {Array} options.collections - Specific collections to import
+ */
+export const importFromFile = async (file, options = {}) => {
+  const { dropExisting = false, collections } = options;
+  const token = sessionStorage.getItem('accessToken') || 
+                localStorage.getItem('accessToken') || 
+                localStorage.getItem('token');
+  
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('dropExisting', dropExisting.toString());
+  if (collections && collections.length > 0) {
+    formData.append('collections', JSON.stringify(collections));
+  }
+  
+  const response = await fetch(`${API_BASE_URL}/api/backup/import`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`
+    },
+    credentials: 'include',
+    body: formData
+  });
+  
+  return handleResponse(response);
+};
+
 export default {
+  // Status & Info
   getBackupStatus,
   getLastBackupInfo,
   getBackupHistory,
+  getBackupConfig,
+  updateBackupConfig,
+  getBackupDetails,
+  
+  // Backup Creation
   createManualBackup,
   createEmergencyBackup,
   createPreUpdateBackup,
-  getBackupDetails,
+  
+  // Backup Operations
   verifyBackup,
   restoreBackup,
   toggleBackupProtection,
   deleteBackup,
   downloadBackup,
-  getBackupConfig,
-  updateBackupConfig,
-  triggerCleanup
+  triggerCleanup,
+  
+  // Database Stats & Health
+  getDatabaseStats,
+  getHealthStatus,
+  runHealthCheck,
+  triggerRecovery,
+  
+  // Archive Functions
+  previewArchive,
+  archiveOldData,
+  getArchiveHistory,
+  restoreFromArchive,
+  
+  // Full Export/Import
+  exportFullDatabase,
+  downloadFullExport,
+  importFromFile
 };
