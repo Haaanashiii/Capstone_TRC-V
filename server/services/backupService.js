@@ -142,6 +142,11 @@ class BackupService {
     const backupId = this.generateBackupId(type);
     this.currentBackupId = backupId;
     
+    // Pre-calculate backup file path
+    const backupDir = path.join(BACKUP_CONFIG.baseDir, type);
+    const backupFileName = `${backupId}.json.gz`;
+    const backupFilePath = path.join(backupDir, backupFileName);
+    
     console.log(`[BACKUP] Starting ${type} backup: ${backupId}`);
     
     // Create backup record in database
@@ -149,7 +154,7 @@ class BackupService {
       backupId,
       backupType: type,
       status: 'in-progress',
-      filePath: '',
+      filePath: backupFilePath,
       notes,
       initiatedBy,
       startedAt: new Date(),
@@ -204,11 +209,6 @@ class BackupService {
         
         totalDocuments += collectionData.documentCount;
       }
-      
-      // Create backup file path
-      const backupDir = path.join(BACKUP_CONFIG.baseDir, type);
-      const backupFileName = `${backupId}.json.gz`;
-      const backupFilePath = path.join(backupDir, backupFileName);
       
       // Compress and write backup data
       const jsonData = JSON.stringify(backupData, null, 2);
@@ -1265,12 +1265,16 @@ class BackupService {
       fs.mkdirSync(exportDir, { recursive: true });
     }
     
+    // Pre-calculate export file path
+    const exportFileName = `${exportId}.json.gz`;
+    const exportFilePath = path.join(exportDir, exportFileName);
+    
     // Create export record
     const exportRecord = new Backup({
       backupId: exportId,
       backupType: 'manual',
       status: 'in-progress',
-      filePath: '',
+      filePath: exportFilePath,
       notes: notes || `Full database export for HDD${includeGridFSFiles ? ' (includes all files)' : ''}`,
       initiatedBy,
       startedAt: new Date(),
@@ -1387,10 +1391,6 @@ class BackupService {
         estimatedSize: this.formatBytes(totalSize),
         includesUploadedFiles: includeGridFSFiles
       };
-      
-      // Create export file
-      const exportFileName = `${exportId}.json.gz`;
-      const exportFilePath = path.join(exportDir, exportFileName);
       
       // Compress and write (maximum compression for HDD storage)
       console.log(`[EXPORT] Compressing data...`);

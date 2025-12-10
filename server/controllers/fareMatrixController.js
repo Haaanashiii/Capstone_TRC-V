@@ -1,6 +1,6 @@
 const fareMatrixRepository = require('../repositories/fareMatrixRepository');
 const storage = require('../services/storageAdapter');
-const auditLogService = require('../services/auditLogService');
+const { auditLogService } = require('../services/auditLogService');
 
 /**
  * Get current active fare matrix (public endpoint)
