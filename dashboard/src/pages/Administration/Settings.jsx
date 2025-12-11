@@ -125,9 +125,9 @@ const PAGE_ACCESS_CONFIG = [
         icon: '🕒'
       },
       { 
-        key: 'user-management', 
-        label: 'User Management', 
-        path: '/user-management',
+        key: 'admin-management', 
+        label: 'Admin Management', 
+        path: '/admin-management',
         description: 'Manage admin users and accounts',
         icon: '👥'
       },
@@ -255,8 +255,8 @@ function Settings() {
   }, []);
 
   const closeNotification = useCallback(() => {
-    setNotification({ ...notification, open: false });
-  }, [notification]);
+    setNotification(prev => ({ ...prev, open: false }));
+  }, []);
 
   // Fetch all page access configurations from backend
   const fetchAllPageAccess = useCallback(async () => {
@@ -282,11 +282,14 @@ function Settings() {
         console.log('[Settings] Fetched page access:', result);
         
         if (result.success && result.data && Array.isArray(result.data)) {
-          // Transform array to object format
+          // Transform array to object format and filter invalid page keys
           const accessMap = {};
           result.data.forEach(item => {
             if (item.role && item.allowedPages) {
-              accessMap[item.role] = item.allowedPages;
+              // Filter to only include valid page keys
+              accessMap[item.role] = item.allowedPages.filter(
+                pageKey => ALL_PAGE_KEYS.includes(pageKey)
+              );
             }
           });
           
@@ -511,6 +514,11 @@ function Settings() {
         return;
       }
 
+      // Filter to only include valid page keys to prevent validation errors
+      const validAllowedPages = (pageAccess[selectedRole] || []).filter(
+        pageKey => ALL_PAGE_KEYS.includes(pageKey)
+      );
+
       const response = await fetch(`${API_BASE_URL}/api/role-page-access/${selectedRole}`, {
         method: 'PUT',
         headers: {
@@ -518,7 +526,7 @@ function Settings() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          allowedPages: pageAccess[selectedRole],
+          allowedPages: validAllowedPages,
         }),
       });
 
@@ -537,6 +545,14 @@ function Settings() {
       if (result.success) {
         showNotification('Page access permissions saved successfully');
         setHasPermissionChanges(false);
+        
+        // Clear the Sidebar's cached pages for this role so it fetches fresh data
+        try {
+          sessionStorage.removeItem(`allowedPages_${selectedRole}`);
+        } catch (e) {
+          console.warn('[Settings] Failed to clear cached pages');
+        }
+        
         // Refresh the data
         await fetchAllPageAccess();
       } else {
@@ -592,6 +608,13 @@ function Settings() {
           [selectedRole]: result.data.allowedPages,
         }));
         
+        // Clear the Sidebar's cached pages for this role so it fetches fresh data
+        try {
+          sessionStorage.removeItem(`allowedPages_${selectedRole}`);
+        } catch (e) {
+          console.warn('[Settings] Failed to clear cached pages');
+        }
+        
         showNotification('Page access reset to default');
         setHasPermissionChanges(false);
       } else {
@@ -616,31 +639,59 @@ function Settings() {
 
   // ==================== Backup & Recovery Handlers ====================
 
-  // Fetch backup history from the backend
+  /**
+   * Find a backup by ID from the backup history
+   * @param {string} backupId - The backup ID to find
+   * @returns {Object|null} The backup object or null if not found
+   */
+  const findBackupById = useCallback((backupId) => {
+    return backupHistory.find((b) => b.backupId === backupId) || null;
+  }, [backupHistory]);
+
+  /**
+   * Fetch backup history from the backend
+   * Filters to show only completed backups, sorted by date (newest first)
+   */
   const fetchBackupHistory = useCallback(async () => {
     setLoadingBackups(true);
     try {
       const response = await backupService.getBackupHistory({ limit: 50, page: 1 });
       if (response.success && response.data) {
+        // Handle both paginated and non-paginated response formats
         const backups = response.data.backups || response.data;
-        setBackupHistory(Array.isArray(backups) ? backups : []);
+        const backupList = Array.isArray(backups) ? backups : [];
         
-        // Calculate total size
-        const totalSize = backups.reduce((acc, b) => acc + (b.fileSize || 0), 0);
+        // Filter only completed backups and sort by date (newest first)
+        const completedBackups = backupList
+          .filter(b => b.status === 'completed')
+          .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        
+        setBackupHistory(completedBackups);
+        
+        // Calculate total size from completed backups
+        const totalSize = completedBackups.reduce((acc, b) => acc + (b.fileSize || 0), 0);
         setBackupStats({ 
-          totalBackups: backups.length, 
+          totalBackups: completedBackups.length, 
           totalSize 
         });
+      } else {
+        setBackupHistory([]);
+        setBackupStats({ totalBackups: 0, totalSize: 0 });
       }
     } catch (error) {
       console.error('[Settings] Error fetching backup history:', error);
       showNotification('Failed to load backup history', 'error');
+      setBackupHistory([]);
+      setBackupStats({ totalBackups: 0, totalSize: 0 });
     } finally {
       setLoadingBackups(false);
     }
   }, [showNotification]);
 
-  // Fetch last backup info
+  /**
+   * Fetch information about the last successful backup
+   * Used for the "Last Backup" status display
+   */
   const fetchLastBackupInfo = useCallback(async () => {
     try {
       const response = await backupService.getLastBackupInfo();
@@ -648,28 +699,43 @@ function Settings() {
         const lastBackup = response.data;
         if (lastBackup.createdAt) {
           setLastBackupTime(formatBackupDate(lastBackup.createdAt));
+        } else {
+          setLastBackupTime(null);
         }
+      } else {
+        setLastBackupTime(null);
       }
     } catch (error) {
       console.error('[Settings] Error fetching last backup info:', error);
+      setLastBackupTime(null);
     }
   }, []);
 
-  // Fetch backup configuration
+  /**
+   * Fetch backup configuration settings
+   * Includes auto backup status and frequency
+   */
   const fetchBackupConfig = useCallback(async () => {
     try {
       const response = await backupService.getBackupConfig();
       if (response.success && response.data) {
-        setBackupConfig(response.data);
-        setAutoBackupEnabled(response.data.autoBackupEnabled !== false);
-        setBackupFrequency(response.data.frequency || 'daily');
+        const config = response.data;
+        setBackupConfig(config);
+        setAutoBackupEnabled(config.autoBackupEnabled !== false);
+        setBackupFrequency(config.frequency || config.schedule?.frequency || 'daily');
       }
     } catch (error) {
       console.error('[Settings] Error fetching backup config:', error);
+      // Set defaults on error
+      setAutoBackupEnabled(true);
+      setBackupFrequency('daily');
     }
   }, []);
 
-  // Create a new manual backup
+  /**
+   * Create a new manual backup
+   * Shows progress indicator and refreshes backup list on completion
+   */
   const handleCreateBackup = useCallback(async () => {
     setIsCreatingBackup(true);
     setBackupProgress(0);
@@ -709,10 +775,16 @@ function Settings() {
     }
   }, [showNotification, fetchBackupHistory, fetchLastBackupInfo]);
 
-  // Restore from an existing backup
+  /**
+   * Restore system from an existing backup
+   * @param {string} backupId - The ID of the backup to restore from
+   */
   const handleRestoreBackup = useCallback(async (backupId) => {
-    const backup = backupHistory.find((b) => b.backupId === backupId);
-    if (!backup) return;
+    const backup = findBackupById(backupId);
+    if (!backup) {
+      showNotification('Backup not found', 'error');
+      return;
+    }
 
     const fileName = backup.filePath?.split(/[/\\]/).pop() || backup.backupId;
     
@@ -751,7 +823,7 @@ function Settings() {
       if (response.success) {
         showNotification('System restored successfully from backup!', 'success');
         // Refresh data after restore
-        await fetchBackupHistory();
+        await Promise.all([fetchBackupHistory(), fetchLastBackupInfo()]);
       } else {
         throw new Error(response.message || 'Failed to restore backup');
       }
@@ -765,12 +837,19 @@ function Settings() {
         setRestoreProgress(0);
       }, 500);
     }
-  }, [backupHistory, showNotification, fetchBackupHistory]);
+  }, [findBackupById, showNotification, fetchBackupHistory, fetchLastBackupInfo]);
 
-  // Delete a backup
+  /**
+   * Delete a backup file
+   * Protected backups cannot be deleted
+   * @param {string} backupId - The ID of the backup to delete
+   */
   const handleDeleteBackup = useCallback(async (backupId) => {
-    const backup = backupHistory.find((b) => b.backupId === backupId);
-    if (!backup) return;
+    const backup = findBackupById(backupId);
+    if (!backup) {
+      showNotification('Backup not found', 'error');
+      return;
+    }
 
     // Check if backup is protected
     if (backup.isProtected) {
@@ -797,24 +876,31 @@ function Settings() {
       console.error('[Settings] Delete backup error:', error);
       showNotification(error.message || 'Failed to delete backup', 'error');
     }
-  }, [backupHistory, showNotification, fetchBackupHistory]);
+  }, [findBackupById, showNotification, fetchBackupHistory]);
 
-  // Download a backup file
+  /**
+   * Download a backup file to local machine
+   * @param {string} backupId - The ID of the backup to download
+   */
   const handleDownloadBackup = useCallback(async (backupId) => {
-    const backup = backupHistory.find((b) => b.backupId === backupId);
-    if (!backup) return;
-
     try {
       showNotification('Preparing download...', 'info');
-      await backupService.downloadBackup(backupId);
-      showNotification('Backup file downloaded successfully!', 'success');
+      const result = await backupService.downloadBackup(backupId);
+      if (result.success) {
+        showNotification(`Backup file "${result.filename}" downloaded successfully!`, 'success');
+      }
     } catch (error) {
       console.error('[Settings] Download backup error:', error);
       showNotification(error.message || 'Failed to download backup', 'error');
     }
-  }, [backupHistory, showNotification]);
+  }, [showNotification]);
 
-  // Toggle backup protection
+  /**
+   * Toggle backup protection status
+   * Protected backups are excluded from auto-deletion
+   * @param {string} backupId - The ID of the backup
+   * @param {boolean} currentlyProtected - Current protection status
+   */
   const handleToggleProtection = useCallback(async (backupId, currentlyProtected) => {
     try {
       const response = await backupService.toggleBackupProtection(backupId, !currentlyProtected);
@@ -834,18 +920,29 @@ function Settings() {
     }
   }, [showNotification, fetchBackupHistory]);
 
-  // Verify backup integrity
+  /**
+   * Verify backup file integrity via checksum validation
+   * @param {string} backupId - The ID of the backup to verify
+   */
   const handleVerifyBackup = useCallback(async (backupId) => {
     try {
       showNotification('Verifying backup integrity...', 'info');
       const response = await backupService.verifyBackup(backupId);
       
-      if (response.success && response.data) {
-        if (response.data.valid) {
+      if (response.success) {
+        const verifyData = response.data;
+        // Handle different response structures from backend
+        const isValid = verifyData?.valid ?? verifyData?.isValid ?? true;
+        const checksumMatch = verifyData?.checksumMatch ?? true;
+        
+        if (isValid && checksumMatch) {
           showNotification('✓ Backup verified successfully - integrity confirmed', 'success');
         } else {
-          showNotification(`⚠ Backup verification failed: ${response.data.error || 'Unknown error'}`, 'error');
+          const errorMsg = verifyData?.error || verifyData?.message || 'Checksum mismatch';
+          showNotification(`⚠ Backup verification failed: ${errorMsg}`, 'error');
         }
+        // Refresh backup history to update verification status
+        await fetchBackupHistory();
       } else {
         throw new Error(response.message || 'Verification failed');
       }
@@ -853,9 +950,13 @@ function Settings() {
       console.error('[Settings] Verify backup error:', error);
       showNotification(error.message || 'Failed to verify backup', 'error');
     }
-  }, [showNotification]);
+  }, [showNotification, fetchBackupHistory]);
 
-  // Handle file selection for import
+  /**
+   * Handle file selection for backup import
+   * Validates file type and size before accepting
+   * @param {Event} event - The file input change event
+   */
   const handleUploadBackup = useCallback((event) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -886,7 +987,10 @@ function Settings() {
     showNotification(`Selected: ${file.name} (${formatFileSize(file.size)})`, 'info');
   }, [showNotification]);
 
-  // Import backup from uploaded file
+  /**
+   * Import and restore from an uploaded backup file
+   * Uses the backupService.importFromFile method
+   */
   const handleImportBackup = useCallback(async () => {
     if (!selectedBackupFile) {
       showNotification('Please select a backup file first', 'error');
@@ -905,7 +1009,7 @@ function Settings() {
     setIsRestoring(true);
     setRestoreProgress(0);
 
-    // Simulate progress
+    // Simulate progress while waiting for API
     const progressInterval = setInterval(() => {
       setRestoreProgress((prev) => {
         if (prev >= 90) return 90;
@@ -914,44 +1018,28 @@ function Settings() {
     }, 800);
 
     try {
-      const token = getAuthToken();
-      if (!token) {
-        throw new Error('Authentication required. Please log in.');
-      }
-
-      const formData = new FormData();
-      formData.append('file', selectedBackupFile);
-      formData.append('dropExisting', 'false');
-
-      const response = await fetch(`${API_BASE_URL}/api/backup/import`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-        body: formData,
+      const response = await backupService.importFromFile(selectedBackupFile, {
+        dropExisting: false
       });
-
-      const result = await response.json();
       
       clearInterval(progressInterval);
       setRestoreProgress(100);
 
-      if (!response.ok) {
-        throw new Error(result.message || 'Failed to import backup');
-      }
-
-      if (result.success) {
+      if (response.success) {
+        const totalDocs = response.data?.totalDocuments || 0;
         showNotification(
-          `Import completed! ${result.data?.totalDocuments || 0} documents restored.`,
+          `Import completed! ${totalDocs.toLocaleString()} documents restored.`,
           'success'
         );
+        // Clear selected file and reset input
         setSelectedBackupFile(null);
         if (fileInputRef.current) {
           fileInputRef.current.value = '';
         }
-        await fetchBackupHistory();
+        // Refresh backup history and last backup info
+        await Promise.all([fetchBackupHistory(), fetchLastBackupInfo()]);
       } else {
-        throw new Error(result.message || 'Import failed');
+        throw new Error(response.message || 'Import failed');
       }
     } catch (error) {
       clearInterval(progressInterval);
@@ -963,9 +1051,12 @@ function Settings() {
         setRestoreProgress(0);
       }, 500);
     }
-  }, [selectedBackupFile, showNotification, getAuthToken, fetchBackupHistory]);
+  }, [selectedBackupFile, showNotification, fetchBackupHistory, fetchLastBackupInfo]);
 
-  // Toggle auto backup setting
+  /**
+   * Toggle automatic backup scheduling
+   * @param {boolean} enabled - Whether to enable or disable auto backups
+   */
   const handleToggleAutoBackup = useCallback(async (enabled) => {
     try {
       const response = await backupService.updateBackupConfig({

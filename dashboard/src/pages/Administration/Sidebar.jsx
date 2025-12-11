@@ -1,6 +1,8 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import websocketService from '../../services/websocket';
+import { showWarning } from '../../utils/sweetAlert';
 import '../../Styles/Administrator_Css/Sidebar.css';
 import logoImage from '../../assets/TRC-vLogo.png';
 import DashboardIcon from '@mui/icons-material/Dashboard';
@@ -32,14 +34,70 @@ const pageKeyToMenuItem = {
   'settings': { name: 'Settings', icon: <SettingsIcon />, path: '/settings' }
 };
 
+// Map paths to page keys (reverse lookup)
+const pathToPageKey = Object.entries(pageKeyToMenuItem).reduce((acc, [key, item]) => {
+  acc[item.path] = key;
+  return acc;
+}, {});
+
+// Helper to get page key from current path
+const getPageKeyFromPath = (pathname) => {
+  return pathToPageKey[pathname] || null;
+};
+
+// Helper to get cached pages from sessionStorage
+const getCachedPages = (role) => {
+  try {
+    const cached = sessionStorage.getItem(`allowedPages_${role}`);
+    if (cached) {
+      return JSON.parse(cached);
+    }
+  } catch (e) {
+    console.warn('[Sidebar] Failed to parse cached pages');
+  }
+  return null;
+};
+
+// Helper to cache pages in sessionStorage
+const setCachedPages = (role, pages) => {
+  try {
+    sessionStorage.setItem(`allowedPages_${role}`, JSON.stringify(pages));
+  } catch (e) {
+    console.warn('[Sidebar] Failed to cache pages');
+  }
+};
+
+// Default fallback pages if API is not available (moved outside component for use in useState initializer)
+const getDefaultPages = (role) => {
+  const defaults = {
+    'super-admin': ['dashboard', 'franchisee-list', 'franchise-management', 'certificate', 'incident-reports', 'analytics', 'announcements', 'audit-trail', 'admin-management', 'settings'],
+    'sb-admin': ['dashboard', 'franchisee-list', 'franchise-management', 'certificate', 'incident-reports'],
+    'bplo-admin': ['dashboard', 'franchisee-list', 'franchise-management', 'certificate', 'incident-reports']
+  };
+  return defaults[role] || [];
+};
+
 function Sidebar() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout, loading } = useAuth();
   const [currentTime, setCurrentTime] = useState(new Date());
   const [showLogout, setShowLogout] = useState(false);
-  const [allowedPages, setAllowedPages] = useState([]);
-  const [loadingPages, setLoadingPages] = useState(true);
+  
+  // Initialize with cached pages to prevent flicker
+  const [allowedPages, setAllowedPages] = useState(() => {
+    if (user?.role) {
+      return getCachedPages(user.role) || getDefaultPages(user.role);
+    }
+    return [];
+  });
+  // Only show loading if we don't have any cached pages
+  const [loadingPages, setLoadingPages] = useState(() => {
+    if (user?.role) {
+      return !getCachedPages(user.role);
+    }
+    return false;
+  });
 
   useEffect(() => {
     const timerId = setInterval(() => {
@@ -48,59 +106,154 @@ function Sidebar() {
     return () => clearInterval(timerId);
   }, []);
 
-  // Fetch allowed pages for current user's role
-  useEffect(() => {
-    const fetchAllowedPages = async () => {
-      if (!user?.role) {
+  // Fetch allowed pages from API
+  const fetchAllowedPages = useCallback(async (showLoadingState = false) => {
+    if (!user?.role) {
+      setLoadingPages(false);
+      return;
+    }
+
+    // Check if we have cached data - if so, don't show loading state
+    const cached = getCachedPages(user.role);
+    if (cached && !showLoadingState) {
+      setAllowedPages(cached);
+      setLoadingPages(false);
+    }
+
+    try {
+      const token = sessionStorage.getItem('accessToken') || localStorage.getItem('accessToken');
+      if (!token) {
+        if (!cached) {
+          setAllowedPages(getDefaultPages(user.role));
+        }
         setLoadingPages(false);
         return;
       }
 
-      try {
-        const token = sessionStorage.getItem('accessToken') || localStorage.getItem('accessToken');
-        if (!token) {
-          setLoadingPages(false);
-          return;
+      const response = await fetch(`${API_BASE_URL}/api/role-page-access/${user.role}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success && result.data) {
+          const pages = result.data.allowedPages || [];
+          setAllowedPages(pages);
+          setCachedPages(user.role, pages);
         }
-
-        const response = await fetch(`${API_BASE_URL}/api/role-page-access/${user.role}`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-        });
-
-        if (response.ok) {
-          const result = await response.json();
-          if (result.success && result.data) {
-            setAllowedPages(result.data.allowedPages || []);
-          }
-        } else {
-          // If API fails, use default fallback
+      } else {
+        // If API fails and no cache, use default fallback
+        if (!cached) {
           console.warn('[Sidebar] Failed to fetch page access, using defaults');
-          setAllowedPages(getDefaultPages(user.role));
+          const defaultPages = getDefaultPages(user.role);
+          setAllowedPages(defaultPages);
+          setCachedPages(user.role, defaultPages);
         }
-      } catch (error) {
-        console.error('[Sidebar] Error fetching page access:', error);
-        // Use default fallback on error
-        setAllowedPages(getDefaultPages(user.role));
-      } finally {
-        setLoadingPages(false);
+      }
+    } catch (error) {
+      console.error('[Sidebar] Error fetching page access:', error);
+      // Use default fallback on error if no cache
+      if (!cached) {
+        const defaultPages = getDefaultPages(user.role);
+        setAllowedPages(defaultPages);
+        setCachedPages(user.role, defaultPages);
+      }
+    } finally {
+      setLoadingPages(false);
+    }
+  }, [user?.role]);
+
+  // Initial fetch of allowed pages
+  useEffect(() => {
+    fetchAllowedPages();
+  }, [fetchAllowedPages]);
+
+  // Helper function to check if user should be redirected
+  const checkAndRedirectIfNeeded = useCallback((newAllowedPages) => {
+    const currentPageKey = getPageKeyFromPath(location.pathname);
+    
+    // If user is on a page that's no longer accessible
+    if (currentPageKey && !newAllowedPages.includes(currentPageKey)) {
+      console.log(`[Sidebar] Current page "${currentPageKey}" is no longer accessible, redirecting...`);
+      
+      // Find the first accessible page to redirect to
+      // Priority: dashboard > first available page
+      let redirectPath = '/dashboard';
+      
+      if (newAllowedPages.includes('dashboard')) {
+        redirectPath = '/dashboard';
+      } else if (newAllowedPages.length > 0) {
+        // Redirect to the first available page
+        const firstPage = pageKeyToMenuItem[newAllowedPages[0]];
+        if (firstPage) {
+          redirectPath = firstPage.path;
+        }
+      }
+      
+      // Show a styled notification and redirect
+      showWarning(
+        'Your access to this page has been revoked by an administrator. You will be redirected to another page.',
+        'Access Revoked'
+      ).then(() => {
+        navigate(redirectPath, { replace: true });
+      });
+    }
+  }, [location.pathname, navigate]);
+
+  // WebSocket listener for real-time permission updates
+  useEffect(() => {
+    if (!user?.role) return;
+
+    // Connect to WebSocket if not already connected
+    if (!websocketService.isConnected()) {
+      websocketService.connect('general');
+    }
+
+    // Handler for permission updates
+    const handlePageAccessUpdate = (data) => {
+      console.log('[Sidebar] Received page-access-updated event:', data);
+      
+      // Only update if the change affects the current user's role
+      if (data.role === user.role) {
+        console.log('[Sidebar] Updating permissions for current user role:', user.role);
+        
+        // Update state with new permissions
+        if (Array.isArray(data.allowedPages)) {
+          setAllowedPages(data.allowedPages);
+          setCachedPages(user.role, data.allowedPages);
+          
+          // Check if user needs to be redirected from current page
+          checkAndRedirectIfNeeded(data.allowedPages);
+        } else {
+          // If allowedPages not in event, refetch from API
+          fetchAllowedPages(false);
+        }
       }
     };
 
-    fetchAllowedPages();
-  }, [user?.role]);
-
-  // Default fallback if API is not available
-  const getDefaultPages = (role) => {
-    const defaults = {
-      'super-admin': ['dashboard', 'franchisee-list', 'franchise-management', 'certificate', 'incident-reports', 'analytics', 'announcements', 'audit-trail', 'admin-management', 'settings'],
-      'sb-admin': ['dashboard', 'franchisee-list', 'franchise-management', 'certificate', 'incident-reports'],
-      'bplo-admin': ['dashboard', 'franchisee-list', 'franchise-management', 'certificate', 'incident-reports']
+    // Handler for role-specific permission change notification
+    const handleRolePermissionsChanged = (data) => {
+      console.log('[Sidebar] Received role-permissions-changed event:', data);
+      
+      if (data.role === user.role) {
+        // Refetch permissions when notified of changes
+        fetchAllowedPages(false);
+      }
     };
-    return defaults[role] || [];
-  };
+
+    // Subscribe to permission update events
+    websocketService.on('page-access-updated', handlePageAccessUpdate);
+    websocketService.on('role-permissions-changed', handleRolePermissionsChanged);
+
+    // Cleanup on unmount
+    return () => {
+      websocketService.off('page-access-updated', handlePageAccessUpdate);
+      websocketService.off('role-permissions-changed', handleRolePermissionsChanged);
+    };
+  }, [user?.role, fetchAllowedPages, checkAndRedirectIfNeeded]);
   
   const handleLogout = async () => {
     console.log('[AdminSidebar] Logout initiated');
@@ -135,16 +288,17 @@ function Sidebar() {
 
   // Build menu items based on allowed pages from database
   const visibleMenuItems = useMemo(() => {
-    // Don't show menu while loading
-    if (loading || loadingPages) return [];
+    // Only block rendering if auth is still loading and we have no pages at all
+    if (loading && allowedPages.length === 0) return [];
     if (!user?.role) return [];
     if (allowedPages.length === 0) return [];
 
     // Convert allowed page keys to menu items
+    // Show cached/default pages even while fetching to prevent flicker
     return allowedPages
       .map(pageKey => pageKeyToMenuItem[pageKey])
       .filter(item => item !== undefined); // Filter out any undefined items
-  }, [user, loading, loadingPages, allowedPages]);
+  }, [user, loading, allowedPages]);
 
   return (
     <div className="sidebar">

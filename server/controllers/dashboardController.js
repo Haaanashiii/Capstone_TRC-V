@@ -49,21 +49,56 @@ exports.getDashboardStatistics = async (req, res, next) => {
       Report.countDocuments({ status: 'pending' }),
       FranchiseApplication.countDocuments(),
       
-      // Trend aggregation - groups by date in DB
+      // Trend aggregation - groups by month using approvedAt date (fallback to createdAt)
+      // This shows franchise health trends over time based on when they were approved
       FranchiseInformation.aggregate([
-        { $match: { isCurrentVersion: true, createdAt: { $gte: startDate, $lte: endDate } } },
-        { $project: { dateKey: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } }, franchiseStatus: 1 } },
+        { 
+          $match: { 
+            isCurrentVersion: true
+          } 
+        },
+        {
+          // Use approvedAt if available, otherwise fallback to createdAt
+          $addFields: {
+            effectiveDate: { $ifNull: ['$approvedAt', '$createdAt'] }
+          }
+        },
+        {
+          $match: {
+            effectiveDate: { $gte: startDate, $lte: endDate }
+          }
+        },
+        { 
+          $project: { 
+            // Format as abbreviated month name (Jan, Feb, etc.) for chart display
+            monthKey: { $dateToString: { format: '%Y-%m', date: '$effectiveDate' } },
+            monthName: { $dateToString: { format: '%b', date: '$effectiveDate' } },
+            year: { $year: '$effectiveDate' },
+            franchiseStatus: 1
+          } 
+        },
         {
           $group: {
-            _id: '$dateKey',
+            _id: { monthKey: '$monthKey', monthName: '$monthName', year: '$year' },
             active: { $sum: { $cond: [{ $eq: ['$franchiseStatus', 'Active'] }, 1, 0] } },
             expired: { $sum: { $cond: [{ $eq: ['$franchiseStatus', 'Expired'] }, 1, 0] } },
             revoked: { $sum: { $cond: [{ $eq: ['$franchiseStatus', 'Revoked'] }, 1, 0] } },
             total: { $sum: 1 }
           }
         },
-        { $sort: { _id: 1 } },
-        { $project: { _id: 0, date: '$_id', active: 1, expired: 1, revoked: 1, total: 1 } }
+        { $sort: { '_id.monthKey': 1 } },
+        { 
+          $project: { 
+            _id: 0, 
+            date: '$_id.monthName',
+            monthKey: '$_id.monthKey',
+            year: '$_id.year',
+            active: 1, 
+            expired: 1, 
+            revoked: 1, 
+            total: 1 
+          } 
+        }
       ])
     ]);
 

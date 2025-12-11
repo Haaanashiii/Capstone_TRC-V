@@ -161,7 +161,29 @@ io.use((socket, next) => {
 io.on('connection', (socket) => {
   if (shouldLog.info()) console.log(`[SOCKET] Connected: ${socket.id} (${socket.userRole || 'anon'})`);
   
+  // Auto-join common rooms
   socket.join('announcements');
+  
+  // Auto-join role-based rooms for authenticated admin users
+  if (socket.isAuthenticated && socket.userRole) {
+    // Join general admin room for cross-role broadcasts
+    socket.join('general');
+    
+    // Join role-specific room
+    const roleRoomMap = {
+      'super-admin': ['bplo-admins', 'sb-admins'], // Super admin joins all admin rooms
+      'bplo-admin': ['bplo-admins'],
+      'sb-admin': ['sb-admins']
+    };
+    
+    const rooms = roleRoomMap[socket.userRole] || [];
+    rooms.forEach(room => {
+      socket.join(room);
+      if (shouldLog.debug()) console.log(`[SOCKET] Auto-joined ${socket.userId} to ${room}`);
+    });
+    
+    if (shouldLog.info()) console.log(`[SOCKET] Admin ${socket.userId} joined rooms: general, ${rooms.join(', ')}`);
+  }
   
   socket.on('error', (error) => console.error(`[SOCKET] Error:`, error));
   

@@ -2,20 +2,42 @@ const rolePageAccessRepository = require('../repositories/rolePageAccessReposito
 
 /**
  * Helper function to broadcast page access updates via WebSocket
+ * Notifies all connected admin users when permissions change
  */
-const broadcastPageAccessUpdate = (io, role, allowedPages) => {
-  if (!io) return;
+const broadcastPageAccessUpdate = (io, role, allowedPages, updatedBy = null) => {
+  if (!io) {
+    console.warn('[PageAccessController] Socket.IO not available for broadcast');
+    return;
+  }
   
-  // Broadcast to all admin rooms since this affects navigation
-  ['super-admin-room', 'sb-admin-room', 'bplo-admin-room'].forEach(room => {
-    io.to(room).emit('page-access-updated', {
-      role,
-      allowedPages,
-      updatedAt: new Date()
+  const eventData = {
+    role,
+    allowedPages,
+    updatedBy,
+    updatedAt: new Date().toISOString()
+  };
+  
+  // Broadcast to general room (all admins) and role-specific rooms
+  // This ensures all logged-in admins receive the update
+  io.to('general').emit('page-access-updated', eventData);
+  io.to('bplo-admins').emit('page-access-updated', eventData);
+  io.to('sb-admins').emit('page-access-updated', eventData);
+  
+  // Also emit to individual role room if the affected role matches
+  // This allows more targeted updates
+  const roleRoomMap = {
+    'bplo-admin': 'bplo-admins',
+    'sb-admin': 'sb-admins'
+  };
+  
+  if (roleRoomMap[role]) {
+    io.to(roleRoomMap[role]).emit('role-permissions-changed', {
+      ...eventData,
+      message: `Your role permissions have been updated`
     });
-  });
+  }
   
-  console.log(`[PageAccessController] Broadcast page-access-updated for role ${role}`);
+  console.log(`[PageAccessController] Broadcast page-access-updated for role "${role}" to all admin rooms`);
 };
 
 /**

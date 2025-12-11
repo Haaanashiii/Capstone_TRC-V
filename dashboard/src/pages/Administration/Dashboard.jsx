@@ -54,21 +54,30 @@ function Dashboard() {
   const [retryCount, setRetryCount] = useState(0);
   const [isAuthorized, setIsAuthorized] = useState(true);
   
-  // Default to current week (Monday to Sunday)
-  const getWeekRange = useCallback(() => {
+  // Default to current year for more comprehensive trend data
+  const getYearRange = useCallback(() => {
     const today = dayjs();
-    const startOfWeek = today.startOf('week'); // Monday
-    const endOfWeek = today.endOf('week'); // Sunday
-    return { start: startOfWeek, end: endOfWeek };
+    const startOfYear = today.startOf('year');
+    return { start: startOfYear, end: today };
   }, []);
   
-  const weekRange = getWeekRange();
-  const [startDate, setStartDate] = useState(weekRange.start);
-  const [endDate, setEndDate] = useState(weekRange.end);
+  const yearRange = getYearRange();
+  const [startDate, setStartDate] = useState(yearRange.start);
+  const [endDate, setEndDate] = useState(yearRange.end);
+  const [selectedQuickRange, setSelectedQuickRange] = useState('thisYear');
+
+  // Helper function to get week range for quick select
+  const getWeekRange = useCallback(() => {
+    const today = dayjs();
+    const startOfWeek = today.startOf('week');
+    const endOfWeek = today.endOf('week');
+    return { start: startOfWeek, end: endOfWeek };
+  }, []);
 
   // Quick date range buttons
   const handleQuickRange = useCallback((range) => {
     const today = dayjs();
+    setSelectedQuickRange(range);
     switch (range) {
       case 'thisWeek':
         const thisWeek = getWeekRange();
@@ -90,6 +99,8 @@ function Dashboard() {
       case 'thisYear':
         setStartDate(today.startOf('year'));
         setEndDate(today);
+        break;
+      default:
         break;
     }
   }, [getWeekRange]);
@@ -305,7 +316,7 @@ function Dashboard() {
     } finally {
       setLoading(false);
     }
-  }, [navigate]);
+  }, [navigate, startDate, endDate]);
 
   // Fetch data on component mount and when date range changes
   useEffect(() => {
@@ -616,10 +627,10 @@ function Dashboard() {
                     border: '1px solid #E2E8F0',
                   }}
                 >
-                  <FormControl size="small" sx={{ minWidth: 120 }}>
+                  <FormControl size="small" sx={{ minWidth: 130 }}>
                     <Select
                       displayEmpty
-                      value=""
+                      value={selectedQuickRange}
                       onChange={(e) => handleQuickRange(e.target.value)}
                       sx={{
                         backgroundColor: '#ffffff',
@@ -634,10 +645,17 @@ function Dashboard() {
                           py: '6px',
                         },
                       }}
+                      renderValue={(selected) => {
+                        const options = {
+                          thisWeek: 'This Week',
+                          lastWeek: 'Last Week',
+                          thisMonth: 'This Month',
+                          lastMonth: 'Last Month',
+                          thisYear: 'This Year',
+                        };
+                        return options[selected] || 'Custom Range';
+                      }}
                     >
-                      <MenuItem value="" disabled>
-                        <em>Quick Select</em>
-                      </MenuItem>
                       <MenuItem value="thisWeek">This Week</MenuItem>
                       <MenuItem value="lastWeek">Last Week</MenuItem>
                       <MenuItem value="thisMonth">This Month</MenuItem>
@@ -651,7 +669,10 @@ function Dashboard() {
                   <LocalizationProvider dateAdapter={AdapterDayjs}>
                     <DatePicker
                       value={startDate}
-                      onChange={(newValue) => setStartDate(newValue)}
+                      onChange={(newValue) => {
+                        setStartDate(newValue);
+                        setSelectedQuickRange('');
+                      }}
                       slotProps={{
                         textField: {
                           size: 'small',
@@ -669,7 +690,10 @@ function Dashboard() {
                     <Typography sx={{ color: '#94A3B8', fontSize: '0.75rem', mx: 0.5 }}>to</Typography>
                     <DatePicker
                       value={endDate}
-                      onChange={(newValue) => setEndDate(newValue)}
+                      onChange={(newValue) => {
+                        setEndDate(newValue);
+                        setSelectedQuickRange('');
+                      }}
                       minDate={startDate}
                       slotProps={{
                         textField: {

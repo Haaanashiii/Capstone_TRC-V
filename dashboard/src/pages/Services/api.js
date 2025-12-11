@@ -726,9 +726,12 @@ export const dashboardAPI = {
   /**
    * Get comprehensive dashboard statistics (KPIs + monthly trends)
    * Optimized single endpoint to reduce API calls
+   * @param {Object} params - Optional date range parameters
+   * @param {string} params.startDate - Start date in YYYY-MM-DD format
+   * @param {string} params.endDate - End date in YYYY-MM-DD format
    * @returns {Promise} Response with dashboard statistics
    */
-  getStatistics: () => api.get('/api/dashboard/statistics'),
+  getStatistics: (params = {}) => api.get('/api/dashboard/statistics', { params }),
 
   /**
    * Get recent franchise applications for activity feed
