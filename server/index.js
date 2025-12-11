@@ -396,26 +396,39 @@ app.use('/api/fare-matrix', apiLimiter, fareMatrixRoutes);
 app.use('/api/role-page-access', apiLimiter, rolePageAccessRoutes);
 app.use('/api/certificates', apiLimiter, certificateRoutes);
 app.use('/api/backup', apiLimiter, backupRoutes);
-app.use('/api/files', fileRoutes); // Serve GridFS files
+app.use('/api/files', fileRoutes); 
 
 // Health check
 app.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Cache stats endpoint (admin only in production)
+// Cache stats endpoint (super-admin only)
 app.get('/api/admin/cache-stats', (req, res) => {
-  const cacheManager = require('./utils/cache');
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ success: false, message: 'Authentication required' });
+  }
   
-  // In production, you should verify admin authentication here
-  // For now, basic stats are returned
-  const stats = cacheManager.getStats();
-  
-  res.json({
-    success: true,
-    data: stats,
-    timestamp: new Date().toISOString()
-  });
+  try {
+    const token = authHeader.split(' ')[1];
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    
+    if (decoded.role !== 'super-admin') {
+      return res.status(403).json({ success: false, message: 'Super-admin access required' });
+    }
+    
+    const cacheManager = require('./utils/cache');
+    const stats = cacheManager.getStats();
+    
+    res.json({
+      success: true,
+      data: stats,
+      timestamp: new Date().toISOString()
+    });
+  } catch (err) {
+    return res.status(401).json({ success: false, message: 'Invalid or expired token' });
+  }
 });
 
 // Cache management endpoint (admin only)
@@ -461,41 +474,42 @@ const startTime = Date.now();
 
 // Connect to MongoDB first, then start the HTTP server
 mongoose.connect(process.env.MONGO_URI, {
-  serverSelectionTimeoutMS: 10000, // Default 10s (increased from 5s for reliability)
-  maxPoolSize: 50,                 // Reduced from 75 (faster pool init)
-  minPoolSize: 5,                  // Reduced from 10
-  socketTimeoutMS: 30000,          // Reduced from 45s
+  serverSelectionTimeoutMS: 10000, 
+  maxPoolSize: 50,                 
+  minPoolSize: 5,                  
+  socketTimeoutMS: 30000,          
   family: 4,
-  bufferCommands: false,           // Disable command buffering to avoid race conditions
-  autoIndex: false                 // Don't build indexes on startup (do in migration)
+  bufferCommands: false,           
+  autoIndex: false                 
 })
   .then(async () => {
     const mongoTime = Date.now() - startTime;
     console.log(`MongoDB connected in ${mongoTime}ms | ${storage.storageType}`);
 
-    // Ensure all Mongoose indexes are created (since autoIndex is false)
-    try {
-      const modelNames = mongoose.modelNames();
-      await Promise.all(
-        modelNames.map(name => mongoose.model(name).syncIndexes())
-      );
-      console.log('All Mongoose indexes are ensured.');
-    } catch (err) {
-      console.error('Error ensuring Mongoose indexes:', err);
-    }
-
-    // Init storage in background (non-blocking)
     setImmediate(() => storage.init());
-    // Init schedulers with 2s delay (let server stabilize first)
-    setTimeout(() => {
-      try { require('./services/franchiseExpiryScheduler').initializeFranchiseExpiryScheduler(); } catch (e) {}
-      try { require('./services/backupScheduler').initializeBackupScheduler(); } catch (e) {}
-      try { require('./services/healthMonitorService').initializeHealthMonitor(); } catch (e) {}
-    }, 2000);
 
-    // Now start the HTTP server after DB is ready
     server.listen(PORT, HOST, () => {
       console.log(`\nTRC-V Server | Port ${PORT} | Host ${HOST} | ${Date.now() - startTime}ms\n`);
+      setTimeout(async () => {
+        try {
+          const indexStartTime = Date.now();
+          const modelNames = mongoose.modelNames();
+          if (modelNames.length > 0) {
+            await Promise.all(
+              modelNames.map(name => mongoose.model(name).syncIndexes())
+            );
+            console.log(`[Startup] Indexes synced (${modelNames.length} models) in ${Date.now() - indexStartTime}ms`);
+          }
+        } catch (err) {
+          console.error('[Startup] Index sync error:', err.message);
+        }
+      }, 500); 
+      setTimeout(() => {
+        try { require('./services/franchiseExpiryScheduler').initializeFranchiseExpiryScheduler(); } catch (e) { console.error('[Scheduler] Expiry scheduler error:', e.message); }
+        try { require('./services/backupScheduler').initializeBackupScheduler(); } catch (e) { console.error('[Scheduler] Backup scheduler error:', e.message); }
+        try { require('./services/healthMonitorService').initializeHealthMonitor(); } catch (e) { console.error('[Scheduler] Health monitor error:', e.message); }
+        console.log('[Startup] Schedulers initialized');
+      }, 3000);
     });
   })
   .catch((err) => {
