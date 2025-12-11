@@ -142,6 +142,11 @@ class BackupService {
     const backupId = this.generateBackupId(type);
     this.currentBackupId = backupId;
     
+    // Pre-calculate backup file path
+    const backupDir = path.join(BACKUP_CONFIG.baseDir, type);
+    const backupFileName = `${backupId}.json.gz`;
+    const backupFilePath = path.join(backupDir, backupFileName);
+    
     console.log(`[BACKUP] Starting ${type} backup: ${backupId}`);
     
     // Create backup record in database
@@ -149,7 +154,7 @@ class BackupService {
       backupId,
       backupType: type,
       status: 'in-progress',
-      filePath: '',
+      filePath: backupFilePath,
       notes,
       initiatedBy,
       startedAt: new Date(),
@@ -204,11 +209,6 @@ class BackupService {
         
         totalDocuments += collectionData.documentCount;
       }
-      
-      // Create backup file path
-      const backupDir = path.join(BACKUP_CONFIG.baseDir, type);
-      const backupFileName = `${backupId}.json.gz`;
-      const backupFilePath = path.join(backupDir, backupFileName);
       
       // Compress and write backup data
       const jsonData = JSON.stringify(backupData, null, 2);
@@ -1238,11 +1238,12 @@ class BackupService {
   /**
    * Create a full database export for external storage (Hard Disk)
    * This creates a comprehensive backup that can be saved to external media
+   * INCLUDES GridFS files for complete backup with all uploaded documents/images
    */
   async createFullExport(options = {}) {
     const {
       format = 'json',
-      includeUploads = false,
+      includeGridFSFiles = true, // Include uploaded files (GridFS)
       notes = '',
       initiatedBy = null
     } = options;
@@ -1256,6 +1257,7 @@ class BackupService {
     const exportId = this.generateBackupId('full-export');
     
     console.log(`[EXPORT] Starting full database export: ${exportId}`);
+    console.log(`[EXPORT] Include GridFS files: ${includeGridFSFiles}`);
     
     // Create export directory
     const exportDir = path.join(BACKUP_CONFIG.baseDir, 'exports');
@@ -1263,13 +1265,17 @@ class BackupService {
       fs.mkdirSync(exportDir, { recursive: true });
     }
     
+    // Pre-calculate export file path
+    const exportFileName = `${exportId}.json.gz`;
+    const exportFilePath = path.join(exportDir, exportFileName);
+    
     // Create export record
     const exportRecord = new Backup({
       backupId: exportId,
-      backupType: 'manual', // Treat as manual backup
+      backupType: 'manual',
       status: 'in-progress',
-      filePath: '',
-      notes: notes || 'Full database export for external storage (Hard Disk)',
+      filePath: exportFilePath,
+      notes: notes || `Full database export for HDD${includeGridFSFiles ? ' (includes all files)' : ''}`,
       initiatedBy,
       startedAt: new Date(),
       metadata: {
@@ -1277,11 +1283,11 @@ class BackupService {
         hostname: os.hostname(),
         nodeVersion: process.version,
         exportType: 'full-export',
-        includeUploads
+        includeGridFSFiles
       },
       retention: {
-        expiresAt: null, // Full exports don't auto-expire
-        isProtected: true // Protect from auto-deletion
+        expiresAt: null,
+        isProtected: true
       }
     });
     
@@ -1297,10 +1303,12 @@ class BackupService {
       // Build export data
       const exportData = {
         exportId,
-        exportType: 'full-database-export',
+        exportType: 'full-database-export-with-files',
+        version: '2.0', // New version that includes GridFS
         createdAt: new Date().toISOString(),
         databaseName: mongoose.connection.name,
         mongoVersion: mongoose.version,
+        includesGridFSFiles: includeGridFSFiles,
         serverInfo: {
           hostname: os.hostname(),
           platform: os.platform(),
@@ -1310,24 +1318,34 @@ class BackupService {
         },
         instructions: {
           howToRestore: [
-            '1. Go to Admin Dashboard > Backup & Recovery',
-            '2. Click "Import from External Backup"',
+            '1. Go to Admin Dashboard > Settings > Backup & Recovery',
+            '2. Click "Restore from File"',
             '3. Upload this .json.gz file',
-            '4. Select collections to restore (or all)',
-            '5. Choose whether to replace existing data',
-            '6. Click "Restore" to begin import'
+            '4. System will restore all data AND uploaded files',
+            '5. Wait for completion confirmation'
           ],
           apiRestore: 'POST /api/backup/import with multipart/form-data',
-          warning: 'Always create a backup before importing!'
+          warning: 'This will overwrite existing data. Always create a backup first!',
+          fileInfo: includeGridFSFiles 
+            ? 'This backup includes ALL uploaded files (photos, documents, etc.)' 
+            : 'This backup contains database records only (no uploaded files)'
         },
-        collections: {}
+        collections: {},
+        gridfsFiles: null // Will be populated if includeGridFSFiles is true
       };
       
       const collectionStats = [];
       let totalDocuments = 0;
       let totalSize = 0;
       
+      // Export regular collections
       for (const collectionName of allCollections) {
+        // Skip GridFS internal collections - we'll handle them specially
+        if (collectionName === 'trcv_files.files' || collectionName === 'trcv_files.chunks') {
+          console.log(`[EXPORT] Skipping GridFS collection (will export separately): ${collectionName}`);
+          continue;
+        }
+        
         console.log(`[EXPORT] Exporting collection: ${collectionName}`);
         const collectionData = await this.exportCollection(collectionName);
         
@@ -1343,20 +1361,42 @@ class BackupService {
         totalSize += collectionData.size;
       }
       
+      // Export GridFS files if requested
+      let gridfsStats = { fileCount: 0, totalSize: 0 };
+      if (includeGridFSFiles) {
+        console.log(`[EXPORT] Exporting GridFS files...`);
+        const gridfsResult = await this.exportGridFSFiles();
+        exportData.gridfsFiles = gridfsResult;
+        gridfsStats = {
+          fileCount: gridfsResult.files.length,
+          totalSize: gridfsResult.totalSize
+        };
+        
+        console.log(`[EXPORT] GridFS export: ${gridfsStats.fileCount} files, ${this.formatBytes(gridfsStats.totalSize)}`);
+        
+        collectionStats.push({
+          name: 'gridfs_files (uploaded documents/images)',
+          documentCount: gridfsStats.fileCount,
+          size: gridfsStats.totalSize
+        });
+        
+        totalDocuments += gridfsStats.fileCount;
+        totalSize += gridfsStats.totalSize;
+      }
+      
       exportData.summary = {
         totalCollections: allCollections.length,
         totalDocuments,
-        estimatedSize: this.formatBytes(totalSize)
+        gridfsFiles: gridfsStats.fileCount,
+        estimatedSize: this.formatBytes(totalSize),
+        includesUploadedFiles: includeGridFSFiles
       };
       
-      // Create export file
-      const exportFileName = `${exportId}.json.gz`;
-      const exportFilePath = path.join(exportDir, exportFileName);
-      
-      // Compress and write
-      const jsonData = JSON.stringify(exportData, null, 2);
+      // Compress and write (maximum compression for HDD storage)
+      console.log(`[EXPORT] Compressing data...`);
+      const jsonData = JSON.stringify(exportData);
       const compressedData = await new Promise((resolve, reject) => {
-        zlib.gzip(jsonData, { level: 9 }, (err, result) => { // Maximum compression
+        zlib.gzip(jsonData, { level: 9 }, (err, result) => {
           if (err) reject(err);
           else resolve(result);
         });
@@ -1378,15 +1418,17 @@ class BackupService {
       exportRecord.metadata.durationMs = durationMs;
       exportRecord.metadata.compression = 'gzip';
       exportRecord.metadata.checksum = checksum;
+      exportRecord.metadata.gridfsFileCount = gridfsStats.fileCount;
       exportRecord.recovery.isRecoverable = true;
       exportRecord.recovery.lastVerifiedAt = new Date();
       
       await exportRecord.save();
       
       console.log(`[EXPORT] SUCCESS - Full export completed: ${exportId}`);
-      console.log(`[EXPORT] - Duration: ${durationMs}ms`);
+      console.log(`[EXPORT] - Duration: ${this.formatDuration(durationMs)}`);
       console.log(`[EXPORT] - File Size: ${this.formatBytes(fileStats.size)}`);
       console.log(`[EXPORT] - Documents: ${totalDocuments}`);
+      console.log(`[EXPORT] - GridFS Files: ${gridfsStats.fileCount}`);
       console.log(`[EXPORT] - Path: ${exportFilePath}`);
       
       this.isBackupInProgress = false;
@@ -1400,11 +1442,16 @@ class BackupService {
         formattedSize: this.formatBytes(fileStats.size),
         totalDocuments,
         totalCollections: allCollections.length,
+        gridfsFileCount: gridfsStats.fileCount,
+        includesGridFSFiles: includeGridFSFiles,
         collections: collectionStats,
         durationMs,
+        formattedDuration: this.formatDuration(durationMs),
         checksum,
         downloadUrl: `/api/backup/export/${exportId}/download`,
-        instructions: 'Download this file and save it to your external hard disk for safekeeping.'
+        instructions: includeGridFSFiles 
+          ? 'Download this file and save it to your external hard disk. This backup includes ALL data and uploaded files (photos, documents, etc.).'
+          : 'Download this file and save it to your external hard disk. Note: This backup contains database records only.'
       };
       
     } catch (error) {
@@ -1427,12 +1474,76 @@ class BackupService {
   }
   
   /**
+   * Export all GridFS files (uploaded documents, photos, etc.)
+   * Returns file metadata and base64-encoded content
+   */
+  async exportGridFSFiles() {
+    const db = mongoose.connection.db;
+    
+    // Get file metadata from GridFS files collection
+    const filesCollection = db.collection('trcv_files.files');
+    const chunksCollection = db.collection('trcv_files.chunks');
+    
+    const files = await filesCollection.find({}).toArray();
+    
+    console.log(`[EXPORT] Found ${files.length} GridFS files to export`);
+    
+    const exportedFiles = [];
+    let totalSize = 0;
+    
+    for (const file of files) {
+      try {
+        // Get all chunks for this file
+        const chunks = await chunksCollection
+          .find({ files_id: file._id })
+          .sort({ n: 1 })
+          .toArray();
+        
+        // Combine chunks into single buffer
+        const buffers = chunks.map(chunk => chunk.data.buffer);
+        const fileBuffer = Buffer.concat(buffers);
+        
+        // Convert to base64 for JSON storage
+        const base64Data = fileBuffer.toString('base64');
+        
+        exportedFiles.push({
+          _id: file._id.toString(),
+          filename: file.filename,
+          contentType: file.contentType || file.metadata?.mimetype,
+          length: file.length,
+          uploadDate: file.uploadDate,
+          metadata: file.metadata,
+          // Store file content as base64
+          data: base64Data
+        });
+        
+        totalSize += file.length;
+        
+      } catch (error) {
+        console.error(`[EXPORT] Error exporting file ${file.filename}:`, error.message);
+        // Continue with other files
+      }
+    }
+    
+    console.log(`[EXPORT] Successfully exported ${exportedFiles.length}/${files.length} GridFS files`);
+    
+    return {
+      bucketName: 'trcv_files',
+      files: exportedFiles,
+      totalSize,
+      formattedSize: this.formatBytes(totalSize)
+    };
+  }
+  
+  /**
    * Import database from an external backup file (from Hard Disk)
+   * Supports version 2.0 backups that include GridFS files
    */
   async importFromFile(filePath, options = {}) {
     const {
       dropExisting = false,
-      collections = []
+      collections = [],
+      restoreGridFSFiles = true // Restore uploaded files by default
     } = options;
     
     console.log(`[IMPORT] Starting import from file: ${filePath}`);
@@ -1470,6 +1581,8 @@ class BackupService {
     
     console.log(`[IMPORT] Backup info: ${importData.exportId || importData.backupId}`);
     console.log(`[IMPORT] Created at: ${importData.createdAt}`);
+    console.log(`[IMPORT] Version: ${importData.version || '1.0'}`);
+    console.log(`[IMPORT] Includes GridFS: ${importData.includesGridFSFiles || false}`);
     console.log(`[IMPORT] Collections found: ${Object.keys(importData.collections).length}`);
     
     const db = mongoose.connection.db;
@@ -1479,7 +1592,9 @@ class BackupService {
     
     const importStats = [];
     let totalDocuments = 0;
+    let gridfsStats = { restored: 0, skipped: 0, failed: 0 };
     
+    // Import regular collections
     for (const collectionName of collectionsToImport) {
       const documents = importData.collections[collectionName];
       if (!documents || documents.length === 0) continue;
@@ -1538,6 +1653,22 @@ class BackupService {
       totalDocuments += insertedCount;
     }
     
+    // Import GridFS files if present and requested
+    if (restoreGridFSFiles && importData.gridfsFiles && importData.gridfsFiles.files) {
+      console.log(`[IMPORT] Restoring GridFS files...`);
+      gridfsStats = await this.importGridFSFiles(importData.gridfsFiles, { dropExisting });
+      
+      importStats.push({
+        collection: 'gridfs_files',
+        totalInFile: importData.gridfsFiles.files.length,
+        imported: gridfsStats.restored,
+        skipped: gridfsStats.skipped,
+        failed: gridfsStats.failed
+      });
+      
+      totalDocuments += gridfsStats.restored;
+    }
+    
     // Clean up uploaded file
     try {
       fs.unlinkSync(filePath);
@@ -1547,14 +1678,95 @@ class BackupService {
     
     console.log(`[IMPORT] SUCCESS - Import completed`);
     console.log(`[IMPORT] - Total imported: ${totalDocuments} documents`);
+    console.log(`[IMPORT] - GridFS files restored: ${gridfsStats.restored}`);
     
     return {
       success: true,
       sourceBackupId: importData.exportId || importData.backupId,
       sourceCreatedAt: importData.createdAt,
+      backupVersion: importData.version || '1.0',
+      includedGridFSFiles: importData.includesGridFSFiles || false,
       totalDocuments,
+      gridfsFilesRestored: gridfsStats.restored,
       collections: importStats
     };
+  }
+  
+  /**
+   * Import GridFS files from backup data
+   */
+  async importGridFSFiles(gridfsData, options = {}) {
+    const { dropExisting = false } = options;
+    const db = mongoose.connection.db;
+    
+    const filesCollection = db.collection('trcv_files.files');
+    const chunksCollection = db.collection('trcv_files.chunks');
+    
+    if (dropExisting) {
+      console.log(`[IMPORT] Clearing existing GridFS files...`);
+      await filesCollection.deleteMany({});
+      await chunksCollection.deleteMany({});
+    }
+    
+    const stats = { restored: 0, skipped: 0, failed: 0 };
+    
+    for (const file of gridfsData.files) {
+      try {
+        // Check if file already exists
+        const existingFile = await filesCollection.findOne({ 
+          _id: new mongoose.Types.ObjectId(file._id) 
+        });
+        
+        if (existingFile && !dropExisting) {
+          console.log(`[IMPORT] Skipping existing file: ${file.filename}`);
+          stats.skipped++;
+          continue;
+        }
+        
+        // Decode base64 data back to buffer
+        const fileBuffer = Buffer.from(file.data, 'base64');
+        
+        // Insert file metadata
+        const fileDoc = {
+          _id: new mongoose.Types.ObjectId(file._id),
+          length: file.length,
+          chunkSize: 261120, // Default GridFS chunk size
+          uploadDate: new Date(file.uploadDate),
+          filename: file.filename,
+          contentType: file.contentType,
+          metadata: file.metadata
+        };
+        
+        await filesCollection.insertOne(fileDoc);
+        
+        // Split buffer into chunks and insert
+        const chunkSize = 261120;
+        let chunkNumber = 0;
+        
+        for (let offset = 0; offset < fileBuffer.length; offset += chunkSize) {
+          const chunkData = fileBuffer.slice(offset, offset + chunkSize);
+          
+          await chunksCollection.insertOne({
+            files_id: fileDoc._id,
+            n: chunkNumber,
+            data: chunkData
+          });
+          
+          chunkNumber++;
+        }
+        
+        console.log(`[IMPORT] Restored GridFS file: ${file.filename}`);
+        stats.restored++;
+        
+      } catch (error) {
+        console.error(`[IMPORT] Failed to restore file ${file.filename}:`, error.message);
+        stats.failed++;
+      }
+    }
+    
+    console.log(`[IMPORT] GridFS restore complete: ${stats.restored} restored, ${stats.skipped} skipped, ${stats.failed} failed`);
+    
+    return stats;
   }
 }
 

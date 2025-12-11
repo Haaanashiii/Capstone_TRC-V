@@ -55,6 +55,71 @@ const APPLICATION_TYPE_LABELS = {
   [APPLICATION_TYPES.UPDATE_OWNERSHIP]: 'Update Ownership'
 }
 
+/**
+ * Helper function to determine file type from URL extension
+ * Moved outside component for use in normalizeDocument
+ */
+const getFileTypeFromUrl = (url) => {
+  if (!url) return 'unknown'
+  if (typeof url !== 'string') return 'unknown'
+  const ext = url.split('.').pop().toLowerCase()
+  if (['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'].includes(ext)) return 'image'
+  if (ext === 'pdf') return 'pdf'
+  return 'document'
+}
+
+/**
+ * Convert gridfs:// URL to proper HTTP URL
+ * @param {string} url - URL that might be gridfs:// format
+ * @returns {string} Converted HTTP URL
+ */
+const convertGridFSUrl = (url) => {
+  if (!url || typeof url !== 'string') return url
+  if (url.startsWith('gridfs://')) {
+    const fileId = url.substring(9) // Remove 'gridfs://' prefix
+    return `${API_BASE_URL.replace(/\/$/, '')}/api/files/${fileId}`
+  }
+  if (url.startsWith('/')) {
+    return `${API_BASE_URL.replace(/\/$/, '')}${url}`
+  }
+  return url
+}
+
+/**
+ * Normalize document from backend to frontend format
+ * Backend now returns enriched documents as objects with {url, displayName, type, ...}
+ * Handles both new format and legacy string format for backward compatibility
+ * @param {Object|string} doc - Document object or legacy URL string
+ * @param {string} fallbackName - Fallback name if not available
+ * @returns {Object|null} Normalized document object {name, path, type}
+ */
+const normalizeDocument = (doc, fallbackName = 'Document') => {
+  if (!doc) return null
+  
+  // New enriched format from backend: {url, displayName, type, documentType, ...}
+  if (typeof doc === 'object' && doc.url) {
+    return {
+      name: doc.displayName || fallbackName,
+      path: convertGridFSUrl(doc.url),
+      type: doc.type || 'application/octet-stream',
+      documentType: doc.documentType || null,
+      uploadedAt: doc.uploadedAt || null,
+      fileSize: doc.fileSize || null
+    }
+  }
+  
+  // Legacy string format (just URL - could be gridfs://, /api/files/, or other)
+  if (typeof doc === 'string') {
+    return {
+      name: fallbackName,
+      path: convertGridFSUrl(doc),
+      type: getFileTypeFromUrl(doc)
+    }
+  }
+  
+  return null
+}
+
 function FranchiseMgmt() {
   const { user } = useAuth() // Get current user for role-based rendering
   const userRole = user?.role || 'bplo-admin' // Default to bplo-admin for backward compatibility
@@ -131,14 +196,6 @@ function FranchiseMgmt() {
    * Fetch all pending franchise applications from backend
    * Uses secure franchiseAPI.getPending() with automatic token refresh
    */
-  // Helper function to determine file type from URL extension
-  const getFileTypeFromUrl = (url) => {
-    if (!url) return 'unknown'
-    const ext = url.split('.').pop().toLowerCase()
-    if (['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'].includes(ext)) return 'image'
-    if (ext === 'pdf') return 'pdf'
-    return 'document'
-  }
 
   const isFetchingRef = useRef(false)
   const fetchAllPending = useCallback(async () => {
@@ -212,57 +269,18 @@ function FranchiseMgmt() {
         sbApprovedAt: it.sbApprovedAt || '',
         sbResolutionNumber: it.sbResolutionNumber || '',
         sbResolutionDocument: it.sbResolutionDocument || '',
-        // Documents - backend returns URLs as strings, convert to {name, path, type} format
-        documentRegistration: it.documents?.motorRegistrationObj ? { 
-          name: it.documents.motorRegistrationObj.split('/').pop().split('?')[0] || 'Motor Registration', 
-          path: it.documents.motorRegistrationObj, 
-          type: getFileTypeFromUrl(it.documents.motorRegistrationObj) 
-        } : null,
-        documentBarangayClearance: it.documents?.barangayClearanceObj ? { 
-          name: it.documents.barangayClearanceObj.split('/').pop().split('?')[0] || 'Barangay Clearance', 
-          path: it.documents.barangayClearanceObj, 
-          type: getFileTypeFromUrl(it.documents.barangayClearanceObj) 
-        } : null,
-        documentCedula: it.documents?.cedulaObj ? { 
-          name: it.documents.cedulaObj.split('/').pop().split('?')[0] || 'Cedula', 
-          path: it.documents.cedulaObj, 
-          type: getFileTypeFromUrl(it.documents.cedulaObj) 
-        } : null,
-        documentDriversLicense: it.documents?.driversLicenseObj ? { 
-          name: it.documents.driversLicenseObj.split('/').pop().split('?')[0] || 'Driver\'s License', 
-          path: it.documents.driversLicenseObj, 
-          type: getFileTypeFromUrl(it.documents.driversLicenseObj) 
-        } : null,
-        documentVotersAffidavit: it.documents?.votersAffidavitObj ? { 
-          name: it.documents.votersAffidavitObj.split('/').pop().split('?')[0] || 'Voter\'s Affidavit', 
-          path: it.documents.votersAffidavitObj, 
-          type: getFileTypeFromUrl(it.documents.votersAffidavitObj) 
-        } : null,
-        documentChassisStencil: it.documents?.motorChassisStencilObj ? { 
-          name: it.documents.motorChassisStencilObj.split('/').pop().split('?')[0] || 'Chassis Stencil', 
-          path: it.documents.motorChassisStencilObj, 
-          type: getFileTypeFromUrl(it.documents.motorChassisStencilObj) 
-        } : null,
-        documentPicture: it.documents?.driverPictureObj ? { 
-          name: it.documents.driverPictureObj.split('/').pop().split('?')[0] || 'Driver Picture', 
-          path: it.documents.driverPictureObj, 
-          type: getFileTypeFromUrl(it.documents.driverPictureObj) 
-        } : null,
-        documentOperatorPicture: it.documents?.operatorPictureObj ? { 
-          name: it.documents.operatorPictureObj.split('/').pop().split('?')[0] || 'Operator Picture', 
-          path: it.documents.operatorPictureObj, 
-          type: getFileTypeFromUrl(it.documents.operatorPictureObj) 
-        } : null,
-        documentORLTO: it.documents?.oRLTOObj ? { 
-          name: it.documents.oRLTOObj.split('/').pop().split('?')[0] || 'OR LTO', 
-          path: it.documents.oRLTOObj, 
-          type: getFileTypeFromUrl(it.documents.oRLTOObj) 
-        } : null,
-        documentCRLTO: it.documents?.cRLTOObj ? { 
-          name: it.documents.cRLTOObj.split('/').pop().split('?')[0] || 'CR LTO', 
-          path: it.documents.cRLTOObj, 
-          type: getFileTypeFromUrl(it.documents.cRLTOObj) 
-        } : null,
+        // Documents - backend now returns enriched objects with {url, displayName, type, ...}
+        // Using normalizeDocument handles both new format and legacy string format
+        documentRegistration: normalizeDocument(it.documents?.motorRegistrationObj, 'Motor Registration'),
+        documentBarangayClearance: normalizeDocument(it.documents?.barangayClearanceObj, 'Barangay Clearance'),
+        documentCedula: normalizeDocument(it.documents?.cedulaObj, 'Cedula'),
+        documentDriversLicense: normalizeDocument(it.documents?.driversLicenseObj, "Driver's License"),
+        documentVotersAffidavit: normalizeDocument(it.documents?.votersAffidavitObj, "Voter's Affidavit"),
+        documentChassisStencil: normalizeDocument(it.documents?.motorChassisStencilObj, 'Chassis Stencil'),
+        documentPicture: normalizeDocument(it.documents?.driverPictureObj, 'Driver Picture'),
+        documentOperatorPicture: normalizeDocument(it.documents?.operatorPictureObj, 'Operator Picture'),
+        documentORLTO: normalizeDocument(it.documents?.oRLTOObj, 'OR LTO'),
+        documentCRLTO: normalizeDocument(it.documents?.cRLTOObj, 'CR LTO'),
         documents: {
           ...it.documents,
           oRTreasurerOfficeObj: it.documents?.oRTreasurerOfficeObj || null
@@ -393,56 +411,17 @@ function FranchiseMgmt() {
         sbApprovedAt: it.sbApprovedAt || '',
         sbResolutionNumber: it.sbResolutionNumber || '',
         sbResolutionDocument: it.sbResolutionDocument || '',
-        documentRegistration: it.documents?.motorRegistrationObj ? { 
-          name: it.documents.motorRegistrationObj.split('/').pop().split('?')[0] || 'Motor Registration', 
-          path: it.documents.motorRegistrationObj, 
-          type: getFileTypeFromUrl(it.documents.motorRegistrationObj) 
-        } : null,
-        documentBarangayClearance: it.documents?.barangayClearanceObj ? { 
-          name: it.documents.barangayClearanceObj.split('/').pop().split('?')[0] || 'Barangay Clearance', 
-          path: it.documents.barangayClearanceObj, 
-          type: getFileTypeFromUrl(it.documents.barangayClearanceObj) 
-        } : null,
-        documentCedula: it.documents?.cedulaObj ? { 
-          name: it.documents.cedulaObj.split('/').pop().split('?')[0] || 'Cedula', 
-          path: it.documents.cedulaObj, 
-          type: getFileTypeFromUrl(it.documents.cedulaObj) 
-        } : null,
-        documentDriversLicense: it.documents?.driversLicenseObj ? { 
-          name: it.documents.driversLicenseObj.split('/').pop().split('?')[0] || 'Driver\'s License', 
-          path: it.documents.driversLicenseObj, 
-          type: getFileTypeFromUrl(it.documents.driversLicenseObj) 
-        } : null,
-        documentVotersAffidavit: it.documents?.votersAffidavitObj ? { 
-          name: it.documents.votersAffidavitObj.split('/').pop().split('?')[0] || 'Voter\'s Affidavit', 
-          path: it.documents.votersAffidavitObj, 
-          type: getFileTypeFromUrl(it.documents.votersAffidavitObj) 
-        } : null,
-        documentChassisStencil: it.documents?.motorChassisStencilObj ? { 
-          name: it.documents.motorChassisStencilObj.split('/').pop().split('?')[0] || 'Chassis Stencil', 
-          path: it.documents.motorChassisStencilObj, 
-          type: getFileTypeFromUrl(it.documents.motorChassisStencilObj) 
-        } : null,
-        documentPicture: it.documents?.driverPictureObj ? { 
-          name: it.documents.driverPictureObj.split('/').pop().split('?')[0] || 'Driver Picture', 
-          path: it.documents.driverPictureObj, 
-          type: getFileTypeFromUrl(it.documents.driverPictureObj) 
-        } : null,
-        documentOperatorPicture: it.documents?.operatorPictureObj ? { 
-          name: it.documents.operatorPictureObj.split('/').pop().split('?')[0] || 'Operator Picture', 
-          path: it.documents.operatorPictureObj, 
-          type: getFileTypeFromUrl(it.documents.operatorPictureObj) 
-        } : null,
-        documentORLTO: it.documents?.oRLTOObj ? { 
-          name: it.documents.oRLTOObj.split('/').pop().split('?')[0] || 'OR LTO', 
-          path: it.documents.oRLTOObj, 
-          type: getFileTypeFromUrl(it.documents.oRLTOObj) 
-        } : null,
-        documentCRLTO: it.documents?.cRLTOObj ? { 
-          name: it.documents.cRLTOObj.split('/').pop().split('?')[0] || 'CR LTO', 
-          path: it.documents.cRLTOObj, 
-          type: getFileTypeFromUrl(it.documents.cRLTOObj) 
-        } : null,
+        // Documents - using normalizeDocument for enriched backend format
+        documentRegistration: normalizeDocument(it.documents?.motorRegistrationObj, 'Motor Registration'),
+        documentBarangayClearance: normalizeDocument(it.documents?.barangayClearanceObj, 'Barangay Clearance'),
+        documentCedula: normalizeDocument(it.documents?.cedulaObj, 'Cedula'),
+        documentDriversLicense: normalizeDocument(it.documents?.driversLicenseObj, "Driver's License"),
+        documentVotersAffidavit: normalizeDocument(it.documents?.votersAffidavitObj, "Voter's Affidavit"),
+        documentChassisStencil: normalizeDocument(it.documents?.motorChassisStencilObj, 'Chassis Stencil'),
+        documentPicture: normalizeDocument(it.documents?.driverPictureObj, 'Driver Picture'),
+        documentOperatorPicture: normalizeDocument(it.documents?.operatorPictureObj, 'Operator Picture'),
+        documentORLTO: normalizeDocument(it.documents?.oRLTOObj, 'OR LTO'),
+        documentCRLTO: normalizeDocument(it.documents?.cRLTOObj, 'CR LTO'),
         documents: {
           ...it.documents,
           oRTreasurerOfficeObj: it.documents?.oRTreasurerOfficeObj || null
@@ -679,16 +658,11 @@ function FranchiseMgmt() {
 
     // Handle different URL formats
     try {
-      // New R2 format: r2://path/to/file -> route through backend proxy
-      if (normalized.path && normalized.path.startsWith('r2://')) {
-        const r2Key = normalized.path.substring(5) // Remove 'r2://' prefix
-        normalized.path = `${API_BASE_URL.replace(/\/$/, '')}/api/franchise-applications/proxy-file?url=${encodeURIComponent(normalized.path)}`
-        console.log('[Preview] R2 format detected, routing through proxy:', r2Key)
-      }
-      // Old Cloudflare public URL format -> route through backend proxy
-      else if (normalized.path && /^https?:\/\/pub-[a-f0-9]+\.r2\.dev/i.test(normalized.path)) {
-        normalized.path = `${API_BASE_URL.replace(/\/$/, '')}/api/franchise-applications/proxy-file?url=${encodeURIComponent(normalized.path)}`
-        console.log('[Preview] Cloudflare R2 public URL detected, routing through proxy')
+      // GridFS format: gridfs://fileId -> convert to /api/files/fileId
+      if (normalized.path && normalized.path.startsWith('gridfs://')) {
+        const fileId = normalized.path.substring(9) // Remove 'gridfs://' prefix
+        normalized.path = `${API_BASE_URL.replace(/\/$/, '')}/api/files/${fileId}`
+        console.log('[Preview] GridFS format detected, converting to HTTP URL:', fileId)
       }
       // Relative path -> prefix with API_BASE_URL
       else if (normalized.path && !/^https?:\/\//i.test(normalized.path)) {
@@ -706,33 +680,56 @@ function FranchiseMgmt() {
     // same-origin blob URL.
     const tryFetchAndPreview = async () => {
       const path = normalized.path
-      const isImage = (normalized.type || '').includes('image') || /\.(png|jpe?g|webp|gif)$/i.test(path)
-      const isPdf = (normalized.type || '').includes('pdf') || /\.pdf$/i.test(path)
-
-      if (isImage || isPdf) {
-        try {
-          const resp = await fetch(path, { mode: 'cors' })
-          if (!resp.ok) throw new Error(`Failed to fetch file: ${resp.status}`)
-          const blob = await resp.blob()
-          // Ensure blob has correct MIME type for PDFs
-          const blobWithType = isPdf && !blob.type ? new Blob([blob], { type: 'application/pdf' }) : blob
+      
+      // First, try to fetch the file to get its actual content type
+      try {
+        const resp = await fetch(path, { mode: 'cors' })
+        if (!resp.ok) throw new Error(`Failed to fetch file: ${resp.status}`)
+        
+        const blob = await resp.blob()
+        const contentType = blob.type || resp.headers.get('Content-Type') || ''
+        
+        console.log('[FilePreview] Fetched file, content type:', contentType)
+        
+        const isImage = contentType.includes('image')
+        const isPdf = contentType.includes('pdf')
+        
+        if (isImage || isPdf) {
+          // Ensure blob has correct MIME type
+          const blobWithType = !blob.type ? new Blob([blob], { type: contentType }) : blob
           const objectUrl = URL.createObjectURL(blobWithType)
+          
           // Revoke previous if any
           if (currentBlobUrlRef.current) URL.revokeObjectURL(currentBlobUrlRef.current)
           currentBlobUrlRef.current = objectUrl
-          setPreviewFile({ ...normalized, path: objectUrl })
+          
+          // Update normalized with detected type
+          setPreviewFile({ 
+            ...normalized, 
+            path: objectUrl,
+            type: contentType,
+            name: normalized.name || 'document'
+          })
           setOpenFilePreview(true)
           return
-        } catch (err) {
-          console.warn('[FilePreview] fetch failed, falling back to direct URL', err)
-          setNotification({ open: true, message: 'Preview unavailable, file will open/download instead', type: 'info' })
-          // fallthrough to open direct link in iframe/fallback
         }
+        
+        // Not an image/pdf - still show preview modal with download option
+        const objectUrl = URL.createObjectURL(blob)
+        if (currentBlobUrlRef.current) URL.revokeObjectURL(currentBlobUrlRef.current)
+        currentBlobUrlRef.current = objectUrl
+        
+        setPreviewFile({ 
+          ...normalized, 
+          path: objectUrl,
+          type: contentType,
+          name: normalized.name || 'document'
+        })
+        setOpenFilePreview(true)
+      } catch (err) {
+        console.warn('[FilePreview] fetch failed:', err)
+        setNotification({ open: true, message: 'Failed to load file preview', type: 'error' })
       }
-
-      // Not an image/pdf or fetch failed — use the path as-is (download link will still work)
-      setPreviewFile(normalized)
-      setOpenFilePreview(true)
     }
 
     tryFetchAndPreview()

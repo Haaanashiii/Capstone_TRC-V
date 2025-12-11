@@ -47,13 +47,15 @@ function QROperatorID() {
     description: ''
   });
 
+  // Categories must match backend REPORT_CATEGORIES enum in reportsModel.js
   const reportCategories = [
-    { value: 'fare-issues', label: 'Fare-Related Issues', example: 'ex.: fare overpricing' },
-    { value: 'driver-conduct', label: 'Driver Conduct & Behavior', example: 'ex.: rude behavior, refusal to convey' },
-    { value: 'vehicle-condition', label: 'Vehicle Condition & Roadworthiness', example: 'ex.: smoke belching' },
-    { value: 'franchise-violations', label: 'Franchise & Permit Violations', example: 'ex.: colorum, expired franchise' },
-    { value: 'safety-violations', label: 'Safety Violations', example: 'ex.: overloading, traffic violation' },
-    { value: 'other-concerns', label: 'Other Concerns', example: 'ex.: lost item' }
+    { value: 'overpricing', label: 'Fare-Related Issues', example: 'ex.: fare overpricing', showFareFields: true },
+    { value: 'rude_behavior', label: 'Driver Conduct & Behavior', example: 'ex.: rude behavior, refusal to convey' },
+    { value: 'vehicle_condition', label: 'Vehicle Condition & Roadworthiness', example: 'ex.: smoke belching' },
+    { value: 'refusal_of_service', label: 'Refusal of Service', example: 'ex.: refusal to convey passengers' },
+    { value: 'unsafe_driving', label: 'Safety Violations', example: 'ex.: overloading, traffic violation, reckless driving' },
+    { value: 'route_deviation', label: 'Route Deviation', example: 'ex.: not following designated route' },
+    { value: 'other', label: 'Other Concerns', example: 'ex.: lost item, franchise violations' }
   ];
 
   // Fetch franchise info by hashed MTOP (operatorId)
@@ -180,9 +182,18 @@ function QROperatorID() {
   const resolveProfilePhotoUrl = (raw) => {
     if (!raw) return null;
     try {
-      if (/^https?:\/\//i.test(raw)) return raw;
       if (raw.startsWith('/public/')) return raw;
       const base = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170').replace(/\/$/, '');
+      
+      // Handle GridFS URLs: gridfs://fileId -> /api/files/fileId
+      if (raw.startsWith('gridfs://')) {
+        const fileId = raw.substring(9); // Remove 'gridfs://' prefix
+        return base + '/api/files/' + fileId;
+      }
+      
+      // Handle full HTTP URLs
+      if (/^https?:\/\//i.test(raw)) return raw;
+      
       if (raw.startsWith('/')) return base + raw;
       return base + '/' + raw;
     } catch {
@@ -212,10 +223,14 @@ function QROperatorID() {
     const path = resolveProfilePhotoUrl(rawPath);
     if (!path) return;
 
-    const isImage = /\.(png|jpe?g|webp|gif|bmp|svg)$/i.test(path) || String(matchedFranchise?.type || user?.type || '').includes('image');
-    const isPdf = /\.pdf$/i.test(path) || String(matchedFranchise?.type || user?.type || '').includes('pdf');
+    // Check for file extension OR /api/files/ path (GridFS files don't have extensions)
+    const hasExtension = /\.(png|jpe?g|webp|gif|bmp|svg|pdf)$/i.test(path);
+    const isApiFilesPath = /\/api\/files\/[a-f0-9]+/i.test(path);
+    const hasTypeHint = String(matchedFranchise?.type || user?.type || '').includes('image') || 
+                        String(matchedFranchise?.type || user?.type || '').includes('pdf');
 
-    if (!isImage && !isPdf) {
+    // If no extension AND not an /api/files/ path AND no type hint, skip
+    if (!hasExtension && !isApiFilesPath && !hasTypeHint) {
       setProfilePhotoBlobUrl(null);
       setProfilePhotoIsPdf(false);
       return;
@@ -223,22 +238,17 @@ function QROperatorID() {
 
     (async () => {
       try {
-        const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170');
-        let fetchUrl = path;
-        // Route R2 or Cloudflare public URLs through the backend proxy
-        if (rawPath && (rawPath.startsWith('r2://') || /^https?:\/\/pub-[a-f0-9]+\.r2\.dev/i.test(rawPath))) {
-          fetchUrl = API_BASE_URL.replace(/\/$/, '') + '/api/franchise-applications/proxy-file?url=' + encodeURIComponent(rawPath);
-        }
-        const resp = await fetch(fetchUrl, { mode: 'cors' });
+        const resp = await fetch(path, { mode: 'cors' });
         if (!resp.ok) throw new Error('Failed fetching profile photo: ' + resp.status);
         const blob = await resp.blob();
         const obj = URL.createObjectURL(blob);
         profilePhotoBlobRef.current = obj;
         setProfilePhotoBlobUrl(obj);
-        // detect if PDF
-        const mime = blob.type || '';
-        setProfilePhotoIsPdf(mime.includes('pdf') || /\.pdf$/i.test(rawPath || ''));
+        // Detect if PDF from response content-type
+        const contentType = resp.headers.get('Content-Type') || blob.type || '';
+        setProfilePhotoIsPdf(contentType.includes('pdf') || /\.pdf$/i.test(rawPath || ''));
       } catch (err) {
+        console.warn('[QROperatorID] Failed to fetch profile photo:', err);
         setProfilePhotoBlobUrl(null);
         setProfilePhotoIsPdf(false);
       }
@@ -797,7 +807,8 @@ function QROperatorID() {
                   Incident Details
                 </Typography>
 
-                {selectedCategory === 'fare-issues' && (
+                {/* Show fare fields for overpricing category */}
+                {selectedCategory === 'overpricing' && (
                   <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
                     <Box sx={{ flex: 1 }}>
                       <Typography variant="caption" sx={{ color: 'text.secondary', mb: 0.5, display: 'block' }}>
@@ -1058,8 +1069,8 @@ function QROperatorID() {
                         return;
                       }
 
-                      // Validate fare amounts if fare-related
-                      if (selectedCategory === 'fare-issues') {
+                      // Validate fare amounts if overpricing category
+                      if (selectedCategory === 'overpricing') {
                         const charged = parseFloat(reportData.amountCharged);
                         const expected = parseFloat(reportData.expectedFare);
 
@@ -1091,12 +1102,12 @@ function QROperatorID() {
                           description: reportData.description.trim()
                         };
 
-                        if (selectedCategory === 'fare-issues') {
+                        if (selectedCategory === 'overpricing') {
                           payload.amountCharged = parseFloat(reportData.amountCharged);
                           payload.expectedFare = parseFloat(reportData.expectedFare);
                         }
 
-                        const response = await fetch(`${API_BASE_URL}/api/reports/public`, {
+                        const response = await fetch(`${API_BASE_URL}/api/incident-reports/public`, {
                           method: 'POST',
                           headers: {
                             'Content-Type': 'application/json'

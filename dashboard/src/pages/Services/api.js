@@ -490,9 +490,13 @@ export const franchiseAPI = {
    * @param {FormData} formData - FormData containing officialReceiptNumber and oRTreasurerOfficeObj file
    * @returns {Promise} Response with updated application
    */
-  submitOR: (id, formData) => api.put(`/api/franchise-applications/approved/${id}/add-receipt`, formData, {
-    headers: { 'Content-Type': undefined }
-  }),
+  submitOR: (id, formData) => {
+    // Ensure id is a string, not an object
+    const stringId = typeof id === 'object' ? (id._id || id.id || id.toString()) : id;
+    return api.put(`/api/franchise-applications/approved/${stringId}/add-receipt`, formData, {
+      headers: { 'Content-Type': undefined }
+    });
+  },
 
   /**
    * Legacy approve method (backward compatibility)

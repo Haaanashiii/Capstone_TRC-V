@@ -417,7 +417,7 @@ function Analytics() {
                 >
                   <KpiCard
                     title="Available Franchise"
-                    value={recyclableStats?.gaps + recyclableStats?.revokedAvailable || '—'}
+                    value={recyclableStats ? (recyclableStats.gaps || 0) + (recyclableStats.revokedAvailable || 0) : '—'}
                     icon={Autorenew}
                     iconColor="#06B6D4"
                     aria-label="Franchise numbers available for assignment. Click to view details."

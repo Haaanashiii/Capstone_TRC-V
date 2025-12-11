@@ -729,11 +729,15 @@ const getDatabaseStats = async (req, res) => {
  * Export complete database for external storage (Hard Disk)
  * POST /api/backup/export-full
  * 
- * Creates a complete database export that can be downloaded and saved to external storage
+ * Creates a complete database export including all uploaded files (GridFS)
+ * that can be downloaded and saved to external storage like a portable HDD
+ * 
+ * @body {boolean} includeGridFSFiles - Include uploaded files/images (default: true)
+ * @body {string} notes - Optional notes about the export
  */
 const exportFullDatabase = async (req, res) => {
   try {
-    const { format = 'json', includeUploads = false, notes } = req.body;
+    const { includeGridFSFiles = true, notes } = req.body;
     
     const initiatedBy = req.user ? {
       adminId: req.user.adminId || req.user.id || req.user._id,
@@ -741,10 +745,11 @@ const exportFullDatabase = async (req, res) => {
       adminRole: req.user.role
     } : null;
     
+    console.log(`[BACKUP CONTROLLER] Starting full export (includeGridFS: ${includeGridFSFiles})`);
+    
     const result = await backupService.createFullExport({
-      format,
-      includeUploads,
-      notes: notes || 'Full database export for external storage',
+      includeGridFSFiles,
+      notes: notes || `Full database export for HDD${includeGridFSFiles ? ' (with all files)' : ''}`,
       initiatedBy
     });
     
@@ -753,7 +758,9 @@ const exportFullDatabase = async (req, res) => {
     
     res.status(201).json({
       success: true,
-      message: 'Full database export created successfully. Ready for download.',
+      message: includeGridFSFiles 
+        ? 'Complete database export with all files created. Ready for download to HDD.'
+        : 'Database export created. Ready for download to HDD.',
       data: result
     });
     

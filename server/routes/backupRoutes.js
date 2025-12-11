@@ -246,20 +246,25 @@ router.delete('/:backupId', backupAuth, backupController.deleteBackup);
 
 /**
  * @route   POST /api/backup/export-full
- * @desc    Create a full database export for saving to external storage (Hard Disk)
+ * @desc    Create a complete database export for saving to external storage (Hard Disk)
+ *          Includes all collections and optionally all uploaded files (GridFS)
  * @access  Super Admin
- * @body    format - Export format (default: 'json')
- * @body    includeUploads - Whether to include uploaded files (default: false)
+ * @body    includeGridFSFiles - Include all uploaded files/images (default: true)
  * @body    notes - Optional notes about the export
+ * 
+ * @example Request:
+ * { includeGridFSFiles: true, notes: "Monthly full backup for HDD storage" }
  * 
  * @example Response:
  * {
  *   success: true,
+ *   message: "Complete database export with all files created. Ready for download to HDD.",
  *   data: {
  *     exportId: "backup-full-export-2024-12-04...",
  *     fileName: "backup-full-export-2024-12-04....json.gz",
- *     fileSize: 15728640,
- *     formattedSize: "15 MB",
+ *     fileSize: 157286400,
+ *     formattedSize: "150 MB",
+ *     gridFSFilesCount: 245,
  *     downloadUrl: "/api/backup/export/backup-full-export-.../download",
  *     instructions: "Download this file and save it to your external hard disk..."
  *   }
@@ -277,15 +282,28 @@ router.get('/export/:exportId/download', backupAuth, backupController.downloadFu
 /**
  * @route   POST /api/backup/import
  * @desc    Import/restore database from an external backup file (from Hard Disk)
+ *          Automatically restores GridFS files if present in backup
  * @access  Super Admin
  * @body    file - The backup file (.json.gz) uploaded from Hard Disk
  * @body    dropExisting - Whether to clear existing data before import (default: false)
  * @body    collections - JSON array of specific collections to import (optional)
  * 
  * @example Usage:
- * - Upload your backup file from Hard Disk
- * - System will restore all data from the backup
+ * - Upload your backup file from Hard Disk (created via POST /export-full)
+ * - System will restore all collections from the backup
+ * - GridFS files (images/documents) are automatically restored if present
  * - If dropExisting=true, current data will be replaced
+ * 
+ * @example Response:
+ * {
+ *   success: true,
+ *   message: "Import completed. 15000 documents restored.",
+ *   data: {
+ *     totalDocuments: 15000,
+ *     collectionsRestored: ["franchises", "applications", ...],
+ *     gridFSFilesRestored: 245
+ *   }
+ * }
  */
 router.post('/import', backupAuth, backupUpload.single('file'), backupController.importFromFile);
 

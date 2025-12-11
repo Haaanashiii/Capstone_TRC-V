@@ -1,6 +1,6 @@
 const fareMatrixRepository = require('../repositories/fareMatrixRepository');
 const storage = require('../services/storageAdapter');
-const auditLogService = require('../services/auditLogService');
+const { auditLogService } = require('../services/auditLogService');
 
 /**
  * Get current active fare matrix (public endpoint)
@@ -47,9 +47,9 @@ exports.uploadFareMatrix = async (req, res, next) => {
     }
 
     const oldFareMatrix = await fareMatrixRepository.getActiveFareMatrix();
-    if (oldFareMatrix && oldFareMatrix.r2FilePath) {
+    if (oldFareMatrix && oldFareMatrix.gridfsFilePath) {
       try {
-        await storage.deleteFileFromStorage(oldFareMatrix.r2FilePath);
+        await storage.deleteFileFromStorage(oldFareMatrix.gridfsFilePath);
         console.log('[FareMatrix] Old file deleted');
       } catch (err) {
         console.error('[FareMatrix] Error deleting old file:', err.message);
@@ -60,7 +60,7 @@ exports.uploadFareMatrix = async (req, res, next) => {
 
     const fareMatrixData = {
       imageUrl: result.publicUrl,
-      r2FilePath: result.filePath,
+      gridfsFilePath: result.filePath,
       fileName: req.file.originalname,
       fileSize: req.file.size,
       mimeType: req.file.mimetype,
@@ -115,10 +115,10 @@ exports.deleteFareMatrix = async (req, res, next) => {
       });
     }
 
-    if (fareMatrix.r2FilePath) {
+    if (fareMatrix.gridfsFilePath) {
       try {
-        await storage.deleteFileFromStorage(fareMatrix.r2FilePath);
-        console.log('[FareMatrix] File deleted:', fareMatrix.r2FilePath);
+        await storage.deleteFileFromStorage(fareMatrix.gridfsFilePath);
+        console.log('[FareMatrix] File deleted:', fareMatrix.gridfsFilePath);
       } catch (err) {
         console.error('[FareMatrix] Error deleting file:', err.message);
       }

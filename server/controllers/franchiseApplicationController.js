@@ -153,13 +153,29 @@ exports.createNewApplication = async (req, res, next) => {
     if (files && Object.keys(files).length > 0) {
       const uploadAsync = (async () => {
         try {
+          // Map field names to clean document type names for better file naming
+          const documentTypeMap = {
+            'motorRegistrationObj': 'motor-registration',
+            'barangayClearanceObj': 'barangay-clearance',
+            'cedulaObj': 'cedula',
+            'driversLicenseObj': 'drivers-license',
+            'votersAffidavitObj': 'voters-affidavit',
+            'motorChassisStencilObj': 'chassis-stencil',
+            'driverPictureObj': 'driver-photo',
+            'operatorPictureObj': 'operator-photo',
+            'oRLTOObj': 'or-lto',
+            'cRLTOObj': 'cr-lto',
+            'oRTreasurerOfficeObj': 'or-treasurer'
+          };
+          
           const uploadHelper = async (fieldName, category) => {
             const fileArray = files[fieldName];
             if (!fileArray?.[0]) return null;
             validateFile(fileArray[0]);
+            const documentType = documentTypeMap[fieldName] || fieldName.replace(/Obj$/, '').toLowerCase();
             const result = await uploadFile(fileArray[0].buffer, fileArray[0].originalname, fileArray[0].mimetype,
-              { baseFolder: 'franchiseApplications', subFolder: userId, applicationId: appId, category });
-            return result.cloudflare;
+              { baseFolder: 'franchiseApplications', subFolder: userId, applicationId: appId, category, documentType });
+            return result.url;
           };
           
           const [motorReg, barangay, cedula, license, affidavit, stencil, driverPic, operatorPic, orLTO, crLTO, orTreasurer] = await Promise.all([
@@ -189,10 +205,16 @@ exports.createNewApplication = async (req, res, next) => {
           if (crLTO) updateData['documents.cRLTOObj'] = crLTO;
           if (orTreasurer) updateData['documents.oRTreasurerOfficeObj'] = orTreasurer;
           
+          console.log('[Upload] Documents to save:', Object.keys(updateData));
+          
           if (Object.keys(updateData).length > 0) {
             await franchiseApplicationRepository.updateFranchiseApplication(appId, updateData);
+            console.log('[Upload] Documents saved to application:', appId);
+          } else {
+            console.log('[Upload] No documents uploaded for application:', appId);
           }
         } catch (uploadError) {
+          console.error('[Upload] FAILED for application:', appId, uploadError.message);
           if (req.app.get('io') && userId) {
             try {
               req.app.get('io').to(`user-${userId}`).emit('file-upload-error', {
@@ -204,7 +226,9 @@ exports.createNewApplication = async (req, res, next) => {
           }
         }
       })();
-      uploadAsync.catch(() => {});
+      uploadAsync.catch((err) => {
+        console.error('[Upload] Async upload failed:', err.message);
+      });
     }
     
     const finalApplication = await franchiseApplicationRepository.getFranchiseApplicationById(appId);
@@ -285,9 +309,23 @@ exports.getPendingFranchises = async (req, res, next) => {
       .limit(pageLimit)
       .lean();
     
+    // Enrich documents with proper metadata (display names, types, etc.)
+    const enrichedApplications = await Promise.all(
+      applications.map(async (app) => {
+        const converted = storage.convertGridFSUrls(app);
+        if (converted.documents) {
+          converted.documents = await storage.enrichDocumentsWithMetadata(app.documents, {
+            operatorName: app.operatorName,
+            submittedAt: app.submittedAt
+          });
+        }
+        return converted;
+      })
+    );
+    
     res.json({ 
       success: true, 
-      data: applications,
+      data: enrichedApplications,
       pagination: { page: pageNum, limit: pageLimit, total, pages: Math.ceil(total / pageLimit) }
     });
   } catch (error) {
@@ -317,7 +355,19 @@ exports.getSpecificPendingFranchise = async (req, res, next) => {
       return res.status(403).json({ error: 'You can only view your own applications' });
     }
     
-    res.json({ success: true, data: application });
+    // Convert gridfs:// URLs to HTTP URLs and enrich documents with metadata
+    const appObj = application.toObject ? application.toObject() : application;
+    const appData = storage.convertGridFSUrls(appObj);
+    
+    // Enrich documents with proper display names
+    if (appData.documents) {
+      appData.documents = await storage.enrichDocumentsWithMetadata(appObj.documents, {
+        operatorName: appObj.operatorName,
+        submittedAt: appObj.submittedAt
+      });
+    }
+    
+    res.json({ success: true, data: appData });
   } catch (error) {
     next(error);
   }
@@ -359,7 +409,7 @@ exports.editPendingFranchise = async (req, res, next) => {
             validateFile(fileArray[0]);
             const result = await uploadFile(fileArray[0].buffer, fileArray[0].originalname, fileArray[0].mimetype,
               { baseFolder: 'franchiseApplications', subFolder: userId, applicationId: id, category });
-            return result.cloudflare;
+            return result.url;
           };
           
           const [motorReg, barangay, cedula, license, affidavit, stencil, driverPic, operatorPic, orLTO, crLTO] = await Promise.all([
@@ -588,7 +638,7 @@ exports.createRenewOrAmendment = async (req, res, next) => {
         validateFile(fileArray[0]);
         const result = await uploadFile(fileArray[0].buffer, fileArray[0].originalname, fileArray[0].mimetype, 
           { baseFolder: 'franchiseApplications', subFolder: userId, applicationId: String(application._id), category });
-        return result.cloudflare;
+        return result.url;
       };
       
       const docs = await Promise.all([
@@ -961,8 +1011,8 @@ exports.editApprovedFranchise = async (req, res, next) => {
       validateFile(file);
       const result = await uploadFile(file.buffer, file.originalname, file.mimetype, 
         { baseFolder: 'franchiseApplications', subFolder: application.operatorInfo || 'pending', applicationId: id, category: 'Documentations' });
-      updateData['documents.oRTreasurerOfficeObj'] = result.cloudflare;
-      console.log('[editApprovedFranchise] OR document uploaded:', result.cloudflare);
+      updateData['documents.oRTreasurerOfficeObj'] = result.url;
+      console.log('[editApprovedFranchise] OR document uploaded:', result.url);
     } else {
       console.log('[editApprovedFranchise] WARNING: No OR document file provided');
     }
@@ -1110,8 +1160,8 @@ exports.approveFranchiseBySBAdmin = async (req, res, next) => {
         file.mimetype, 
         { baseFolder: 'franchiseApplications', subFolder: application.operatorInfo || 'pending', applicationId: id, category: 'Documentations' }
       );
-      updateData.sbResolutionDocument = result.cloudflare;
-      console.log('[SB Approval] Resolution document uploaded:', result.cloudflare);
+      updateData.sbResolutionDocument = result.url;
+      console.log('[SB Approval] Resolution document uploaded:', result.url);
     }
     
     const updated = await franchiseApplicationRepository.updateFranchiseApplication(id, updateData);
@@ -1200,22 +1250,19 @@ exports.approveFranchiseBySBAdmin = async (req, res, next) => {
 // get approvedroutes fromsb admin too ongoing franchise applicaion  for report session of sbAdminAcceptNewFranchise
 
 // 10) SB ADMIN ACCEPT NEW FRANCHISE
+// Note: Transactions removed for standalone MongoDB compatibility
+// For production with replica set, consider re-enabling transactions
 exports.sbAdminAcceptNewFranchise = async (req, res, next) => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
-  
   try {
     const { id } = req.params;
     
     const application = await franchiseApplicationRepository.getFranchiseApplicationById(id);
     if (!application) {
-      await session.abortTransaction();
       return res.status(404).json({ error: 'Application not found' });
     }
     
     // Only accept applications that have been fully approved (sb-approved)
     if (application.statusOfBPLO !== 'sb-approved') {
-      await session.abortTransaction();
       return res.status(400).json({ 
         error: 'Application must be fully approved by SB Admin first',
         currentStatus: application.statusOfBPLO,
@@ -1226,7 +1273,6 @@ exports.sbAdminAcceptNewFranchise = async (req, res, next) => {
     // Use the franchise number assigned by BPLO (or from req.body for manual override)
     const franchiseNo = application.franchiseNumber;
     if (!franchiseNo) {
-      await session.abortTransaction();
       console.error('[sbAdminAcceptNewFranchise] Franchise number not found for application:', id);
       return res.status(400).json({ 
         error: 'Franchise number not assigned by BPLO',
@@ -1251,14 +1297,11 @@ exports.sbAdminAcceptNewFranchise = async (req, res, next) => {
     let qrResult;
     const latestFranchiseWithNumber = await FranchiseInformation.findOne(
       { franchiseNumber: franchiseNo, isCurrentVersion: true },
-      { franchiseStatus: 1, qrCode: 1 },
-      { session }
+      { franchiseStatus: 1, qrCode: 1 }
     );
     
     // If a current active franchise exists with this number, cannot reuse it
     if (latestFranchiseWithNumber && latestFranchiseWithNumber.franchiseStatus !== 'Revoked') {
-      await session.abortTransaction();
-      session.endSession();
       return res.status(400).json({ 
         error: 'Cannot assign franchise number that is currently in use',
         franchiseNumber: franchiseNo,
@@ -1270,13 +1313,12 @@ exports.sbAdminAcceptNewFranchise = async (req, res, next) => {
     // Check for previous version to reuse QR code (only if the franchise is revoked)
     const previousFranchiseWithSameNumber = await FranchiseInformation.findOne(
       { franchiseNumber: franchiseNo, isCurrentVersion: false, franchiseStatus: 'Revoked' },
-      { qrCode: 1 },
-      { sort: { version: -1 }, session }
-    );
+      { qrCode: 1 }
+    ).sort({ version: -1 });
     
     if (previousFranchiseWithSameNumber?.qrCode) {
       // Recycled number - reuse previous QR code
-      qrResult = { cloudflare: previousFranchiseWithSameNumber.qrCode };
+      qrResult = { url: previousFranchiseWithSameNumber.qrCode };
       console.log('[sbAdminAcceptNewFranchise] Recycled revoked franchise number:', franchiseNo, '- Reusing previous QR code');
     } else {
       // New franchise number - generate new QR code with hashed franchise number (static)
@@ -1287,8 +1329,8 @@ exports.sbAdminAcceptNewFranchise = async (req, res, next) => {
       console.log('[sbAdminAcceptNewFranchise] New franchise number:', franchiseNo, '- Generated static QR code with hash:', hashedFranchiseNo);
     }
     
-    // Check version with transaction
-    const { version, previousVersion } = await handleVersionControl(franchiseNo, 'new', session);
+    // Check version (no transaction for standalone MongoDB compatibility)
+    const { version, previousVersion } = await handleVersionControl(franchiseNo, 'new');
     
     // Upload SB documents
     let scannedReg, sessionReport;
@@ -1298,14 +1340,14 @@ exports.sbAdminAcceptNewFranchise = async (req, res, next) => {
         validateFile(file);
         const result = await uploadFile(file.buffer, file.originalname, file.mimetype,
           { baseFolder: 'franchiseInformations', subFolder: `${franchiseNo}/${franchiseChainId}`, category: 'Documentations', customKey: `version-${version}/Documentations/${file.originalname}` });
-        scannedReg = result.cloudflare;
+        scannedReg = result.url;
       }
       if (req.files.individualSessionReportObj) {
         const file = req.files.individualSessionReportObj[0];
         validateFile(file);
         const result = await uploadFile(file.buffer, file.originalname, file.mimetype,
           { baseFolder: 'franchiseInformations', subFolder: `${franchiseNo}/${franchiseChainId}`, category: 'Documentations', customKey: `version-${version}/Documentations/${file.originalname}` });
-        sessionReport = result.cloudflare;
+        sessionReport = result.url;
       }
     }
     
@@ -1335,7 +1377,7 @@ exports.sbAdminAcceptNewFranchise = async (req, res, next) => {
       mvPlateNo: application.mvPlateNo,
       motorEngineNo: application.motorEngineNo,
       chasisNo: application.chasisNo,
-      qrCode: qrResult.cloudflare,
+      qrCode: qrResult.url,
       approvedAt: new Date(),
       expiryDate: new Date(Date.now() + 3 * 365 * 24 * 60 * 60 * 1000), // 3 years
       resolutionNumber: application.sbResolutionNumber, // Copy resolution number from application
@@ -1370,7 +1412,7 @@ exports.sbAdminAcceptNewFranchise = async (req, res, next) => {
     };
     
     const FranchiseInformationModel = require('../models/franchiseInformationModel');
-    const franchise = await FranchiseInformationModel.create([franchiseData], { session });
+    const franchise = await FranchiseInformationModel.create([franchiseData]);
     
     // Invalidate QR cache - important for recycled franchise numbers
     // When 0001 goes from gabatino-0001 (revoked) to gonzales-0001 (new), QR shows new owner
@@ -1386,23 +1428,18 @@ exports.sbAdminAcceptNewFranchise = async (req, res, next) => {
             $addToSet: { 
               franchiseChainIds: franchiseChainId
             } 
-          },
-          { session }
+          }
         );
         console.log('[sbAdminAcceptNewFranchise] Franchise chain ID linked to user:', application.operatorInfo, '| Chain ID:', franchiseChainId);
       } catch (linkError) {
         console.error('[sbAdminAcceptNewFranchise] Failed to link franchise chain ID to user:', linkError);
-        throw linkError; // Fail transaction if linking fails
+        throw linkError;
       }
     }
     
     // Delete the application after successful franchise creation (cleanup)
     // This maintains consistency with renewal/amendment workflow
     await franchiseApplicationRepository.deleteFranchiseApplication(id);
-    
-    // Commit transaction BEFORE file operations (they take time)
-    await session.commitTransaction();
-    session.endSession();
     
     // ASYNC file movements - happens in background, doesn't block response
     // This solves the timeout issue
@@ -1498,31 +1535,24 @@ exports.sbAdminAcceptNewFranchise = async (req, res, next) => {
       message: `Franchise record created successfully. Franchise number: ${franchiseNo}` 
     });
   } catch (error) {
-    if (session.inTransaction()) {
-      await session.abortTransaction();
-    }
-    session.endSession();
+    console.error('[sbAdminAcceptNewFranchise] Error:', error);
     next(error);
   }
 };
 
 // 11) SB ADMIN ACCEPT RENEWAL/AMENDMENT
+// Note: Transactions removed for standalone MongoDB compatibility
 exports.sbAdminAcceptRenewOrAmendment = async (req, res, next) => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
-  
   try {
     const { id } = req.params;
     
     const application = await franchiseApplicationRepository.getFranchiseApplicationById(id);
     if (!application) {
-      await session.abortTransaction();
       return res.status(404).json({ error: 'Application not found' });
     }
     
     // Only accept applications that have been fully approved (sb-approved)
     if (application.statusOfBPLO !== 'sb-approved') {
-      await session.abortTransaction();
       return res.status(400).json({ 
         error: 'Application must be fully approved by SB Admin first',
         currentStatus: application.statusOfBPLO,
@@ -1531,9 +1561,8 @@ exports.sbAdminAcceptRenewOrAmendment = async (req, res, next) => {
     }
     
     // Get existing franchise
-    const existingFranchise = await FranchiseInformation.findById(application.relatedFranchise).session(session);
+    const existingFranchise = await FranchiseInformation.findById(application.relatedFranchise);
     if (!existingFranchise) {
-      await session.abortTransaction();
       return res.status(404).json({ error: 'Related franchise not found' });
     }
     
@@ -1553,8 +1582,8 @@ exports.sbAdminAcceptRenewOrAmendment = async (req, res, next) => {
       console.log('[sbAdminAcceptRenewOrAmendment] Renewal/Amendment - keeping same franchiseChainId:', newFranchiseChainId);
     }
     
-    // Handle versioning with transaction
-    const { version, previousVersion } = await handleVersionControl(franchiseNo, application.applicationType, session);
+    // Handle versioning (no transaction for standalone MongoDB compatibility)
+    const { version, previousVersion } = await handleVersionControl(franchiseNo, application.applicationType);
     
     // Upload new docs
     let scannedReg, sessionReport;
@@ -1564,14 +1593,14 @@ exports.sbAdminAcceptRenewOrAmendment = async (req, res, next) => {
         validateFile(file);
         const result = await uploadFile(file.buffer, file.originalname, file.mimetype,
           { baseFolder: 'franchiseInformations', subFolder: `${franchiseNo}/${franchiseChainId}`, category: 'Documentations', customKey: `version-${version}/Documentations/${file.originalname}` });
-        scannedReg = result.cloudflare;
+        scannedReg = result.url;
       }
       if (req.files.individualSessionReportObj) {
         const file = req.files.individualSessionReportObj[0];
         validateFile(file);
         const result = await uploadFile(file.buffer, file.originalname, file.mimetype,
           { baseFolder: 'franchiseInformations', subFolder: `${franchiseNo}/${franchiseChainId}`, category: 'Documentations', customKey: `version-${version}/Documentations/${file.originalname}` });
-        sessionReport = result.cloudflare;
+        sessionReport = result.url;
       }
     }
     
@@ -1580,7 +1609,7 @@ exports.sbAdminAcceptRenewOrAmendment = async (req, res, next) => {
     let qrResult;
     if (existingFranchise.qrCode) {
       // Reuse existing QR code from previous version (static for franchise number)
-      qrResult = { cloudflare: existingFranchise.qrCode };
+      qrResult = { url: existingFranchise.qrCode };
       console.log('[sbAdminAcceptRenewOrAmendment] Reusing static QR code for franchise:', franchiseNo);
     } else {
       // Generate new QR if somehow missing (shouldn't happen)
@@ -1603,7 +1632,7 @@ exports.sbAdminAcceptRenewOrAmendment = async (req, res, next) => {
       changeType: application.applicationType,
       changedBy: req.user?.username || 'SB Admin',
       changedAt: new Date(),
-      qrCode: qrResult.cloudflare,
+      qrCode: qrResult.url,
       approvedAt: new Date(),
       expiryDate: new Date(Date.now() + 3 * 365 * 24 * 60 * 60 * 1000),
       officialReceiptNumber: application.officialReceiptNumber || '', // Use new OR number from application (updated data)
@@ -1653,7 +1682,7 @@ exports.sbAdminAcceptRenewOrAmendment = async (req, res, next) => {
     }
     
     const FranchiseInformationModel = require('../models/franchiseInformationModel');
-    const newFranchise = await FranchiseInformationModel.create([newVersionData], { session });
+    const newFranchise = await FranchiseInformationModel.create([newVersionData]);
     
     // Invalidate QR cache - renewal/amendment may update driver/operator info shown in QR scan
     invalidateQRCache(franchiseNo);
@@ -1669,13 +1698,12 @@ exports.sbAdminAcceptRenewOrAmendment = async (req, res, next) => {
             $addToSet: { 
               franchiseChainIds: newFranchiseChainId
             } 
-          },
-          { session }
+          }
         );
         console.log('[sbAdminAcceptRenewOrAmendment] Franchise chain ID linked to new owner:', application.operatorInfo, '| Chain ID:', newFranchiseChainId);
       } catch (linkError) {
         console.error('[sbAdminAcceptRenewOrAmendment] Failed to link franchise chain ID to user:', linkError);
-        throw linkError; // Fail transaction if linking fails
+        throw linkError;
       }
     }
      // Delete application from FranchiseApplication collection (now in FranchiseInformation)
@@ -1683,10 +1711,6 @@ exports.sbAdminAcceptRenewOrAmendment = async (req, res, next) => {
     await franchiseApplicationRepository.deleteFranchiseApplication(id);
     console.log('[sbAdminAcceptRenewOrAmendment] Application deleted from FranchiseApplication collection:', id);
 
-    
-    // Commit transaction BEFORE file operations (they take time)
-    await session.commitTransaction();
-    session.endSession();
     
     // ASYNC file movements - happens in background, doesn't block response
     // This solves the timeout issue
@@ -1779,10 +1803,7 @@ exports.sbAdminAcceptRenewOrAmendment = async (req, res, next) => {
     
     res.status(201).json({ success: true, data: newFranchise[0], message: `${application.applicationType} completed - version ${version} created` });
   } catch (error) {
-    if (session.inTransaction()) {
-      await session.abortTransaction();
-    }
-    session.endSession();
+    console.error('[sbAdminAcceptRenewOrAmendment] Error:', error);
     next(error);
   }
 };
@@ -1854,9 +1875,24 @@ exports.getAllFranchiseApplications = async (req, res, next) => {
     
     console.log(`[getAllFranchiseApplications] Found ${applications.length} applications`);
     
+    // Enrich documents with proper metadata (display names, types, etc.)
+    const enrichedApplications = await Promise.all(
+      applications.map(async (app) => {
+        const converted = storage.convertGridFSUrls(app);
+        // Enrich document metadata for better frontend display
+        if (converted.documents) {
+          converted.documents = await storage.enrichDocumentsWithMetadata(app.documents, {
+            operatorName: app.operatorName,
+            submittedAt: app.submittedAt
+          });
+        }
+        return converted;
+      })
+    );
+    
     res.json({ 
       success: true, 
-      data: applications,
+      data: enrichedApplications,
       pagination: {
         page: pageNum,
         limit: effectiveLimit,
@@ -1882,7 +1918,7 @@ exports.deleteFranchiseApplication = async (req, res, next) => {
     next(error);
   }
 };
-exports.proxyCloudflareFile = async (req, res, next) => {
+exports.proxyFile = async (req, res, next) => {
   try {
     const { url } = req.query;
     if (!url) return res.status(400).json({ error: 'Missing url parameter' });

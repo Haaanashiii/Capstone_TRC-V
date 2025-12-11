@@ -1585,7 +1585,7 @@ function FranchiseeList() {
         
         return {
           id: app._id || app.id,
-          recordNumber: String(index + 1).padStart(3, '0'),
+          recordNumber: String(index + 1).padStart(4, '0'),
           franchiseeName: app.operatorName || '',
           franchiseNumber: app.franchiseNumber || '',
           make: app.unitModel || 'N/A',
@@ -1803,15 +1803,11 @@ function FranchiseeList() {
         const qrPath = selectedFranchisee.qrCode;
         let qrUrl = qrPath;
         
-        // Handle R2 format: r2://path/to/file -> route through backend proxy
-        if (qrPath.startsWith('r2://')) {
-          qrUrl = `${apiBase.replace(/\/$/, '')}/api/franchise-information/proxy-file?url=${encodeURIComponent(qrPath)}`;
-          console.log('[FranchiseeList] R2 format detected for QR code, routing through proxy');
-        }
-        // Old Cloudflare public URL format -> route through backend proxy
-        else if (/^https?:\/\/pub-[a-f0-9]+\.r2\.dev/i.test(qrPath)) {
-          qrUrl = `${apiBase.replace(/\/$/, '')}/api/franchise-information/proxy-file?url=${encodeURIComponent(qrPath)}`;
-          console.log('[FranchiseeList] Cloudflare R2 public URL detected for QR code, routing through proxy');
+        // Handle GridFS format: gridfs://fileId -> /api/files/fileId
+        if (qrPath.startsWith('gridfs://')) {
+          const fileId = qrPath.substring(9);
+          qrUrl = `${apiBase.replace(/\/$/, '')}/api/files/${fileId}`;
+          console.log('[FranchiseeList] GridFS format detected for QR code, converted to:', qrUrl);
         }
         // Full HTTP/HTTPS URL
         else if (qrPath.startsWith('http://') || qrPath.startsWith('https://')) {
@@ -1957,16 +1953,11 @@ function FranchiseeList() {
 
     // Handle different URL formats
     try {
-      // R2 format: r2://path/to/file -> route through backend proxy
-      if (normalized.path && normalized.path.startsWith('r2://')) {
-        const r2Key = normalized.path.substring(5); // Remove 'r2://' prefix
-        normalized.path = `${API_BASE_URL.replace(/\/$/, '')}/api/franchise-information/proxy-file?url=${encodeURIComponent(normalized.path)}`;
-        console.log('[FranchiseeList] R2 format detected, routing through proxy:', r2Key);
-      }
-      // Old Cloudflare public URL format -> route through backend proxy
-      else if (normalized.path && /^https?:\/\/pub-[a-f0-9]+\.r2\.dev/i.test(normalized.path)) {
-        normalized.path = `${API_BASE_URL.replace(/\/$/, '')}/api/franchise-information/proxy-file?url=${encodeURIComponent(normalized.path)}`;
-        console.log('[FranchiseeList] Cloudflare R2 public URL detected, routing through proxy');
+      // GridFS format: gridfs://fileId -> convert to /api/files/fileId
+      if (normalized.path && normalized.path.startsWith('gridfs://')) {
+        const fileId = normalized.path.substring(9); // Remove 'gridfs://' prefix
+        normalized.path = `${API_BASE_URL.replace(/\/$/, '')}/api/files/${fileId}`;
+        console.log('[FranchiseeList] GridFS format detected, converted to:', normalized.path);
       }
       // Relative path -> prefix with API_BASE_URL
       else if (normalized.path && !/^https?:\/\//i.test(normalized.path)) {
@@ -1984,33 +1975,56 @@ function FranchiseeList() {
     // same-origin blob URL.
     const tryFetchAndPreview = async () => {
       const path = normalized.path;
-      const isImage = (normalized.type || '').includes('image') || /\.(png|jpe?g|webp|gif)$/i.test(path);
-      const isPdf = (normalized.type || '').includes('pdf') || /\.pdf$/i.test(path);
-
-      if (isImage || isPdf) {
-        try {
-          const resp = await fetch(path, { mode: 'cors' });
-          if (!resp.ok) throw new Error(`Failed to fetch file: ${resp.status}`);
-          const blob = await resp.blob();
-          // Ensure blob has correct MIME type for PDFs
-          const blobWithType = isPdf && !blob.type ? new Blob([blob], { type: 'application/pdf' }) : blob;
+      
+      // First, try to fetch the file to get its actual content type
+      try {
+        const resp = await fetch(path, { mode: 'cors' });
+        if (!resp.ok) throw new Error(`Failed to fetch file: ${resp.status}`);
+        
+        const blob = await resp.blob();
+        const contentType = blob.type || resp.headers.get('Content-Type') || '';
+        
+        console.log('[FilePreview] Fetched file, content type:', contentType);
+        
+        const isImage = contentType.includes('image');
+        const isPdf = contentType.includes('pdf');
+        
+        if (isImage || isPdf) {
+          // Ensure blob has correct MIME type
+          const blobWithType = !blob.type ? new Blob([blob], { type: contentType }) : blob;
           const objectUrl = URL.createObjectURL(blobWithType);
+          
           // Revoke previous if any
           if (currentBlobUrlRef.current) URL.revokeObjectURL(currentBlobUrlRef.current);
           currentBlobUrlRef.current = objectUrl;
-          setPreviewFile({ ...normalized, path: objectUrl });
+          
+          // Update normalized with detected type
+          setPreviewFile({ 
+            ...normalized, 
+            path: objectUrl,
+            type: contentType,
+            name: normalized.name || 'document'
+          });
           setOpenFilePreview(true);
           return;
-        } catch (err) {
-          console.warn('[FilePreview] fetch failed, falling back to direct URL', err);
-          setNotification({ open: true, message: 'Preview unavailable, file will open/download instead', type: 'info' });
-          // fallthrough to open direct link in iframe/fallback
         }
+        
+        // Not an image/pdf - still show preview modal with download option
+        const objectUrl = URL.createObjectURL(blob);
+        if (currentBlobUrlRef.current) URL.revokeObjectURL(currentBlobUrlRef.current);
+        currentBlobUrlRef.current = objectUrl;
+        
+        setPreviewFile({ 
+          ...normalized, 
+          path: objectUrl,
+          type: contentType,
+          name: normalized.name || 'document'
+        });
+        setOpenFilePreview(true);
+      } catch (err) {
+        console.warn('[FilePreview] fetch failed:', err);
+        setNotification({ open: true, message: 'Failed to load file preview', type: 'error' });
       }
-
-      // Not an image/pdf or fetch failed — use the path as-is (download link will still work)
-      setPreviewFile(normalized);
-      setOpenFilePreview(true);
     };
 
     tryFetchAndPreview();

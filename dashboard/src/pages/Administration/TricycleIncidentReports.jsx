@@ -87,7 +87,7 @@ const SORT_OPTIONS = Object.freeze([
   { value: 'dateReported', label: 'Date Reported' },
   { value: 'status', label: 'Status' },
   { value: 'category', label: 'Category' },
-  { value: 'franchiseeName', label: 'Franchisee Name' }
+  { value: 'operatorName', label: 'Franchisee Name' }
 ]);
 
 /** Default filter values */
@@ -598,7 +598,7 @@ function TricycleIncidentReports() {
                         <CategoryChip category={report.category} />
                       </TableCell>
                       <TableCell className="admin-table-cell col-name" align="left">
-                        {report.franchiseeName}
+                        {report.operatorName}
                       </TableCell>
                       <TableCell className="admin-table-cell">{formatDate(report.dateReported)}</TableCell>
                       <TableCell className="admin-table-cell">
@@ -821,7 +821,7 @@ function TricycleIncidentReports() {
                   <CategoryChip category={selectedReport.category} />
                   
                   <Typography variant="subtitle2" className="label">Franchisee:</Typography>
-                  <Typography>{selectedReport.franchiseeName}</Typography>
+                  <Typography>{selectedReport.operatorName}</Typography>
                   
                   <Typography variant="subtitle2" className="label">Date:</Typography>
                   <Typography>{formatDate(selectedReport.dateReported)}</Typography>

@@ -7,7 +7,7 @@ const authenticate = require('../middlewares/authenticate');
 const authorize = require('../middlewares/authorize');
 
 // === PUBLIC ROUTES ===
-router.get('/proxy-file', franchiseInformationController.proxyCloudflareFile);
+router.get('/proxy-file', franchiseInformationController.proxyFile);
 router.get('/qr/hash/:hashedMTOP', combinedQrRateLimiter, sanitizeRequest, franchiseInformationController.franchiseQRLookupByHash);
 
 // === PROTECTED ROUTES (Admin) ===
