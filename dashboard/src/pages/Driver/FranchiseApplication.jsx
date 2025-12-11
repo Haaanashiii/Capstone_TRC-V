@@ -332,6 +332,8 @@ export default function FranchiseApplication() {
 
   const [modalDocKey, setModalDocKey] = useState(null);
   const [modalFile, setModalFile] = useState(null);
+  const [modalLoading, setModalLoading] = useState(false);
+  const [compressionProgress, setCompressionProgress] = useState(0);
   const modalFileRef = useRef();
 
   const handleModalFileChange = async (e) => {
@@ -352,9 +354,27 @@ export default function FranchiseApplication() {
     // Check if file needs compression
     const willCompress = file.size > 300 * 1024;
     
+    // Show loading state if file will be compressed
+    if (willCompress) {
+      setModalLoading(true);
+      setCompressionProgress(0);
+    }
+    
     try {
+      // Simulate progressive compression steps
+      if (willCompress) {
+        setCompressionProgress(30);
+        await new Promise(resolve => setTimeout(resolve, 300));
+        setCompressionProgress(60);
+      }
+      
       // Compress the file (images and PDFs)
       const processedFile = await compressFile(file);
+      
+      setCompressionProgress(100);
+      
+      // Brief delay to show completion before closing
+      await new Promise(resolve => setTimeout(resolve, 300));
       
       // Show compression success message only if file was compressed
       if (willCompress && processedFile.size !== file.size) {
@@ -378,6 +398,9 @@ export default function FranchiseApplication() {
         text: 'Compression failed. Using original file.'
       });
       setModalFile(file);
+    } finally {
+      setModalLoading(false);
+      setCompressionProgress(0);
     }
   };
   const [fields, setFields] = useState({
@@ -672,7 +695,7 @@ export default function FranchiseApplication() {
                     e.currentTarget.style.borderColor = '#174D7A';
                     e.currentTarget.style.boxShadow = 'inset 0 2px 8px rgba(23, 77, 122, 0.05)';
                   }}
-                  onClick={() => modalFileRef.current && modalFileRef.current.click()}
+                  onClick={() => !modalLoading && modalFileRef.current && modalFileRef.current.click()}
                 >
                   <div style={{ marginBottom: '16px' }}>
                     <svg width="72" height="72" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -698,6 +721,7 @@ export default function FranchiseApplication() {
                     style={{ display: 'none' }}
                     ref={modalFileRef}
                     onChange={handleModalFileChange}
+                    disabled={modalLoading}
                   />
                 </div>
                 <div style={{ 
@@ -717,6 +741,56 @@ export default function FranchiseApplication() {
                 }}>
                   {modalFile ? truncateFilename(modalFile.name) : t.noFileSelected}
                 </div>
+                
+                {/* Compression Loading Indicator */}
+                {modalLoading && (
+                  <div style={{
+                    marginTop: '20px',
+                    padding: '16px',
+                    background: 'linear-gradient(135deg, #f0f7ff 0%, #e8f1ff 100%)',
+                    borderRadius: '12px',
+                    border: '1px solid #d4e8f5'
+                  }}>
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '12px',
+                      marginBottom: '12px'
+                    }}>
+                      <svg width="20" height="20" viewBox="0 0 24 24" style={{
+                        animation: 'spin 1s linear infinite',
+                        '@keyframes spin': {
+                          from: { transform: 'rotate(0deg)' },
+                          to: { transform: 'rotate(360deg)' }
+                        }
+                      }}>
+                        <defs>
+                          <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+                        </defs>
+                        <circle cx="12" cy="12" r="10" fill="none" stroke="#174D7A" strokeWidth="2" opacity="0.2" />
+                        <path d="M12 2A10 10 0 1 0 22 12" fill="none" stroke="#174D7A" strokeWidth="2" strokeLinecap="round" className="spin-animation" />
+                      </svg>
+                      <span style={{ fontWeight: 600, color: '#174D7A', fontSize: '14px' }}>
+                        Compressing image... {compressionProgress}%
+                      </span>
+                    </div>
+                    <div style={{
+                      width: '100%',
+                      height: '6px',
+                      background: '#e0e0e0',
+                      borderRadius: '3px',
+                      overflow: 'hidden'
+                    }}>
+                      <div style={{
+                        height: '100%',
+                        background: 'linear-gradient(90deg, #00b4d8, #0096c7)',
+                        width: `${compressionProgress}%`,
+                        transition: 'width 0.3s ease',
+                        borderRadius: '3px'
+                      }} />
+                    </div>
+                  </div>
+                )}
               </div>
               <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '32px' }}>
                 <button
@@ -731,16 +805,20 @@ export default function FranchiseApplication() {
                     border: '1px solid #e0e0e0',
                     cursor: 'pointer',
                     transition: 'all 0.2s ease',
+                    opacity: modalLoading ? 0.5 : 1
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = '#eeeeee';
-                    e.currentTarget.style.borderColor = '#d0d0d0';
+                    if (!modalLoading) {
+                      e.currentTarget.style.backgroundColor = '#eeeeee';
+                      e.currentTarget.style.borderColor = '#d0d0d0';
+                    }
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.backgroundColor = '#f5f5f5';
                     e.currentTarget.style.borderColor = '#e0e0e0';
                   }}
                   onClick={() => { setModalDocKey(null); setModalFile(null); }}
+                  disabled={modalLoading}
                 >
                   {t.cancel}
                 </button>
@@ -755,12 +833,12 @@ export default function FranchiseApplication() {
                     fontSize: '15px', 
                     border: 'none', 
                     boxShadow: '0 4px 12px rgba(23, 77, 122, 0.3)', 
-                    cursor: modalFile ? 'pointer' : 'not-allowed',
-                    opacity: modalFile ? 1 : 0.6,
+                    cursor: modalFile && !modalLoading ? 'pointer' : 'not-allowed',
+                    opacity: modalFile && !modalLoading ? 1 : 0.6,
                     transition: 'all 0.2s ease',
                   }}
                   onMouseEnter={(e) => {
-                    if (modalFile) {
+                    if (modalFile && !modalLoading) {
                       e.currentTarget.style.backgroundColor = '#0f3a5f';
                       e.currentTarget.style.boxShadow = '0 6px 16px rgba(23, 77, 122, 0.4)';
                       e.currentTarget.style.transform = 'translateY(-1px)';
@@ -782,7 +860,7 @@ export default function FranchiseApplication() {
                     setModalDocKey(null);
                     setModalFile(null);
                   }}
-                  disabled={!modalFile}
+                  disabled={!modalFile || modalLoading}
                 >
                   {t.submit}
                 </button>
