@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import Sidebar from './Sidebar';
 import KpiCard from '../../components/KpiCard';
+import PageLoader, { CardLoader } from '../../components/PageLoader';
+import AnimatedPage, { AnimatedSection } from '../../components/AnimatedPage';
 import '../../Styles/Administrator_Css/Analytics.css';
 import '../../Styles/Administrator_Css/SharedTable.css';
 import {
@@ -29,6 +31,8 @@ import {
   MenuItem,
   FormControl,
   InputLabel,
+  Fade,
+  Skeleton,
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import CloseIcon from '@mui/icons-material/Close';
@@ -203,13 +207,11 @@ function Analytics() {
 
     // Connect to WebSocket for real-time updates
     if (!websocketService.isConnected()) {
-      console.log('[Analytics] Connecting to WebSocket');
       websocketService.connect('general')
     }
 
     // Subscribe to analytics updates
     const handleAnalyticsUpdates = () => {
-      console.log('[Analytics] WebSocket update - analytics-data');
       fetchAnalyticsData();
       fetchRecyclableNumbers();
     };
@@ -385,15 +387,28 @@ function Analytics() {
         )}
 
         {loading ? (
-          <div className="analytics-loading" role="status" aria-live="polite">
-            <CircularProgress size={60} className="loading-spinner" />
-            <span className="sr-only">Loading analytics data...</span>
-          </div>
+          <Fade in={loading} timeout={300}>
+            <Box>
+              <CardLoader count={5} />
+              <AnimatedSection index={1} baseDelay={200}>
+                <Box sx={{ mt: 4 }}>
+                  <Skeleton variant="text" width={200} height={32} sx={{ mb: 2 }} />
+                  <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 2 }}>
+                    {[1, 2, 3, 4, 5].map((i) => (
+                      <Skeleton key={i} variant="rectangular" height={180} sx={{ borderRadius: 2 }} />
+                    ))}
+                  </Box>
+                </Box>
+              </AnimatedSection>
+            </Box>
+          </Fade>
         ) : (
-          <>
+          <Fade in={!loading} timeout={400}>
+            <Box>
             {/* Summary KPI Cards */}
             <section className="analytics-overview" aria-labelledby="overview-heading">
               <div className="kpi-grid">
+                <AnimatedSection index={0}>
                 <KpiCard
                   title="Total Franchises"
                   value={analyticsData.totalFranchises}
@@ -401,6 +416,8 @@ function Analytics() {
                   iconColor="#0A356B"
                   aria-label={`Total franchises: ${analyticsData.totalFranchises}`}
                 />
+                </AnimatedSection>
+                <AnimatedSection index={1}>
                 <KpiCard
                   title="Active Franchises"
                   value={analyticsData.activeFranchises}
@@ -408,6 +425,8 @@ function Analytics() {
                   iconColor="#10B981"
                   aria-label={`Active franchises: ${analyticsData.activeFranchises}`}
                 />
+                </AnimatedSection>
+                <AnimatedSection index={2}>
                 <Box 
                   onClick={handleRecycleCardClick} 
                   sx={{ cursor: 'pointer' }}
@@ -423,6 +442,8 @@ function Analytics() {
                     aria-label="Franchise numbers available for assignment. Click to view details."
                   />
                 </Box>
+                </AnimatedSection>
+                <AnimatedSection index={3}>
                 <Box 
                   onClick={handleExpiredCardClick} 
                   sx={{ cursor: 'pointer' }}
@@ -438,6 +459,8 @@ function Analytics() {
                     aria-label={`Expired franchises: ${analyticsData.expiredFranchises}. Click to view details.`}
                   />
                 </Box>
+                </AnimatedSection>
+                <AnimatedSection index={4}>
                 <KpiCard
                   title="Pending Applications"
                   value={analyticsData.pendingApplications}
@@ -445,6 +468,7 @@ function Analytics() {
                   iconColor="#F59E0B"
                   aria-label={`Pending applications: ${analyticsData.pendingApplications}`}
                 />
+                </AnimatedSection>
               </div>
             </section>
 
@@ -708,7 +732,8 @@ function Analytics() {
                 </div>
               </Paper>
             </section>
-          </>
+            </Box>
+          </Fade>
         )}
 
         {/* Expired Franchises Modal */}

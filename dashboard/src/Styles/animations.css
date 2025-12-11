@@ -1,0 +1,308 @@
+/* ==========================================
+   Unified Animation System for TRC-V Dashboard
+   ========================================== */
+
+/* ==================== Keyframe Animations ==================== */
+
+/* Fade In - Basic fade entrance */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Fade In Up - Fade with upward motion */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Fade In Down - Fade with downward motion */
+@keyframes fadeInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Fade In Left - Fade with left motion */
+@keyframes fadeInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Fade In Right - Fade with right motion */
+@keyframes fadeInRight {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Scale In - Fade with scale */
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Slide Up - Used for page content */
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Pulse - Subtle attention animation */
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.02);
+  }
+}
+
+/* Shimmer - Loading skeleton effect */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+/* Spin - For loading indicators */
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Bounce - Subtle bounce effect */
+@keyframes bounce {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-5px);
+  }
+}
+
+/* ==================== Animation Utility Classes ==================== */
+
+/* Fade animations */
+.animate-fadeIn {
+  animation: fadeIn 0.3s ease-out forwards;
+}
+
+.animate-fadeInUp {
+  animation: fadeInUp 0.4s ease-out forwards;
+}
+
+.animate-fadeInDown {
+  animation: fadeInDown 0.4s ease-out forwards;
+}
+
+.animate-fadeInLeft {
+  animation: fadeInLeft 0.4s ease-out forwards;
+}
+
+.animate-fadeInRight {
+  animation: fadeInRight 0.4s ease-out forwards;
+}
+
+.animate-scaleIn {
+  animation: scaleIn 0.3s ease-out forwards;
+}
+
+.animate-slideUp {
+  animation: slideUp 0.5s ease-out forwards;
+}
+
+/* Staggered animations for lists/grids */
+.stagger-1 { animation-delay: 0.05s; }
+.stagger-2 { animation-delay: 0.1s; }
+.stagger-3 { animation-delay: 0.15s; }
+.stagger-4 { animation-delay: 0.2s; }
+.stagger-5 { animation-delay: 0.25s; }
+.stagger-6 { animation-delay: 0.3s; }
+.stagger-7 { animation-delay: 0.35s; }
+.stagger-8 { animation-delay: 0.4s; }
+
+/* Apply to elements that should animate on load */
+.animate-on-load {
+  opacity: 0;
+  animation: fadeInUp 0.5s ease-out forwards;
+}
+
+/* ==================== Page Container Animation ==================== */
+
+.page-container {
+  animation: fadeIn 0.3s ease-out;
+}
+
+.page-content {
+  animation: slideUp 0.4s ease-out;
+}
+
+/* ==================== Card/Paper Animations ==================== */
+
+.animate-card {
+  opacity: 0;
+  animation: fadeInUp 0.4s ease-out forwards;
+}
+
+.card-hover-lift {
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.card-hover-lift:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 24px rgba(10, 53, 107, 0.15);
+}
+
+/* ==================== Table Row Animations ==================== */
+
+.table-row-animate {
+  opacity: 0;
+  animation: fadeIn 0.3s ease-out forwards;
+}
+
+/* Staggered table rows */
+.table-row-animate:nth-child(1) { animation-delay: 0.02s; }
+.table-row-animate:nth-child(2) { animation-delay: 0.04s; }
+.table-row-animate:nth-child(3) { animation-delay: 0.06s; }
+.table-row-animate:nth-child(4) { animation-delay: 0.08s; }
+.table-row-animate:nth-child(5) { animation-delay: 0.1s; }
+.table-row-animate:nth-child(6) { animation-delay: 0.12s; }
+.table-row-animate:nth-child(7) { animation-delay: 0.14s; }
+.table-row-animate:nth-child(8) { animation-delay: 0.16s; }
+.table-row-animate:nth-child(9) { animation-delay: 0.18s; }
+.table-row-animate:nth-child(10) { animation-delay: 0.2s; }
+
+/* ==================== Loading Skeleton ==================== */
+
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    #f0f0f0 25%,
+    #e0e0e0 50%,
+    #f0f0f0 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 4px;
+}
+
+.skeleton-text {
+  height: 16px;
+  margin-bottom: 8px;
+}
+
+.skeleton-title {
+  height: 24px;
+  width: 60%;
+  margin-bottom: 12px;
+}
+
+.skeleton-card {
+  height: 120px;
+  border-radius: 12px;
+}
+
+.skeleton-table-row {
+  height: 48px;
+  margin-bottom: 4px;
+}
+
+/* ==================== Transition Utilities ==================== */
+
+.transition-all {
+  transition: all 0.3s ease;
+}
+
+.transition-fast {
+  transition: all 0.15s ease;
+}
+
+.transition-slow {
+  transition: all 0.5s ease;
+}
+
+.transition-transform {
+  transition: transform 0.3s ease;
+}
+
+.transition-opacity {
+  transition: opacity 0.3s ease;
+}
+
+.transition-colors {
+  transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
+}
+
+/* ==================== Responsive Adjustments ==================== */
+
+/* Reduce animations on mobile for better performance */
+@media (max-width: 768px) {
+  .animate-fadeInUp,
+  .animate-fadeInDown,
+  .animate-fadeInLeft,
+  .animate-fadeInRight,
+  .animate-slideUp {
+    animation-duration: 0.3s;
+  }
+  
+  .card-hover-lift:hover {
+    transform: none;
+  }
+}
+
+/* Respect reduced motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

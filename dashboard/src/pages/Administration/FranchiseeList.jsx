@@ -47,6 +47,7 @@ import {
   Tooltip,
 } from '@mui/material';
 import { styled } from "@mui/material/styles";
+import PageLoader from '../../components/PageLoader';
 import SearchIcon from '@mui/icons-material/Search';
 import SaveIcon from '@mui/icons-material/Save';
 import EditIcon from '@mui/icons-material/Edit';
@@ -1569,12 +1570,9 @@ function FranchiseeList() {
     setError('');
     
     try {
-      console.log('[FranchiseeList] Fetching franchisees from franchise-information API...');
       const response = await franchiseInformationAPI.getAll();
       // Backend returns { success, data, count }, axios unwraps to response.data
       const data = response.data?.data || response.data || [];
-      
-      console.log('[FranchiseeList] Received franchisees:', Array.isArray(data) ? data.length : 0);
       
       // Transform the data to match the expected format
       // Data comes from FranchiseInformation model (approved franchises)
@@ -1709,13 +1707,11 @@ function FranchiseeList() {
 
     // Connect to WebSocket for real-time updates
     if (!websocketService.isConnected()) {
-      console.log('[FranchiseeList] Connecting to WebSocket');
       websocketService.connect('general')
     }
 
     // Subscribe to franchisee updates
     const handleFranchiseeUpdates = (franchisees) => {
-      console.log('[FranchiseeList] WebSocket update - franchisees:', franchisees?.length || 0);
       if (Array.isArray(franchisees) && franchisees.length > 0) {
         fetchFranchisees();
       }
@@ -1807,7 +1803,6 @@ function FranchiseeList() {
         if (qrPath.startsWith('gridfs://')) {
           const fileId = qrPath.substring(9);
           qrUrl = `${apiBase.replace(/\/$/, '')}/api/files/${fileId}`;
-          console.log('[FranchiseeList] GridFS format detected for QR code, converted to:', qrUrl);
         }
         // Full HTTP/HTTPS URL
         else if (qrPath.startsWith('http://') || qrPath.startsWith('https://')) {
@@ -1819,8 +1814,6 @@ function FranchiseeList() {
         } else {
           qrUrl = `${apiBase}/${qrPath}`;
         }
-
-        console.log('[FranchiseeList] Fetching QR code from:', qrUrl);
 
         const response = await fetch(qrUrl, {
           headers: token ? { 'Authorization': `Bearer ${token}` } : {}
@@ -1839,8 +1832,6 @@ function FranchiseeList() {
         const blobUrl = URL.createObjectURL(blob);
         qrBlobUrlRef.current = blobUrl;
         setQrBlobUrl(blobUrl);
-        
-        console.log('[FranchiseeList] QR code loaded successfully');
       } catch (err) {
         console.error('[FranchiseeList] Error fetching QR code:', err);
         setQrBlobUrl(null);
@@ -1930,8 +1921,6 @@ function FranchiseeList() {
       return;
     }
 
-    console.log('[FranchiseeList] Opening file preview for:', file);
-
     // Normalize file object
     let normalized = { name: '', type: '', path: '' };
 
@@ -1949,15 +1938,12 @@ function FranchiseeList() {
       };
     }
 
-    console.log('[FranchiseeList] Normalized file:', normalized);
-
     // Handle different URL formats
     try {
       // GridFS format: gridfs://fileId -> convert to /api/files/fileId
       if (normalized.path && normalized.path.startsWith('gridfs://')) {
         const fileId = normalized.path.substring(9); // Remove 'gridfs://' prefix
         normalized.path = `${API_BASE_URL.replace(/\/$/, '')}/api/files/${fileId}`;
-        console.log('[FranchiseeList] GridFS format detected, converted to:', normalized.path);
       }
       // Relative path -> prefix with API_BASE_URL
       else if (normalized.path && !/^https?:\/\//i.test(normalized.path)) {
@@ -1983,8 +1969,6 @@ function FranchiseeList() {
         
         const blob = await resp.blob();
         const contentType = blob.type || resp.headers.get('Content-Type') || '';
-        
-        console.log('[FilePreview] Fetched file, content type:', contentType);
         
         const isImage = contentType.includes('image');
         const isPdf = contentType.includes('pdf');
@@ -2495,9 +2479,9 @@ function FranchiseeList() {
       <Sidebar />
       <div className="content-container">
         <div className="header-container">
-          <div className="page-title">
+          <Typography variant="h4" className="page-title">
             Franchisee List
-          </div>
+          </Typography>
         </div>
 
         {/* Error Alert */}

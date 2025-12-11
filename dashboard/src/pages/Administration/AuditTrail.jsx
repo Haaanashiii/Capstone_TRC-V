@@ -4,6 +4,8 @@ import '../../Styles/Administrator_Css/AuditTrail.css';
 import '../../Styles/Administrator_Css/SharedTable.css';
 import Sidebar from './Sidebar';
 import websocketService from '../../services/websocket';
+import PageLoader, { TableLoader } from '../../components/PageLoader';
+import AnimatedPage, { AnimatedSection } from '../../components/AnimatedPage';
 import {
   Typography,
   Paper,
@@ -30,6 +32,7 @@ import {
   Modal,
   Divider,
   Grid,
+  Fade,
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import FileDownloadIcon from '@mui/icons-material/FileDownload';
@@ -237,13 +240,11 @@ function AuditTrail() {
 
     // Connect to WebSocket for real-time updates
     if (!websocketService.isConnected()) {
-      console.log('[AuditTrail] Connecting to WebSocket');
       websocketService.connect('general')
     }
 
     // Subscribe to audit log updates
     const handleAuditLogUpdates = () => {
-      console.log('[AuditTrail] WebSocket update - audit-logs');
       fetchAuditLogs();
     };
 
@@ -541,14 +542,14 @@ function AuditTrail() {
         <Paper elevation={2} className="admin-table-container">
           {/* Audit Logs Table */}
           {loading ? (
-            <div className="loading-container">
-              <CircularProgress />
-              <Typography variant="body2" sx={{ mt: 2, color: '#64748b' }}>
-                Loading audit logs...
-              </Typography>
-            </div>
+            <PageLoader 
+              loading={loading} 
+              message="Loading audit logs..." 
+              minHeight={400}
+            />
           ) : (
-            <>
+            <Fade in={!loading} timeout={400}>
+              <Box>
               <TableContainer className="admin-table-wrapper">
                 <Table className="admin-table" stickyHeader>
                   <TableHead>
@@ -664,7 +665,8 @@ function AuditTrail() {
                 rowsPerPageOptions={[10, 15, 25, 50]}
                 className="admin-table-pagination"
               />
-            </>
+              </Box>
+            </Fade>
           )}
         </Paper>
 

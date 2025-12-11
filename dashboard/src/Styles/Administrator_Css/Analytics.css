@@ -12,6 +12,40 @@
     padding: 32px;
     margin-left: 240px;
     width: calc(100% - 240px);
+    animation: pageContentFadeIn 0.4s ease-out;
+}
+
+@keyframes pageContentFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Responsive Styles */
+@media (max-width: 1024px) {
+    .analytics-content {
+        padding: 24px;
+    }
+}
+
+@media (max-width: 768px) {
+    .analytics-content {
+        padding: 16px;
+        margin-left: 0;
+        width: 100%;
+        padding-bottom: 80px;
+    }
+}
+
+@media (max-width: 480px) {
+    .analytics-content {
+        padding: 12px;
+    }
 }
 
 /* Screen Reader Only */

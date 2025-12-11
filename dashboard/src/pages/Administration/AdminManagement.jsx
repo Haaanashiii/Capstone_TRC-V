@@ -5,6 +5,8 @@ import Sidebar from './Sidebar';
 import AccountVerificationModal from '../Services/AccountVerificationModal';
 import { authAPI, adminAPI } from '../Services/api';
 import websocketService from '../../services/websocket';
+import PageLoader, { TableLoader } from '../../components/PageLoader';
+import AnimatedPage, { AnimatedSection } from '../../components/AnimatedPage';
 import {
   Box, 
   Typography, 
@@ -34,7 +36,8 @@ import {
   ToggleButton,
   ToggleButtonGroup,
   Stack,
-  Divider
+  Divider,
+  Fade,
 } from '@mui/material';
 
 import SearchIcon from '@mui/icons-material/Search';
@@ -109,8 +112,6 @@ function AdminManagement() {
       // Include inactive admins to see all users in database
       const response = await adminAPI.getAll({ includeInactive: true });
       
-      console.log('[AdminManagement] Fetched admins:', response.data?.length || 0);
-      
       // Filter to show only Sangguniang Bayan and BPLO admins (include all, even inactive)
       const adminUsers = Array.isArray(response.data) 
         ? response.data.filter(user => user.role === 'sb-admin' || user.role === 'bplo-admin' || user.role === 'super-admin')
@@ -132,7 +133,6 @@ function AdminManagement() {
 
     // Connect to WebSocket for real-time updates
     if (!websocketService.isConnected()) {
-      console.log('[AdminManagement] Connecting to WebSocket');
       websocketService.connect('super-admin-room');
     } else {
       websocketService.joinRoom('super-admin-room');
@@ -140,7 +140,6 @@ function AdminManagement() {
 
     // Subscribe to admin account updates and permission changes
     const handleUserUpdates = () => {
-      console.log('[AdminManagement] WebSocket update - admin-accounts');
       fetchUsers();
     };
 
@@ -229,16 +228,6 @@ function AdminManagement() {
     setOpenModal(true);
     setError('');
     setSuccess('');
-    
-    // Debug log to check admin structure
-    if (user) {
-      console.log('[AdminManagement] Opening modal for admin:', {
-        adminId: user.adminId,
-        _id: user._id,
-        id: user.id,
-        fullUser: user
-      });
-    }
   }, []);
 
   const handleCloseModal = useCallback(() => {
@@ -256,7 +245,6 @@ function AdminManagement() {
   const requestOTP = async (email) => {
     try {
       await authAPI.requestOTP(email);
-      console.log('[AdminManagement] OTP sent to:', email);
       return true;
     } catch (err) {
       console.error('[AdminManagement] OTP request error:', err);
@@ -305,15 +293,11 @@ function AdminManagement() {
         // Get the correct admin ID (try adminId first, then _id, then id)
         const adminId = selectedUser.adminId || selectedUser._id || selectedUser.id;
         
-        console.log('[AdminManagement] Updating admin with ID:', adminId);
-        
         if (!adminId) {
           throw new Error('Admin ID not found');
         }
         
         const response = await adminAPI.update(adminId, updateData);
-        
-        console.log('[AdminManagement] Admin updated:', response.data);
         
         setSuccess('Admin account updated successfully');
         await fetchUsers();
@@ -368,8 +352,6 @@ function AdminManagement() {
       
       const response = await adminAPI.create(pendingUserData);
       
-      console.log('[AdminManagement] Admin created:', response.data);
-      
       setSuccess('Admin account created and verified successfully!');
       setPendingUserData(null);
       await fetchUsers();
@@ -407,8 +389,6 @@ function AdminManagement() {
       }
       
       const response = await adminAPI.toggleStatus(adminId);
-      
-      console.log('[AdminManagement] Admin status toggled:', response.data);
       
       setSuccess(`Admin account ${newStatus ? 'activated' : 'deactivated'} successfully`);
       await fetchUsers();
@@ -469,32 +449,32 @@ function AdminManagement() {
       <Sidebar />
       <div className="content-area">
         <div className="header-container">
-          <div className="page-title">
+          <Typography variant="h4" className="page-title">
             Admin Management
-          </div>
+          </Typography>
         </div>
 
           {/* Success/Error Messages */}
           {error && (
-            <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>
+            <Alert severity="error" className="alert-message" onClose={() => setError('')}>
               {error}
             </Alert>
           )}
           {success && (
-            <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccess('')}>
+            <Alert severity="success" className="alert-message" onClose={() => setSuccess('')}>
               {success}
             </Alert>
           )}
           
           <div className="user-management-toolbar">
-            <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap', flex: 1 }}>
+            <Box className="toolbar-filter-box">
               <TextField
                 placeholder="Search users..."
                 variant="outlined"
                 size="small"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                sx={{ minWidth: 220 }}
+                className="search-field-admin"
                 InputProps={{
                   startAdornment: (
                     <InputAdornment position="start">
@@ -516,10 +496,7 @@ function AdminManagement() {
                 startIcon={<FilterListIcon />}
                 onClick={() => setShowFilters(!showFilters)}
                 size="small"
-                sx={{ 
-                  borderColor: hasActiveFilters ? '#0A356B' : undefined,
-                  backgroundColor: showFilters ? '#0A356B' : undefined,
-                }}
+                className={showFilters ? 'filter-btn-active' : 'filter-btn'}
               >
                 Filters {hasActiveFilters && `(${[statusFilter !== STATUS_FILTERS.ACTIVE, roleFilter !== 'all', sortBy !== SORT_OPTIONS.NAME_ASC].filter(Boolean).length})`}
               </Button>
@@ -550,11 +527,11 @@ function AdminManagement() {
           
           {/* Filter Panel */}
           {showFilters && (
-            <Paper className="admin-filter-panel" elevation={1} sx={{ p: 2, mb: 2, borderRadius: 2 }}>
+            <Paper className="admin-filter-panel" elevation={1}>
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems="flex-start" flexWrap="wrap">
                 {/* Status Filter */}
                 <Box>
-                  <Typography variant="caption" color="textSecondary" sx={{ mb: 0.5, display: 'block' }}>
+                  <Typography variant="caption" color="textSecondary" className="filter-label">
                     Status
                   </Typography>
                   <ToggleButtonGroup
@@ -566,25 +543,25 @@ function AdminManagement() {
                     <ToggleButton value={STATUS_FILTERS.ALL}>
                       All
                     </ToggleButton>
-                    <ToggleButton value={STATUS_FILTERS.ACTIVE} sx={{ color: statusFilter === STATUS_FILTERS.ACTIVE ? '#2e7d32' : undefined }}>
-                      <CheckCircleIcon fontSize="small" sx={{ mr: 0.5 }} />
+                    <ToggleButton value={STATUS_FILTERS.ACTIVE} className={statusFilter === STATUS_FILTERS.ACTIVE ? 'toggle-active' : ''}>
+                      <CheckCircleIcon fontSize="small" className="toggle-icon" />
                       Active
                     </ToggleButton>
-                    <ToggleButton value={STATUS_FILTERS.INACTIVE} sx={{ color: statusFilter === STATUS_FILTERS.INACTIVE ? '#d32f2f' : undefined }}>
-                      <CancelIcon fontSize="small" sx={{ mr: 0.5 }} />
+                    <ToggleButton value={STATUS_FILTERS.INACTIVE} className={statusFilter === STATUS_FILTERS.INACTIVE ? 'toggle-inactive' : ''}>
+                      <CancelIcon fontSize="small" className="toggle-icon" />
                       Inactive
                     </ToggleButton>
                   </ToggleButtonGroup>
                 </Box>
                 
-                <Divider orientation="vertical" flexItem sx={{ display: { xs: 'none', sm: 'block' } }} />
+                <Divider orientation="vertical" flexItem className="filter-divider" />
                 
                 {/* Role Filter */}
                 <Box>
-                  <Typography variant="caption" color="textSecondary" sx={{ mb: 0.5, display: 'block' }}>
+                  <Typography variant="caption" color="textSecondary" className="filter-label">
                     Role
                   </Typography>
-                  <FormControl size="small" sx={{ minWidth: 180 }}>
+                  <FormControl size="small" className="filter-select">
                     <Select
                       value={roleFilter}
                       onChange={(e) => setRoleFilter(e.target.value)}
@@ -600,18 +577,18 @@ function AdminManagement() {
                   </FormControl>
                 </Box>
                 
-                <Divider orientation="vertical" flexItem sx={{ display: { xs: 'none', sm: 'block' } }} />
+                <Divider orientation="vertical" flexItem className="filter-divider" />
                 
                 {/* Sort By */}
                 <Box>
-                  <Typography variant="caption" color="textSecondary" sx={{ mb: 0.5, display: 'block' }}>
+                  <Typography variant="caption" color="textSecondary" className="filter-label">
                     Sort By
                   </Typography>
-                  <FormControl size="small" sx={{ minWidth: 160 }}>
+                  <FormControl size="small" className="sort-select">
                     <Select
                       value={sortBy}
                       onChange={(e) => setSortBy(e.target.value)}
-                      startAdornment={<SortIcon fontSize="small" sx={{ mr: 1, color: 'action.active' }} />}
+                      startAdornment={<SortIcon fontSize="small" className="sort-icon" />}
                     >
                       <MenuItem value={SORT_OPTIONS.NAME_ASC}>Name (A-Z)</MenuItem>
                       <MenuItem value={SORT_OPTIONS.NAME_DESC}>Name (Z-A)</MenuItem>
@@ -626,7 +603,7 @@ function AdminManagement() {
               
               {/* Active Filter Chips */}
               {hasActiveFilters && (
-                <Box sx={{ mt: 2, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                <Box className="active-filters-box">
                   {statusFilter !== STATUS_FILTERS.ACTIVE && (
                     <Chip
                       label={`Status: ${statusFilter === STATUS_FILTERS.ALL ? 'All' : 'Inactive'}`}
@@ -665,19 +642,22 @@ function AdminManagement() {
           )}
           
           {/* Results Count */}
-          <Box sx={{ mb: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Box className="results-count">
             <Typography variant="body2" color="textSecondary">
               Showing {filteredUsers.length} of {users.length} admin{users.length !== 1 ? 's' : ''}
               {hasActiveFilters && ' (filtered)'}
             </Typography>
           </Box>
 
-          {loading && !openModal && (
-            <Box className="admin-table-loading">
-              <CircularProgress />
-            </Box>
-          )}
-
+          {loading && !openModal ? (
+            <PageLoader 
+              loading={loading} 
+              message="Loading admin accounts..." 
+              minHeight={400}
+            />
+          ) : (
+            <Fade in={!loading} timeout={400}>
+              <Box>
           <Paper className="admin-table-container" elevation={2}>
             <TableContainer className="admin-table-wrapper">
               <Table className="admin-table" stickyHeader aria-label="user management table">
@@ -789,6 +769,9 @@ function AdminManagement() {
               className="admin-table-pagination"
             />
           </Paper>
+              </Box>
+            </Fade>
+          )}
 
         {/* Add/Edit User Modal */}
         <Modal open={openModal} onClose={handleCloseModal}>

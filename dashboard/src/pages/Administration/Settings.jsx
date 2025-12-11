@@ -19,7 +19,9 @@ import {
   Divider,
   Card,
   CardContent,
+  Fade,
 } from '@mui/material';
+import PageLoader from '../../components/PageLoader';
 import { styled } from '@mui/material/styles';
 import SaveIcon from '@mui/icons-material/Save';
 import CancelIcon from '@mui/icons-material/Cancel';
@@ -279,7 +281,6 @@ function Settings() {
 
       if (response.ok) {
         const result = await response.json();
-        console.log('[Settings] Fetched page access:', result);
         
         if (result.success && result.data && Array.isArray(result.data)) {
           // Transform array to object format and filter invalid page keys
@@ -293,7 +294,6 @@ function Settings() {
             }
           });
           
-          console.log('[Settings] Transformed page access:', accessMap);
           setPageAccess(accessMap);
         } else {
           console.warn('[Settings] Invalid data structure:', result);
@@ -1109,13 +1109,6 @@ function Settings() {
     
     const rolePages = pageAccess[selectedRole] || [];
     
-    console.log(`[Settings] Stats for ${selectedRole}:`, {
-      rolePages,
-      count: rolePages.length,
-      totalPages,
-      allPageAccess: pageAccess
-    });
-    
     return { granted: rolePages.length, total: totalPages };
   }, [pageAccess, selectedRole]);
 
@@ -1288,11 +1281,14 @@ function Settings() {
           {activeTab === 1 && (
             <div className="permission-control-tab">
               {loadingPageAccess ? (
-                <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
-                  <CircularProgress />
-                </Box>
+                <PageLoader 
+                  loading={loadingPageAccess} 
+                  message="Loading permissions..."
+                  minHeight={400}
+                />
               ) : (
-                <>
+                <Fade in={!loadingPageAccess} timeout={400}>
+                <Box>
                   {/* Role Selector */}
                   <Paper className="role-selector-container" elevation={0}>
                     <Typography variant="h6" className="section-title">
@@ -1402,7 +1398,8 @@ function Settings() {
               <Alert severity="info" icon={<InfoIcon />} className="info-alert" sx={{ mt: 2 }}>
                 Page access control determines which routes and pages each admin role can view and use. Changes will affect all users with the selected role.
               </Alert>
-                </>
+                </Box>
+                </Fade>
               )}
             </div>
           )}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import websocketService from '../../services/websocket';
@@ -16,6 +16,8 @@ import CampaignIcon from '@mui/icons-material/Campaign';
 import AnalyticsIcon from '@mui/icons-material/Analytics';
 import HistoryIcon from '@mui/icons-material/History';
 import SettingsIcon from '@mui/icons-material/Settings';
+import MoreHorizIcon from '@mui/icons-material/MoreHoriz';
+import CloseIcon from '@mui/icons-material/Close';
 
 // API Configuration
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170';
@@ -83,6 +85,9 @@ function Sidebar() {
   const { user, logout, loading } = useAuth();
   const [currentTime, setCurrentTime] = useState(new Date());
   const [showLogout, setShowLogout] = useState(false);
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const moreMenuRef = useRef(null);
   
   // Initialize with cached pages to prevent flicker
   const [allowedPages, setAllowedPages] = useState(() => {
@@ -104,6 +109,50 @@ function Sidebar() {
       setCurrentTime(new Date());
     }, 1000);
     return () => clearInterval(timerId);
+  }, []);
+
+  // Handle window resize for responsive behavior
+  useEffect(() => {
+    const handleResize = () => {
+      const mobile = window.innerWidth <= 768;
+      setIsMobile(mobile);
+      // Close more menu when resizing
+      if (!mobile) {
+        setShowMoreMenu(false);
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Close more menu when navigating
+  useEffect(() => {
+    setShowMoreMenu(false);
+  }, [location.pathname]);
+
+  // Close more menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (moreMenuRef.current && !moreMenuRef.current.contains(event.target)) {
+        setShowMoreMenu(false);
+      }
+    };
+
+    if (showMoreMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('touchstart', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
+  }, [showMoreMenu]);
+
+  // Toggle more menu
+  const toggleMoreMenu = useCallback(() => {
+    setShowMoreMenu(prev => !prev);
   }, []);
 
   // Fetch allowed pages from API
@@ -300,61 +349,173 @@ function Sidebar() {
       .filter(item => item !== undefined); // Filter out any undefined items
   }, [user, loading, allowedPages]);
 
+  // Priority order for bottom nav (most commonly used pages first)
+  const PRIORITY_PAGES = ['dashboard', 'franchisee-list', 'franchise-management', 'certificate'];
+  
+  // Split menu items for mobile bottom nav
+  const { primaryNavItems, moreNavItems } = useMemo(() => {
+    const primary = [];
+    const more = [];
+    
+    // First, add priority pages that are in visibleMenuItems
+    PRIORITY_PAGES.forEach(pageKey => {
+      const item = visibleMenuItems.find(i => i.path === pageKeyToMenuItem[pageKey]?.path);
+      if (item && primary.length < 4) {
+        primary.push(item);
+      }
+    });
+    
+    // Add remaining items to "more" menu
+    visibleMenuItems.forEach(item => {
+      if (!primary.includes(item)) {
+        more.push(item);
+      }
+    });
+    
+    return { primaryNavItems: primary, moreNavItems: more };
+  }, [visibleMenuItems]);
+
+  // Check if current page is in the "more" menu
+  const isMoreActive = useMemo(() => {
+    return moreNavItems.some(item => item.path === location.pathname);
+  }, [moreNavItems, location.pathname]);
+
   return (
-    <div className="sidebar">
-      <div className="sidebar-header">
-        <div className="logo">
-          <img src={logoImage} alt="TRC-V Logo" className="logo-icon" />
-          <span className="logo-text">
-            <span className="blue-text">TR</span>
-            <span className="yellow-text">C-V</span>
-          </span>
-        </div>
-        <div className="system-name">TRICYCLE VERIFICATION SYSTEM</div>
-        <div className="divider"></div>
-      </div>
-
-      <div className="sidebar-items">
-        <ul>
-          {visibleMenuItems.map((item) => (
-            <li
-              key={item.name}
-              className={location.pathname === item.path ? 'active' : ''}
-            >
-              <Link to={item.path}>
-                <span className="menu-icon">{item.icon}</span>
-                <span className="menu-text">{item.name}</span>
-              </Link>
-            </li>
-          ))}
-        </ul>
-      </div>
-
-      <div className="timeanddate"> 
-        <span className="time-display">
-          {currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-        </span>
-        <span className="date-display"> 
-          {currentTime.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }).toUpperCase()}
-        </span>
-      </div>
-
-      <div className="user-profile" onClick={toggleLogout}>
-        <AccountCircleIcon className="profile-image-fallback" />
-        <div className="user-info">
-          <div className="user-name">{firstName}</div>
-          <div className="user-role">{roleDisplay}</div>
-        </div>
-        {showLogout && (
-          <div className="logout-dropdown" onClick={(e) => e.stopPropagation()}>
-            <button className="logout-button" onClick={handleLogout}>
-              <LogoutIcon className="logout-icon" />
-              <span>Logout</span>
-            </button>
+    <>
+      {/* Desktop Sidebar */}
+      {!isMobile && (
+        <div className="sidebar">
+          <div className="sidebar-header">
+            <div className="logo">
+              <img src={logoImage} alt="TRC-V Logo" className="logo-icon" />
+              <span className="logo-text">
+                <span className="blue-text">TR</span>
+                <span className="yellow-text">C-V</span>
+              </span>
+            </div>
+            <div className="system-name">TRICYCLE VERIFICATION SYSTEM</div>
+            <div className="divider"></div>
           </div>
-        )}
-      </div>
-    </div>
+
+          <div className="sidebar-items">
+            <ul>
+              {visibleMenuItems.map((item) => (
+                <li
+                  key={item.name}
+                  className={location.pathname === item.path ? 'active' : ''}
+                >
+                  <Link to={item.path}>
+                    <span className="menu-icon">{item.icon}</span>
+                    <span className="menu-text">{item.name}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div className="timeanddate"> 
+            <span className="time-display">
+              {currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+            </span>
+            <span className="date-display"> 
+              {currentTime.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }).toUpperCase()}
+            </span>
+          </div>
+
+          <div className="user-profile" onClick={toggleLogout}>
+            <AccountCircleIcon className="profile-image-fallback" />
+            <div className="user-info">
+              <div className="user-name">{firstName}</div>
+              <div className="user-role">{roleDisplay}</div>
+            </div>
+            {showLogout && (
+              <div className="logout-dropdown" onClick={(e) => e.stopPropagation()}>
+                <button className="logout-button" onClick={handleLogout}>
+                  <LogoutIcon className="logout-icon" />
+                  <span>Logout</span>
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Mobile Bottom Navigation */}
+      {isMobile && (
+        <nav className="mobile-bottom-nav" aria-label="Mobile navigation">
+          {/* Primary Nav Items */}
+          {primaryNavItems.map((item) => (
+            <Link 
+              key={item.name}
+              to={item.path}
+              className={`mobile-nav-item ${location.pathname === item.path ? 'active' : ''}`}
+              aria-current={location.pathname === item.path ? 'page' : undefined}
+            >
+              <span className="mobile-nav-icon">{item.icon}</span>
+              <span className="mobile-nav-label">{item.name.split(' ')[0]}</span>
+            </Link>
+          ))}
+          
+          {/* More Menu Button */}
+          {moreNavItems.length > 0 && (
+            <div className="mobile-nav-more-container" ref={moreMenuRef}>
+              <button 
+                className={`mobile-nav-item mobile-nav-more ${showMoreMenu || isMoreActive ? 'active' : ''}`}
+                onClick={toggleMoreMenu}
+                aria-expanded={showMoreMenu}
+                aria-haspopup="true"
+                aria-label="More options"
+              >
+                <span className="mobile-nav-icon">
+                  {showMoreMenu ? <CloseIcon /> : <MoreHorizIcon />}
+                </span>
+                <span className="mobile-nav-label">More</span>
+              </button>
+              
+              {/* More Menu Popup */}
+              {showMoreMenu && (
+                <div className="more-menu-popup" role="menu">
+                  <div className="more-menu-header">
+                    <span className="more-menu-title">More Options</span>
+                  </div>
+                  <div className="more-menu-items">
+                    {moreNavItems.map((item) => (
+                      <Link
+                        key={item.name}
+                        to={item.path}
+                        className={`more-menu-item ${location.pathname === item.path ? 'active' : ''}`}
+                        role="menuitem"
+                        onClick={() => setShowMoreMenu(false)}
+                      >
+                        <span className="more-menu-icon">{item.icon}</span>
+                        <span className="more-menu-text">{item.name}</span>
+                      </Link>
+                    ))}
+                  </div>
+                  
+                  {/* User Info & Logout in More Menu */}
+                  <div className="more-menu-divider"></div>
+                  <div className="more-menu-user">
+                    <AccountCircleIcon className="more-menu-user-icon" />
+                    <div className="more-menu-user-info">
+                      <span className="more-menu-user-name">{firstName}</span>
+                      <span className="more-menu-user-role">{roleDisplay}</span>
+                    </div>
+                  </div>
+                  <button 
+                    className="more-menu-logout"
+                    onClick={handleLogout}
+                  >
+                    <LogoutIcon />
+                    <span>Logout</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </nav>
+      )}
+    </>
   )
 }
 

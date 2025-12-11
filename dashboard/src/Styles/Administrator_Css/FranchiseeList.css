@@ -15,6 +15,62 @@
   margin-left: 240px;
   max-width: calc(100% - 260px);
   box-sizing: border-box;
+  animation: pageContentFadeIn 0.4s ease-out;
+}
+
+@keyframes pageContentFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Responsive Styles */
+@media (max-width: 1024px) {
+  .franchisee-list-container .content-container {
+    padding: 24px;
+    max-width: calc(100% - 260px);
+  }
+}
+
+@media (max-width: 768px) {
+  .franchisee-list-container .content-container {
+    padding: 16px;
+    margin-left: 0;
+    max-width: 100%;
+    width: 100%;
+    padding-bottom: 80px;
+  }
+  
+  .franchisee-list-container .page-title {
+    font-size: 24px;
+  }
+  
+  .franchisee-list-container .search-container {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 16px;
+  }
+  
+  .franchisee-list-container .header-container {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
+}
+
+@media (max-width: 480px) {
+  .franchisee-list-container .content-container {
+    padding: 12px;
+  }
+  
+  .franchisee-list-container .page-title {
+    font-size: 20px;
+  }
 }
 
 

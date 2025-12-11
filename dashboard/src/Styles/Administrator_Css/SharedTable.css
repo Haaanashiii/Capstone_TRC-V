@@ -2,20 +2,52 @@
    Shared Table Styles for Administration Pages
    ======================================== */
 
-/* Table Container */
+/* Table Container with animation */
 .admin-table-container {
   border-radius: 12px;
   overflow: hidden;
   box-shadow: 0 4px 16px rgba(10, 53, 107, 0.1);
   background: #ffffff;
   border: 1px solid rgba(10, 53, 107, 0.08);
+  animation: fadeInUp 0.4s ease-out;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .admin-table-wrapper {
-  max-height: calc(100vh - 350px);
-  min-height: 400px;
+  /* Dynamic height calculation based on viewport */
+  max-height: calc(100vh - 280px);
+  max-height: calc(100dvh - 280px); /* Dynamic viewport height for mobile */
+  min-height: 300px;
   overflow-x: auto;
   overflow-y: auto;
+  /* Smooth scrolling */
+  scroll-behavior: smooth;
+}
+
+/* Large screens - more space for table */
+@media (min-height: 900px) {
+  .admin-table-wrapper {
+    max-height: calc(100vh - 260px);
+    min-height: 500px;
+  }
+}
+
+/* Extra large screens */
+@media (min-height: 1080px) {
+  .admin-table-wrapper {
+    max-height: calc(100vh - 240px);
+    min-height: 600px;
+  }
 }
 
 /* Compact Table */
@@ -54,7 +86,30 @@
 }
 
 .admin-table-row {
-  transition: background-color 0.2s ease;
+  transition: background-color 0.2s ease, transform 0.2s ease;
+  animation: tableRowFadeIn 0.3s ease-out backwards;
+}
+
+.admin-table-row:nth-child(1) { animation-delay: 0.02s; }
+.admin-table-row:nth-child(2) { animation-delay: 0.04s; }
+.admin-table-row:nth-child(3) { animation-delay: 0.06s; }
+.admin-table-row:nth-child(4) { animation-delay: 0.08s; }
+.admin-table-row:nth-child(5) { animation-delay: 0.1s; }
+.admin-table-row:nth-child(6) { animation-delay: 0.12s; }
+.admin-table-row:nth-child(7) { animation-delay: 0.14s; }
+.admin-table-row:nth-child(8) { animation-delay: 0.16s; }
+.admin-table-row:nth-child(9) { animation-delay: 0.18s; }
+.admin-table-row:nth-child(10) { animation-delay: 0.2s; }
+
+@keyframes tableRowFadeIn {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
 .admin-table-row:hover {
@@ -231,7 +286,9 @@
 /* Responsive */
 @media (max-width: 1024px) {
   .admin-table-wrapper {
-    max-height: calc(100vh - 300px);
+    max-height: calc(100vh - 260px);
+    max-height: calc(100dvh - 260px);
+    min-height: 280px;
   }
   
   .admin-table-cell,
@@ -243,11 +300,29 @@
 
 @media (max-width: 768px) {
   .admin-table-wrapper {
-    max-height: calc(100vh - 250px);
+    max-height: calc(100vh - 240px);
+    max-height: calc(100dvh - 240px);
+    min-height: 250px;
   }
   
   .col-name,
   .col-email {
     min-width: 150px;
+  }
+}
+
+/* Small height screens (laptops) */
+@media (max-height: 768px) {
+  .admin-table-wrapper {
+    max-height: calc(100vh - 220px);
+    min-height: 200px;
+  }
+}
+
+/* Very small height screens */
+@media (max-height: 600px) {
+  .admin-table-wrapper {
+    max-height: calc(100vh - 180px);
+    min-height: 150px;
   }
 }

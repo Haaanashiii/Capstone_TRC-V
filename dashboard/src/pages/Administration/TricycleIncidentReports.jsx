@@ -4,6 +4,8 @@ import '../../Styles/Administrator_Css/SharedTable.css';
 import Sidebar from './Sidebar';
 import websocketService from '../../services/websocket';
 import { incidentReportsAPI } from '../Services/api';
+import PageLoader from '../../components/PageLoader';
+import AnimatedPage, { AnimatedSection } from '../../components/AnimatedPage';
 import { 
   Typography, 
   TextField, 
@@ -32,7 +34,8 @@ import {
   DialogActions,
   Snackbar,
   Tooltip,
-  Grid
+  Grid,
+  Fade,
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import DownloadIcon from '@mui/icons-material/Download';
@@ -490,7 +493,9 @@ function TricycleIncidentReports() {
       <div className="content-container">
         {/* Header */}
         <div className="header-container">
-          <h1 className="page-title">Tricycle Incident Reporting</h1>
+          <Typography variant="h4" className="page-title">
+            Tricycle Incident Reporting
+          </Typography>
         </div>
         
         {/* Error Alert */}
@@ -565,11 +570,14 @@ function TricycleIncidentReports() {
         </div>
         
         {/* Reports Table */}
+        <Fade in={true} timeout={400}>
         <Paper className="admin-table-container" elevation={2}>
           {loading && (
-            <Box className="admin-table-loading">
-              <CircularProgress />
-            </Box>
+            <PageLoader 
+              loading={loading} 
+              message="Loading incident reports..."
+              overlay
+            />
           )}
           
           <TableContainer className="admin-table-wrapper">
@@ -641,6 +649,7 @@ function TricycleIncidentReports() {
             />
           </div>
         </Paper>
+        </Fade>
         
         {/* Advanced Filter Dialog */}
         <Dialog 

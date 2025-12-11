@@ -28,8 +28,10 @@ import {
   CircularProgress,
   Snackbar,
   Alert,
-  Chip
+  Chip,
+  Fade,
 } from '@mui/material'
+import PageLoader from '../../components/PageLoader'
 import SearchIcon from '@mui/icons-material/Search'
 import CloseIcon from '@mui/icons-material/Close'
 import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFile'
@@ -1387,9 +1389,9 @@ function FranchiseMgmt() {
     <div className="franchise-mgmt-container">
       <Sidebar />
       <div className="franchise-mgmt-content">
-        <h1 className="title">
+        <Typography variant="h4" className="page-title">
           {userRole === 'sb-admin' ? 'SB Final Approval' : 'Franchise Management'}
-        </h1>
+        </Typography>
         
         {/* Search bar and Add button */}
         <div className="search-bar">
@@ -1448,10 +1450,13 @@ function FranchiseMgmt() {
         </Typography>
         
         {isLoading && !pendingApplications.length ? (
-          <Box className="admin-table-loading">
-            <CircularProgress />
-          </Box>
+          <PageLoader 
+            loading={isLoading} 
+            message="Loading applications..."
+            minHeight={300}
+          />
         ) : (
+          <Fade in={!isLoading || pendingApplications.length > 0} timeout={400}>
           <Paper className="admin-table-container" elevation={2}>
             <TableContainer className="admin-table-wrapper">
               <Table className="admin-table" stickyHeader aria-label="pending franchises table">
@@ -1516,6 +1521,7 @@ function FranchiseMgmt() {
               </Table>
             </TableContainer>
           </Paper>
+          </Fade>
         )}
       </div>
       

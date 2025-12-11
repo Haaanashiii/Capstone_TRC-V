@@ -14,6 +14,61 @@
     margin-left: 240px;
     width: calc(100% - 240px);
     background-color: #f5f7fa;
+    animation: pageContentFadeIn 0.4s ease-out;
+}
+
+@keyframes pageContentFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Responsive Styles */
+@media (max-width: 1024px) {
+    .audit-trail-container .content-container {
+        padding: 24px;
+    }
+}
+
+@media (max-width: 768px) {
+    .audit-trail-container .content-container {
+        padding: 16px;
+        margin-left: 0;
+        width: 100%;
+        padding-bottom: 80px;
+    }
+    
+    .audit-trail-container .page-title {
+        font-size: 24px;
+    }
+    
+    .audit-trail-container .filters-row {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .audit-trail-container .search-field {
+        min-width: 100%;
+    }
+    
+    .audit-trail-container .filter-select {
+        width: 100%;
+    }
+}
+
+@media (max-width: 480px) {
+    .audit-trail-container .content-container {
+        padding: 12px;
+    }
+    
+    .audit-trail-container .page-title {
+        font-size: 20px;
+    }
 }
 
 .audit-trail-container .page-title {
@@ -117,13 +172,39 @@
     padding: 64px 0;
 }
 
-/* Table Container - Scrollable */
+/* Table Container - Scrollable with dynamic height */
 .audit-trail-container .table-container {
     border-radius: 8px;
     overflow-x: auto;
     overflow-y: auto;
-    max-height: calc(100vh - 450px);
+    max-height: calc(100vh - 320px);
+    max-height: calc(100dvh - 320px);
+    min-height: 300px;
     width: 100%;
+}
+
+/* Large screens */
+@media (min-height: 900px) {
+    .audit-trail-container .table-container {
+        max-height: calc(100vh - 300px);
+        min-height: 400px;
+    }
+}
+
+/* Extra large screens */
+@media (min-height: 1080px) {
+    .audit-trail-container .table-container {
+        max-height: calc(100vh - 280px);
+        min-height: 500px;
+    }
+}
+
+/* Small height screens */
+@media (max-height: 768px) {
+    .audit-trail-container .table-container {
+        max-height: calc(100vh - 280px);
+        min-height: 200px;
+    }
 }
 
 .audit-trail-container .MuiTable-root {

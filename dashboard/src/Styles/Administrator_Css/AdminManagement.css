@@ -10,6 +10,18 @@
   padding: 32px;
   margin-left: 240px; 
   width: calc(100% - 240px);
+  animation: pageContentFadeIn 0.4s ease-out;
+}
+
+@keyframes pageContentFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .header-container {
@@ -17,6 +29,12 @@
   justify-content: space-between;
   align-items: center;
   margin-bottom: 24px;
+  animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 .page-title {
@@ -26,6 +44,46 @@
   color: #0A356B;
   margin: 0;
   letter-spacing: -0.5px;
+}
+
+/* Responsive Styles */
+@media (max-width: 1024px) {
+  .content-area {
+    padding: 24px;
+  }
+  
+  .page-title {
+    font-size: 28px;
+  }
+}
+
+@media (max-width: 768px) {
+  .content-area {
+    padding: 16px;
+    margin-left: 0;
+    width: 100%;
+    padding-bottom: 80px;
+  }
+  
+  .page-title {
+    font-size: 24px;
+  }
+  
+  .header-container {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
+}
+
+@media (max-width: 480px) {
+  .content-area {
+    padding: 12px;
+  }
+  
+  .page-title {
+    font-size: 20px;
+  }
 }
 
 .table-container {
@@ -64,6 +122,23 @@
   background-color: #083057 !important;
   box-shadow: 0 6px 16px rgba(10, 53, 107, 0.3) !important;
   transform: translateY(-2px);
+}
+
+/* Filter Button Styles */
+.filter-btn {
+  border-color: rgba(10, 53, 107, 0.3);
+  color: #0A356B;
+  text-transform: none;
+}
+
+.filter-btn-active {
+  background-color: #0A356B !important;
+  color: white !important;
+  text-transform: none;
+}
+
+.filter-btn-active:hover {
+  background-color: #083057 !important;
 }
 
 /* Table Styles */
@@ -600,6 +675,88 @@
   transform: scale(1.1);
 }
 
+/* Alert Messages */
+.alert-message {
+  margin-bottom: 16px;
+}
+
+/* Toolbar Filter Box */
+.toolbar-filter-box {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  flex-wrap: wrap;
+  flex: 1;
+}
+
+/* Search Field */
+.search-field-admin {
+  min-width: 220px;
+}
+
+/* Filter Panel */
+.admin-filter-panel {
+  padding: 16px;
+  margin-bottom: 16px;
+  border-radius: 8px;
+}
+
+/* Filter Label */
+.filter-label {
+  margin-bottom: 4px;
+  display: block;
+}
+
+/* Filter Select */
+.filter-select {
+  min-width: 180px;
+}
+
+.sort-select {
+  min-width: 160px;
+}
+
+/* Toggle Button Active States */
+.toggle-active {
+  color: #2e7d32;
+}
+
+.toggle-inactive {
+  color: #d32f2f;
+}
+
+/* Toggle Icon Spacing */
+.toggle-icon {
+  margin-right: 4px;
+}
+
+/* Vertical Divider - Hide on Mobile */
+.filter-divider {
+  display: block;
+}
+
+/* Sort Icon */
+.sort-icon {
+  margin-right: 8px;
+  color: rgba(0, 0, 0, 0.54);
+}
+
+/* Active Filters Box */
+.active-filters-box {
+  margin-top: 16px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* Results Count */
+.results-count {
+  margin-bottom: 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
 /* Responsive Toolbar */
 @media (max-width: 768px) {
   .user-management-toolbar {
@@ -607,7 +764,7 @@
     align-items: stretch;
   }
   
-  .user-management-toolbar > div:first-child {
+  .toolbar-filter-box {
     flex-direction: column;
     width: 100%;
   }
@@ -621,7 +778,12 @@
     width: 100%;
   }
   
-  .admin-filter-panel .MuiDivider-root {
-    display: none !important;
+  .filter-divider {
+    display: none;
+  }
+  
+  .search-field-admin {
+    width: 100%;
+    min-width: unset;
   }
 }

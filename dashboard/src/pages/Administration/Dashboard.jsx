@@ -14,6 +14,8 @@ import {
   FormControl,
   IconButton,
   Tooltip as MuiTooltip,
+  Fade,
+  Skeleton,
 } from '@mui/material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
@@ -41,6 +43,8 @@ import {
 import '../../Styles/Administrator_Css/Dashboard.css';
 import Sidebar from './Sidebar';
 import KpiCard from '../../components/KpiCard';
+import PageLoader, { CardLoader } from '../../components/PageLoader';
+import AnimatedPage, { AnimatedSection } from '../../components/AnimatedPage';
 import { dashboardAPI } from '../Services/api';
 import websocketService from '../../services/websocket';
 
@@ -108,10 +112,8 @@ function Dashboard() {
   // Memoize chart data for optimal performance
   const chartData = useMemo(() => {
     if (!dashboardData?.trendData || dashboardData.trendData.length === 0) {
-      console.log('[Dashboard] No trend data:', dashboardData?.trendData);
       return [];
     }
-    console.log('[Dashboard] Chart data:', dashboardData.trendData);
     return dashboardData.trendData;
   }, [dashboardData?.trendData]);
 
@@ -240,20 +242,11 @@ function Dashboard() {
         startDate: startDate.format('YYYY-MM-DD'),
         endDate: endDate.format('YYYY-MM-DD')
       };
-
-      console.log(`[Dashboard] Fetching statistics from ${params.startDate} to ${params.endDate}`);
       
       const response = await dashboardAPI.getStatistics(params);
       
       if (response?.data?.success && response.data.data) {
         const { kpis, trends } = response.data.data;
-        
-        console.log('[Dashboard] Raw API Response:', {
-          kpis,
-          trends,
-          trendsMonthly: trends?.monthly,
-          timestamp: response.data.data.timestamp
-        });
         
         setDashboardData({
           kpiData: {
@@ -267,16 +260,6 @@ function Dashboard() {
           trendData: trends?.monthly || [],
           currentMonthInfo: trends?.currentMonth || null,
           timestamp: response.data.data.timestamp,
-        });
-
-        console.log('[Dashboard] Statistics loaded successfully:', {
-          totalRegistered: kpis.totalRegistered,
-          pendingVerifications: kpis.pendingVerifications,
-          expiredFranchise: kpis.expiredFranchise,
-          trendDataLength: trends?.monthly?.length || 0,
-          trendData: trends?.monthly || [],
-          currentMonthInfo: trends?.currentMonth,
-          fullTrends: trends
         });
         
         setRetryCount(0); // Reset retry count on success
@@ -324,13 +307,11 @@ function Dashboard() {
 
     // Connect to WebSocket for real-time updates
     if (!websocketService.isConnected()) {
-      console.log('[Dashboard] Connecting to WebSocket');
       websocketService.connect('general')
     }
 
     // Subscribe to dashboard statistics updates
     const handleDashboardUpdates = () => {
-      console.log('[Dashboard] WebSocket update - dashboard-statistics');
       fetchDashboardData();
     };
 
@@ -395,14 +376,7 @@ function Dashboard() {
         >
           <Typography
             variant="h4"
-            className="title"
-            sx={{
-              fontSize: '36px',
-              fontWeight: 700,
-              color: '#0A356B',
-              letterSpacing: '-0.5px',
-              mb: 0,
-            }}
+            className="page-title"
           >
             Dashboard
           </Typography>
@@ -466,83 +440,103 @@ function Dashboard() {
 
         {/* Loading State */}
         {loading ? (
-          <Box
-            sx={{
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'center',
-              alignItems: 'center',
-              minHeight: '300px',
-              gap: 2,
-            }}
-          >
-            <CircularProgress size={48} sx={{ color: '#0A356B' }} />
-            <Typography sx={{ color: '#6B7280', fontSize: '0.875rem' }}>
-              Loading dashboard data...
-            </Typography>
-          </Box>
-        ) : dashboardData ? (
-          <>
-            {/* KPI Cards Section */}
-            <Box
-              sx={{
-                display: 'grid',
-                gridTemplateColumns: {
-                  xs: '1fr',
-                  sm: 'repeat(2, 1fr)',
-                  md: 'repeat(4, 1fr)',
-                },
-                gap: 3,
-                mb: 4,
-              }}
-            >
-              <KpiCard
-                title="Total Registered Units"
-                value={dashboardData.kpiData.totalRegistered}
-                icon={AssessmentIcon}
-                iconColor="#0A356B"
-                route="/franchisee-list"
-              />
-              <KpiCard
-                title="Expired Franchise"
-                value={dashboardData.kpiData.expiredFranchise}
-                icon={EventBusyIcon}
-                iconColor="#DC2626"
-                route="/franchisee-list"
-              />
-              <KpiCard
-                title="Pending Verifications"
-                value={dashboardData.kpiData.pendingVerifications}
-                icon={PendingActionsIcon}
-                iconColor="#F59E0B"
-                route="/franchise-management"
-              />
-              <KpiCard
-                title="Pending Reports"
-                value={dashboardData.kpiData.pendingReports}
-                icon={ReportIcon}
-                iconColor="#EF4444"
-                route="/incident-reports"
-              />
+          <Fade in={loading} timeout={300}>
+            <Box>
+              {/* KPI Cards Skeleton */}
+              <CardLoader count={4} />
+              
+              {/* Chart Skeleton */}
+              <AnimatedSection index={1} baseDelay={200}>
+                <Paper
+                  elevation={2}
+                  sx={{
+                    p: 3,
+                    mt: 4,
+                    borderRadius: 3,
+                    backgroundColor: '#ffffff',
+                  }}
+                >
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3, flexWrap: 'wrap', gap: 2 }}>
+                    <Skeleton variant="text" width={200} height={32} />
+                    <Skeleton variant="rectangular" width={300} height={40} sx={{ borderRadius: 1 }} />
+                  </Box>
+                  <Skeleton variant="rectangular" width="100%" height={400} sx={{ borderRadius: 2 }} />
+                </Paper>
+              </AnimatedSection>
             </Box>
+          </Fade>
+        ) : dashboardData ? (
+          <Fade in={!loading} timeout={400}>
+            <Box>
+              {/* KPI Cards Section */}
+              <Box
+                sx={{
+                  display: 'grid',
+                  gridTemplateColumns: {
+                    xs: '1fr',
+                    sm: 'repeat(2, 1fr)',
+                    lg: 'repeat(4, 1fr)',
+                  },
+                  gap: { xs: 2, sm: 3 },
+                  mb: 4,
+                }}
+              >
+                <AnimatedSection index={0}>
+                  <KpiCard
+                    title="Total Registered Units"
+                    value={dashboardData.kpiData.totalRegistered}
+                    icon={AssessmentIcon}
+                    iconColor="#0A356B"
+                    route="/franchisee-list"
+                  />
+                </AnimatedSection>
+                <AnimatedSection index={1}>
+                  <KpiCard
+                    title="Expired Franchise"
+                    value={dashboardData.kpiData.expiredFranchise}
+                    icon={EventBusyIcon}
+                    iconColor="#DC2626"
+                    route="/franchisee-list"
+                  />
+                </AnimatedSection>
+                <AnimatedSection index={2}>
+                  <KpiCard
+                    title="Pending Verifications"
+                    value={dashboardData.kpiData.pendingVerifications}
+                    icon={PendingActionsIcon}
+                    iconColor="#F59E0B"
+                    route="/franchise-management"
+                  />
+                </AnimatedSection>
+                <AnimatedSection index={3}>
+                  <KpiCard
+                    title="Pending Reports"
+                    value={dashboardData.kpiData.pendingReports}
+                    icon={ReportIcon}
+                    iconColor="#EF4444"
+                    route="/incident-reports"
+                  />
+                </AnimatedSection>
+              </Box>
 
             {/* Trend Chart Section */}
+            <AnimatedSection index={4} baseDelay={150}>
             <Paper
               elevation={2}
               sx={{
-                p: 3,
+                p: { xs: 2, sm: 3 },
                 borderRadius: 3,
                 backgroundColor: '#ffffff',
               }}
             >
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 3, flexWrap: 'wrap', gap: 2 }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
                   <Typography
                     variant="h6"
                     sx={{
                       color: '#0A356B',
                       fontWeight: 700,
-                      fontSize: '1.25rem',
+                      fontSize: { xs: '1rem', sm: '1.25rem' },
                     }}
                   >
                     Franchise Health Over Time
@@ -788,7 +782,9 @@ function Dashboard() {
                 </Box>
               )}
             </Paper>
-          </>
+          </AnimatedSection>
+            </Box>
+          </Fade>
         ) : null}
       </div>
     </div>

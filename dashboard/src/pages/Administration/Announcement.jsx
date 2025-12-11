@@ -4,6 +4,8 @@ import '../../Styles/Administrator_Css/SharedTable.css';
 import Sidebar from './Sidebar';
 import websocketService from '../../services/websocket';
 import announcementService from '../../services/announcementService';
+import PageLoader from '../../components/PageLoader';
+import AnimatedPage, { AnimatedSection } from '../../components/AnimatedPage';
 import {
   Box,
   Typography,
@@ -23,7 +25,8 @@ import {
   CircularProgress,
   Alert,
   Switch,
-  Snackbar
+  Snackbar,
+  Fade,
 } from '@mui/material';
 
 import SearchIcon from '@mui/icons-material/Search';
@@ -75,25 +78,21 @@ function Announcement() {
 
     // Connect to WebSocket announcements room for real-time updates
     if (!websocketService.isConnected()) {
-      console.log('[Announcement] Connecting to WebSocket');
       websocketService.connect();  // Auto-joins 'announcements' room
     }
 
     // Subscribe to announcement updates
     const handleAnnouncementCreated = (newAnnouncement) => {
-      console.log('[Announcement] WebSocket event - announcement-created', newAnnouncement);
       setAnnouncements(prev => [newAnnouncement, ...prev]);
     };
 
     const handleAnnouncementUpdated = (updatedAnnouncement) => {
-      console.log('[Announcement] WebSocket event - announcement-updated', updatedAnnouncement);
       setAnnouncements(prev =>
         prev.map(a => a._id === updatedAnnouncement._id ? updatedAnnouncement : a)
       );
     };
 
     const handleAnnouncementDeleted = (data) => {
-      console.log('[Announcement] WebSocket event - announcement-deleted', data);
       setAnnouncements(prev => prev.filter(a => a._id !== data._id));
     };
 
@@ -273,9 +272,9 @@ function Announcement() {
     <div className="announcement-management-container">
       <Sidebar />
       <div className="content-area">
-        <div className="page-title">
+        <Typography variant="h4" className="page-title">
           Announcement Management
-        </div>
+        </Typography>
 
         {/* Success/Error Messages */}
         {error && !openModal && (
@@ -315,12 +314,15 @@ function Announcement() {
             </Button>
         </Box>
 
-        {loading && !openModal && (
-          <Box display="flex" justifyContent="center" my={4}>
-            <CircularProgress />
-          </Box>
-        )}
-
+        {loading && !openModal ? (
+          <PageLoader 
+            loading={loading} 
+            message="Loading announcements..." 
+            minHeight={400}
+          />
+        ) : (
+          <Fade in={!loading} timeout={400}>
+            <Box>
         <Paper className="admin-table-container" elevation={2}>
           <TableContainer className="admin-table-wrapper">
             <Table className="admin-table" stickyHeader>
@@ -377,7 +379,7 @@ function Announcement() {
                 ) : (
                   <TableRow className="admin-table-row">
                     <TableCell className="admin-table-cell" colSpan={5} align="center">
-                      {loading ? 'Loading...' : 'No announcements found'}
+                      No announcements found
                     </TableCell>
                   </TableRow>
                 )}
@@ -396,6 +398,9 @@ function Announcement() {
             rowsPerPageOptions={[10, 15, 25, 50]}
           />
         </Paper>
+            </Box>
+          </Fade>
+        )}
 
         {/* Add/Edit Announcement Modal */}
         <Modal open={openModal} onClose={handleCloseModal}>
