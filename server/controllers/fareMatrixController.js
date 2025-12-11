@@ -16,9 +16,12 @@ exports.getActiveFareMatrix = async (req, res, next) => {
       });
     }
 
+    // Convert gridfs:// URL to HTTP URL for frontend display
+    const convertedFareMatrix = storage.convertGridFSUrls(fareMatrix);
+
     return res.status(200).json({ 
       success: true, 
-      fareMatrix 
+      fareMatrix: convertedFareMatrix 
     });
   } catch (error) {
     return next(error);
