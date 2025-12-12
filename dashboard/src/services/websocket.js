@@ -6,6 +6,7 @@
 import { io } from 'socket.io-client';
 import { useEffect } from 'react';
 import { API_BASE_URL, TokenManager } from '../pages/Services/api';
+import logger from '../utils/logger';
 
 class WebSocketService {
   constructor() {
@@ -23,10 +24,10 @@ class WebSocketService {
    */
   connect(room = null) {
     if (this.socket?.connected) {
-      console.log('[WebSocket] Already connected, current room:', this.currentRoom);
+      logger.log('[WebSocket] Already connected, current room:', this.currentRoom);
       // If a different room is requested, switch to it
       if (room && room !== this.currentRoom) {
-        console.log('[WebSocket] Switching from room:', this.currentRoom, 'to:', room);
+        logger.log('[WebSocket] Switching from room:', this.currentRoom, 'to:', room);
         this.joinRoom(room);
       }
       return;
@@ -34,9 +35,9 @@ class WebSocketService {
 
     const token = TokenManager.getAccessToken();
     
-    console.log('[WebSocket] Attempting to connect to:', API_BASE_URL);
-    console.log('[WebSocket] Token available:', !!token);
-    console.log('[WebSocket] Connection type:', token ? 'Authenticated' : 'Anonymous (announcements only)');
+    logger.log('[WebSocket] Attempting to connect to:', API_BASE_URL);
+    logger.log('[WebSocket] Token available:', !!token);
+    logger.log('[WebSocket] Connection type:', token ? 'Authenticated' : 'Anonymous (announcements only)');
     
     // Connect with token if available, otherwise connect without (for announcements)
     this.socket = io(API_BASE_URL, {
@@ -52,7 +53,7 @@ class WebSocketService {
 
     // Connection event handlers
     this.socket.on('connect', () => {
-      console.log('[WebSocket] Connected:', this.socket.id);
+      logger.log('[WebSocket] Connected:', this.socket.id);
       this.reconnectAttempts = 0;
       
       // Join room if specified
@@ -62,12 +63,12 @@ class WebSocketService {
     });
 
     this.socket.on('disconnect', (reason) => {
-      console.log('[WebSocket] Disconnected:', reason);
+      logger.log('[WebSocket] Disconnected:', reason);
     });
 
     this.socket.on('connect_error', (error) => {
-      console.error('[WebSocket] Connection error:', error);
-      console.error('[WebSocket] Error details:', {
+      logger.error('[WebSocket] Connection error:', error);
+      logger.error('[WebSocket] Error details:', {
         message: error.message,
         data: error.data,
         type: error.type
@@ -75,17 +76,17 @@ class WebSocketService {
       this.reconnectAttempts++;
       
       if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-        console.error('[WebSocket] Max reconnection attempts reached');
+        logger.error('[WebSocket] Max reconnection attempts reached');
         this.disconnect();
       }
     });
 
     this.socket.on('reconnect', (attemptNumber) => {
-      console.log('[WebSocket] Reconnected after', attemptNumber, 'attempts');
+      logger.log('[WebSocket] Reconnected after', attemptNumber, 'attempts');
     });
 
     this.socket.on('reconnect_failed', () => {
-      console.error('[WebSocket] Reconnection failed');
+      logger.error('[WebSocket] Reconnection failed');
     });
 
     return this.socket;
@@ -97,11 +98,11 @@ class WebSocketService {
    */
   joinRoom(room) {
     if (!this.socket?.connected) {
-      console.warn('[WebSocket] Cannot join room - not connected');
+      logger.warn('[WebSocket] Cannot join room - not connected');
       return;
     }
 
-    console.log('[WebSocket] Joining room:', room, '(was in:', this.currentRoom + ')');
+    logger.log('[WebSocket] Joining room:', room, '(was in:', this.currentRoom + ')');
     this.currentRoom = room; // Track the current room
     this.socket.emit('join-room', room);
   }
@@ -113,7 +114,7 @@ class WebSocketService {
    */
   on(event, callback) {
     if (!this.socket) {
-      console.warn('[WebSocket] Socket not initialized');
+      logger.warn('[WebSocket] Socket not initialized');
       return;
     }
 
@@ -153,7 +154,7 @@ class WebSocketService {
    */
   emit(event, data) {
     if (!this.socket?.connected) {
-      console.warn('[WebSocket] Cannot emit - not connected');
+      logger.warn('[WebSocket] Cannot emit - not connected');
       return;
     }
 
@@ -166,7 +167,7 @@ class WebSocketService {
   disconnect() {
     if (!this.socket) return;
 
-    console.log('[WebSocket] Disconnecting...');
+    logger.log('[WebSocket] Disconnecting...');
 
     // Remove all listeners
     this.listeners.forEach((callbacks, event) => {

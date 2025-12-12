@@ -49,6 +49,7 @@ import {
 } from '@mui/icons-material';
 import websocketService from '../../services/websocket';
 import { dashboardAPI, franchiseInformationAPI } from '../Services/api';
+import { logger } from '../../utils/logger';
 
 // ==================== Constants ====================
 const MONTHS = [
@@ -86,7 +87,7 @@ const getCurrentYear = () => new Date().getFullYear();
  */
 const exportToCSV = (data, filename) => {
   if (!data || data.length === 0) {
-    console.warn('No data to export');
+    logger.warn('No data to export');
     return;
   }
 
@@ -163,7 +164,7 @@ function Analytics() {
         throw new Error('Invalid response format from server');
       }
     } catch (err) {
-      console.error('Error fetching analytics:', err);
+      logger.error('Error fetching analytics:', err);
       
       // Handle specific error cases
       if (err.response?.status === 401) {
@@ -193,7 +194,7 @@ function Analytics() {
         setRecyclableStats(null);
       }
     } catch (err) {
-      console.error('Error fetching recyclable numbers:', err);
+      logger.error('Error fetching recyclable numbers:', err);
       setRecyclableNumbers([]);
       setRecyclableStats(null);
     } finally {
@@ -240,7 +241,7 @@ function Analytics() {
         setExpiringFranchisees([]);
       }
     } catch (err) {
-      console.error('Error fetching expiring franchises:', err);
+      logger.error('Error fetching expiring franchises:', err);
       setExpiringFranchisees([]);
     } finally {
       setLoadingExpiring(false);

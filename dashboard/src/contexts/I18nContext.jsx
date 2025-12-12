@@ -1,4 +1,5 @@
 import React, { createContext, useState, useEffect, useCallback } from 'react';
+import logger from '../utils/logger';
 
 export const I18nContext = createContext();
 
@@ -26,7 +27,7 @@ export const I18nProvider = ({ children }) => {
       setLoading(true);
       setError(null);
       
-      console.log(`[I18n] Loading translations for language: ${lang}`);
+      logger.log(`[I18n] Loading translations for language: ${lang}`);
       
       // Load translations from public/translations folder
       const response = await fetch(`/translations/${lang}.json`);
@@ -36,12 +37,12 @@ export const I18nProvider = ({ children }) => {
       }
       
       const data = await response.json();
-      console.log(`[I18n] Successfully loaded ${lang} translations:`, Object.keys(data));
-      console.log('[I18n] Sample translation - franchiseApplication.title:', data.franchiseApplication?.title);
+      logger.log(`[I18n] Successfully loaded ${lang} translations:`, Object.keys(data));
+      logger.log('[I18n] Sample translation - franchiseApplication.title:', data.franchiseApplication?.title);
       setTranslations(data);
       setLoading(false);
     } catch (err) {
-      console.error('[I18n] Error loading translations:', err);
+      logger.error('[I18n] Error loading translations:', err);
       setError(err.message);
       setLoading(false);
       
@@ -52,14 +53,14 @@ export const I18nProvider = ({ children }) => {
 
   // Load translations when language changes
   useEffect(() => {
-    console.log('[I18n] Language changed to:', language);
+    logger.log('[I18n] Language changed to:', language);
     loadTranslations(language);
   }, [language, loadTranslations]);
 
   // Toggle between English and Tagalog
   const toggleLanguage = useCallback(() => {
     const newLanguage = language === 'en' ? 'tl' : 'en';
-    console.log(`[I18n] Toggling language from ${language} to ${newLanguage}`);
+    logger.log(`[I18n] Toggling language from ${language} to ${newLanguage}`);
     setLanguage(newLanguage);
     localStorage.setItem('appLanguage', newLanguage);
   }, [language]);
@@ -86,16 +87,16 @@ export const I18nProvider = ({ children }) => {
         value = value[k];
       } else {
         // Return key as fallback if translation not found
-        console.warn(`[I18n] Translation not found for key: ${key} in language: ${language}`);
+        logger.warn(`[I18n] Translation not found for key: ${key} in language: ${language}`);
         return defaultValue || key;
       }
     }
     
     const result = typeof value === 'string' ? value : defaultValue || key;
     
-    // Debug logging for specific keys
+    // Debug logging for specific keys (only in development)
     if (key.includes('franchiseApplication')) {
-      console.log(`[I18n] t("${key}") in ${language}:`, result);
+      logger.log(`[I18n] t("${key}") in ${language}:`, result);
     }
     
     return result;

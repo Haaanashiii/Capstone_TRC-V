@@ -12,6 +12,7 @@ import UnifiedNavbar from '../../components/UnifiedNavbar';
 import '../../Styles/Operator\'s_CSS/FranchiseeListOperatorSide.css';
 import dayjs from 'dayjs';
 import { franchiseInformationAPI } from '../Services/api';
+import { logger } from '../../utils/logger';
 
 function FranchiseeListOperatorSide() {
   const navigate = useNavigate();
@@ -60,7 +61,7 @@ function FranchiseeListOperatorSide() {
         const parsedData = JSON.parse(franchiseData);
         setFranchiseStatus(parsedData.status || 'ACTIVE');
       } catch (error) {
-        console.error('Error parsing franchise data:', error);
+        logger.error('Error parsing franchise data:', error);
         setFranchiseStatus(null);
       }
     } else {
@@ -90,7 +91,7 @@ function FranchiseeListOperatorSide() {
       if (!token) return;
 
       const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170';
-      console.log('[FranchiseeListOperatorSide] Fetching user details from:', `${API_BASE_URL}/auth/me`);
+      logger.log('[FranchiseeListOperatorSide] Fetching user details from:', `${API_BASE_URL}/auth/me`);
       
       const response = await fetch(`${API_BASE_URL}/auth/me`, {
         headers: {
@@ -99,16 +100,16 @@ function FranchiseeListOperatorSide() {
         }
       });
 
-      console.log('FranchiseeListOperatorSide: Response status:', response.status);
+      logger.log('FranchiseeListOperatorSide: Response status:', response.status);
 
       if (response.ok) {
         const data = await response.json();
-        console.log('FranchiseeListOperatorSide: User details received:', data);
-        console.log('FranchiseeListOperatorSide: QR Code from user.franchise:', data.user?.franchise?.qrCode);
-        console.log('FranchiseeListOperatorSide: Profile photo from user.franchise:', data.user?.franchise?.profilePhoto);
+        logger.log('FranchiseeListOperatorSide: User details received:', data);
+        logger.log('FranchiseeListOperatorSide: QR Code from user.franchise:', data.user?.franchise?.qrCode);
+        logger.log('FranchiseeListOperatorSide: Profile photo from user.franchise:', data.user?.franchise?.profilePhoto);
         setUser(data.user);
       } else {
-        console.log('FranchiseeListOperatorSide: /auth/me returned non-ok. Clearing any stored franchise info to avoid stale data.');
+        logger.log('FranchiseeListOperatorSide: /auth/me returned non-ok. Clearing any stored franchise info to avoid stale data.');
         // If server says the user is not available (e.g., deleted), clear any stored franchise
         sessionStorage.removeItem('userFranchiseInfo');
         sessionStorage.removeItem('franchiseLinked');
@@ -120,7 +121,7 @@ function FranchiseeListOperatorSide() {
         setUser(tokenUser || null);
       }
     } catch (error) {
-      console.error('FranchiseeListOperatorSide: Error fetching user details:', error);
+      logger.error('FranchiseeListOperatorSide: Error fetching user details:', error);
      
       sessionStorage.removeItem('userFranchiseInfo');
       sessionStorage.removeItem('franchiseLinked');
@@ -136,10 +137,10 @@ function FranchiseeListOperatorSide() {
     // Token is only in sessionStorage (secure storage)
     const token = sessionStorage.getItem('accessToken');
     if (token) {
-      console.log('[FranchiseeListOperatorSide] Token found, initializing user data...');
+      logger.log('[FranchiseeListOperatorSide] Token found, initializing user data...');
       const tokenUser = getUserInfo();
       if (tokenUser) {
-        console.log('[FranchiseeListOperatorSide] User from token:', tokenUser);
+        logger.log('[FranchiseeListOperatorSide] User from token:', tokenUser);
         setUser(tokenUser);
       }
     
@@ -155,7 +156,7 @@ function FranchiseeListOperatorSide() {
   useEffect(() => {
     // If franchise data was passed via navigation state, use it directly
     if (franchiseFromState) {
-      console.log('[FranchiseeListOperatorSide] Using franchise from navigation state:', franchiseFromState);
+      logger.log('[FranchiseeListOperatorSide] Using franchise from navigation state:', franchiseFromState);
       setMatchedFranchise(franchiseFromState);
       setFranchiseStatus(franchiseFromState.franchiseStatus || 'Active');
       
@@ -183,11 +184,11 @@ function FranchiseeListOperatorSide() {
     try {
       // Wait for user to be loaded before attempting to fetch franchise data
       if (!user) {
-        console.log('[FranchiseeListOperatorSide] User not loaded yet, waiting...');
+        logger.log('[FranchiseeListOperatorSide] User not loaded yet, waiting...');
         return;
       }
       
-      console.log('[FranchiseeListOperatorSide] User loaded, fetching franchise data for user:', user.id || user._id);
+      logger.log('[FranchiseeListOperatorSide] User loaded, fetching franchise data for user:', user.id || user._id);
       const storedOwnerUserId = sessionStorage.getItem('franchiseOwnerUserId');
       const userId = user.id;
       if (!storedOwnerUserId || storedOwnerUserId !== userId) {
@@ -210,10 +211,10 @@ function FranchiseeListOperatorSide() {
               });
               if (mineRes.ok) {
                 const matched = await mineRes.json();
-                console.debug('[FranchiseeListOperatorSide] matched application from /mine', matched);
+                logger.debug('[FranchiseeListOperatorSide] matched application from /mine', matched);
            
                 if (matched && matched.id) {
-                  console.log('[FranchiseeListOperatorSide] Matched franchise data:', {
+                  logger.log('[FranchiseeListOperatorSide] Matched franchise data:', {
                     hasApprovedAt: !!matched.approvedAt,
                     approvedAt: matched.approvedAt,
                     hasExpiryDate: !!matched.expiryDate,
@@ -236,12 +237,12 @@ function FranchiseeListOperatorSide() {
                   const approvedRaw = matched.approvedAt || '';
                   const expiryRaw = matched.expiryDate || '';
                   
-                  console.log('[FranchiseeListOperatorSide] Date parsing:', { approvedRaw, expiryRaw });
+                  logger.log('[FranchiseeListOperatorSide] Date parsing:', { approvedRaw, expiryRaw });
                   
                   const parsedApproved = approvedRaw ? dayjs(approvedRaw) : null;
                   const parsedExpiry = expiryRaw ? dayjs(expiryRaw) : null;
                   
-                  console.log('[FranchiseeListOperatorSide] Parsed dates:', {
+                  logger.log('[FranchiseeListOperatorSide] Parsed dates:', {
                     approvedValid: parsedApproved && parsedApproved.isValid(),
                     expiryValid: parsedExpiry && parsedExpiry.isValid()
                   });
@@ -260,12 +261,12 @@ function FranchiseeListOperatorSide() {
                     motorNumber: matched.motorEngineNumber || matched.motorEngineNo || ''
                   }))
                   
-                  console.log('[FranchiseeListOperatorSide] Successfully linked franchise via /mine endpoint with userId:', userId);
+                  logger.log('[FranchiseeListOperatorSide] Successfully linked franchise via /mine endpoint with userId:', userId);
                   return; 
                 }
               }
             } catch (e) {
-              console.warn('FranchiseeListOperatorSide: /mine lookup failed', e)
+              logger.warn('FranchiseeListOperatorSide: /mine lookup failed', e)
             }
           }
 
@@ -273,7 +274,7 @@ function FranchiseeListOperatorSide() {
           const resp = await fetch(`${API_BASE_URL}/api/franchise-applications?status=approved`)
           if (!resp.ok) return
           const apps = await resp.json()
-          console.debug('[FranchiseeListOperatorSide] approved applications fetched', Array.isArray(apps) ? apps.length : 'not-array', apps)
+          logger.debug('[FranchiseeListOperatorSide] approved applications fetched', Array.isArray(apps) ? apps.length : 'not-array', apps)
           if (!Array.isArray(apps) || !apps.length) return
         
           const userIdentifiers = new Set();
@@ -324,7 +325,7 @@ function FranchiseeListOperatorSide() {
               }
 
             } catch (e) {
-              console.warn('[FranchiseeListOperatorSide] matching error', e);
+              logger.warn('[FranchiseeListOperatorSide] matching error', e);
             }
             return null;
           })();
@@ -346,7 +347,7 @@ function FranchiseeListOperatorSide() {
     
             try {
               // Debug: log raw date fields
-              console.debug('FranchiseeListOperatorSide: matched raw dates ->', { approvedAt: matched.approvedAt, expiryDate: matched.expiryDate });
+              logger.debug('FranchiseeListOperatorSide: matched raw dates ->', { approvedAt: matched.approvedAt, expiryDate: matched.expiryDate });
 
 
               const approvedRaw = matched.approvedAt || matched.approved_at || matched.approved_at_string || '';
@@ -389,7 +390,7 @@ function FranchiseeListOperatorSide() {
               if (!parsedExpiry && (expiryRaw || expiryRaw === 0)) {
                 try { parsedExpiry = dayjs(new Date(String(expiryRaw))); } catch { /* ignore */ }
               }
-              console.debug('FranchiseeListOperatorSide: parsed dates valid ->', { approved: parsedApproved ? parsedApproved.isValid() : false, expiry: parsedExpiry ? parsedExpiry.isValid() : false });
+              logger.debug('FranchiseeListOperatorSide: parsed dates valid ->', { approved: parsedApproved ? parsedApproved.isValid() : false, expiry: parsedExpiry ? parsedExpiry.isValid() : false });
 
               setFields(prev => ({
                 ...prev,
@@ -405,7 +406,7 @@ function FranchiseeListOperatorSide() {
                 motorNumber: matched.motorEngineNumber || matched.motorEngineNo || ''
               }))
             } catch (e) {
-              console.debug('Failed to populate franchise fields from matched application', e)
+              logger.debug('Failed to populate franchise fields from matched application', e)
             }
           }
           else {
@@ -415,7 +416,7 @@ function FranchiseeListOperatorSide() {
           
           }
         } catch (err) {
-          console.warn('FranchiseeListOperatorSide: error fetching approved franchises', err)
+          logger.warn('FranchiseeListOperatorSide: error fetching approved franchises', err)
         }
       })()
     } catch {
@@ -433,7 +434,7 @@ function FranchiseeListOperatorSide() {
         qrBlobRef.current = null;
       }
     } catch (e) {
-      console.warn('Failed to revoke previous driver qr blob', e);
+      logger.warn('Failed to revoke previous driver qr blob', e);
     }
 
     const fetchQr = async () => {
@@ -465,7 +466,7 @@ function FranchiseeListOperatorSide() {
         qrBlobRef.current = obj;
         setQrBlobUrl(obj);
       } catch (err) {
-        console.warn('FranchiseeListOperatorSide: failed to fetch qr blob', err);
+        logger.warn('FranchiseeListOperatorSide: failed to fetch qr blob', err);
         setQrBlobUrl(null);
       }
     };
@@ -480,7 +481,7 @@ function FranchiseeListOperatorSide() {
           qrBlobRef.current = null;
         }
       } catch (e) {
-        console.warn('Failed to revoke driver qr blob on cleanup', e);
+        logger.warn('Failed to revoke driver qr blob on cleanup', e);
       }
       setQrBlobUrl(null);
     };
@@ -556,7 +557,7 @@ function FranchiseeListOperatorSide() {
         idBlobRef.current = null;
       }
     } catch (e) {
-      console.warn('Failed to revoke previous id blob', e);
+      logger.warn('Failed to revoke previous id blob', e);
     }
 
     const pickCandidate = () => {
@@ -567,8 +568,8 @@ function FranchiseeListOperatorSide() {
       const u = user || null;
 
       if (import.meta.env && import.meta.env.DEV) {
-        console.debug('[FranchiseeListOperatorSide] matchedFranchise sample ->', mf);
-        console.debug('[FranchiseeListOperatorSide] user sample ->', u);
+        logger.debug('[FranchiseeListOperatorSide] matchedFranchise sample ->', mf);
+        logger.debug('[FranchiseeListOperatorSide] user sample ->', u);
       }
 
       // PRIORITY 1: Use operatorPictureObj from FranchiseInformation documents
@@ -604,13 +605,13 @@ function FranchiseeListOperatorSide() {
       for (const c of candidates) {
         if (!c) continue;
         if (typeof c === 'string') {
-          console.debug('[FranchiseeListOperatorSide] pickCandidate selected string path from', c && c.substring(0, 80));
+          logger.debug('[FranchiseeListOperatorSide] pickCandidate selected string path from', c && c.substring(0, 80));
           return c;
         }
         if (typeof c === 'object') {
           const path = c.path || c.pathname || c.url;
           if (path) {
-            console.debug('[FranchiseeListOperatorSide] pickCandidate selected object path from', path && path.substring(0, 80));
+            logger.debug('[FranchiseeListOperatorSide] pickCandidate selected object path from', path && path.substring(0, 80));
             return path;
           }
         }
@@ -620,7 +621,7 @@ function FranchiseeListOperatorSide() {
 
     const rawPath = pickCandidate();
     const path = resolveServerUrl(rawPath);
-    console.debug('[FranchiseeListOperatorSide] candidate rawPath ->', rawPath, 'resolved ->', path);
+    logger.debug('[FranchiseeListOperatorSide] candidate rawPath ->', rawPath, 'resolved ->', path);
     if (!path) {
       setIdBlobUrl(null);
       return () => {};
@@ -651,7 +652,7 @@ function FranchiseeListOperatorSide() {
         const contentType = resp.headers.get('Content-Type') || blob.type || '';
         setIdBlobIsPdf(contentType.includes('pdf') || /\.pdf$/i.test(rawPath || ''));
       } catch (err) {
-        console.warn('FranchiseeListOperatorSide: failed to fetch id blob, using direct path fallback', err);
+        logger.warn('FranchiseeListOperatorSide: failed to fetch id blob, using direct path fallback', err);
         setIdBlobUrl(null);
         setIdBlobIsPdf(false);
       }
@@ -665,7 +666,7 @@ function FranchiseeListOperatorSide() {
           idBlobRef.current = null;
         }
       } catch (e) {
-        console.warn('Failed to revoke id blob on cleanup', e);
+        logger.warn('Failed to revoke id blob on cleanup', e);
       }
       setIdBlobUrl(null);
     };
@@ -980,7 +981,7 @@ function FranchiseeListOperatorSide() {
                   setFranchiseList(response.data.data);
                 }
               })
-              .catch(err => console.error('Failed to fetch franchises:', err))
+              .catch(err => logger.error('Failed to fetch franchises:', err))
               .finally(() => setLoadingFranchises(false));
           }
         }}

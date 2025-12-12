@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import logger from '../utils/logger';
 
 const AuthContext = createContext();
 
@@ -6,7 +7,7 @@ export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {
    
-    console.warn('useAuth was called outside of an AuthProvider. Returning fallback auth object. Make sure your app is wrapped with <AuthProvider> in src/main.jsx');
+    logger.warn('useAuth was called outside of an AuthProvider. Returning fallback auth object. Make sure your app is wrapped with <AuthProvider> in src/main.jsx');
     return {
       user: null,
       login: () => {},
@@ -27,7 +28,7 @@ export const AuthProvider = ({ children }) => {
       const payload = JSON.parse(atob(token.split('.')[1]));
       return payload;
     } catch (error) {
-      console.error('Error decoding token:', error);
+      logger.error('Error decoding token:', error);
       return null;
     }
   };
@@ -54,14 +55,14 @@ export const AuthProvider = ({ children }) => {
       }
       return null;
     } catch (error) {
-      console.error('Error fetching user details:', error);
+      logger.error('Error fetching user details:', error);
       return null;
     }
   };
 
   // Initialize user from token (JWT is the single source of truth)
   useEffect(() => {
-    console.info('AuthProvider initializing');
+    logger.info('AuthProvider initializing');
     const initializeAuth = async () => {
       try {
         // Token is only in sessionStorage (secure, cleared on tab close)
@@ -95,7 +96,7 @@ export const AuthProvider = ({ children }) => {
           }
         }
       } catch (error) {
-        console.error('Error initializing auth:', error);
+        logger.error('Error initializing auth:', error);
         sessionStorage.removeItem('accessToken');
       } finally {
         setLoading(false);
@@ -113,7 +114,7 @@ export const AuthProvider = ({ children }) => {
 
   const logout = async () => {
     try {
-      console.log('[AuthContext] Logging out...');
+      logger.log('[AuthContext] Logging out...');
       
       // Call backend to invalidate refresh token (HTTP-only cookie)
       const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170';
@@ -129,17 +130,17 @@ export const AuthProvider = ({ children }) => {
             },
             credentials: 'include' // Important: Send HTTP-only cookie
           });
-          console.log('[AuthContext] Backend logout successful');
+          logger.log('[AuthContext] Backend logout successful');
         } catch (error) {
-          console.error('[AuthContext] Backend logout failed:', error);
+          logger.error('[AuthContext] Backend logout failed:', error);
           // Continue with frontend cleanup even if backend fails
         }
       }
     } catch (error) {
-      console.error('[AuthContext] Logout error:', error);
+      logger.error('[AuthContext] Logout error:', error);
     } finally {
       // Always clear frontend storage regardless of backend response
-      console.log('[AuthContext] Clearing frontend storage');
+      logger.log('[AuthContext] Clearing frontend storage');
       sessionStorage.removeItem('accessToken');
       
       // Clear any franchise-related persisted state to avoid leaking to another user
@@ -149,7 +150,7 @@ export const AuthProvider = ({ children }) => {
       sessionStorage.removeItem('franchiseOwnerUserId');
       
       setUser(null);
-      console.log('[AuthContext] Logout complete');
+      logger.log('[AuthContext] Logout complete');
     }
   };
   

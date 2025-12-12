@@ -8,6 +8,7 @@ import AccountVerificationModal from '../Services/AccountVerificationModal';
 import TermsAndConditionsModal from '../../components/TermsAndConditionsModal';
 import PrivacyPolicyModal from '../../components/PrivacyPolicyModal';
 import api from '../Services/api';
+import { logger } from '../../utils/logger';
 import '../../Styles/SignupCss/signup.css';
 
 const poppinsTheme = createTheme({
@@ -91,12 +92,12 @@ const SignUp = () => {
     setError("");
     setSuccess("");
     
-    console.log("Form submission started"); // Debug log
+    logger.log("Form submission started"); // Debug log
     
     // Pang Validate password 
     const passwordValidationError = validatePassword(form.password);
     if (passwordValidationError) {
-      console.log("Password validation failed:", passwordValidationError); // Debug log
+      logger.log("Password validation failed:", passwordValidationError); // Debug log
       setError(passwordValidationError);
       return;
     }
@@ -104,14 +105,14 @@ const SignUp = () => {
     // Validate password match
     const passwordMatchError = validatePasswordMatch(form.password, form.confirmPassword);
     if (passwordMatchError) {
-      console.log("Password match failed:", passwordMatchError); // Debug log
+      logger.log("Password match failed:", passwordMatchError); // Debug log
       setError(passwordMatchError);
       return;
     }
     
     // Check if all fields are filled
     if (!form.fullName || !form.username || !form.email || !form.password || !form.confirmPassword) {
-      console.log("Missing fields:", form); // Debug log
+      logger.log("Missing fields:", form); // Debug log
       setError("Please fill out all fields");
       return;
     }
@@ -122,13 +123,13 @@ const SignUp = () => {
       return;
     }
     
-    console.log("All validations passed, making API call"); // Debug log
+    logger.log("All validations passed, making API call"); // Debug log
     
     try {
       // Instead of creating the account immediately, request an OTP first
       // and open the verification modal. Account creation will happen after
       // the OTP is successfully verified.
-      console.log("Requesting OTP for:", form.email);
+      logger.log("Requesting OTP for:", form.email);
       const otpResponse = await fetch(`${API_BASE_URL}/auth/request-otp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -142,7 +143,7 @@ const SignUp = () => {
       }
       setShowVerificationModal(true);
     } catch (error) {
-      console.error("OTP request network error:", error);
+      logger.error("OTP request network error:", error);
       setError("Network error. Please try again.");
     }
   };
@@ -173,7 +174,7 @@ const SignUp = () => {
             navigate('/login');
           }
       } catch (err) {
-        console.error('Create user network error:', err);
+        logger.error('Create user network error:', err);
         setError('Network error. Please try again.');
       }
     })();

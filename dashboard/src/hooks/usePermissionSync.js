@@ -32,6 +32,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import websocketService from '../services/websocket';
 import { useAuth } from '../contexts/AuthContext';
 import { showWarning } from '../utils/sweetAlert';
+import logger from '../utils/logger';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170';
 
@@ -68,7 +69,7 @@ const getCachedPages = (role) => {
       return pages.filter(p => VALID_PAGE_KEYS.includes(p));
     }
   } catch (e) {
-    console.warn('[usePermissionSync] Failed to parse cached pages');
+    logger.warn('[usePermissionSync] Failed to parse cached pages');
   }
   return null;
 };
@@ -82,7 +83,7 @@ const setCachedPages = (role, pages) => {
     const validPages = pages.filter(p => VALID_PAGE_KEYS.includes(p));
     sessionStorage.setItem(`allowedPages_${role}`, JSON.stringify(validPages));
   } catch (e) {
-    console.warn('[usePermissionSync] Failed to cache pages');
+    logger.warn('[usePermissionSync] Failed to cache pages');
   }
 };
 
@@ -93,7 +94,7 @@ export const clearCachedPages = (role) => {
   try {
     sessionStorage.removeItem(`allowedPages_${role}`);
   } catch (e) {
-    console.warn('[usePermissionSync] Failed to clear cached pages');
+    logger.warn('[usePermissionSync] Failed to clear cached pages');
   }
 };
 
@@ -159,7 +160,7 @@ export function usePermissionSync(options = {}) {
     const currentPageKey = pathToPageKey[currentPath];
     
     if (currentPageKey && !newAllowedPages.includes(currentPageKey)) {
-      console.log(`[usePermissionSync] Current page "${currentPageKey}" is no longer accessible`);
+      logger.log(`[usePermissionSync] Current page "${currentPageKey}" is no longer accessible`);
       
       // Find redirect target
       let redirectPath = '/dashboard';
@@ -229,7 +230,7 @@ export function usePermissionSync(options = {}) {
         throw new Error('Failed to fetch permissions');
       }
     } catch (err) {
-      console.error('[usePermissionSync] Fetch error:', err);
+      logger.error('[usePermissionSync] Fetch error:', err);
       if (isMountedRef.current) {
         setError(err.message);
         // Use cached or default on error
@@ -276,7 +277,7 @@ export function usePermissionSync(options = {}) {
      * Handle permission update event from server
      */
     const handlePageAccessUpdate = (data) => {
-      console.log('[usePermissionSync] Received page-access-updated:', data);
+      logger.log('[usePermissionSync] Received page-access-updated:', data);
       
       // Only process if it affects current user's role
       if (data.role === role) {
@@ -286,7 +287,7 @@ export function usePermissionSync(options = {}) {
           setCachedPages(role, validPages);
           setLastUpdated(new Date(data.updatedAt || Date.now()));
           setError(null);
-          console.log('[usePermissionSync] Permissions updated in real-time for role:', role);
+          logger.log('[usePermissionSync] Permissions updated in real-time for role:', role);
           
           // Check if user needs to be redirected from current page
           checkAndRedirectIfNeeded(validPages);
@@ -301,7 +302,7 @@ export function usePermissionSync(options = {}) {
      * Handle role-specific permission change notification
      */
     const handleRolePermissionsChanged = (data) => {
-      console.log('[usePermissionSync] Received role-permissions-changed:', data);
+      logger.log('[usePermissionSync] Received role-permissions-changed:', data);
       
       if (data.role === role) {
         // Refetch to get latest permissions

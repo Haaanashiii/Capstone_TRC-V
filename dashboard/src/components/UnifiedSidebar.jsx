@@ -19,6 +19,7 @@ import PermIdentityIcon from '@mui/icons-material/PermIdentity';
 import LogoutIcon from '@mui/icons-material/Logout';
 import WarningIcon from '@mui/icons-material/Warning';
 import { useAuth } from "../contexts/AuthContext";
+import logger from "../utils/logger";
 
 // Styled components for horizontal navbar
 const StyledAppBar = styled(AppBar)(() => ({
@@ -252,7 +253,7 @@ const UnifiedSidebar = ({ userType = "operator", language, onLanguageToggle, tra
         }
       }
     } catch (error) {
-      console.error('[UnifiedSidebar] Error decoding token:', error);
+      logger.error('[UnifiedSidebar] Error decoding token:', error);
     }
     
     return 'USER';
@@ -262,15 +263,15 @@ const UnifiedSidebar = ({ userType = "operator", language, onLanguageToggle, tra
   const displayName = loading ? 'Loading...' : getDisplayName();
 
   const handleLogout = async () => {
-    console.log('[UnifiedSidebar] Logout initiated');
+    logger.log('[UnifiedSidebar] Logout initiated');
     handleMenuClose();
     
     // use AuthContext logout then navigate to landing page
     try {
       await logout(); // Now async - calls backend and clears all tokens
-      console.log('[UnifiedSidebar] Logout successful, navigating to home');
+      logger.log('[UnifiedSidebar] Logout successful, navigating to home');
     } catch (error) {
-      console.error('[UnifiedSidebar] Error during logout:', error);
+      logger.error('[UnifiedSidebar] Error during logout:', error);
       // AuthContext logout handles token cleanup even on error
     } finally {
       // Always navigate to home page after logout

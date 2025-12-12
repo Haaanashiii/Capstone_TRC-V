@@ -43,6 +43,7 @@ import VisibilityIcon from '@mui/icons-material/Visibility';
 import CloseIcon from '@mui/icons-material/Close';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import DateRangeIcon from '@mui/icons-material/DateRange';
+import { logger } from '../../utils/logger';
 
 // ========================================
 // CONSTANTS
@@ -283,7 +284,7 @@ function TricycleIncidentReports() {
       setReports(data.reports || []);
       setTotalReports(data.pagination?.total || 0);
     } catch (err) {
-      console.error('Error fetching incident reports:', err);
+      logger.error('Error fetching incident reports:', err);
       if (err.response?.status === 401) {
         setError('Authentication required. Please log in again.');
       } else {
@@ -342,7 +343,7 @@ function TricycleIncidentReports() {
       setExportDialogOpen(false);
       showSnackbar('Reports exported successfully', 'success');
     } catch (err) {
-      console.error('Error exporting reports:', err);
+      logger.error('Error exporting reports:', err);
       showSnackbar('Failed to export reports. Please try again.', 'error');
     } finally {
       setExporting(false);
@@ -367,7 +368,7 @@ function TricycleIncidentReports() {
       
       showSnackbar('Monthly reports exported successfully', 'success');
     } catch (err) {
-      console.error('Error exporting monthly reports:', err);
+      logger.error('Error exporting monthly reports:', err);
       showSnackbar('Failed to export reports. Please try again.', 'error');
     }
   }, [categoryFilter, statusFilter, showSnackbar]);
@@ -402,7 +403,7 @@ function TricycleIncidentReports() {
       showSnackbar('Incident report status updated successfully', 'success');
       handleCloseDetails();
     } catch (err) {
-      console.error('Error updating report status:', err);
+      logger.error('Error updating report status:', err);
       if (err.response?.status === 401) {
         showSnackbar('Authentication required. Please log in again.', 'error');
       } else {

@@ -3,6 +3,8 @@
  * This file helps debug environment variable loading issues
  */
 
+import logger from './logger';
+
 export const checkEnvVariables = () => {
   const envVars = {
     VITE_API_BASE_URL: import.meta.env.VITE_API_BASE_URL,
@@ -13,16 +15,15 @@ export const checkEnvVariables = () => {
     PROD: import.meta.env.PROD,
   };
 
-  console.group('🔍 Environment Variables Check');
-  console.log('Current Environment:', import.meta.env.MODE);
-  console.log('Is Development?', import.meta.env.DEV);
-  console.log('Is Production?', import.meta.env.PROD);
-  console.log('---');
+  logger.log('🔍 Environment Variables Check');
+  logger.log('Current Environment:', import.meta.env.MODE);
+  logger.log('Is Development?', import.meta.env.DEV);
+  logger.log('Is Production?', import.meta.env.PROD);
+  logger.log('---');
   Object.entries(envVars).forEach(([key, value]) => {
     const status = value ? '✅' : '❌';
-    console.log(`${status} ${key}:`, value || 'UNDEFINED');
+    logger.log(`${status} ${key}:`, value || 'UNDEFINED');
   });
-  console.groupEnd();
 
   return envVars;
 };

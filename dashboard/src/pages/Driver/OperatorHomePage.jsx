@@ -3,6 +3,7 @@ import Swal from 'sweetalert2';
 import { useNavigate } from "react-router-dom";
 import UnifiedNavbar from "../../components/UnifiedNavbar";
 import { useAuth } from "../../contexts/AuthContext";
+import { logger } from '../../utils/logger';
 import "../../Styles/Operator's_CSS/OperatorHomePage.css";
 import "../../Styles/Operator's_CSS/TableResponsive.css";
 import { Link2, PlusCircle } from 'lucide-react';
@@ -106,7 +107,7 @@ const OperatorHomePage = () => {
         return decoded;
       }
     } catch (error) {
-      console.error('[OperatorHomePage] Error decoding token:', error);
+      logger.error('[OperatorHomePage] Error decoding token:', error);
     }
     
     return null;
@@ -122,7 +123,7 @@ const OperatorHomePage = () => {
   // Use authUser from context instead of fetching separately
   useEffect(() => {
     if (authUser) {
-      console.log('[OperatorHomePage] User data:', authUser);
+      logger.log('[OperatorHomePage] User data:', authUser);
     }
     
     // Use sessionStorage for franchise info (cleared on tab close - more secure)
@@ -144,11 +145,11 @@ const OperatorHomePage = () => {
           setUserFranchiseInfo(parsedInfo);
           setFranchiseLinked(true);
         } catch (error) {
-          console.error('Error parsing saved franchise info:', error);
+          logger.error('Error parsing saved franchise info:', error);
         }
       }
     } catch {
-      console.warn('Error while restoring franchise info from storage')
+      logger.warn('Error while restoring franchise info from storage')
     }
   }, [authUser]); // Only depend on authUser
 
@@ -196,7 +197,7 @@ const OperatorHomePage = () => {
           } catch { /* ignore */ }
         }
       } catch (err) {
-        console.warn('Error fetching approved franchises', err)
+        logger.warn('Error fetching approved franchises', err)
       }
     }
 
@@ -290,16 +291,16 @@ const OperatorHomePage = () => {
       // Use _id from token (MongoDB ObjectId) since linkedUser in DB stores ObjectId
       const userId = currentUser?._id || currentUser?.id;
       if (!userId) {
-        console.log('[OperatorHomePage] No user ID found, skipping franchise fetch');
-        console.log('[OperatorHomePage] currentUser:', currentUser);
+        logger.log('[OperatorHomePage] No user ID found, skipping franchise fetch');
+        logger.log('[OperatorHomePage] currentUser:', currentUser);
         setLoadingFranchises(false);
         return;
       }
 
       try {
-        console.log('[OperatorHomePage] ========== FRANCHISE FETCH START ==========');
-        console.log('[OperatorHomePage] Fetching franchises for user ID:', userId);
-        console.log('[OperatorHomePage] Current user object:', { 
+        logger.log('[OperatorHomePage] ========== FRANCHISE FETCH START ==========');
+        logger.log('[OperatorHomePage] Fetching franchises for user ID:', userId);
+        logger.log('[OperatorHomePage] Current user object:', { 
           id: currentUser?.id, 
           _id: currentUser?._id, 
           userId: currentUser?.userId,
@@ -309,14 +310,14 @@ const OperatorHomePage = () => {
         
         const response = await franchiseInformationAPI.getByUser(userId);
         
-        console.log('[OperatorHomePage] ========== API RESPONSE ==========');
-        console.log('[OperatorHomePage] Response status:', response?.status);
-        console.log('[OperatorHomePage] Response data:', response?.data);
-        console.log('[OperatorHomePage] Franchise count:', response?.data?.count);
-        console.log('[OperatorHomePage] Franchises array:', response?.data?.data);
+        logger.log('[OperatorHomePage] ========== API RESPONSE ==========');
+        logger.log('[OperatorHomePage] Response status:', response?.status);
+        logger.log('[OperatorHomePage] Response data:', response?.data);
+        logger.log('[OperatorHomePage] Franchise count:', response?.data?.count);
+        logger.log('[OperatorHomePage] Franchises array:', response?.data?.data);
         
         if (response.data?.success && Array.isArray(response.data.data)) {
-          console.log('[OperatorHomePage] Setting franchises:', response.data.data.length, 'items');
+          logger.log('[OperatorHomePage] Setting franchises:', response.data.data.length, 'items');
           setActiveFranchises(response.data.data);
           
           // If user has franchises, update the franchise linked state
@@ -337,12 +338,12 @@ const OperatorHomePage = () => {
             setUserFranchiseInfo(franchiseInfo);
           }
         } else {
-          console.warn('[OperatorHomePage] No franchises data or invalid format:', response.data);
+          logger.warn('[OperatorHomePage] No franchises data or invalid format:', response.data);
           setActiveFranchises([]);
         }
       } catch (error) {
-        console.error('[OperatorHomePage] Error fetching franchises:', error);
-        console.error('[OperatorHomePage] Error details:', error.response?.data);
+        logger.error('[OperatorHomePage] Error fetching franchises:', error);
+        logger.error('[OperatorHomePage] Error details:', error.response?.data);
         setActiveFranchises([]);
       } finally {
         setLoadingFranchises(false);
@@ -356,18 +357,18 @@ const OperatorHomePage = () => {
   useEffect(() => {
     const fetchApplications = async () => {
       try {
-        console.log('[OperatorHomePage] Fetching applications for user:', currentUser);
+        logger.log('[OperatorHomePage] Fetching applications for user:', currentUser);
         const response = await franchiseAPI.getMyApplications();
-        console.log('[OperatorHomePage] API response:', response.data);
+        logger.log('[OperatorHomePage] API response:', response.data);
         if (response.data?.success && Array.isArray(response.data.data)) {
-          console.log('[OperatorHomePage] Setting applications:', response.data.data.length, 'items');
+          logger.log('[OperatorHomePage] Setting applications:', response.data.data.length, 'items');
           setUserApplications(response.data.data);
         } else {
-          console.warn('[OperatorHomePage] No applications data or invalid format:', response.data);
+          logger.warn('[OperatorHomePage] No applications data or invalid format:', response.data);
         }
       } catch (error) {
-        console.error('[OperatorHomePage] Error fetching applications:', error);
-        console.error('[OperatorHomePage] Error details:', error.response?.data);
+        logger.error('[OperatorHomePage] Error fetching applications:', error);
+        logger.error('[OperatorHomePage] Error details:', error.response?.data);
       }
     };
     
@@ -382,7 +383,7 @@ const OperatorHomePage = () => {
     const socket = io(API_BASE_URL);
 
     socket.on('connect', () => {
-      console.log('[OperatorHomePage] Connected to WebSocket');
+      logger.log('[OperatorHomePage] Connected to WebSocket');
       // Join user-specific room if we have user ID
       if (currentUser?.id) {
         socket.emit('join', { userId: currentUser.id, userType: 'operator' });
@@ -391,7 +392,7 @@ const OperatorHomePage = () => {
 
     // Listen for BPLO disapproval notifications
     socket.on('bplo-disapproval', (data) => {
-      console.log('[OperatorHomePage] Received BPLO disapproval:', data);
+      logger.log('[OperatorHomePage] Received BPLO disapproval:', data);
       Swal.fire({
         ...alertStyle.errorAlert,
         title: 'Application Disapproved',
@@ -405,7 +406,7 @@ const OperatorHomePage = () => {
             setUserApplications(response.data.data);
           }
         } catch (error) {
-          console.error('Error fetching applications:', error);
+          logger.error('Error fetching applications:', error);
         }
       };
       fetchApplications();
@@ -413,7 +414,7 @@ const OperatorHomePage = () => {
 
     // Listen for BPLO approval notifications
     socket.on('bplo-approval', (data) => {
-      console.log('[OperatorHomePage] Received BPLO approval:', data);
+      logger.log('[OperatorHomePage] Received BPLO approval:', data);
       Swal.fire({
         ...alertStyle.successAlert,
         title: 'BPLO Approved!',
@@ -427,7 +428,7 @@ const OperatorHomePage = () => {
             setUserApplications(response.data.data);
           }
         } catch (error) {
-          console.error('Error fetching applications:', error);
+          logger.error('Error fetching applications:', error);
         }
       };
       fetchApplications();
@@ -435,7 +436,7 @@ const OperatorHomePage = () => {
 
     // Listen for SB approval notifications
     socket.on('sb-approval', (data) => {
-      console.log('[OperatorHomePage] Received SB approval:', data);
+      logger.log('[OperatorHomePage] Received SB approval:', data);
       Swal.fire({
         ...alertStyle.successAlert,
         title: 'Congratulations!',
@@ -449,7 +450,7 @@ const OperatorHomePage = () => {
             setUserApplications(response.data.data);
           }
         } catch (error) {
-          console.error('Error fetching applications:', error);
+          logger.error('Error fetching applications:', error);
         }
       };
       fetchApplications();
@@ -520,20 +521,20 @@ const OperatorHomePage = () => {
   };
 
   useEffect(() => {
-    console.log('[OperatorHomePage] Checking user franchise status');
+    logger.log('[OperatorHomePage] Checking user franchise status');
     // Check if user already has franchise in JWT
     try {
       const token = sessionStorage.getItem('accessToken');
       if (token) {
         const decoded = JSON.parse(atob(token.split('.')[1]));
         if (decoded.hasFranchise === true) {
-          console.log('[OperatorHomePage] User has franchise, showing home page');
+          logger.log('[OperatorHomePage] User has franchise, showing home page');
         } else {
-          console.log('[OperatorHomePage] User has no franchise, showing application options');
+          logger.log('[OperatorHomePage] User has no franchise, showing application options');
         }
       }
     } catch (e) {
-      console.error('[OperatorHomePage] Error checking franchise status:', e);
+      logger.error('[OperatorHomePage] Error checking franchise status:', e);
     }
   }, [navigate])
 
@@ -626,8 +627,8 @@ const OperatorHomePage = () => {
   };
 
   const handleOpenORModal = (application) => {
-    console.log('[OperatorHomePage] Opening OR modal for application:', application);
-    console.log('[OperatorHomePage] Application _id:', application._id, 'type:', typeof application._id);
+    logger.log('[OperatorHomePage] Opening OR modal for application:', application);
+    logger.log('[OperatorHomePage] Application _id:', application._id, 'type:', typeof application._id);
     setSelectedAppForOR(application);
     setOrNumberInput('');
     setOrFileInput(null);
@@ -680,7 +681,7 @@ const OperatorHomePage = () => {
         applicationId = String(selectedAppForOR.id);
       }
       
-      console.log('[SubmitOR] Extracted Application ID:', applicationId);
+      logger.log('[SubmitOR] Extracted Application ID:', applicationId);
       
       if (!applicationId || applicationId === '[object Object]') {
         throw new Error('Could not extract valid application ID');
@@ -702,7 +703,7 @@ const OperatorHomePage = () => {
         }
       });
     } catch (error) {
-      console.error('Error submitting OR:', error);
+      logger.error('Error submitting OR:', error);
       Swal.fire({
         ...alertStyle.errorAlert,
         title: 'Error',

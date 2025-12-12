@@ -68,6 +68,7 @@ import HistoryIcon from '@mui/icons-material/History';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import * as XLSX from 'xlsx';
+import { logger } from '../../utils/logger';
 import '../../Styles/Administrator_Css/FranchiseeList.css';
 import '../../Styles/Administrator_Css/SharedTable.css';
 
@@ -233,7 +234,7 @@ const FranchiseHistorySection = ({ franchisee, isEditing }) => {
         setHistoryData(response.data);
       }
     } catch (error) {
-      console.error('Error fetching franchise history:', error);
+      logger.error('Error fetching franchise history:', error);
     } finally {
       setLoadingHistory(false);
     }
@@ -865,7 +866,7 @@ const FranchiseeDetailsModal = ({
                     alt="Franchisee QR Code" 
                     className="qr-code-image"
                     onError={(e) => {
-                      console.error('QR Code image failed to load');
+                      logger.error('QR Code image failed to load');
                       e.target.style.display = 'none';
                     }}
                   />
@@ -1693,7 +1694,7 @@ function FranchiseeList() {
 
       setFranchisees(transformedData);
     } catch (err) {
-      console.error('Error fetching franchisees:', err);
+      logger.error('Error fetching franchisees:', err);
       setError('Failed to load franchisees. Please try again.');
       setFranchisees([]);
     } finally {
@@ -1833,7 +1834,7 @@ function FranchiseeList() {
         qrBlobUrlRef.current = blobUrl;
         setQrBlobUrl(blobUrl);
       } catch (err) {
-        console.error('[FranchiseeList] Error fetching QR code:', err);
+        logger.error('[FranchiseeList] Error fetching QR code:', err);
         setQrBlobUrl(null);
       }
     };
@@ -1900,7 +1901,7 @@ function FranchiseeList() {
       // Show success message
       setNotification({ open: true, message: 'Franchisee information updated successfully!', type: 'success' });
     } catch (err) {
-      console.error('Error saving franchisee:', err);
+      logger.error('Error saving franchisee:', err);
       const errorMessage = err.response?.data?.error || err.message || 'Failed to save changes. Please try again.';
       setNotification({ open: true, message: errorMessage, type: 'error' });
     } finally {
@@ -1951,7 +1952,7 @@ function FranchiseeList() {
         normalized.path = API_BASE_URL.replace(/\/$/, '') + pathPart;
       }
     } catch (err) {
-      console.warn('[Preview] Error processing file path:', err);
+      logger.warn('[Preview] Error processing file path:', err);
     }
 
     // If it's an image or PDF, try fetching it and creating an object URL so
@@ -2006,7 +2007,7 @@ function FranchiseeList() {
         });
         setOpenFilePreview(true);
       } catch (err) {
-        console.warn('[FilePreview] fetch failed:', err);
+        logger.warn('[FilePreview] fetch failed:', err);
         setNotification({ open: true, message: 'Failed to load file preview', type: 'error' });
       }
     };
@@ -2020,7 +2021,7 @@ function FranchiseeList() {
         URL.revokeObjectURL(currentBlobUrlRef.current);
         currentBlobUrlRef.current = null;
       } catch (err) {
-        console.warn('Failed to revoke blob URL:', err);
+        logger.warn('Failed to revoke blob URL:', err);
       }
     }
     setOpenFilePreview(false);
@@ -2454,7 +2455,7 @@ function FranchiseeList() {
       setNotification({ open: true, message: `Successfully exported ${dataToExport.length} franchisees to Excel`, type: 'success' });
       setExportDialogOpen(false);
     } catch (error) {
-      console.error('Export error:', error);
+      logger.error('Export error:', error);
       setNotification({ open: true, message: 'Failed to export data', type: 'error' });
     }
   }, [filteredFranchisees, user]);
@@ -2943,7 +2944,7 @@ function FranchiseeList() {
                       boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
                     }}
                     onError={(e) => {
-                      console.error('Image preview failed:', e);
+                      logger.error('Image preview failed:', e);
                       e.target.style.display = 'none';
                     }}
                   />

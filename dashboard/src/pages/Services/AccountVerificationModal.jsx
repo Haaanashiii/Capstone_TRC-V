@@ -12,6 +12,7 @@ import {
 import { VerifiedUser, Email, Timer, Phone } from '@mui/icons-material';
 import api from '../Services/api';
 import '../../Styles/ServicesCss/AccountVerificationModal.css';
+import { logger } from '../../utils/logger';
 
 const poppinsTheme = createTheme({
   typography: {
@@ -53,7 +54,7 @@ const AccountVerificationModal = ({ open, onClose, email, rememberMe = false, on
             setUserPhoneNumber(response.data.phoneNumber);
           }
         } catch (error) {
-          console.error('Failed to fetch user phone number:', error);
+          logger.error('Failed to fetch user phone number:', error);
           // Phone number is optional, so we don't set error
         } finally {
           setIsLoadingPhoneNumber(false);

@@ -24,6 +24,7 @@ import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked';
 import dayjs from 'dayjs';
 import swal from '../../utils/sweetAlert';
 import SBFareImage from '../../assets/SB Fare.jpeg';
+import { logger } from '../../utils/logger';
 
 function QROperatorID() {
   const { operatorId } = useParams();
@@ -66,7 +67,7 @@ function QROperatorID() {
     fetch(`${API_BASE_URL}/api/franchise-information/qr/hash/${operatorId}`)
       .then(res => res.json())
       .then(data => {
-        console.log('[QROperatorID] API response:', data);
+        logger.log('[QROperatorID] API response:', data);
         if (data.error || !data.data) {
           setUser(null);
           setMatchedFranchise({
@@ -111,13 +112,13 @@ function QROperatorID() {
             }
           });
           setStoredFranchiseNumber(franchiseData.franchiseNumber);
-          console.log('[QROperatorID] Operator picture URL:', franchiseData.operatorPictureObj);
-          console.log('[QROperatorID] Franchise Number:', franchiseData.franchiseNumber);
+          logger.log('[QROperatorID] Operator picture URL:', franchiseData.operatorPictureObj);
+          logger.log('[QROperatorID] Franchise Number:', franchiseData.franchiseNumber);
         }
         setLoading(false);
       })
       .catch((err) => {
-        console.error('[QROperatorID] Fetch error:', err);
+        logger.error('[QROperatorID] Fetch error:', err);
         setUser(null);
         setMatchedFranchise({
           address: '',
@@ -248,7 +249,7 @@ function QROperatorID() {
         const contentType = resp.headers.get('Content-Type') || blob.type || '';
         setProfilePhotoIsPdf(contentType.includes('pdf') || /\.pdf$/i.test(rawPath || ''));
       } catch (err) {
-        console.warn('[QROperatorID] Failed to fetch profile photo:', err);
+        logger.warn('[QROperatorID] Failed to fetch profile photo:', err);
         setProfilePhotoBlobUrl(null);
         setProfilePhotoIsPdf(false);
       }
@@ -378,7 +379,7 @@ function QROperatorID() {
               }}
               imgProps={{
                 onError: (e) => {
-                  console.error('[QROperatorID] Avatar image failed to load:', getProfilePhotoUrl());
+                  logger.error('[QROperatorID] Avatar image failed to load:', getProfilePhotoUrl());
                   // Do not set display:none; just log the error
                 },
                 onLoad: () => {
@@ -1050,7 +1051,7 @@ function QROperatorID() {
                       const honeypotPhone = document.getElementById('honeypot_phone')?.value;
                       
                       if (honeypotEmail || honeypotPhone) {
-                        console.warn('[FRAUD] Honeypot triggered');
+                        logger.warn('[FRAUD] Honeypot triggered');
                         swal.success('Thank you! Your report has been submitted.');
                         setReportModalOpen(false);
                         return;
@@ -1139,7 +1140,7 @@ function QROperatorID() {
                           swal.error(result.error || 'Failed to submit report. Please try again.');
                         }
                       } catch (error) {
-                        console.error('Error submitting report:', error);
+                        logger.error('Error submitting report:', error);
                         swal.error('Failed to submit report. Please check your connection and try again.');
                       } finally {
                         setSubmittingReport(false);

@@ -46,6 +46,7 @@ import LockOpenIcon from '@mui/icons-material/LockOpen';
 
 // Import backup service
 import * as backupService from '../../services/backupService';
+import { logger } from '../../utils/logger';
 
 // API Configuration
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170';
@@ -266,7 +267,7 @@ function Settings() {
     try {
       const token = getAuthToken();
       if (!token) {
-        console.warn('[Settings] No auth token available');
+        logger.warn('[Settings] No auth token available');
         setLoadingPageAccess(false);
         return;
       }
@@ -296,13 +297,13 @@ function Settings() {
           
           setPageAccess(accessMap);
         } else {
-          console.warn('[Settings] Invalid data structure:', result);
+          logger.warn('[Settings] Invalid data structure:', result);
         }
       } else {
-        console.error('[Settings] Failed to fetch page access, status:', response.status);
+        logger.error('[Settings] Failed to fetch page access, status:', response.status);
       }
     } catch (error) {
-      console.error('[Settings] Error fetching page access:', error);
+      logger.error('[Settings] Error fetching page access:', error);
     } finally {
       setLoadingPageAccess(false);
     }
@@ -328,7 +329,7 @@ function Settings() {
         }
       }
     } catch (error) {
-      console.error('Error fetching fare matrix:', error);
+      logger.error('Error fetching fare matrix:', error);
     }
   }, []);
 
@@ -415,7 +416,7 @@ function Settings() {
         throw new Error('Invalid response from server');
       }
     } catch (error) {
-      console.error('Upload error:', error);
+      logger.error('Upload error:', error);
       showNotification(error.message || 'Failed to upload fare matrix', 'error');
     } finally {
       setLoading(false);
@@ -478,7 +479,7 @@ function Settings() {
         throw new Error('Invalid response from server');
       }
     } catch (error) {
-      console.error('Delete error:', error);
+      logger.error('Delete error:', error);
       showNotification(error.message || 'Failed to delete fare matrix', 'error');
     } finally {
       setLoading(false);
@@ -550,7 +551,7 @@ function Settings() {
         try {
           sessionStorage.removeItem(`allowedPages_${selectedRole}`);
         } catch (e) {
-          console.warn('[Settings] Failed to clear cached pages');
+          logger.warn('[Settings] Failed to clear cached pages');
         }
         
         // Refresh the data
@@ -559,7 +560,7 @@ function Settings() {
         throw new Error('Invalid response from server');
       }
     } catch (error) {
-      console.error('Save error:', error);
+      logger.error('Save error:', error);
       showNotification(error.message || 'Failed to save permissions', 'error');
     } finally {
       setLoading(false);
@@ -612,7 +613,7 @@ function Settings() {
         try {
           sessionStorage.removeItem(`allowedPages_${selectedRole}`);
         } catch (e) {
-          console.warn('[Settings] Failed to clear cached pages');
+          logger.warn('[Settings] Failed to clear cached pages');
         }
         
         showNotification('Page access reset to default');
@@ -621,7 +622,7 @@ function Settings() {
         throw new Error('Invalid response from server');
       }
     } catch (error) {
-      console.error('Reset error:', error);
+      logger.error('Reset error:', error);
       showNotification(error.message || 'Failed to reset page access', 'error');
     } finally {
       setLoading(false);
@@ -679,7 +680,7 @@ function Settings() {
         setBackupStats({ totalBackups: 0, totalSize: 0 });
       }
     } catch (error) {
-      console.error('[Settings] Error fetching backup history:', error);
+      logger.error('[Settings] Error fetching backup history:', error);
       showNotification('Failed to load backup history', 'error');
       setBackupHistory([]);
       setBackupStats({ totalBackups: 0, totalSize: 0 });
@@ -706,7 +707,7 @@ function Settings() {
         setLastBackupTime(null);
       }
     } catch (error) {
-      console.error('[Settings] Error fetching last backup info:', error);
+      logger.error('[Settings] Error fetching last backup info:', error);
       setLastBackupTime(null);
     }
   }, []);
@@ -725,7 +726,7 @@ function Settings() {
         setBackupFrequency(config.frequency || config.schedule?.frequency || 'daily');
       }
     } catch (error) {
-      console.error('[Settings] Error fetching backup config:', error);
+      logger.error('[Settings] Error fetching backup config:', error);
       // Set defaults on error
       setAutoBackupEnabled(true);
       setBackupFrequency('daily');
@@ -765,7 +766,7 @@ function Settings() {
       }
     } catch (error) {
       clearInterval(progressInterval);
-      console.error('[Settings] Create backup error:', error);
+      logger.error('[Settings] Create backup error:', error);
       showNotification(error.message || 'Failed to create backup', 'error');
     } finally {
       setTimeout(() => {
@@ -829,7 +830,7 @@ function Settings() {
       }
     } catch (error) {
       clearInterval(progressInterval);
-      console.error('[Settings] Restore backup error:', error);
+      logger.error('[Settings] Restore backup error:', error);
       showNotification(error.message || 'Failed to restore from backup', 'error');
     } finally {
       setTimeout(() => {
@@ -873,7 +874,7 @@ function Settings() {
         throw new Error(response.message || 'Failed to delete backup');
       }
     } catch (error) {
-      console.error('[Settings] Delete backup error:', error);
+      logger.error('[Settings] Delete backup error:', error);
       showNotification(error.message || 'Failed to delete backup', 'error');
     }
   }, [findBackupById, showNotification, fetchBackupHistory]);
@@ -890,7 +891,7 @@ function Settings() {
         showNotification(`Backup file "${result.filename}" downloaded successfully!`, 'success');
       }
     } catch (error) {
-      console.error('[Settings] Download backup error:', error);
+      logger.error('[Settings] Download backup error:', error);
       showNotification(error.message || 'Failed to download backup', 'error');
     }
   }, [showNotification]);
@@ -915,7 +916,7 @@ function Settings() {
         throw new Error(response.message || 'Failed to toggle protection');
       }
     } catch (error) {
-      console.error('[Settings] Toggle protection error:', error);
+      logger.error('[Settings] Toggle protection error:', error);
       showNotification(error.message || 'Failed to toggle protection', 'error');
     }
   }, [showNotification, fetchBackupHistory]);
@@ -947,7 +948,7 @@ function Settings() {
         throw new Error(response.message || 'Verification failed');
       }
     } catch (error) {
-      console.error('[Settings] Verify backup error:', error);
+      logger.error('[Settings] Verify backup error:', error);
       showNotification(error.message || 'Failed to verify backup', 'error');
     }
   }, [showNotification, fetchBackupHistory]);
@@ -1043,7 +1044,7 @@ function Settings() {
       }
     } catch (error) {
       clearInterval(progressInterval);
-      console.error('[Settings] Import backup error:', error);
+      logger.error('[Settings] Import backup error:', error);
       showNotification(error.message || 'Failed to import backup', 'error');
     } finally {
       setTimeout(() => {
@@ -1073,7 +1074,7 @@ function Settings() {
         throw new Error(response.message || 'Failed to update settings');
       }
     } catch (error) {
-      console.error('[Settings] Toggle auto backup error:', error);
+      logger.error('[Settings] Toggle auto backup error:', error);
       showNotification(error.message || 'Failed to update backup settings', 'error');
       // Revert the switch state
       setAutoBackupEnabled(!enabled);

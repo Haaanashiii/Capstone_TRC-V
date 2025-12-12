@@ -44,6 +44,7 @@ import VisibilityIcon from '@mui/icons-material/Visibility'
 import DownloadIcon from '@mui/icons-material/Download'
 import GetAppIcon from '@mui/icons-material/GetApp'
 import { previewFilledPDF, downloadFilledPDF, getPdfFieldNames } from '../../utils/pdfFiller'
+import { logger } from '../../utils/logger'
 
 // Application type constants for better type safety and maintainability
 const APPLICATION_TYPES = {
@@ -303,7 +304,7 @@ function FranchiseMgmt() {
   const fetchAllPending = useCallback(async () => {
     // Prevent duplicate simultaneous requests
     if (isFetchingRef.current) {
-      console.log('[FranchiseMgmt] Fetch already in progress, skipping')
+      logger.log('[FranchiseMgmt] Fetch already in progress, skipping')
       return
     }
     
@@ -320,8 +321,8 @@ function FranchiseMgmt() {
       // Backend returns { success, data }, axios unwraps to response.data
       const serverApps = response.data?.data || response.data || []
       
-      console.log(`[FranchiseMgmt] Fetched ${userRole === 'sb-admin' ? 'SB approval' : 'pending'} applications:`, Array.isArray(serverApps) ? serverApps.length : 0)
-      console.log('[FranchiseMgmt] Application types breakdown:', 
+      logger.log(`[FranchiseMgmt] Fetched ${userRole === 'sb-admin' ? 'SB approval' : 'pending'} applications:`, Array.isArray(serverApps) ? serverApps.length : 0)
+      logger.log('[FranchiseMgmt] Application types breakdown:', 
         serverApps.reduce((acc, app) => {
           const type = app.applicationType || 'unknown'
           acc[type] = (acc[type] || 0) + 1
@@ -392,7 +393,7 @@ function FranchiseMgmt() {
 
       setPendingApplications(normalizedServerApps)
     } catch (err) {
-      console.error('[FranchiseMgmt] Error fetching pending applications:', err)
+      logger.error('[FranchiseMgmt] Error fetching pending applications:', err)
       
       setNotification({
         open: true,
@@ -412,7 +413,7 @@ function FranchiseMgmt() {
 
   // Initial fetch on mount - CRITICAL for reliable data loading
   useEffect(() => {
-    console.log('[FranchiseMgmt] Component mounted, fetching initial data...')
+    logger.log('[FranchiseMgmt] Component mounted, fetching initial data...')
     fetchAllPending()
   }, [fetchAllPending])
 
@@ -427,25 +428,25 @@ function FranchiseMgmt() {
     
     // Connect to WebSocket for real-time updates
     if (!websocketService.isConnected()) {
-      console.log('[FranchiseMgmt] Connecting to WebSocket as:', websocketRoom)
+      logger.log('[FranchiseMgmt] Connecting to WebSocket as:', websocketRoom)
       websocketService.connect(websocketRoom)
       
       // Wait for WebSocket to emit initial data before falling back to API
       connectionTimeout = setTimeout(() => {
         if (!hasReceivedInitialData) {
-          console.log('[FranchiseMgmt] No WebSocket data received, fetching via API fallback')
+          logger.log('[FranchiseMgmt] No WebSocket data received, fetching via API fallback')
           fetchAllPending()
         }
       }, 2000) // 2 second timeout
     } else {
       // If already connected, just join the correct room
-      console.log('[FranchiseMgmt] Already connected, joining room:', websocketRoom)
+      logger.log('[FranchiseMgmt] Already connected, joining room:', websocketRoom)
       websocketService.joinRoom(websocketRoom)
     }
 
     // Subscribe to real-time application updates
     const handleApplicationUpdates = (applications) => {
-      console.log(`[FranchiseMgmt] WebSocket update - ${websocketEvent}:`, applications?.length || 0)
+      logger.log(`[FranchiseMgmt] WebSocket update - ${websocketEvent}:`, applications?.length || 0)
       
       // Mark that we received data from WebSocket
       hasReceivedInitialData = true
@@ -456,25 +457,25 @@ function FranchiseMgmt() {
       
       // Prevent duplicate updates during processing
       if (isUpdatingRef.current) {
-        console.log('[FranchiseMgmt] Already updating, skipping duplicate WebSocket event')
+        logger.log('[FranchiseMgmt] Already updating, skipping duplicate WebSocket event')
         return
       }
       
       // Only update if we have applications or if this is an explicit clear
       if (!Array.isArray(applications)) {
-        console.log('[FranchiseMgmt] Invalid applications data, skipping update')
+        logger.log('[FranchiseMgmt] Invalid applications data, skipping update')
         return
       }
       
       // For SB admins, ignore empty WebSocket updates if we already have data
       // This prevents the WebSocket from clearing data when BPLO approves (which triggers a re-emit)
       if (userRole === 'sb-admin' && applications.length === 0 && pendingApplications.length > 0) {
-        console.log('[FranchiseMgmt] Ignoring empty WebSocket update for SB admin (preserving existing data)')
+        logger.log('[FranchiseMgmt] Ignoring empty WebSocket update for SB admin (preserving existing data)')
         return
       }
       
       isUpdatingRef.current = true
-      console.log('[FranchiseMgmt] Processing WebSocket update...')
+      logger.log('[FranchiseMgmt] Processing WebSocket update...')
       
       const normalizedApps = applications.map((it) => ({
         id: it.id || it._id,
@@ -533,13 +534,13 @@ function FranchiseMgmt() {
         submittedAt: it.submittedAt || '',
       }))
       setPendingApplications(normalizedApps)
-      console.log('[FranchiseMgmt] State updated with', normalizedApps.length, 'applications')
+      logger.log('[FranchiseMgmt] State updated with', normalizedApps.length, 'applications')
       
       // Reset the updating flag immediately after state update
       // Using setTimeout to ensure state has been committed
       setTimeout(() => {
         isUpdatingRef.current = false
-        console.log('[FranchiseMgmt] Update lock released')
+        logger.log('[FranchiseMgmt] Update lock released')
       }, 50)
     }
 
@@ -548,7 +549,7 @@ function FranchiseMgmt() {
     // Listen for all application type events - backend should re-emit full list
     const handleNewApplication = (application) => {
       const appType = application?.applicationType || 'unknown'
-      console.log(`[FranchiseMgmt] New ${appType} application received:`, {
+      logger.log(`[FranchiseMgmt] New ${appType} application received:`, {
         id: application?._id,
         type: appType,
         status: application?.statusOfBPLO,
@@ -573,13 +574,13 @@ function FranchiseMgmt() {
     let pollId = null
     const isWebSocketActive = websocketService.isConnected()
     if (POLL_INTERVAL_MS > 0 && !isAnyModalOpen && !isWebSocketActive) {
-      console.log('[FranchiseMgmt] WebSocket not active, starting polling fallback...')
+      logger.log('[FranchiseMgmt] WebSocket not active, starting polling fallback...')
       pollId = setInterval(() => {
-        console.log('[FranchiseMgmt] Polling for updates (fallback mode)...')
+        logger.log('[FranchiseMgmt] Polling for updates (fallback mode)...')
         fetchAllPending()
       }, POLL_INTERVAL_MS)
     } else if (POLL_INTERVAL_MS > 0 && isWebSocketActive) {
-      console.log('[FranchiseMgmt] WebSocket active, polling disabled')
+      logger.log('[FranchiseMgmt] WebSocket active, polling disabled')
     }
 
     return () => {
@@ -682,7 +683,7 @@ function FranchiseMgmt() {
         URL.revokeObjectURL(qrBlobUrlRef.current)
         qrBlobUrlRef.current = null
       } catch (e) {
-        console.warn('Failed to revoke previous QR blob:', e)
+        logger.warn('Failed to revoke previous QR blob:', e)
       }
     }
 
@@ -702,7 +703,7 @@ function FranchiseMgmt() {
         qrBlobUrlRef.current = objUrl
         setQrBlobUrl(objUrl)
       } catch (err) {
-        console.warn('[FranchiseMgmt] Failed to fetch QR blob for inline display:', err)
+        logger.warn('[FranchiseMgmt] Failed to fetch QR blob for inline display:', err)
         setQrBlobUrl(null)
       }
     }
@@ -716,7 +717,7 @@ function FranchiseMgmt() {
           URL.revokeObjectURL(qrBlobUrlRef.current)
           qrBlobUrlRef.current = null
         } catch (e) {
-          console.warn('Failed to revoke QR blob on cleanup:', e)
+          logger.warn('Failed to revoke QR blob on cleanup:', e)
         }
       }
       setQrBlobUrl(null)
@@ -764,7 +765,7 @@ function FranchiseMgmt() {
       if (normalized.path && normalized.path.startsWith('gridfs://')) {
         const fileId = normalized.path.substring(9) // Remove 'gridfs://' prefix
         normalized.path = `${API_BASE_URL.replace(/\/$/, '')}/api/files/${fileId}`
-        console.log('[Preview] GridFS format detected, converting to HTTP URL:', fileId)
+        logger.log('[Preview] GridFS format detected, converting to HTTP URL:', fileId)
       }
       // Relative path -> prefix with API_BASE_URL
       else if (normalized.path && !/^https?:\/\//i.test(normalized.path)) {
@@ -772,7 +773,7 @@ function FranchiseMgmt() {
         normalized.path = API_BASE_URL.replace(/\/$/, '') + pathPart
       }
     } catch (err) {
-      console.warn('[Preview] Error processing file path:', err)
+      logger.warn('[Preview] Error processing file path:', err)
     }
 
     // If it's an image or PDF, try fetching it and creating an object URL so
@@ -791,7 +792,7 @@ function FranchiseMgmt() {
         const blob = await resp.blob()
         const contentType = blob.type || resp.headers.get('Content-Type') || ''
         
-        console.log('[FilePreview] Fetched file, content type:', contentType)
+        logger.log('[FilePreview] Fetched file, content type:', contentType)
         
         const isImage = contentType.includes('image')
         const isPdf = contentType.includes('pdf')
@@ -829,7 +830,7 @@ function FranchiseMgmt() {
         })
         setOpenFilePreview(true)
       } catch (err) {
-        console.warn('[FilePreview] fetch failed:', err)
+        logger.warn('[FilePreview] fetch failed:', err)
         setNotification({ open: true, message: 'Failed to load file preview', type: 'error' })
       }
     }
@@ -845,7 +846,7 @@ function FranchiseMgmt() {
         ref.current = null
       }
     } catch (err) {
-      console.warn('Failed to revoke blob URL:', err)
+      logger.warn('Failed to revoke blob URL:', err)
     }
   }, [])
 
@@ -946,7 +947,7 @@ function FranchiseMgmt() {
           try {
             URL.revokeObjectURL(prev[name].path)
           } catch (err) {
-            console.warn('Failed to revoke previous file blob:', err)
+            logger.warn('Failed to revoke previous file blob:', err)
           }
         }
         
@@ -965,7 +966,7 @@ function FranchiseMgmt() {
         }
       })
     } catch (error) {
-      console.error('[FileCompression] Error:', error)
+      logger.error('[FileCompression] Error:', error)
       setNotification({
         open: true,
         message: 'Compression failed. Using original file.',
@@ -978,7 +979,7 @@ function FranchiseMgmt() {
           try {
             URL.revokeObjectURL(prev[name].path)
           } catch (err) {
-            console.warn('Failed to revoke previous file blob:', err)
+            logger.warn('Failed to revoke previous file blob:', err)
           }
         }
         
@@ -1011,7 +1012,7 @@ function FranchiseMgmt() {
           try {
             URL.revokeObjectURL(currentFormData[key].path)
           } catch (e) {
-            console.warn('Failed to revoke blob URL:', e)
+            logger.warn('Failed to revoke blob URL:', e)
           }
         }
       })
@@ -1129,7 +1130,7 @@ function FranchiseMgmt() {
       // Submit to backend using secure API
       const response = await franchiseAPI.create(formDataToSend)
       
-      console.log('[FranchiseMgmt] Application submitted:', response.data)
+      logger.log('[FranchiseMgmt] Application submitted:', response.data)
 
       // Refresh pending applications list
       await fetchAllPending()
@@ -1143,7 +1144,7 @@ function FranchiseMgmt() {
           try {
             URL.revokeObjectURL(formData[key].path)
           } catch (e) {
-            console.warn('Failed to revoke blob URL on form reset:', e)
+            logger.warn('Failed to revoke blob URL on form reset:', e)
           }
         }
       })
@@ -1190,7 +1191,7 @@ function FranchiseMgmt() {
         type: 'success'
       })
     } catch (error) {
-      console.error('[FranchiseMgmt] Error submitting application:', error)
+      logger.error('[FranchiseMgmt] Error submitting application:', error)
       setNotification({
         open: true,
         message: error.response?.data?.error || 'Failed to submit application',
@@ -1209,7 +1210,7 @@ function FranchiseMgmt() {
     
     // Prevent double-submission
     if (isLoading) {
-      console.log('[FranchiseMgmt] Already processing, ignoring duplicate click')
+      logger.log('[FranchiseMgmt] Already processing, ignoring duplicate click')
       return
     }
     
@@ -1224,12 +1225,12 @@ function FranchiseMgmt() {
     setIsLoading(true)
     
     try {
-      console.log('[FranchiseMgmt] BPLO approving application:', selectedApplication.id)
+      logger.log('[FranchiseMgmt] BPLO approving application:', selectedApplication.id)
       
       // BPLO approve via secure API
       const response = await franchiseAPI.approveBPLO(selectedApplication.id)
       
-      console.log('[FranchiseMgmt] Application approved by BPLO:', response.data)
+      logger.log('[FranchiseMgmt] Application approved by BPLO:', response.data)
 
       // Refresh pending applications list
       await fetchAllPending()
@@ -1242,7 +1243,7 @@ function FranchiseMgmt() {
       
       handleCloseViewModal()
     } catch (error) {
-      console.error('[FranchiseMgmt] Error approving application:', error)
+      logger.error('[FranchiseMgmt] Error approving application:', error)
       
       const errorMessage = error.response?.data?.error || error.response?.data?.message || 'Failed to approve application'
       const isConflict = error.response?.status === 409
@@ -1281,7 +1282,7 @@ function FranchiseMgmt() {
     setIsLoading(true)
     
     try {
-      console.log('[FranchiseMgmt] SB final approval - this will create franchise:', selectedApplication.id)
+      logger.log('[FranchiseMgmt] SB final approval - this will create franchise:', selectedApplication.id)
       
       // Create FormData for multipart upload if resolution document is provided
       const formData = new FormData()
@@ -1291,15 +1292,15 @@ function FranchiseMgmt() {
       }
       
       // Step 1: SB Approval with resolution
-      console.log('[FranchiseMgmt] Step 1/2: Approving with resolution number...')
+      logger.log('[FranchiseMgmt] Step 1/2: Approving with resolution number...')
       const approvalResponse = await franchiseAPI.approveSBWithDocument(selectedApplication.id, formData)
-      console.log('[FranchiseMgmt] Step 1/2 completed - SB approval done:', approvalResponse.data)
+      logger.log('[FranchiseMgmt] Step 1/2 completed - SB approval done:', approvalResponse.data)
 
       // Small delay to ensure database consistency
       await new Promise(resolve => setTimeout(resolve, 500))
 
       // Step 2: Immediately create franchise record (FINAL STEP)
-      console.log('[FranchiseMgmt] Step 2/2: Creating franchise record in FranchiseList...')
+      logger.log('[FranchiseMgmt] Step 2/2: Creating franchise record in FranchiseList...')
       const isNew = selectedApplication.applicationType === 'new' || !selectedApplication.applicationType
       
       let franchiseResponse
@@ -1307,9 +1308,9 @@ function FranchiseMgmt() {
         franchiseResponse = await (isNew 
           ? franchiseAPI.acceptNewFranchise(selectedApplication.id, {})
           : franchiseAPI.acceptRenewAmend(selectedApplication.id, {}))
-        console.log('[FranchiseMgmt] Step 2/2 completed - Franchise created successfully:', franchiseResponse.data)
+        logger.log('[FranchiseMgmt] Step 2/2 completed - Franchise created successfully:', franchiseResponse.data)
       } catch (acceptError) {
-        console.error('[FranchiseMgmt] Error in Step 2 (franchise creation):', acceptError)
+        logger.error('[FranchiseMgmt] Error in Step 2 (franchise creation):', acceptError)
         throw new Error(`Approval successful but failed to create franchise: ${acceptError.response?.data?.error || acceptError.message}. The application is now in 'sb-approved' status and can be manually accepted from the list.`)
       }
 
@@ -1327,7 +1328,7 @@ function FranchiseMgmt() {
       setResolutionFile(null)
       handleCloseViewModal()
     } catch (error) {
-      console.error('[FranchiseMgmt] Error in SB final approval process:', error)
+      logger.error('[FranchiseMgmt] Error in SB final approval process:', error)
       
       const errorMessage = error.response?.data?.error || error.response?.data?.message || error.message || 'Failed to complete franchise approval'
       
@@ -1361,7 +1362,7 @@ function FranchiseMgmt() {
     setIsLoading(true)
     
     try {
-      console.log('[FranchiseMgmt] Accepting franchise for application:', selectedApplication.id)
+      logger.log('[FranchiseMgmt] Accepting franchise for application:', selectedApplication.id)
       
       // Determine which endpoint to call based on application type
       const isNew = selectedApplication.applicationType === 'new'
@@ -1369,7 +1370,7 @@ function FranchiseMgmt() {
         ? await franchiseAPI.acceptNewFranchise(selectedApplication.id, {})
         : await franchiseAPI.acceptRenewAmend(selectedApplication.id, {})
       
-      console.log('[FranchiseMgmt] Franchise created/updated successfully:', response.data)
+      logger.log('[FranchiseMgmt] Franchise created/updated successfully:', response.data)
 
       await fetchAllPending()
 
@@ -1382,7 +1383,7 @@ function FranchiseMgmt() {
       setOpenAcceptFranchiseModal(false)
       handleCloseViewModal()
     } catch (error) {
-      console.error('[FranchiseMgmt] Error accepting franchise:', error)
+      logger.error('[FranchiseMgmt] Error accepting franchise:', error)
       
       const errorMessage = error.response?.data?.error || error.message || 'Failed to accept franchise'
       setNotification({
@@ -1411,12 +1412,12 @@ function FranchiseMgmt() {
     setIsLoading(true)
     
     try {
-      console.log('[FranchiseMgmt] BPLO disapproving application:', selectedApplication.id)
+      logger.log('[FranchiseMgmt] BPLO disapproving application:', selectedApplication.id)
       
       // BPLO disapprove via secure API
       await franchiseAPI.disapproveBPLO(selectedApplication.id, rejectionReason.trim())
 
-      console.log('[FranchiseMgmt] Application disapproved by BPLO')
+      logger.log('[FranchiseMgmt] Application disapproved by BPLO')
       
       // Refresh pending applications list
       await fetchAllPending()
@@ -1430,7 +1431,7 @@ function FranchiseMgmt() {
       handleCloseRejectModal()
       setRejectionReason('')
     } catch (error) {
-      console.error('[FranchiseMgmt] Error disapproving application:', error)
+      logger.error('[FranchiseMgmt] Error disapproving application:', error)
       setNotification({
         open: true,
         message: error.response?.data?.error || 'Failed to disapprove application',
@@ -1466,7 +1467,7 @@ function FranchiseMgmt() {
         type: 'success'
       })
     } catch (error) {
-      console.error('[FranchiseMgmt] Error previewing PDF:', error)
+      logger.error('[FranchiseMgmt] Error previewing PDF:', error)
       setNotification({
         open: true,
         message: 'Failed to generate PDF preview',
@@ -1494,7 +1495,7 @@ function FranchiseMgmt() {
         type: 'success'
       })
     } catch (error) {
-      console.error('[FranchiseMgmt] Error downloading PDF:', error)
+      logger.error('[FranchiseMgmt] Error downloading PDF:', error)
       setNotification({
         open: true,
         message: 'Failed to download PDF',
@@ -1522,14 +1523,14 @@ function FranchiseMgmt() {
   const handleShowPdfFields = async () => {
     try {
       const fields = await getPdfFieldNames()
-      console.log('[FranchiseMgmt] PDF Fields:', fields)
+      logger.log('[FranchiseMgmt] PDF Fields:', fields)
       setNotification({
         open: true,
         message: `Found ${fields.length} fields in PDF. Check console for details.`,
         type: 'info'
       })
     } catch (error) {
-      console.error('[FranchiseMgmt] Error getting PDF fields:', error)
+      logger.error('[FranchiseMgmt] Error getting PDF fields:', error)
       setNotification({
         open: true,
         message: 'Failed to read PDF fields',
@@ -2708,7 +2709,7 @@ function FranchiseMgmt() {
                               ? franchiseAPI.acceptNewFranchise(selectedApplication.id, {})
                               : franchiseAPI.acceptRenewAmend(selectedApplication.id, {}))
                             
-                            console.log('[FranchiseMgmt] Franchise created successfully:', franchiseResponse.data)
+                            logger.log('[FranchiseMgmt] Franchise created successfully:', franchiseResponse.data)
                             await fetchAllPending()
                             
                             setNotification({ 
@@ -2718,7 +2719,7 @@ function FranchiseMgmt() {
                             })
                             handleCloseViewModal()
                           } catch (error) {
-                            console.error('[FranchiseMgmt] Error completing franchise creation:', error)
+                            logger.error('[FranchiseMgmt] Error completing franchise creation:', error)
                             setNotification({
                               open: true,
                               message: error.response?.data?.error || error.message || 'Failed to create franchise record',
@@ -2907,7 +2908,7 @@ function FranchiseMgmt() {
                     boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
                   }}
                   onError={(e) => {
-                    console.error('Image preview failed:', e);
+                    logger.error('Image preview failed:', e);
                     e.target.style.display = 'none';
                   }}
                 />

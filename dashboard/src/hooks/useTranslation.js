@@ -1,5 +1,6 @@
 import { useContext } from 'react';
 import { I18nContext } from '../contexts/I18nContext';
+import logger from '../utils/logger';
 
 /**
  * useTranslation Hook
@@ -18,9 +19,9 @@ export const useTranslation = () => {
   }
   
   // Debug logging
-  console.log('[useTranslation] Current language:', context.language);
-  console.log('[useTranslation] Translations loaded:', Object.keys(context.translations || {}).length > 0);
-  console.log('[useTranslation] Loading state:', context.loading);
+  logger.log('[useTranslation] Current language:', context.language);
+  logger.log('[useTranslation] Translations loaded:', Object.keys(context.translations || {}).length > 0);
+  logger.log('[useTranslation] Loading state:', context.loading);
   
   return context;
 };

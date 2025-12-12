@@ -73,6 +73,7 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import CancelIcon from '@mui/icons-material/Cancel';
 import ArticleIcon from '@mui/icons-material/Article';
 import AssignmentIcon from '@mui/icons-material/Assignment';
+import { logger } from '../../utils/logger';
 
 const StyledModal = styled(Modal)({
   display: 'flex',
@@ -235,7 +236,7 @@ function Certificate() {
       setFranchises(filteredFranchises);
       setTotalFranchises(filteredFranchises.length);
     } catch (err) {
-      console.error('[Certificate] Error:', err);
+      logger.error('[Certificate] Error:', err);
       setError('Failed to fetch franchises. Please try again.');
     } finally {
       setLoading(false);
@@ -478,7 +479,7 @@ function Certificate() {
       const url = URL.createObjectURL(blob);
       setPdfPreviewUrl(url);
     } catch (err) {
-      console.error('[Certificate] Error generating preview:', err);
+      logger.error('[Certificate] Error generating preview:', err);
       setError('Failed to generate preview. You can still download the certificate.');
     } finally {
       setLoadingPreview(false);
@@ -496,7 +497,7 @@ function Certificate() {
 
       // Check if this is a MTOF report (no single franchise)
       if (!certificateData.franchise) {
-        console.error('[Certificate] MTOF reports should use handleFinalGenerate');
+        logger.error('[Certificate] MTOF reports should use handleFinalGenerate');
         setError('This certificate type requires a different download method');
         setGenerating(false);
         return;
@@ -568,7 +569,7 @@ function Certificate() {
             errorMessage = errorText || errorMessage;
           }
         } catch (parseError) {
-          console.error('[Certificate] Error parsing error response:', parseError);
+          logger.error('[Certificate] Error parsing error response:', parseError);
         }
         throw new Error(errorMessage);
       }
@@ -589,7 +590,7 @@ function Certificate() {
       // Show success message
       alert('Certificate downloaded successfully!');
     } catch (err) {
-      console.error('[Certificate] Error generating:', err);
+      logger.error('[Certificate] Error generating:', err);
       
       // Check if it's a network error
       if (err.message.includes('Failed to fetch') || err.name === 'TypeError') {
@@ -698,7 +699,7 @@ function Certificate() {
       setOpenPreviewModal(false);
       alert('Report downloaded successfully!');
     } catch (err) {
-      console.error('[Certificate] Error generating MTOF report:', err);
+      logger.error('[Certificate] Error generating MTOF report:', err);
       setError(err.message || 'Failed to generate report. Please try again.');
     } finally {
       setGenerating(false);

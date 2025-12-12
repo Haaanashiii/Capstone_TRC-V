@@ -14,6 +14,7 @@ import {
   Paper
 } from "@mui/material";
 import { CheckCircle, Warning } from "@mui/icons-material";
+import { logger } from '../../utils/logger';
 
 export default function ReportDriver() {
   const urlParams = new URLSearchParams(window.location.search);
@@ -64,7 +65,7 @@ export default function ReportDriver() {
 
     // Simulate API call
     setTimeout(() => {
-      console.log('Report submitted:', reportData);
+      logger.log('Report submitted:', reportData);
       setLoading(false);
       setShowSuccess(true);
       setFormData({

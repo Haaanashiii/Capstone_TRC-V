@@ -12,6 +12,7 @@ import api, { franchiseAPI, TokenManager } from '../Services/api';
 import { validateFile, formatFileSize } from '../../utils/fileValidation';
 import { compressFile } from '../../utils/compressFile';
 import "../../Styles/Operator's_CSS/FranchiseApplication.css";
+import { logger } from '../../utils/logger';
 
 // SweetAlert styling utility
 const alertStyle = {
@@ -82,46 +83,46 @@ export default function FranchiseApplication() {
       try {
         const token = TokenManager.getAccessToken();
         if (!token) {
-          console.error('[FranchiseApplication] No access token found');
+          logger.error('[FranchiseApplication] No access token found');
           return;
         }
         
         const userData = TokenManager.decodeToken(token);
-        console.log('[FranchiseApplication] JWT payload (no email for security):', userData);
+        logger.log('[FranchiseApplication] JWT payload (no email for security):', userData);
         
         if (userData) {
           // Extract user ID from JWT
           const extractedUserId = userData.userId || userData.id || userData._id;
           if (extractedUserId) {
-            console.log('[FranchiseApplication] ✓ User ID extracted:', extractedUserId);
+            logger.log('[FranchiseApplication] ✓ User ID extracted:', extractedUserId);
             
             // Fetch user email from backend API using the user ID
             try {
               const response = await api.get('/auth/me');
-              console.log('[FranchiseApplication] API response:', response.data);
+              logger.log('[FranchiseApplication] API response:', response.data);
               
               // Handle different response structures
               const userData = response.data?.user || response.data;
               const email = userData?.email;
               
               if (email) {
-                console.log('[FranchiseApplication] ✓ Email fetched from backend API:', email);
+                logger.log('[FranchiseApplication] ✓ Email fetched from backend API:', email);
               } else {
-                console.error('[FranchiseApplication] ✗ No email in API response. Full response:', response.data);
-                console.error('[FranchiseApplication] ✗ This means the user account does not have an email saved in the database');
+                logger.error('[FranchiseApplication] ✗ No email in API response. Full response:', response.data);
+                logger.error('[FranchiseApplication] ✗ This means the user account does not have an email saved in the database');
               }
             } catch (apiError) {
-              console.error('[FranchiseApplication] ✗ Failed to fetch user data from API:', apiError);
-              console.error('[FranchiseApplication] ✗ Response:', apiError.response?.data);
+              logger.error('[FranchiseApplication] ✗ Failed to fetch user data from API:', apiError);
+              logger.error('[FranchiseApplication] ✗ Response:', apiError.response?.data);
             }
           } else {
-            console.error('[FranchiseApplication] ✗ No user ID found in JWT token');
+            logger.error('[FranchiseApplication] ✗ No user ID found in JWT token');
           }
         } else {
-          console.error('[FranchiseApplication] ✗ Failed to decode JWT token');
+          logger.error('[FranchiseApplication] ✗ Failed to decode JWT token');
         }
       } catch (error) {
-        console.error('[FranchiseApplication] Error extracting data from token:', error);
+        logger.error('[FranchiseApplication] Error extracting data from token:', error);
       }
     };
     
@@ -133,7 +134,7 @@ export default function FranchiseApplication() {
       const appId = urlParams.get('resubmit');
       
       if (appId) {
-        console.log('[FranchiseApplication] Resubmission mode - loading application:', appId);
+        logger.log('[FranchiseApplication] Resubmission mode - loading application:', appId);
         setIsResubmission(true);
         setResubmissionAppId(appId);
         
@@ -178,7 +179,7 @@ export default function FranchiseApplication() {
             
             // Store existing document URLs (so we don't require re-uploading if not changed)
             if (app.documents) {
-              console.log('[FranchiseApplication] Existing documents found:', app.documents);
+              logger.log('[FranchiseApplication] Existing documents found:', app.documents);
               // Store document URLs in state so they can be referenced
               setExistingDocuments({
                 motorRegistration: app.documents.motorRegistrationObj || null,
@@ -194,10 +195,10 @@ export default function FranchiseApplication() {
               });
             }
             
-            console.log('[FranchiseApplication] Application data loaded for resubmission');
+            logger.log('[FranchiseApplication] Application data loaded for resubmission');
           }
         } catch (error) {
-          console.error('[FranchiseApplication] Error loading application for resubmission:', error);
+          logger.error('[FranchiseApplication] Error loading application for resubmission:', error);
           Swal.fire({
             ...alertStyle.errorAlert,
             title: 'Error',
@@ -397,7 +398,7 @@ export default function FranchiseApplication() {
       
       setModalFile(processedFile);
     } catch (error) {
-      console.error('[FileCompression] Error:', error);
+      logger.error('[FileCompression] Error:', error);
       Swal.fire({
         ...alertStyle.warningAlert,
         title: 'Compression Failed',
@@ -522,7 +523,7 @@ export default function FranchiseApplication() {
 
   React.useEffect(() => {
     if (errors && Object.keys(errors).length) {
-      console.debug('[FranchiseApplication] Validation errors:', errors);
+      logger.debug('[FranchiseApplication] Validation errors:', errors);
     }
   }, [errors]);
 
@@ -776,7 +777,7 @@ export default function FranchiseApplication() {
                         <circle cx="12" cy="12" r="10" fill="none" stroke="#174D7A" strokeWidth="2" opacity="0.2" />
                         <path d="M12 2A10 10 0 1 0 22 12" fill="none" stroke="#174D7A" strokeWidth="2" strokeLinecap="round" className="spin-animation" />
                       </svg>
-                      <span style={{ fontWeight: 600, color: '#174D7A', fontSize: '14px' }}>
+                     <span style={{ fontWeight: 600, color: '#174D7A', fontSize: '14px' }}>
                         Compressing image... {compressionProgress}%
                       </span>
                     </div>
@@ -1569,12 +1570,12 @@ export default function FranchiseApplication() {
                         formDataToSend.append('existingOperatorPicture', existingDocuments.operatorPicture);
                       }
                       // Debug: Log all FormData keys and values before submission
-                      console.log('[FranchiseApplication] FormData to send:');
+                      logger.log('[FranchiseApplication] FormData to send:');
                       for (let pair of formDataToSend.entries()) {
                         if (pair[1] instanceof File) {
-                          console.log(`  ${pair[0]}: [File] name=${pair[1].name}, type=${pair[1].type}, size=${pair[1].size}`);
+                          logger.log(`  ${pair[0]}: [File] name=${pair[1].name}, type=${pair[1].type}, size=${pair[1].size}`);
                         } else {
-                          console.log(`  ${pair[0]}: ${pair[1]}`);
+                          logger.log(`  ${pair[0]}: ${pair[1]}`);
                         }
                       }
 
@@ -1595,17 +1596,17 @@ export default function FranchiseApplication() {
                       // Decode and log token payload for debugging
                       try {
                         const decoded = JSON.parse(atob(token.split('.')[1]));
-                        console.log('[FranchiseApplication] Token payload:', decoded);
+                        logger.log('[FranchiseApplication] Token payload:', decoded);
                       } catch (e) {
-                        console.error('[FranchiseApplication] Failed to decode token:', e);
+                        logger.error('[FranchiseApplication] Failed to decode token:', e);
                       }
                       
-                      console.log('[FranchiseApplication] Submitting application...')
+                      logger.log('[FranchiseApplication] Submitting application...')
                       
                       let response;
                       if (isResubmission && resubmissionAppId) {
                         // Update existing disapproved application
-                        console.log('[FranchiseApplication] Resubmitting application:', resubmissionAppId);
+                        logger.log('[FranchiseApplication] Resubmitting application:', resubmissionAppId);
                         response = await franchiseAPI.update(resubmissionAppId, formDataToSend);
                       } else {
                         // Create new application
@@ -1643,7 +1644,7 @@ export default function FranchiseApplication() {
                       setCoOwners([]);
 
                       
-                      console.log('[FranchiseApplication] Application submitted successfully')
+                      logger.log('[FranchiseApplication] Application submitted successfully')
                      
                       try { sessionStorage.setItem('franchiseMenuReplaced', 'true') } catch { /* ignore */ }
                       // persist owner userId so the operator mapping is consistent
@@ -1657,7 +1658,7 @@ export default function FranchiseApplication() {
                         }
                       } catch { /* ignore */ }
 
-                      Swal.fire({
+                         Swal.fire({
                         icon: 'success',
                         title: 'Application approved by BPLO',
                         text: 'Applicant will be notified to proceed with inspection and OR submission.',
@@ -1681,7 +1682,7 @@ export default function FranchiseApplication() {
                         navigate('/operator/franchise')
                       }
                     } catch (err) {
-                      console.error('[FranchiseApplication] Failed to submit application:', err)
+                      logger.error('[FranchiseApplication] Failed to submit application:', err)
                       const status = err.response?.status;
                       const serverMessage = err.response?.data?.error || err.response?.data?.message || err.message;
                       if (status === 409) {

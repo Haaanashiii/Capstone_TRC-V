@@ -5,6 +5,7 @@ import { useTranslation } from '../../hooks/useTranslation';
 import websocketService from '../../services/websocket';
 import announcementService from '../../services/announcementService';
 import UnifiedNavbar from '../../components/UnifiedNavbar';
+import { logger } from '../../utils/logger';
 import { Button, Typography, Box, useMediaQuery, useTheme, MobileStepper, Accordion, AccordionSummary, AccordionDetails, Dialog, DialogContent, IconButton, Menu, MenuItem, ListItemIcon, Drawer } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import CloseIcon from '@mui/icons-material/Close';
@@ -50,7 +51,7 @@ const LandingPage = () => {
         const data = await announcementService.getPublished();
         setAnnouncements(data.announcements || []);
       } catch (error) {
-        console.error('Error fetching announcements:', error);
+        logger.error('Error fetching announcements:', error);
         setAnnouncements([]);
       } finally {
         setLoadingAnnouncements(false);
@@ -61,20 +62,20 @@ const LandingPage = () => {
 
     // Connect to WebSocket for real-time announcement updates
     if (!websocketService.isConnected()) {
-      console.log('[LandingPage] Connecting to WebSocket');
+      logger.log('[LandingPage] Connecting to WebSocket');
       websocketService.connect();  // Auto-joins 'announcements' room
     }
 
     // Subscribe to announcement updates
     const handleAnnouncementCreated = (newAnnouncement) => {
       if (newAnnouncement.published) {
-        console.log('[LandingPage] WebSocket event - announcement-created', newAnnouncement);
+        logger.log('[LandingPage] WebSocket event - announcement-created', newAnnouncement);
         setAnnouncements(prev => [newAnnouncement, ...prev]);
       }
     };
 
     const handleAnnouncementUpdated = (updatedAnnouncement) => {
-      console.log('[LandingPage] WebSocket event - announcement-updated', updatedAnnouncement);
+      logger.log('[LandingPage] WebSocket event - announcement-updated', updatedAnnouncement);
       if (updatedAnnouncement.published) {
         // If it's now published, add/update it
         setAnnouncements(prev => {
@@ -92,7 +93,7 @@ const LandingPage = () => {
     };
 
     const handleAnnouncementDeleted = (data) => {
-      console.log('[LandingPage] WebSocket event - announcement-deleted', data);
+      logger.log('[LandingPage] WebSocket event - announcement-deleted', data);
       setAnnouncements(prev => prev.filter(a => a._id !== data._id));
     };
 
@@ -131,11 +132,11 @@ const LandingPage = () => {
             }
           } catch (e) {
             // ignore decode errors, token is still stored
-            console.warn('Failed to decode token in landing page:', e);
+            logger.warn('Failed to decode token in landing page:', e);
           }
           // remove token from URL if available
           if (window.history && typeof window.history.replaceState === 'function') {
-            try { window.history.replaceState(null, '', window.location.pathname); } catch (err) { console.warn('replaceState failed', err); }
+            try { window.history.replaceState(null, '', window.location.pathname); } catch (err) { logger.warn('replaceState failed', err); }
           }
         }
       }

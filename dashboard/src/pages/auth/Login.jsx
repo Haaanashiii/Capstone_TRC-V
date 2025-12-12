@@ -7,6 +7,7 @@ import ForgotPasswordModal from '../../components/ForgotPasswordModal';
 import { useNavigate } from 'react-router-dom';
 import api, { TokenManager } from '../Services/api';
 import { useAuth } from '../../contexts/AuthContext';
+import { logger } from '../../utils/logger';
 
 import '../../Styles/LoginCss/Login.css';
 
@@ -61,7 +62,7 @@ const Login = () => {
     setIsLoading(true);
     
     try {
-      console.log("Making login API call");
+      logger.log("Making login API call");
       // Backend accepts 'identifier' which can be username or email
       // rememberMe flag tells backend to use 30-day refresh token instead of 7-day
       const response = await api.post('/auth/login', {
@@ -75,24 +76,24 @@ const Login = () => {
       // Save accessToken using TokenManager (stores in sessionStorage)
       if (data.accessToken) {
         TokenManager.setTokens(data.accessToken);
-        console.log('[Login] Access token stored');
+        logger.log('[Login] Access token stored');
         
         const tokenData = TokenManager.decodeToken(data.accessToken);
-        console.log('[Login] JWT contains:', tokenData);
+        logger.log('[Login] JWT contains:', tokenData);
       }
 
-      console.log('[Login] Refresh token stored in HTTP-only cookie by backend');
+      logger.log('[Login] Refresh token stored in HTTP-only cookie by backend');
 
       // Check if OTP should be skipped (trusted device from previous login)
       if (data.skipOTP) {
-        console.log('[Login] Trusted device - skipping OTP verification');
+        logger.log('[Login] Trusted device - skipping OTP verification');
         handleVerificationSuccess();
       } else {
         // Open OTP verification modal
         setShowVerificationModal(true);
       }
     } catch (error) {
-      console.error("Login error:", error);
+      logger.error("Login error:", error);
       setError(error.response?.data?.error || error.response?.data?.message || "Login failed. Please try again.");
     } finally {
       setIsLoading(false);
@@ -103,14 +104,14 @@ const Login = () => {
     setSuccess("Login successful!");
     setIsLoading(true);
     
-    console.log('[Login] OTP verification successful, checking stored token...');
+    logger.log('[Login] OTP verification successful, checking stored token...');
     
     // Verify token is still in storage
     const token = TokenManager.getAccessToken();
-    console.log('[Login] Access token present:', !!token);
+    logger.log('[Login] Access token present:', !!token);
     
     if (!token) {
-      console.error('[Login] ERROR: No token found after OTP verification!');
+      logger.error('[Login] ERROR: No token found after OTP verification!');
       setError('Session expired. Please login again.');
       setIsLoading(false);
       return;
@@ -120,9 +121,9 @@ const Login = () => {
     let userData = null;
     try {
       userData = TokenManager.decodeToken(token);
-      console.log('[Login] Decoded JWT data:', userData);
+      logger.log('[Login] Decoded JWT data:', userData);
     } catch (err) {
-      console.error('[Login] Failed to decode JWT:', err.message);
+      logger.error('[Login] Failed to decode JWT:', err.message);
       setError('Invalid session. Please login again.');
       setIsLoading(false);
       return;
@@ -130,7 +131,7 @@ const Login = () => {
     
     // Update AuthContext with user data
     if (userData && userData.role) {
-      console.log('[Login] Updating AuthContext with user data');
+      logger.log('[Login] Updating AuthContext with user data');
       login(token, {
         id: userData.id,
         role: userData.role,
@@ -144,30 +145,30 @@ const Login = () => {
     
     // Redirect based on role from JWT
     if (userData && userData.role) {
-      console.log('[Login] Role:', userData.role, 'AccountType:', userData.accountType, 'HasFranchise:', userData.hasFranchise);
-      console.log('[Login] Attempting navigation to role-based route...');
+      logger.log('[Login] Role:', userData.role, 'AccountType:', userData.accountType, 'HasFranchise:', userData.hasFranchise);
+      logger.log('[Login] Attempting navigation to role-based route...');
       
       if (userData.role === 'operator' || userData.role === 'user') {
         // Check if operator has franchise - redirect accordingly
         if (userData.hasFranchise === true) {
-          console.log('[Login] Operator has franchise, navigating to /operator/id');
+          logger.log('[Login] Operator has franchise, navigating to /operator/id');
           navigate('/operator/id', { replace: true });
         } else {
-          console.log('[Login] Operator has no franchise, navigating to /operator/franchise');
+          logger.log('[Login] Operator has no franchise, navigating to /operator/franchise');
           navigate('/operator/franchise', { replace: true });
         }
       } else if (userData.role === 'sb-admin' || userData.role === 'bplo-admin' || userData.role === 'super-admin') {
         // All admin roles go to /dashboard
-        console.log('[Login] Admin role detected, navigating to /dashboard');
+        logger.log('[Login] Admin role detected, navigating to /dashboard');
         navigate('/dashboard', { replace: true });
       } else {
-        console.log('[Login] Unknown role, navigating to /dashboard');
+        logger.log('[Login] Unknown role, navigating to /dashboard');
         navigate('/dashboard', { replace: true });
       }
     } else {
       // Fallback if role is not found
-      console.error('[Login] ERROR: No role found in JWT!');
-      console.error('[Login] JWT payload:', userData);
+      logger.error('[Login] ERROR: No role found in JWT!');
+      logger.error('[Login] JWT payload:', userData);
       setError('Unable to determine user role. Please login again.');
       setIsLoading(false);
     }

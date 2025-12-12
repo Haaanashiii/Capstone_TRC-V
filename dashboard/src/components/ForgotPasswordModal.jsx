@@ -17,6 +17,7 @@ import {
 } from '@mui/material';
 import { Close, Visibility, VisibilityOff, CheckCircle } from '@mui/icons-material';
 import api from '../pages/Services/api';
+import logger from '../utils/logger';
 
 const ForgotPasswordModal = ({ open, onClose }) => {
   const [step, setStep] = useState(1); // 1: Email, 2: OTP Verification, 3: New Password
@@ -74,7 +75,7 @@ const ForgotPasswordModal = ({ open, onClose }) => {
     } catch (err) {
       const errorMsg = err.response?.data?.error || err.response?.data?.message || 'Failed to send OTP. Please try again.';
       setError(errorMsg);
-      console.error('[Forgot Password] Step 1 error:', errorMsg);
+      logger.error('[Forgot Password] Step 1 error:', errorMsg);
     } finally {
       setLoading(false);
     }
@@ -158,7 +159,7 @@ const ForgotPasswordModal = ({ open, onClose }) => {
     } catch (err) {
       const errorMsg = err.response?.data?.error || err.response?.data?.message || 'Failed to reset password. Please try again.';
       setError(errorMsg);
-      console.error('[Forgot Password] Step 3 error:', errorMsg);
+      logger.error('[Forgot Password] Step 3 error:', errorMsg);
     } finally {
       setLoading(false);
     }

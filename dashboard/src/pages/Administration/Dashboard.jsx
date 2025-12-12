@@ -47,6 +47,7 @@ import PageLoader, { CardLoader } from '../../components/PageLoader';
 import AnimatedPage, { AnimatedSection } from '../../components/AnimatedPage';
 import { dashboardAPI } from '../Services/api';
 import websocketService from '../../services/websocket';
+import { logger } from '../../utils/logger';
 
 function Dashboard() {
   const navigate = useNavigate();
@@ -186,7 +187,7 @@ function Dashboard() {
         const decoded = JSON.parse(atob(token.split('.')[1]));
         name = decoded.name || 'Admin';
       } catch (error) {
-        console.error('[Dashboard] Error decoding token:', error);
+        logger.error('[Dashboard] Error decoding token:', error);
       }
     }
 
@@ -226,7 +227,7 @@ function Dashboard() {
 
       setIsAuthorized(true);
     } catch (err) {
-      console.error('[Dashboard] Authorization check failed:', err);
+      logger.error('[Dashboard] Authorization check failed:', err);
       setIsAuthorized(false);
       setError('Authorization verification failed. Please log in again.');
       setTimeout(() => navigate('/login'), 2000);
@@ -267,7 +268,7 @@ function Dashboard() {
         throw new Error('Invalid response format from server');
       }
     } catch (err) {
-      console.error('[Dashboard] Error fetching data:', err);
+      logger.error('[Dashboard] Error fetching data:', err);
       
       const errorMessage = err.response?.status === 401 
         ? 'Session expired. Please log in again.'

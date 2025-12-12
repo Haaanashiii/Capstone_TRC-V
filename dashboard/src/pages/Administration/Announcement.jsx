@@ -33,6 +33,7 @@ import SearchIcon from '@mui/icons-material/Search';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
+import { logger } from '../../utils/logger';
 
 const INITIAL_ANNOUNCEMENT_STATE = {
   title: '',
@@ -64,7 +65,7 @@ function Announcement() {
       setAnnouncements(data.announcements || []);
       setError('');
     } catch (err) {
-      console.error('Error fetching announcements:', err);
+      logger.error('Error fetching announcements:', err);
       setError('Failed to load announcements. Please try again.');
       setAnnouncements([]);
     } finally {
@@ -184,7 +185,7 @@ function Announcement() {
         handleCloseModal();
       }, 1500);
     } catch (err) {
-      console.error(`Error ${isEditing ? 'updating' : 'creating'} announcement:`, err);
+      logger.error(`Error ${isEditing ? 'updating' : 'creating'} announcement:`, err);
       setError(err.message || `Failed to ${isEditing ? 'update' : 'create'} announcement`);
     } finally {
       setLoading(false);
@@ -208,7 +209,7 @@ function Announcement() {
       });
       await fetchAnnouncements();
     } catch (err) {
-      console.error('Error deleting announcement:', err);
+      logger.error('Error deleting announcement:', err);
       setSnackbar({
         open: true,
         message: err.message || 'Failed to delete announcement',
@@ -235,7 +236,7 @@ function Announcement() {
       });
       await fetchAnnouncements();
     } catch (err) {
-      console.error('Error toggling published status:', err);
+      logger.error('Error toggling published status:', err);
       setSnackbar({
         open: true,
         message: err.message || 'Failed to update announcement',

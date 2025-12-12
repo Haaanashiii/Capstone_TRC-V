@@ -7,15 +7,56 @@
  * - HTTP-only cookies for refresh tokens (XSS-proof)
  * - CSRF protection (sameSite: 'strict')
  * - Automatic token refresh on 401 errors
- * - Client-side rate limiting
+ * - Client-side rate limiting with per-endpoint limits
+ * - Proactive token refresh before expiry
+ * - Input sanitization utilities
+ * - HTTPS enforcement in production
  * - Secure token validation
  * - No localStorage fallback (security policy)
  */
 
 import axios from 'axios';
 
+// Production-safe logger (silent in production)
+import logger from '../../utils/logger';
+
+// Security Utilities
+import { 
+  rateLimiter, 
+  createRateLimitInterceptor, 
+  createRateLimitResponseHandler,
+  throttle,
+  debounce,
+  requestDeduplicator
+} from '../../utils/rateLimiter';
+import { 
+  sanitize, 
+  sanitizeFormData, 
+  createFormValidator,
+  VALIDATION_SCHEMAS 
+} from '../../utils/inputValidation';
+import { 
+  enforceHttps, 
+  ensureHttpsUrl, 
+  tokenRefreshScheduler,
+  initializeSecurity,
+  isDevelopment
+} from '../../utils/security';
+
 // API Base URL - Always use environment variable for security
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170';
+const RAW_API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170';
+
+// Enforce HTTPS for API URL in production
+export const API_BASE_URL = ensureHttpsUrl(RAW_API_BASE_URL);
+
+// Initialize security features (HTTPS enforcement, session fingerprinting)
+// This runs once when the module is loaded
+if (typeof window !== 'undefined') {
+  initializeSecurity({
+    enforceHttpsEnabled: !isDevelopment(),
+    validateFingerprint: true
+  });
+}
 
 
 // ====================================================================
@@ -53,7 +94,7 @@ export const TokenManager = {
       
       return true;
     } catch (error) {
-      console.error('[TokenManager] Error storing tokens:', error);
+      logger.error('[TokenManager] Error storing tokens:', error);
       return false;
     }
   },
@@ -71,7 +112,7 @@ export const TokenManager = {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
     } catch (error) {
-      console.error('[TokenManager] Error clearing tokens:', error);
+      logger.error('[TokenManager] Error clearing tokens:', error);
     }
   },
 
@@ -91,7 +132,7 @@ export const TokenManager = {
       const payload = JSON.parse(atob(parts[1]));
       return payload;
     } catch (error) {
-      console.error('[TokenManager] Error decoding token:', error);
+      logger.error('[TokenManager] Error decoding token:', error);
       return null;
     }
   },
@@ -161,9 +202,16 @@ const processQueue = (error, token = null) => {
 };
 
 // ====================================================================
-// REQUEST INTERCEPTOR - Add Bearer Token & Validate Expiration
+// REQUEST INTERCEPTOR - Add Bearer Token, Rate Limiting & Validation
 // ====================================================================
 
+// Rate limiting interceptor (runs first)
+api.interceptors.request.use(
+  createRateLimitInterceptor(rateLimiter),
+  (error) => Promise.reject(error)
+);
+
+// Authentication interceptor
 api.interceptors.request.use(
   (config) => {
     const token = TokenManager.getAccessToken();
@@ -172,6 +220,24 @@ api.interceptors.request.use(
       // Always send the token - let backend validate and return 401 if expired
       // The response interceptor will automatically refresh the token on 401
       config.headers.Authorization = `Bearer ${token}`;
+      
+      // Check if proactive refresh is needed (token expiring soon)
+      if (tokenRefreshScheduler.needsRefresh(token) && !config._isRefresh) {
+        // Schedule a refresh in the background
+        tokenRefreshScheduler.start(token, async () => {
+          try {
+            const response = await api.post('/auth/refresh-token', {}, { _isRefresh: true });
+            const { accessToken } = response.data;
+            if (accessToken) {
+              TokenManager.setTokens(accessToken);
+              return accessToken;
+            }
+          } catch (error) {
+            logger.error('[API] Proactive refresh failed:', error.message);
+          }
+          return null;
+        });
+      }
     }
     
     return config;
@@ -214,7 +280,7 @@ api.interceptors.response.use(
       isRefreshing = true;
 
       try {
-        console.log('[API] Token expired, attempting refresh...');
+        logger.log('[API] Token expired, attempting refresh...');
         
         // Call refresh endpoint (reads refreshToken from HTTP-only cookie)
         const response = await api.post('/auth/refresh-token', {}, {
@@ -225,7 +291,7 @@ api.interceptors.response.use(
 
         if (accessToken) {
           TokenManager.setTokens(accessToken);
-          console.log('[API] Token refreshed successfully');
+          logger.log('[API] Token refreshed successfully');
           
           // Update failed queue
           processQueue(null, accessToken);
@@ -237,11 +303,11 @@ api.interceptors.response.use(
           throw new Error('No access token in refresh response');
         }
       } catch (refreshError) {
-        console.error('[API] Token refresh failed:', refreshError);
+        logger.error('[API] Token refresh failed:', refreshError);
         
         // Check if it's a 403 (session revoked/killed)
         if (refreshError.response?.status === 403) {
-          console.warn('[API] Session killed - user logged in from another device');
+          logger.warn('[API] Session killed - user logged in from another device');
           // Show error message to user
           if (window.showSessionKilledError) {
             window.showSessionKilledError('Your session was ended. Please login again.');
@@ -263,14 +329,26 @@ api.interceptors.response.use(
       }
     }
 
+    // Handle 429 Too Many Requests (server-side rate limit)
+    if (error.response?.status === 429) {
+      const retryAfter = parseInt(error.response.headers['retry-after']) || 60;
+      rateLimiter.handleServerRateLimit(originalRequest?.url || '', retryAfter);
+      logger.warn(`[API] Rate limited by server. Retry after ${retryAfter} seconds`);
+    }
+
     // Handle 403 Forbidden
     if (error.response?.status === 403) {
-      console.error('[API] Access denied: Insufficient permissions');
+      logger.error('[API] Access denied: Insufficient permissions');
     }
 
     // Handle network errors
     if (!error.response) {
-      console.error('[API] Network error: Please check your connection');
+      logger.error('[API] Network error: Please check your connection');
+    }
+
+    // Handle client-side rate limit errors
+    if (error.isRateLimited) {
+      logger.warn(`[API] Client rate limit exceeded. Retry after ${error.retryAfter} seconds`);
     }
 
     return Promise.reject(error);
@@ -308,10 +386,16 @@ export const authAPI = {
    */
   logout: async () => {
     try {
+      // Stop proactive token refresh
+      tokenRefreshScheduler.stop();
+      
+      // Clear rate limiter state
+      rateLimiter.reset();
+      
       // Call backend to clear HTTP-only cookie
       await api.post('/auth/logout');
     } catch (error) {
-      console.error('[authAPI] Logout error:', error);
+      logger.error('[authAPI] Logout error:', error);
     } finally {
       // Always clear frontend tokens
       TokenManager.clearTokens();
@@ -411,7 +495,7 @@ export const franchiseAPI = {
       // CRITICAL: Delete Content-Type header for FormData
       // Browser will automatically set it to multipart/form-data with boundary
       config.headers = { 'Content-Type': undefined };
-      console.log('[franchiseAPI] Sending FormData - Content-Type will be set by browser');
+      logger.log('[franchiseAPI] Sending FormData - Content-Type will be set by browser');
     } else {
       config.headers = { 'Content-Type': 'application/json' };
     }
@@ -428,7 +512,7 @@ export const franchiseAPI = {
     const config = {
       headers: { 'Content-Type': undefined }
     };
-    console.log('[franchiseAPI] Sending Renewal/Amendment FormData');
+    logger.log('[franchiseAPI] Sending Renewal/Amendment FormData');
     return api.post('/api/franchise-applications/renew-amend', applicationData, config);
   },
 
@@ -1037,6 +1121,34 @@ export const qrCodeAPI = {
    * @returns {Promise} Response with file blob
    */
   downloadOperatorQR: (operatorId) => api.get(`/api/qr/download/operator/${operatorId}`, { responseType: 'blob' })
+};
+
+// ====================================================================
+// SECURITY UTILITIES RE-EXPORTS
+// ====================================================================
+
+// Rate limiting utilities
+export { 
+  rateLimiter, 
+  throttle, 
+  debounce, 
+  requestDeduplicator 
+};
+
+// Input validation and sanitization utilities
+export { 
+  sanitize, 
+  sanitizeFormData, 
+  createFormValidator,
+  VALIDATION_SCHEMAS 
+};
+
+// Security utilities
+export { 
+  enforceHttps, 
+  ensureHttpsUrl, 
+  tokenRefreshScheduler,
+  isDevelopment 
 };
 
 // Export default api instance for custom requests

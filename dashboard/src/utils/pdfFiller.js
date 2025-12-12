@@ -1,4 +1,5 @@
 import { PDFDocument, PDFTextField, PDFCheckBox, rgb, StandardFonts } from 'pdf-lib';
+import logger from './logger';
 
 /**
  * Get all field names from PDF for debugging
@@ -18,10 +19,10 @@ export async function getPdfFieldNames() {
       type: field.constructor.name
     }));
     
-    console.log('[PDFFiller] PDF Field Names:', fieldInfo);
+    logger.log('[PDFFiller] PDF Field Names:', fieldInfo);
     return fieldInfo;
   } catch (error) {
-    console.error('[PDFFiller] Error reading PDF fields:', error);
+    logger.error('[PDFFiller] Error reading PDF fields:', error);
     return [];
   }
 }
@@ -54,8 +55,8 @@ export async function fillFranchiseApplicationPDF(applicationData) {
       type: f.constructor.name
     }));
     
-    console.log('[PDFFiller] Available PDF fields:', fieldNames);
-    console.log('[PDFFiller] Application data:', applicationData);
+    logger.log('[PDFFiller] Available PDF fields:', fieldNames);
+    logger.log('[PDFFiller] Application data:', applicationData);
     
     // Helper function to safely set checkbox field
     const setCheckBox = (possibleFieldNames, shouldCheck) => {
@@ -67,10 +68,10 @@ export async function fillFranchiseApplicationPDF(applicationData) {
           if (field) {
             if (shouldCheck) {
               field.check();
-              console.log(`[PDFFiller] ✓ Checked checkbox "${fieldName}"`);
+              logger.log(`[PDFFiller] ✓ Checked checkbox "${fieldName}"`);
             } else {
               field.uncheck();
-              console.log(`[PDFFiller] ○ Unchecked checkbox "${fieldName}"`);
+              logger.log(`[PDFFiller] ○ Unchecked checkbox "${fieldName}"`);
             }
             return true;
           }
@@ -83,7 +84,7 @@ export async function fillFranchiseApplicationPDF(applicationData) {
               textField.setText(shouldCheck ? 'X' : '');
               // Don't update appearances for checkbox text fields to avoid encoding issues
               textField.setFontSize(12);
-              console.log(`[PDFFiller] ✓ Set text checkbox "${fieldName}" = "${shouldCheck ? 'X' : ''}"`);
+              logger.log(`[PDFFiller] ✓ Set text checkbox "${fieldName}" = "${shouldCheck ? 'X' : ''}"`);
               return true;
             }
           } catch (e) {
@@ -91,7 +92,7 @@ export async function fillFranchiseApplicationPDF(applicationData) {
           }
         }
       }
-      console.warn(`[PDFFiller] ✗ Could not find checkbox:`, fieldNamesToTry);
+      logger.warn(`[PDFFiller] ✗ Could not find checkbox:`, fieldNamesToTry);
       return false;
     };
     
@@ -147,11 +148,11 @@ export async function fillFranchiseApplicationPDF(applicationData) {
             try {
               field.updateAppearances(font);
             } catch (appearanceError) {
-              console.warn(`[PDFFiller] ⚠ Could not update appearance for "${fieldName}": ${appearanceError.message}`);
+              logger.warn(`[PDFFiller] ⚠ Could not update appearance for "${fieldName}": ${appearanceError.message}`);
               // Field is still set, just without custom appearance
             }
             
-            console.log(`[PDFFiller] ✓ Set field "${fieldName}" = "${textValue}" (size: ${fontSize})`);
+            logger.log(`[PDFFiller] ✓ Set field "${fieldName}" = "${textValue}" (size: ${fontSize})`);
             return true;
           }
         } catch (error) {
@@ -159,7 +160,7 @@ export async function fillFranchiseApplicationPDF(applicationData) {
           continue;
         }
       }
-      console.warn(`[PDFFiller] ✗ Could not find any of these fields:`, fieldNamesToTry);
+      logger.warn(`[PDFFiller] ✗ Could not find any of these fields:`, fieldNamesToTry);
       return false;
     };
     
@@ -357,11 +358,11 @@ export async function fillFranchiseApplicationPDF(applicationData) {
     // Serialize the PDF to bytes
     const pdfBytes = await pdfDoc.save();
     
-    console.log('[PDFFiller] ✓ PDF filled successfully with optimized field properties');
+    logger.log('[PDFFiller] ✓ PDF filled successfully with optimized field properties');
     return pdfBytes;
     
   } catch (error) {
-    console.error('[PDFFiller] ✗ Error filling PDF:', error);
+    logger.error('[PDFFiller] ✗ Error filling PDF:', error);
     throw error;
   }
 }
@@ -389,9 +390,9 @@ export async function downloadFilledPDF(applicationData, filename = 'franchise-a
     // Clean up
     URL.revokeObjectURL(url);
     
-    console.log('[PDFFiller] PDF downloaded successfully');
+    logger.log('[PDFFiller] PDF downloaded successfully');
   } catch (error) {
-    console.error('[PDFFiller] Error downloading PDF:', error);
+    logger.error('[PDFFiller] Error downloading PDF:', error);
     throw error;
   }
 }
@@ -409,11 +410,11 @@ export async function previewFilledPDF(applicationData) {
     const blob = new Blob([pdfBytes], { type: 'application/pdf' });
     const url = URL.createObjectURL(blob);
     
-    console.log('[PDFFiller] PDF preview URL created');
+    logger.log('[PDFFiller] PDF preview URL created');
     return url;
     
   } catch (error) {
-    console.error('[PDFFiller] Error previewing PDF:', error);
+    logger.error('[PDFFiller] Error previewing PDF:', error);
     throw error;
   }
 }

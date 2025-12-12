@@ -20,6 +20,7 @@ import { franchiseAPI, API_BASE_URL } from '../Services/api';
 import { validateFile } from '../../utils/fileValidation';
 import { compressFile } from '../../utils/compressFile';
 import "../../Styles/Operator's_CSS/FranchiseApplication.css";
+import { logger } from '../../utils/logger';
 
 // SweetAlert styling utility
 const alertStyle = {
@@ -266,7 +267,7 @@ export default function RequestAmendment() {
         const passedFranchiseChainId = location.state?.franchiseChainId;
         const passedFranchise = location.state?.franchise;
         
-        console.log('[RequestAmendment] Navigation state:', { 
+        logger.log('[RequestAmendment] Navigation state:', { 
           amendmentType: location.state?.amendmentType,
           hasPassedFranchise: !!passedFranchise,
           franchiseChainId: passedFranchiseChainId
@@ -274,7 +275,7 @@ export default function RequestAmendment() {
         
         // If franchise data was passed from navigation, use it as immediate fallback
         if (passedFranchise && passedFranchise.franchiseNumber) {
-          console.log('[RequestAmendment] Using franchise from navigation state:', {
+          logger.log('[RequestAmendment] Using franchise from navigation state:', {
             franchiseNumber: passedFranchise.franchiseNumber,
             operatorName: passedFranchise.operatorName || passedFranchise.fullName,
             franchiseChainId: passedFranchiseChainId
@@ -317,12 +318,12 @@ export default function RequestAmendment() {
         // Get token
         const token = sessionStorage.getItem('accessToken');
         if (!token) {
-          console.log('[RequestAmendment] No token found, using passed data as final');
+          logger.log('[RequestAmendment] No token found, using passed data as final');
           setIsLoading(false);
           return;
         }
 
-        console.log('[RequestAmendment] Fetching user data from /auth/me');
+        logger.log('[RequestAmendment] Fetching user data from /auth/me');
         
         // Fetch user data with franchise information from /auth/me
         const userResponse = await fetch(`${API_BASE_URL}/auth/me`, {
@@ -335,25 +336,25 @@ export default function RequestAmendment() {
         });
 
         if (!userResponse.ok) {
-          console.error('[RequestAmendment] Failed to fetch user data:', userResponse.status);
-          console.log('[RequestAmendment] Will use data from navigation state');
+          logger.error('[RequestAmendment] Failed to fetch user data:', userResponse.status);
+          logger.log('[RequestAmendment] Will use data from navigation state');
           setIsLoading(false);
           return;
         }
 
         const userData = await userResponse.json();
-        console.log('[RequestAmendment] User data received:', userData);
+        logger.log('[RequestAmendment] User data received:', userData);
         
         // Get franchise information from user data
         const userFranchise = userData.user?.franchise;
         
         if (!userFranchise) {
-          console.warn('[RequestAmendment] No franchise found in user data');
+          logger.warn('[RequestAmendment] No franchise found in user data');
           setIsLoading(false);
           return;
         }
 
-        console.log('[RequestAmendment] Found franchise:', {
+        logger.log('[RequestAmendment] Found franchise:', {
           franchiseChainId: userFranchise.franchiseChainId,
           franchiseNumber: userFranchise.franchiseNumber,
           operatorName: userFranchise.operatorName,
@@ -363,7 +364,7 @@ export default function RequestAmendment() {
         // If we have a franchiseChainId, fetch the complete franchise history to get the latest version
         if (userFranchise.franchiseChainId) {
           try {
-            console.log('[RequestAmendment] Fetching franchise chain history:', userFranchise.franchiseChainId);
+            logger.log('[RequestAmendment] Fetching franchise chain history:', userFranchise.franchiseChainId);
             
             const chainResponse = await fetch(
               `${API_BASE_URL}/api/franchise-information/chain/${userFranchise.franchiseChainId}`,
@@ -377,13 +378,13 @@ export default function RequestAmendment() {
 
             if (chainResponse.ok) {
               const chainData = await chainResponse.json();
-              console.log('[RequestAmendment] Chain data received:', chainData);
+              logger.log('[RequestAmendment] Chain data received:', chainData);
               
               // Get the latest version (last item in the data array)
               if (chainData.data && chainData.data.length > 0) {
                 const latestFranchise = chainData.data[chainData.data.length - 1];
                 
-                console.log('[RequestAmendment] Latest franchise version:', {
+                logger.log('[RequestAmendment] Latest franchise version:', {
                   version: latestFranchise.version,
                   operatorName: latestFranchise.operatorName,
                   operatorAddress: latestFranchise.operatorAddress,
@@ -424,10 +425,10 @@ export default function RequestAmendment() {
                   motorNumber: latestFranchise.motorEngineNo || ''
                 });
                 
-                console.log('[RequestAmendment] Form populated successfully');
+                logger.log('[RequestAmendment] Form populated successfully');
               }
             } else {
-              console.warn('[RequestAmendment] Failed to fetch franchise chain:', chainResponse.status);
+              logger.warn('[RequestAmendment] Failed to fetch franchise chain:', chainResponse.status);
               // Fallback: populate with basic franchise data
               setFormData({
                 date: dayjs(),
@@ -462,7 +463,7 @@ export default function RequestAmendment() {
               });
             }
           } catch (chainError) {
-            console.error('[RequestAmendment] Error fetching franchise chain:', chainError);
+            logger.error('[RequestAmendment] Error fetching franchise chain:', chainError);
             // Fallback: use franchise data from /auth/me
             setFormData({
               date: dayjs(),
@@ -531,7 +532,7 @@ export default function RequestAmendment() {
           });
         }
       } catch (error) {
-        console.error('[RequestAmendment] Error fetching franchise data:', error);
+        logger.error('[RequestAmendment] Error fetching franchise data:', error);
       } finally {
         setIsLoading(false);
       }
@@ -573,7 +574,7 @@ export default function RequestAmendment() {
         applicationType = 'change_unit';
       }
       
-      console.log('[RequestAmendment] Submitting with applicationType:', applicationType);
+      logger.log('[RequestAmendment] Submitting with applicationType:', applicationType);
       
       // Add application type
       formDataToSend.append('applicationType', applicationType);
@@ -629,15 +630,15 @@ export default function RequestAmendment() {
         await uploadHelper('driverPictureObj', 'picture');
       }
       
-      console.log('[RequestAmendment] Submitting amendment request...');
-      console.log('[RequestAmendment] Amendment type:', amendmentType);
+      logger.log('[RequestAmendment] Submitting amendment request...');
+      logger.log('[RequestAmendment] Amendment type:', amendmentType);
       
       // Submit using the renew-amend endpoint
       const response = await franchiseAPI.createRenewAmend(formDataToSend);
       
       if (!response.data) throw new Error('No response data received');
       
-      console.log('[RequestAmendment] Amendment submitted successfully:', response.data);
+      logger.log('[RequestAmendment] Amendment submitted successfully:', response.data);
       
       // Show success message
       Swal.fire({
@@ -664,8 +665,8 @@ export default function RequestAmendment() {
       }, 2000);
       
     } catch (error) {
-      console.error('[RequestAmendment] Error submitting amendment:', error);
-      console.error('[RequestAmendment] Error response:', error.response);
+      logger.error('[RequestAmendment] Error submitting amendment:', error);
+      logger.error('[RequestAmendment] Error response:', error.response);
       
       let errorMessage = 'Failed to submit amendment request. Please try again.';
       
@@ -679,7 +680,7 @@ export default function RequestAmendment() {
         errorMessage = error.message;
       }
       
-      console.error('[RequestAmendment] Error message:', errorMessage);
+      logger.error('[RequestAmendment] Error message:', errorMessage);
       
       Swal.fire({
         ...alertStyle.errorAlert,

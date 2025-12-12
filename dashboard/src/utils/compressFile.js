@@ -1,5 +1,6 @@
 import imageCompression from 'browser-image-compression';
 import { PDFDocument } from 'pdf-lib';
+import logger from './logger';
 
 /**
  * Compresses images and PDFs for upload.
@@ -22,7 +23,7 @@ export async function compressFile(file) {
       // Convert Blob to File
       return new File([compressedBlob], file.name, { type: compressedBlob.type });
     } catch (err) {
-      console.warn('[compressFile] Image compression failed:', err);
+      logger.warn('[compressFile] Image compression failed:', err);
       return file;
     }
   }
@@ -39,7 +40,7 @@ export async function compressFile(file) {
       }
       return file;
     } catch (err) {
-      console.warn('[compressFile] PDF compression failed:', err);
+      logger.warn('[compressFile] PDF compression failed:', err);
       return file;
     }
   }

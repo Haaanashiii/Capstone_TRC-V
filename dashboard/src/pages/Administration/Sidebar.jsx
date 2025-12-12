@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import websocketService from '../../services/websocket';
 import { showWarning } from '../../utils/sweetAlert';
+import { logger } from '../../utils/logger';
 import '../../Styles/Administrator_Css/Sidebar.css';
 import logoImage from '../../assets/TRC-vLogo.png';
 import DashboardIcon from '@mui/icons-material/Dashboard';
@@ -55,7 +56,7 @@ const getCachedPages = (role) => {
       return JSON.parse(cached);
     }
   } catch (e) {
-    console.warn('[Sidebar] Failed to parse cached pages');
+    logger.warn('[Sidebar] Failed to parse cached pages');
   }
   return null;
 };
@@ -65,7 +66,7 @@ const setCachedPages = (role, pages) => {
   try {
     sessionStorage.setItem(`allowedPages_${role}`, JSON.stringify(pages));
   } catch (e) {
-    console.warn('[Sidebar] Failed to cache pages');
+    logger.warn('[Sidebar] Failed to cache pages');
   }
 };
 
@@ -196,14 +197,14 @@ function Sidebar() {
       } else {
         // If API fails and no cache, use default fallback
         if (!cached) {
-          console.warn('[Sidebar] Failed to fetch page access, using defaults');
+          logger.warn('[Sidebar] Failed to fetch page access, using defaults');
           const defaultPages = getDefaultPages(user.role);
           setAllowedPages(defaultPages);
           setCachedPages(user.role, defaultPages);
         }
       }
     } catch (error) {
-      console.error('[Sidebar] Error fetching page access:', error);
+      logger.error('[Sidebar] Error fetching page access:', error);
       // Use default fallback on error if no cache
       if (!cached) {
         const defaultPages = getDefaultPages(user.role);
@@ -226,7 +227,7 @@ function Sidebar() {
     
     // If user is on a page that's no longer accessible
     if (currentPageKey && !newAllowedPages.includes(currentPageKey)) {
-      console.log(`[Sidebar] Current page "${currentPageKey}" is no longer accessible, redirecting...`);
+      logger.log(`[Sidebar] Current page "${currentPageKey}" is no longer accessible, redirecting...`);
       
       // Find the first accessible page to redirect to
       // Priority: dashboard > first available page
@@ -263,11 +264,11 @@ function Sidebar() {
 
     // Handler for permission updates
     const handlePageAccessUpdate = (data) => {
-      console.log('[Sidebar] Received page-access-updated event:', data);
+      logger.log('[Sidebar] Received page-access-updated event:', data);
       
       // Only update if the change affects the current user's role
       if (data.role === user.role) {
-        console.log('[Sidebar] Updating permissions for current user role:', user.role);
+        logger.log('[Sidebar] Updating permissions for current user role:', user.role);
         
         // Update state with new permissions
         if (Array.isArray(data.allowedPages)) {
@@ -285,7 +286,7 @@ function Sidebar() {
 
     // Handler for role-specific permission change notification
     const handleRolePermissionsChanged = (data) => {
-      console.log('[Sidebar] Received role-permissions-changed event:', data);
+      logger.log('[Sidebar] Received role-permissions-changed event:', data);
       
       if (data.role === user.role) {
         // Refetch permissions when notified of changes
@@ -305,9 +306,9 @@ function Sidebar() {
   }, [user?.role, fetchAllowedPages, checkAndRedirectIfNeeded]);
   
   const handleLogout = async () => {
-    console.log('[AdminSidebar] Logout initiated');
+    logger.log('[AdminSidebar] Logout initiated');
     await logout();
-    console.log('[AdminSidebar] Storage cleared, navigating to login');
+    logger.log('[AdminSidebar] Storage cleared, navigating to login');
     navigate('/login');
   };
 

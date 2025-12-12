@@ -8,6 +8,7 @@ import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import UnifiedNavbar from '../../components/UnifiedNavbar';
 import './DriverID.css';
 import dayjs from 'dayjs';
+import { logger } from '../../utils/logger';
 
 function DriverID() {
   const navigate = useNavigate(); // Must be declared at the top before any useEffect that uses it
@@ -46,7 +47,7 @@ function DriverID() {
         const parsedData = JSON.parse(franchiseData);
         setFranchiseStatus(parsedData.status || 'ACTIVE');
       } catch (error) {
-        console.error('Error parsing franchise data:', error);
+        logger.error('Error parsing franchise data:', error);
         setFranchiseStatus(null);
       }
     } else {
@@ -76,7 +77,7 @@ function DriverID() {
       if (!token) return;
 
       const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170';
-      console.log('[DriverID] Fetching user details from:', `${API_BASE_URL}/auth/me`);
+      logger.log('[DriverID] Fetching user details from:', `${API_BASE_URL}/auth/me`);
       
       const response = await fetch(`${API_BASE_URL}/auth/me`, {
         headers: {
@@ -85,16 +86,16 @@ function DriverID() {
         }
       });
 
-      console.log('DriverID: Response status:', response.status);
+      logger.log('DriverID: Response status:', response.status);
 
       if (response.ok) {
         const data = await response.json();
-        console.log('DriverID: User details received:', data);
-        console.log('DriverID: QR Code from user.franchise:', data.user?.franchise?.qrCode);
-        console.log('DriverID: Profile photo from user.franchise:', data.user?.franchise?.profilePhoto);
+        logger.log('DriverID: User details received:', data);
+        logger.log('DriverID: QR Code from user.franchise:', data.user?.franchise?.qrCode);
+        logger.log('DriverID: Profile photo from user.franchise:', data.user?.franchise?.profilePhoto);
         setUser(data.user);
       } else {
-        console.log('DriverID: /auth/me returned non-ok. Clearing any stored franchise info to avoid stale data.');
+        logger.log('DriverID: /auth/me returned non-ok. Clearing any stored franchise info to avoid stale data.');
         // If server says the user is not available (e.g., deleted), clear any stored franchise
         sessionStorage.removeItem('userFranchiseInfo');
         sessionStorage.removeItem('franchiseLinked');
@@ -106,7 +107,7 @@ function DriverID() {
         setUser(tokenUser || null);
       }
     } catch (error) {
-      console.error('DriverID: Error fetching user details:', error);
+      logger.error('DriverID: Error fetching user details:', error);
      
       sessionStorage.removeItem('userFranchiseInfo');
       sessionStorage.removeItem('franchiseLinked');
@@ -122,14 +123,14 @@ function DriverID() {
     // Token is only in sessionStorage (secure storage)
     const token = sessionStorage.getItem('accessToken');
     if (token) {
-      console.log('[DriverID] Token found, initializing user data...');
+      logger.log('[DriverID] Token found, initializing user data...');
       const tokenUser = getUserInfo();
       if (tokenUser) {
-        console.log('[DriverID] User from token:', tokenUser);
+        logger.log('[DriverID] User from token:', tokenUser);
         
         // GATE-KEEPING: Check if user has franchise
         if (!tokenUser.hasFranchise) {
-          console.warn('[DriverID] User does not have franchise yet, redirecting to Franchise page');
+          logger.warn('[DriverID] User does not have franchise yet, redirecting to Franchise page');
           navigate('/operator/franchise');
           return;
         }
@@ -139,7 +140,7 @@ function DriverID() {
     
       fetchUserDetails();
     } else {
-      console.warn('[DriverID] No token found in sessionStorage');
+      logger.warn('[DriverID] No token found in sessionStorage');
       navigate('/login');
     }
     // Check franchise status
@@ -173,10 +174,10 @@ function DriverID() {
               });
               if (mineRes.ok) {
                 const matched = await mineRes.json();
-                console.debug('[DriverID] matched application from /mine', matched);
+                logger.debug('[DriverID] matched application from /mine', matched);
            
                 if (matched && matched.id) {
-                  console.log('[DriverID] Matched franchise data:', {
+                  logger.log('[DriverID] Matched franchise data:', {
                     hasApprovedAt: !!matched.approvedAt,
                     approvedAt: matched.approvedAt,
                     hasExpiryDate: !!matched.expiryDate,
@@ -199,12 +200,12 @@ function DriverID() {
                   const approvedRaw = matched.approvedAt || '';
                   const expiryRaw = matched.expiryDate || '';
                   
-                  console.log('[DriverID] Date parsing:', { approvedRaw, expiryRaw });
+                  logger.log('[DriverID] Date parsing:', { approvedRaw, expiryRaw });
                   
                   const parsedApproved = approvedRaw ? dayjs(approvedRaw) : null;
                   const parsedExpiry = expiryRaw ? dayjs(expiryRaw) : null;
                   
-                  console.log('[DriverID] Parsed dates:', {
+                  logger.log('[DriverID] Parsed dates:', {
                     approvedValid: parsedApproved && parsedApproved.isValid(),
                     expiryValid: parsedExpiry && parsedExpiry.isValid()
                   });
@@ -223,12 +224,12 @@ function DriverID() {
                     motorNumber: matched.motorEngineNumber || matched.motorEngineNo || ''
                   }))
                   
-                  console.log('[DriverID] Successfully linked franchise via /mine endpoint with userId:', userId);
+                  logger.log('[DriverID] Successfully linked franchise via /mine endpoint with userId:', userId);
                   return; 
                 }
               }
             } catch (e) {
-              console.warn('DriverID: /mine lookup failed', e)
+              logger.warn('DriverID: /mine lookup failed', e)
             }
           }
 
@@ -236,7 +237,7 @@ function DriverID() {
           const resp = await fetch(`${API_BASE_URL}/api/franchise-applications?status=approved`)
           if (!resp.ok) return
           const apps = await resp.json()
-          console.debug('[DriverID] approved applications fetched', Array.isArray(apps) ? apps.length : 'not-array', apps)
+          logger.debug('[DriverID] approved applications fetched', Array.isArray(apps) ? apps.length : 'not-array', apps)
           if (!Array.isArray(apps) || !apps.length) return
         
           const userIdentifiers = new Set();
@@ -287,7 +288,7 @@ function DriverID() {
               }
 
             } catch (e) {
-              console.warn('[DriverID] matching error', e);
+              logger.warn('[DriverID] matching error', e);
             }
             return null;
           })();
@@ -309,7 +310,7 @@ function DriverID() {
     
             try {
               // Debug: log raw date fields
-              console.debug('DriverID: matched raw dates ->', { approvedAt: matched.approvedAt, expiryDate: matched.expiryDate });
+              logger.debug('DriverID: matched raw dates ->', { approvedAt: matched.approvedAt, expiryDate: matched.expiryDate });
 
 
               const approvedRaw = matched.approvedAt || matched.approved_at || matched.approved_at_string || '';
@@ -352,7 +353,7 @@ function DriverID() {
               if (!parsedExpiry && (expiryRaw || expiryRaw === 0)) {
                 try { parsedExpiry = dayjs(new Date(String(expiryRaw))); } catch { /* ignore */ }
               }
-              console.debug('DriverID: parsed dates valid ->', { approved: parsedApproved ? parsedApproved.isValid() : false, expiry: parsedExpiry ? parsedExpiry.isValid() : false });
+              logger.debug('DriverID: parsed dates valid ->', { approved: parsedApproved ? parsedApproved.isValid() : false, expiry: parsedExpiry ? parsedExpiry.isValid() : false });
 
               setFields(prev => ({
                 ...prev,
@@ -368,7 +369,7 @@ function DriverID() {
                 motorNumber: matched.motorEngineNumber || matched.motorEngineNo || ''
               }))
             } catch (e) {
-              console.debug('Failed to populate franchise fields from matched application', e)
+              logger.debug('Failed to populate franchise fields from matched application', e)
             }
           }
           else {
@@ -378,7 +379,7 @@ function DriverID() {
           
           }
         } catch (err) {
-          console.warn('DriverID: error fetching approved franchises', err)
+          logger.warn('DriverID: error fetching approved franchises', err)
         }
       })()
     } catch {
@@ -396,7 +397,7 @@ function DriverID() {
         qrBlobRef.current = null;
       }
     } catch (e) {
-      console.warn('Failed to revoke previous driver qr blob', e);
+      logger.warn('Failed to revoke previous driver qr blob', e);
     }
 
     const fetchQr = async () => {
@@ -428,7 +429,7 @@ function DriverID() {
         qrBlobRef.current = obj;
         setQrBlobUrl(obj);
       } catch (err) {
-        console.warn('DriverID: failed to fetch qr blob from user.franchise.qrCode', err);
+        logger.warn('DriverID: failed to fetch qr blob from user.franchise.qrCode', err);
         setQrBlobUrl(null);
       }
     };
@@ -443,7 +444,7 @@ function DriverID() {
           qrBlobRef.current = null;
         }
       } catch (e) {
-        console.warn('Failed to revoke driver qr blob on cleanup', e);
+        logger.warn('Failed to revoke driver qr blob on cleanup', e);
       }
       setQrBlobUrl(null);
     };
@@ -519,7 +520,7 @@ function DriverID() {
         idBlobRef.current = null;
       }
     } catch (e) {
-      console.warn('Failed to revoke previous id blob', e);
+      logger.warn('Failed to revoke previous id blob', e);
     }
 
     const pickCandidate = () => {
@@ -530,8 +531,8 @@ function DriverID() {
       const u = user || null;
 
       if (import.meta.env && import.meta.env.DEV) {
-        console.debug('[DriverID] matchedFranchise sample ->', mf);
-        console.debug('[DriverID] user sample ->', u);
+        logger.debug('[DriverID] matchedFranchise sample ->', mf);
+        logger.debug('[DriverID] user sample ->', u);
       }
 
       // PRIORITY 1: Use profilePhoto from FranchiseInformation (via /mine or /auth/me)
@@ -563,13 +564,13 @@ function DriverID() {
       for (const c of candidates) {
         if (!c) continue;
         if (typeof c === 'string') {
-          console.debug('[DriverID] pickCandidate selected string path from', c && c.substring(0, 80));
+          logger.debug('[DriverID] pickCandidate selected string path from', c && c.substring(0, 80));
           return c;
         }
         if (typeof c === 'object') {
           const path = c.path || c.pathname || c.url;
           if (path) {
-            console.debug('[DriverID] pickCandidate selected object path from', path && path.substring(0, 80));
+            logger.debug('[DriverID] pickCandidate selected object path from', path && path.substring(0, 80));
             return path;
           }
         }
@@ -579,7 +580,7 @@ function DriverID() {
 
     const rawPath = pickCandidate();
     const path = resolveServerUrl(rawPath);
-    console.debug('[DriverID] candidate rawPath ->', rawPath, 'resolved ->', path);
+    logger.debug('[DriverID] candidate rawPath ->', rawPath, 'resolved ->', path);
     if (!path) {
       setIdBlobUrl(null);
       return () => {};
@@ -603,7 +604,7 @@ function DriverID() {
         if (rawPath && rawPath.startsWith('gridfs://')) {
           const fileId = rawPath.substring(9);
           fetchUrl = API_BASE_URL.replace(/\/$/, '') + '/api/files/' + fileId;
-          console.debug('[DriverID] GridFS URL detected, converted to ->', fetchUrl);
+          logger.debug('[DriverID] GridFS URL detected, converted to ->', fetchUrl);
         }
 
         const resp = await fetch(fetchUrl, { mode: 'cors' });
@@ -617,7 +618,7 @@ function DriverID() {
         const mime = blob.type || '';
         setIdBlobIsPdf(mime.includes('pdf') || /\.pdf$/i.test(rawPath || ''));
       } catch (err) {
-        console.warn('DriverID: failed to fetch id blob, using direct path fallback', err);
+        logger.warn('DriverID: failed to fetch id blob, using direct path fallback', err);
         setIdBlobUrl(null);
         setIdBlobIsPdf(false);
       }
@@ -631,7 +632,7 @@ function DriverID() {
           idBlobRef.current = null;
         }
       } catch (e) {
-        console.warn('Failed to revoke id blob on cleanup', e);
+        logger.warn('Failed to revoke id blob on cleanup', e);
       }
       setIdBlobUrl(null);
     };

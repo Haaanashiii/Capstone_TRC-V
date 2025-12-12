@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 import { Snackbar, Button, Alert } from '@mui/material';
+import logger from '../utils/logger';
 
 function PWAUpdatePrompt() {
   const [showReload, setShowReload] = useState(false);
@@ -10,10 +11,10 @@ function PWAUpdatePrompt() {
     updateServiceWorker,
   } = useRegisterSW({
     onRegistered(r) {
-      console.log('SW Registered:', r);
+      logger.log('SW Registered:', r);
     },
     onRegisterError(error) {
-      console.log('SW registration error:', error);
+      logger.log('SW registration error:', error);
     },
   });
 

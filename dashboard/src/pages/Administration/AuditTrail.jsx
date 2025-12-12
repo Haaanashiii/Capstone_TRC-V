@@ -41,6 +41,7 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ErrorIcon from '@mui/icons-material/Error';
 import CloseIcon from '@mui/icons-material/Close';
+import { logger } from '../../utils/logger';
 
 // API Configuration
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170';
@@ -159,7 +160,7 @@ function AuditTrail() {
 
       setIsAuthorized(true);
     } catch (err) {
-      console.error('[AuditTrail] Authorization check failed:', err);
+      logger.error('[AuditTrail] Authorization check failed:', err);
       setIsAuthorized(false);
       setError('Authorization verification failed. Please log in again.');
       setTimeout(() => navigate('/login'), 2000);
@@ -226,7 +227,7 @@ function AuditTrail() {
         throw new Error('Invalid response format from server');
       }
     } catch (err) {
-      console.error('Error fetching audit logs:', err);
+      logger.error('Error fetching audit logs:', err);
       setError(err.message || 'Failed to fetch audit logs. Please try again.');
       setAuditLogs([]);
     } finally {
@@ -346,7 +347,7 @@ function AuditTrail() {
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
     } catch (err) {
-      console.error('Export error:', err);
+      logger.error('Export error:', err);
       setError('Failed to export audit logs. Please try again.');
     }
   }, [filterAction, filterRole, filterStatus, getAuthToken]);

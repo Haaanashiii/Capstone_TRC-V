@@ -28,6 +28,7 @@ import MenuIcon from '@mui/icons-material/Menu';
 import CloseIcon from '@mui/icons-material/Close';
 import { useAuth } from "../contexts/AuthContext";
 import { useTranslation } from "../hooks/useTranslation";
+import logger from "../utils/logger";
 import "../Styles/UnifiedNavbar.css";
 
 const UnifiedNavbar = () => {
@@ -73,7 +74,7 @@ const UnifiedNavbar = () => {
         }
       }
     } catch (error) {
-      console.error('[UnifiedNavbar] Error decoding token:', error);
+      logger.error('[UnifiedNavbar] Error decoding token:', error);
     }
     
     return null;
@@ -116,14 +117,14 @@ const UnifiedNavbar = () => {
   const userIsAdmin = checkIsAdmin();
 
   const handleLogout = async () => {
-    console.log('[UnifiedNavbar] Logout initiated');
+    logger.log('[UnifiedNavbar] Logout initiated');
     handleMenuClose();
     
     try {
       await logout();
-      console.log('[UnifiedNavbar] Logout successful, navigating to home');
+      logger.log('[UnifiedNavbar] Logout successful, navigating to home');
     } catch (error) {
-      console.error('[UnifiedNavbar] Error during logout:', error);
+      logger.error('[UnifiedNavbar] Error during logout:', error);
     } finally {
       navigate('/');
     }

@@ -48,6 +48,7 @@ import ClearIcon from "@mui/icons-material/Clear";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import CancelIcon from "@mui/icons-material/Cancel";
 import SortIcon from "@mui/icons-material/Sort";
+import { logger } from '../../utils/logger';
 
 const INITIAL_USER_STATE = {
   name: '',
@@ -119,7 +120,7 @@ function AdminManagement() {
       setUsers(adminUsers);
       setError('');
     } catch (err) {
-      console.error('[AdminManagement] Error fetching admins:', err);
+      logger.error('[AdminManagement] Error fetching admins:', err);
       setError(err.response?.data?.error || 'Failed to load admin accounts. Please try again.');
       setUsers([]);
     } finally {
@@ -247,7 +248,7 @@ function AdminManagement() {
       await authAPI.requestOTP(email);
       return true;
     } catch (err) {
-      console.error('[AdminManagement] OTP request error:', err);
+      logger.error('[AdminManagement] OTP request error:', err);
       throw new Error(err.response?.data?.error || 'Failed to send verification code');
     }
   };
@@ -305,7 +306,7 @@ function AdminManagement() {
           handleCloseModal();
         }, 1500);
       } catch (err) {
-        console.error('[AdminManagement] Error updating admin:', err);
+        logger.error('[AdminManagement] Error updating admin:', err);
         setError(err.response?.data?.error || 'Failed to update admin account');
       } finally {
         setLoading(false);
@@ -332,7 +333,7 @@ function AdminManagement() {
         setShowVerificationModal(true);
         setOpenModal(false);
       } catch (err) {
-        console.error('Error requesting OTP:', err);
+        logger.error('Error requesting OTP:', err);
         setError(err.message || 'Failed to send verification code');
       } finally {
         setLoading(false);
@@ -360,7 +361,7 @@ function AdminManagement() {
         setSuccess('');
       }, 3000);
     } catch (err) {
-      console.error('[AdminManagement] Error creating admin:', err);
+      logger.error('[AdminManagement] Error creating admin:', err);
       setError(err.response?.data?.error || 'Failed to create admin account');
     } finally {
       setLoading(false);
@@ -397,7 +398,7 @@ function AdminManagement() {
         setSuccess('');
       }, 3000);
     } catch (err) {
-      console.error('[AdminManagement] Error toggling admin status:', err);
+      logger.error('[AdminManagement] Error toggling admin status:', err);
       setError(err.response?.data?.error || `Failed to ${action} admin account`);
     } finally {
       setTogglingUserId(null);
