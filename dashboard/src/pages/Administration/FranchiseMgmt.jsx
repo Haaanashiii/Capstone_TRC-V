@@ -5,6 +5,8 @@ import Sidebar from './Sidebar'
 import { franchiseAPI, API_BASE_URL } from '../Services/api'
 import websocketService from '../../services/websocket'
 import { useAuth } from '../../contexts/AuthContext'
+import { validateFile, formatFileSize } from '../../utils/fileValidation'
+import { compressFile } from '../../utils/compressFile'
 import {
   Table,
   TableBody,
@@ -30,6 +32,7 @@ import {
   Alert,
   Chip,
   Fade,
+  LinearProgress,
 } from '@mui/material'
 import PageLoader from '../../components/PageLoader'
 import SearchIcon from '@mui/icons-material/Search'
@@ -122,6 +125,99 @@ const normalizeDocument = (doc, fallbackName = 'Document') => {
   return null
 }
 
+/**
+ * Reusable File Upload Field Component with compression progress bar
+ * Shows upload status, file size info, and compression progress
+ */
+const FileUploadField = React.memo(({ 
+  name, 
+  label, 
+  required = true, 
+  accept = "image/jpeg,image/png,application/pdf",
+  formData,
+  processingFiles,
+  compressionProgress,
+  handleFileChange
+}) => {
+  const isProcessing = processingFiles[name] || false
+  const progress = compressionProgress[name] || 0
+  const fileData = formData[name]
+  
+  return (
+    <Box sx={{ mb: 2 }}>
+      <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#374151', mb: 1 }}>
+        {label}
+      </Typography>
+      <TextField
+        type="file"
+        name={name}
+        onChange={handleFileChange}
+        fullWidth
+        required={required}
+        size="small"
+        disabled={isProcessing}
+        InputLabelProps={{ shrink: true }}
+        inputProps={{ accept }}
+      />
+      
+      {/* Compression Progress Bar */}
+      {isProcessing && (
+        <Box sx={{ mt: 1 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+            <CircularProgress size={14} sx={{ color: '#0A356B' }} />
+            <Typography variant="caption" sx={{ color: '#0A356B', fontWeight: 500 }}>
+              Compressing... {progress}%
+            </Typography>
+          </Box>
+          <LinearProgress 
+            variant="determinate" 
+            value={progress} 
+            sx={{ 
+              height: 6, 
+              borderRadius: 3,
+              backgroundColor: '#E5E7EB',
+              '& .MuiLinearProgress-bar': {
+                backgroundColor: '#0A356B',
+                borderRadius: 3,
+              }
+            }} 
+          />
+        </Box>
+      )}
+      
+      {/* File Info Display */}
+      {fileData && !isProcessing && (
+        <Box sx={{ 
+          mt: 1, 
+          p: 1, 
+          backgroundColor: '#F0FDF4', 
+          borderRadius: 1,
+          border: '1px solid #86EFAC',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 1
+        }}>
+          <Typography variant="caption" sx={{ color: '#166534', fontWeight: 500 }}>
+            ✓ {fileData.name}
+          </Typography>
+          {fileData.originalSize && fileData.compressedSize && fileData.originalSize !== fileData.compressedSize && (
+            <Chip 
+              label={`${formatFileSize(fileData.originalSize)} → ${formatFileSize(fileData.compressedSize)}`}
+              size="small"
+              sx={{ 
+                backgroundColor: '#DCFCE7',
+                color: '#166534',
+                fontSize: '0.7rem',
+                height: 20
+              }}
+            />
+          )}
+        </Box>
+      )}
+    </Box>
+  )
+})
+
 function FranchiseMgmt() {
   const { user } = useAuth() // Get current user for role-based rendering
   const userRole = user?.role || 'bplo-admin' // Default to bplo-admin for backward compatibility
@@ -149,6 +245,10 @@ function FranchiseMgmt() {
   const isUpdatingRef = useRef(false) // Prevent duplicate WebSocket updates
   const [pdfPreviewUrl, setPdfPreviewUrl] = useState(null)
   const [openPdfPreview, setOpenPdfPreview] = useState(false)
+  
+  // File compression states
+  const [compressionProgress, setCompressionProgress] = useState({})
+  const [processingFiles, setProcessingFiles] = useState({})
   
   const [pendingApplications, setPendingApplications] = useState([])
 
@@ -781,18 +881,63 @@ function FranchiseMgmt() {
   }, [])
   
 
-  const handleFileChange = useCallback((e) => {
+  const handleFileChange = useCallback(async (e) => {
     const { name, files } = e.target
-    if (files && files[0]) {
-      const file = files[0]
+    if (!files || !files[0]) return
+    
+    const file = files[0]
+    
+    // Validate file using shared utility
+    const validation = validateFile(file)
+    if (!validation.success) {
+      setNotification({
+        open: true,
+        message: validation.message,
+        type: 'error'
+      })
+      // Reset the input
+      e.target.value = ''
+      return
+    }
+    
+    // Check if file needs compression (larger than 300KB)
+    const willCompress = file.size > 300 * 1024
+    
+    // Show loading state if file will be compressed
+    if (willCompress) {
+      setProcessingFiles(prev => ({ ...prev, [name]: true }))
+      setCompressionProgress(prev => ({ ...prev, [name]: 0 }))
+    }
+    
+    try {
+      let processedFile = file
       
-      if (file.size > 5 * 1024 * 1024) { // 5MB limit
-        setNotification({
-          open: true,
-          message: 'File size exceeds 5MB limit',
-          type: 'error'
-        })
-        return
+      if (willCompress) {
+        // Simulate progressive compression steps for better UX
+        setCompressionProgress(prev => ({ ...prev, [name]: 30 }))
+        await new Promise(resolve => setTimeout(resolve, 200))
+        setCompressionProgress(prev => ({ ...prev, [name]: 60 }))
+        
+        // Compress the file (images and PDFs)
+        processedFile = await compressFile(file)
+        
+        setCompressionProgress(prev => ({ ...prev, [name]: 100 }))
+        
+        // Brief delay to show completion
+        await new Promise(resolve => setTimeout(resolve, 300))
+        
+        // Show compression success message only if file was actually compressed
+        if (processedFile.size !== file.size) {
+          const originalSize = formatFileSize(file.size)
+          const newSize = formatFileSize(processedFile.size)
+          const savings = Math.round((1 - processedFile.size / file.size) * 100)
+          
+          setNotification({
+            open: true,
+            message: `Compression complete: ${originalSize} → ${newSize} (${savings}% smaller!)`,
+            type: 'success'
+          })
+        }
       }
       
       setFormData(prev => {
@@ -800,12 +945,43 @@ function FranchiseMgmt() {
         if (prev[name]?.path && prev[name].path.startsWith('blob:')) {
           try {
             URL.revokeObjectURL(prev[name].path)
-          } catch (e) {
-            console.warn('Failed to revoke previous file blob:', e)
+          } catch (err) {
+            console.warn('Failed to revoke previous file blob:', err)
           }
         }
         
         // Create object URL for preview
+        const objectURL = URL.createObjectURL(processedFile)
+        return {
+          ...prev,
+          [name]: {
+            name: processedFile.name,
+            type: processedFile.type,
+            path: objectURL,
+            file: processedFile,
+            originalSize: file.size,
+            compressedSize: processedFile.size
+          }
+        }
+      })
+    } catch (error) {
+      console.error('[FileCompression] Error:', error)
+      setNotification({
+        open: true,
+        message: 'Compression failed. Using original file.',
+        type: 'warning'
+      })
+      
+      // Use original file if compression fails
+      setFormData(prev => {
+        if (prev[name]?.path && prev[name].path.startsWith('blob:')) {
+          try {
+            URL.revokeObjectURL(prev[name].path)
+          } catch (err) {
+            console.warn('Failed to revoke previous file blob:', err)
+          }
+        }
+        
         const objectURL = URL.createObjectURL(file)
         return {
           ...prev,
@@ -813,10 +989,13 @@ function FranchiseMgmt() {
             name: file.name,
             type: file.type,
             path: objectURL,
-            file: file 
+            file: file
           }
         }
       })
+    } finally {
+      setProcessingFiles(prev => ({ ...prev, [name]: false }))
+      setCompressionProgress(prev => ({ ...prev, [name]: 0 }))
     }
   }, [])
   
@@ -1909,190 +2088,105 @@ function FranchiseMgmt() {
                 Upload Instructions:
               </Typography>
               <Typography variant="body2" sx={{ color: '#9A3412', fontSize: '0.85rem' }}>
-                • Maximum: 5MB per file • Formats: JPG, PNG, PDF • All documents must be clear and readable
+                • Maximum: 10MB per file • Formats: JPG, PNG, PDF • Files larger than 300KB will be automatically compressed
+              </Typography>
+              <Typography variant="body2" sx={{ color: '#9A3412', fontSize: '0.85rem', mt: 0.5 }}>
+                • All documents must be clear and readable • Files will be optimized for quality and size
               </Typography>
             </Box>
             
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <Box>
-                <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#374151', mb: 1 }}>
-                  Photocopy of Registration
-                </Typography>
-                <TextField
-                  type="file"
-                  name="documentRegistration"
-                  onChange={handleFileChange}
-                  fullWidth
-                  required
-                  size="small"
-                  InputLabelProps={{ shrink: true }}
-                  inputProps={{ 
-                    accept: "image/jpeg,image/png,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.doc,.docx"
-                  }}
-                />
-              </Box>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+              <FileUploadField
+                name="documentRegistration"
+                label="Photocopy of Registration"
+                formData={formData}
+                processingFiles={processingFiles}
+                compressionProgress={compressionProgress}
+                handleFileChange={handleFileChange}
+              />
               
-              <Box>
-                <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#374151', mb: 1 }}>
-                  Photocopy of Barangay Clearance
-                </Typography>
-                <TextField
-                  type="file"
-                  name="documentBarangayClearance"
-                  onChange={handleFileChange}
-                  fullWidth
-                  required
-                  size="small"
-                  InputLabelProps={{ shrink: true }}
-                  inputProps={{ 
-                    accept: "image/jpeg,image/png,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.doc,.docx"
-                  }}
-                />
-              </Box>
+              <FileUploadField
+                name="documentBarangayClearance"
+                label="Photocopy of Barangay Clearance"
+                formData={formData}
+                processingFiles={processingFiles}
+                compressionProgress={compressionProgress}
+                handleFileChange={handleFileChange}
+              />
               
-              <Box>
-                <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#374151', mb: 1 }}>
-                  Photocopy of Cedula
-                </Typography>
-                <TextField
-                  type="file"
-                  name="documentCedula"
-                  onChange={handleFileChange}
-                  fullWidth
-                  required
-                  size="small"
-                  InputLabelProps={{ shrink: true }}
-                  inputProps={{ 
-                    accept: "image/jpeg,image/png,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.doc,.docx"
-                  }}
-                />
-              </Box>
+              <FileUploadField
+                name="documentCedula"
+                label="Photocopy of Cedula"
+                formData={formData}
+                processingFiles={processingFiles}
+                compressionProgress={compressionProgress}
+                handleFileChange={handleFileChange}
+              />
             
-              <Box>
-                <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#374151', mb: 1 }}>
-                  Photocopy of Driver's License
-                </Typography>
-                <TextField
-                  type="file"
-                  name="documentDriversLicense"
-                  onChange={handleFileChange}
-                  fullWidth
-                  required
-                  size="small"
-                  InputLabelProps={{ shrink: true }}
-                  inputProps={{ 
-                    accept: "image/jpeg,image/png,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.doc,.docx"
-                  }}
-                />
-              </Box>
+              <FileUploadField
+                name="documentDriversLicense"
+                label="Photocopy of Driver's License"
+                formData={formData}
+                processingFiles={processingFiles}
+                compressionProgress={compressionProgress}
+                handleFileChange={handleFileChange}
+              />
             
-              <Box>
-                <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#374151', mb: 1 }}>
-                  Photocopy of Voter's Affidavit
-                </Typography>
-                <TextField
-                  type="file"
-                  name="documentVotersAffidavit"
-                  onChange={handleFileChange}
-                  fullWidth
-                  required
-                  size="small"
-                  InputLabelProps={{ shrink: true }}
-                  inputProps={{ 
-                  accept: "image/jpeg,image/png,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.doc,.docx"
-                  }}
-                />
-              </Box>
+              <FileUploadField
+                name="documentVotersAffidavit"
+                label="Photocopy of Voter's Affidavit"
+                formData={formData}
+                processingFiles={processingFiles}
+                compressionProgress={compressionProgress}
+                handleFileChange={handleFileChange}
+              />
             
-              <Box>
-                <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#374151', mb: 1 }}>
-                  Photocopy of Motor Chassis Stencil
-                </Typography>
-                <TextField
-                  type="file"
-                  name="documentMotorChassisStencil"
-                  onChange={handleFileChange}
-                  fullWidth
-                  required
-                  size="small"
-                  InputLabelProps={{ shrink: true }}
-                  inputProps={{ 
-                    accept: "image/jpeg,image/png,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.doc,.docx"
-                  }}
-                />
-              </Box>
+              <FileUploadField
+                name="documentMotorChassisStencil"
+                label="Photocopy of Motor Chassis Stencil"
+                formData={formData}
+                processingFiles={processingFiles}
+                compressionProgress={compressionProgress}
+                handleFileChange={handleFileChange}
+              />
             
-              <Box>
-                <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#374151', mb: 1 }}>
-                  Photocopy of OR/LTO
-                </Typography>
-                <TextField
-                  type="file"
-                  name="documentOrLTO"
-                  onChange={handleFileChange}
-                  fullWidth
-                  required
-                  size="small"
-                  InputLabelProps={{ shrink: true }}
-                  inputProps={{ 
-                    accept: "image/jpeg,image/png,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.doc,.docx"
-                  }}
-                />
-              </Box>
+              <FileUploadField
+                name="documentOrLTO"
+                label="Photocopy of OR/LTO"
+                formData={formData}
+                processingFiles={processingFiles}
+                compressionProgress={compressionProgress}
+                handleFileChange={handleFileChange}
+              />
             
-              <Box>
-                <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#374151', mb: 1 }}>
-                  Photocopy of CR
-                </Typography>
-                <TextField
-                  type="file"
-                  name="documentCR"
-                  onChange={handleFileChange}
-                  fullWidth
-                  required
-                  size="small"
-                  InputLabelProps={{ shrink: true }}
-                  inputProps={{ 
-                    accept: "image/jpeg,image/png,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.doc,.docx"
-                  }}
-                />
-              </Box>
+              <FileUploadField
+                name="documentCR"
+                label="Photocopy of CR"
+                formData={formData}
+                processingFiles={processingFiles}
+                compressionProgress={compressionProgress}
+                handleFileChange={handleFileChange}
+              />
             
-              <Box>
-                <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#374151', mb: 1 }}>
-                  1x1 Picture of Driver
-                </Typography>
-                <TextField
-                  type="file"
-                  name="documentPicture"
-                  onChange={handleFileChange}
-                  fullWidth
-                  required
-                  size="small"
-                  InputLabelProps={{ shrink: true }}
-                  inputProps={{ 
-                    accept: "image/jpeg,image/png"
-                  }}
-                />
-              </Box>
+              <FileUploadField
+                name="documentPicture"
+                label="1x1 Picture of Driver"
+                accept="image/jpeg,image/png"
+                formData={formData}
+                processingFiles={processingFiles}
+                compressionProgress={compressionProgress}
+                handleFileChange={handleFileChange}
+              />
             
-              <Box>
-                <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#374151', mb: 1 }}>
-                  1x1 Picture of Operator
-                </Typography>
-                <TextField
-                  type="file"
-                  name="documentOperatorPicture"
-                  onChange={handleFileChange}
-                  fullWidth
-                  required
-                  size="small"
-                  InputLabelProps={{ shrink: true }}
-                  inputProps={{ 
-                    accept: "image/jpeg,image/png"
-                  }}
-                />
-              </Box>
+              <FileUploadField
+                name="documentOperatorPicture"
+                label="1x1 Picture of Operator"
+                accept="image/jpeg,image/png"
+                formData={formData}
+                processingFiles={processingFiles}
+                compressionProgress={compressionProgress}
+                handleFileChange={handleFileChange}
+              />
             </Box>
             
             {/* Walk-in OR Section */}
@@ -2136,23 +2230,15 @@ function FranchiseMgmt() {
               sx={{ mb: 2 }}
             />
             
-            <Box>
-              <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#374151', mb: 1 }}>
-                Official Receipt Document (Optional)
-              </Typography>
-              <TextField
-                type="file"
-                name="documentOfficialReceipt"
-                onChange={handleFileChange}
-                fullWidth
-                size="small"
-                InputLabelProps={{ shrink: true }}
-                helperText="Upload OR document if provided during walk-in"
-                inputProps={{ 
-                  accept: "image/jpeg,image/png,application/pdf"
-                }}
-              />
-            </Box>
+            <FileUploadField
+              name="documentOfficialReceipt"
+              label="Official Receipt Document (Optional)"
+              required={false}
+              formData={formData}
+              processingFiles={processingFiles}
+              compressionProgress={compressionProgress}
+              handleFileChange={handleFileChange}
+            />
             </form>
           </Box>
           
