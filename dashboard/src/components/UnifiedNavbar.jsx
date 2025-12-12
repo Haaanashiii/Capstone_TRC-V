@@ -191,7 +191,6 @@ const UnifiedNavbar = () => {
       return [
         { label: t("navbar.announcements"), path: announcementsPath, isActive: announcementsIsActive, disabled: false, onClick: !userIsAdmin ? handleAnnouncementsClick : undefined },
         { label: t("navbar.myFranchise"), path: "/operator/franchise", isActive: location.pathname === "/operator/franchise", disabled: false },
-        { label: t("navbar.requestAmendment"), path: "/operator/request-amendment", isActive: location.pathname === "/operator/request-amendment", disabled: false },
         { label: t("navbar.operatorId"), path: "/operator/id", isActive: location.pathname === "/operator/id", disabled: false },
       ];
     }

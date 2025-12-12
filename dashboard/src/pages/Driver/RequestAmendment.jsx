@@ -566,13 +566,14 @@ export default function RequestAmendment() {
       // Build FormData for submission
       const formDataToSend = new FormData();
       
-      // Determine application type based on amendment type
-      let applicationType = 'renewal'; // default
+     let applicationType = 'amend-change_unit'; // default
       if (amendmentType === 'owner') {
-        applicationType = 'update_ownership';
+        applicationType = 'amend-update_ownership';
       } else if (amendmentType === 'motor') {
-        applicationType = 'change_unit';
+        applicationType = 'amend-change_unit';
       }
+      
+
       
       logger.log('[RequestAmendment] Submitting with applicationType:', applicationType);
       
@@ -709,6 +710,8 @@ export default function RequestAmendment() {
             <img src="/public/Logos/SBLogo.png" alt="Seal" />
             <img src="/public/Logos/TRC-vLogo.png" alt="TRC-V Logo" />
           </div>
+
+         
 
           {/* Title */}
           <div className="franchise-app-title">{t.title}</div>

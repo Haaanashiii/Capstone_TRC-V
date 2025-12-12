@@ -119,8 +119,8 @@ function validateFranchiseStatus(franchise, applicationType) {
     return ['Active', 'Expired'].includes(franchise.franchiseStatus);
   }
 
-  // Amendment (change_unit/update_ownership): Allow only Active franchises
-  if (['change_unit', 'update_ownership'].includes(applicationType)) {
+  // Amendment (change_unit/update_ownership/amend-change_unit/amend-update_ownership): Allow only Active franchises
+  if (['change_unit', 'update_ownership', 'amend-change_unit', 'amend-update_ownership'].includes(applicationType)) {
     return franchise.franchiseStatus === 'Active';
   }
 

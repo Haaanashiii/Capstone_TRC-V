@@ -104,7 +104,9 @@ const franchiseApplicationSchema = new mongoose.Schema({
       'new',              // New franchise application (creates initial franchise)
       'renewal',          // Renew existing franchise (same franchise number, new 3-year period)
       'update_ownership', // Transfer ownership (same franchise number, different operator)
-      'change_unit'       // Change motor unit (same franchise number, different vehicle)
+      'change_unit',      // Change motor unit (same franchise number, different vehicle)
+      'amend-update_ownership', // Amendment: Transfer ownership
+      'amend-change_unit' // Amendment: Change motor unit
     ],
     default: 'new'
   },

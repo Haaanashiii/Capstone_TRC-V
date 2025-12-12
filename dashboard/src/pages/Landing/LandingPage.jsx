@@ -253,11 +253,7 @@ const LandingPage = () => {
                     HOME
                   </Button>
                 )}
-                {displayName && (
-                  <Button fullWidth onClick={() => handleMobileNavClick('/operator/request-amendment')} sx={{ color: '#fff', justifyContent: 'flex-start', textTransform: 'none', fontSize: '16px' }}>
-                    REQUEST FOR AMENDMENT
-                  </Button>
-                )}
+            
                 <Button fullWidth onClick={() => handleMobileNavClick('/login')} sx={{ color: '#fff', justifyContent: 'flex-start', textTransform: 'none', fontSize: '16px' }}>
                   NEW APPLICATION
                 </Button>
@@ -282,9 +278,6 @@ const LandingPage = () => {
           <nav className="landing-nav">
             {displayName && (
               <button className="nav-link" onClick={() => navigate('/operator/franchise')}>HOME</button>
-            )}
-            {displayName && (
-              <button className="nav-link" onClick={() => navigate('/operator/request-amendment')}>REQUEST FOR AMENDMENT</button>
             )}
             <button className="nav-link" onClick={() => navigate('/login')}>NEW APPLICATION</button>
             {/* If user is logged in show name and menu, otherwise show Login button */}
