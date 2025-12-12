@@ -48,6 +48,15 @@
   -webkit-overflow-scrolling: touch;
 }
 
+/* Disable animations on page updates to prevent flicker */
+.franchise-bg.no-animate,
+.franchise-bg.no-animate .operator-home-container,
+.franchise-bg.no-animate .option-card,
+.franchise-bg.no-animate .greeting-card,
+.franchise-bg.no-animate .time-date-display {
+  animation: none !important;
+  transition: none !important;
+}
 .time-date-display {
   background-color: white;
   padding: clamp(6px, 1.2vw, 8px) clamp(12px, 2vw, 16px);

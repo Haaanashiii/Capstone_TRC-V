@@ -91,6 +91,9 @@ const OperatorHomePage = () => {
   // Use AuthContext for user data (consistent with UnifiedSidebar)
   const { user: authUser } = useAuth();
   
+  // Track if component is mounted to prevent animation flicker on updates
+  const isInitialMountRef = React.useRef(true);
+  
   // Get user data from AuthContext or fallback to direct token decode
   const getUser = () => {
     if (authUser) return authUser;
@@ -110,6 +113,11 @@ const OperatorHomePage = () => {
   };
   
   const currentUser = getUser();
+  
+  // Mark component as mounted after initial render
+  useEffect(() => {
+    isInitialMountRef.current = false;
+  }, []);
   
   // Use authUser from context instead of fetching separately
   useEffect(() => {
@@ -269,6 +277,7 @@ const OperatorHomePage = () => {
   const [selectedAppForOR, setSelectedAppForOR] = useState(null);
   const [orNumberInput, setOrNumberInput] = useState('');
   const [orFileInput, setOrFileInput] = useState(null);
+  const [orFileObjectUrl, setOrFileObjectUrl] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeFranchises, setActiveFranchises] = useState([]);
   const [loadingFranchises, setLoadingFranchises] = useState(true);
@@ -472,6 +481,25 @@ const OperatorHomePage = () => {
     }
   }, [currentTime]);
 
+  // Manage object URL for file preview - prevents flickering by creating URL once
+  useEffect(() => {
+    if (orFileInput) {
+      // Create object URL once and store it
+      const url = URL.createObjectURL(orFileInput);
+      setOrFileObjectUrl(url);
+      
+      // Cleanup on unmount or when file changes
+      return () => {
+        if (url) {
+          URL.revokeObjectURL(url);
+        }
+      };
+    } else {
+      // Clear URL when file is cleared
+      setOrFileObjectUrl(null);
+    }
+  }, [orFileInput]);
+
   // Format time as HH:MM:SS AM/PM
   const formatTime = (date) => {
     return date.toLocaleTimeString('en-US', { 
@@ -660,19 +688,19 @@ const OperatorHomePage = () => {
       
       await franchiseAPI.submitOR(applicationId, formData);
 
+      // Close modal immediately, then reload page after showing success
+      handleCloseORModal();
+      
+      // Show success without refreshing the page state
       Swal.fire({
         ...alertStyle.successAlert,
         title: 'Success!',
-        text: 'OR submitted successfully! Your application will now proceed to SB for final approval.'
+        text: 'OR submitted successfully! Your application will now proceed to SB for final approval.',
+        didClose: () => {
+          // Reload page after success alert is closed to show updated data
+          window.location.reload();
+        }
       });
-      
-      // Refresh applications
-      const response = await franchiseAPI.getMyApplications();
-      if (response.data?.success && Array.isArray(response.data.data)) {
-        setUserApplications(response.data.data);
-      }
-
-      handleCloseORModal();
     } catch (error) {
       console.error('Error submitting OR:', error);
       Swal.fire({
@@ -692,7 +720,7 @@ const OperatorHomePage = () => {
 
 
   return (
-    <div className="franchise-bg">
+    <div className={`franchise-bg ${!isInitialMountRef.current ? 'no-animate' : ''}`}>
       <UnifiedNavbar 
         userType="operator"
         language={language}
@@ -2330,7 +2358,7 @@ const OperatorHomePage = () => {
                   {orFileInput.type.startsWith('image/') ? (
                     // Image Preview
                     <img 
-                      src={URL.createObjectURL(orFileInput)} 
+                      src={orFileObjectUrl} 
                       alt="OR Preview"
                       style={{
                         width: '100%',
@@ -2342,7 +2370,7 @@ const OperatorHomePage = () => {
                   ) : orFileInput.type === 'application/pdf' ? (
                     // PDF Preview - Embedded iframe (view only, no download)
                     <iframe
-                      src={`${URL.createObjectURL(orFileInput)}#toolbar=0&navpanes=0&scrollbar=0`}
+                      src={`${orFileObjectUrl}#toolbar=0&navpanes=0&scrollbar=0`}
                       type="application/pdf"
                       width="100%"
                       height="400px"

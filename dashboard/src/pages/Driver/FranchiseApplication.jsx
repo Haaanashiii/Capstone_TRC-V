@@ -334,6 +334,7 @@ export default function FranchiseApplication() {
   const [modalFile, setModalFile] = useState(null);
   const [modalLoading, setModalLoading] = useState(false);
   const [compressionProgress, setCompressionProgress] = useState(0);
+  const [compressionNotification, setCompressionNotification] = useState(null);
   const modalFileRef = useRef();
 
   const handleModalFileChange = async (e) => {
@@ -382,11 +383,16 @@ export default function FranchiseApplication() {
         const newSize = formatFileSize(processedFile.size);
         const savings = Math.round((1 - processedFile.size / file.size) * 100);
         
-        Swal.fire({
-          ...alertStyle.successAlert,
-          title: 'Compression Complete',
-          text: `${originalSize} → ${newSize} (${savings}% smaller!)`
+        setCompressionNotification({
+          originalSize,
+          newSize,
+          savings
         });
+        
+        // Auto-hide notification after 3 seconds
+        setTimeout(() => {
+          setCompressionNotification(null);
+        }, 3000);
       }
       
       setModalFile(processedFile);
@@ -743,7 +749,7 @@ export default function FranchiseApplication() {
                 </div>
                 
                 {/* Compression Loading Indicator */}
-                {modalLoading && (
+                {(modalLoading || compressionProgress > 0) && (
                   <div style={{
                     marginTop: '20px',
                     padding: '16px',
@@ -788,6 +794,32 @@ export default function FranchiseApplication() {
                         transition: 'width 0.3s ease',
                         borderRadius: '3px'
                       }} />
+                    </div>
+                  </div>
+                )}
+                
+                {/* Compression Success Notification */}
+                {compressionNotification && (
+                  <div style={{
+                    marginTop: '20px',
+                    padding: '16px',
+                    background: 'linear-gradient(135deg, #f0fdf4 0%, #e8f9f0 100%)',
+                    borderRadius: '12px',
+                    border: '2px solid #10b981',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px',
+                    animation: 'slideIn 0.3s ease'
+                  }}>
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <circle cx="12" cy="12" r="10" stroke="#10b981" strokeWidth="2" />
+                      <path d="M8 12L11 15L16 9" stroke="#10b981" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                    <div>
+                      <div style={{ fontWeight: 700, color: '#10b981', fontSize: '15px' }}>Compression Complete</div>
+                      <div style={{ color: '#666', fontSize: '14px', marginTop: '4px' }}>
+                        {compressionNotification.originalSize} → {compressionNotification.newSize} ({compressionNotification.savings}% smaller!)
+                      </div>
                     </div>
                   </div>
                 )}
@@ -1626,9 +1658,18 @@ export default function FranchiseApplication() {
                       } catch { /* ignore */ }
 
                       Swal.fire({
-                        ...alertStyle.successAlert,
-                        title: 'Success!',
-                        text: 'Application submitted successfully. Administrators will be able to review it shortly.'
+                        icon: 'success',
+                        title: 'Application approved by BPLO',
+                        text: 'Applicant will be notified to proceed with inspection and OR submission.',
+                        toast: true,
+                        position: 'top-end',
+                        showConfirmButton: false,
+                        timer: 4000,
+                        timerProgressBar: true,
+                        didOpen: (modal) => {
+                          modal.style.borderRadius = '8px';
+                          modal.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.15)';
+                        }
                       })
 
                       
