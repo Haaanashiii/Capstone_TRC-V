@@ -558,7 +558,8 @@ exports.createRenewOrAmendment = async (req, res, next) => {
         unitModel: body.unitModel || existingFranchise.unitModel,
         colorMotor: body.colorMotor || existingFranchise.colorMotor,
         sideCarColor: body.sideCarColor || existingFranchise.sideCarColor,
-        mvPlateNo: body.mvPlateNo || existingFranchise.mvPlateNo,torEngineNo,
+        mvPlateNo: body.mvPlateNo || existingFranchise.mvPlateNo,
+        motorEngineNo: body.motorEngineNo || existingFranchise.motorEngineNo,
         chasisNo: body.chasisNo || existingFranchise.chasisNo
       } : appType === 'update_ownership' ? {
         // Update operator, keep motor + driver
@@ -1310,23 +1311,36 @@ exports.sbAdminAcceptNewFranchise = async (req, res, next) => {
       });
     }
     
-    // Check for previous version to reuse QR code (only if the franchise is revoked)
-    const previousFranchiseWithSameNumber = await FranchiseInformation.findOne(
-      { franchiseNumber: franchiseNo, isCurrentVersion: false, franchiseStatus: 'Revoked' },
-      { qrCode: 1 }
-    ).sort({ version: -1 });
-    
-    if (previousFranchiseWithSameNumber?.qrCode) {
-      // Recycled number - reuse previous QR code
-      qrResult = { url: previousFranchiseWithSameNumber.qrCode };
+    // If there's a revoked franchise with isCurrentVersion: true, update it to false
+    // This allows the recycled number to be assigned to a new franchise
+    if (latestFranchiseWithNumber && latestFranchiseWithNumber.franchiseStatus === 'Revoked') {
+      console.log('[sbAdminAcceptNewFranchise] Found revoked franchise with isCurrentVersion: true, updating to false for recycling:', franchiseNo);
+      await FranchiseInformation.updateOne(
+        { _id: latestFranchiseWithNumber._id },
+        { $set: { isCurrentVersion: false } }
+      );
+      // Reuse QR code from the revoked franchise
+      qrResult = { url: latestFranchiseWithNumber.qrCode };
       console.log('[sbAdminAcceptNewFranchise] Recycled revoked franchise number:', franchiseNo, '- Reusing previous QR code');
     } else {
-      // New franchise number - generate new QR code with hashed franchise number (static)
-      const hashedFranchiseNo = generateHashedFranchiseNo(franchiseNo);
-      const qrBuffer = await generateQRCodeBuffer(hashedFranchiseNo);
-      qrResult = await uploadFile(qrBuffer, `qr-${franchiseNo}.png`, 'image/png',
-        { baseFolder: 'franchiseInformations', subFolder: `${franchiseNo}/${franchiseChainId}`, category: 'QRCode', customKey: `version-1/QRCode/qr-${franchiseNo}.png` });
-      console.log('[sbAdminAcceptNewFranchise] New franchise number:', franchiseNo, '- Generated static QR code with hash:', hashedFranchiseNo);
+      // Check for previous version to reuse QR code (only if the franchise is revoked and already marked as not current)
+      const previousFranchiseWithSameNumber = await FranchiseInformation.findOne(
+        { franchiseNumber: franchiseNo, isCurrentVersion: false, franchiseStatus: 'Revoked' },
+        { qrCode: 1 }
+      ).sort({ version: -1 });
+      
+      if (previousFranchiseWithSameNumber?.qrCode) {
+        // Recycled number - reuse previous QR code
+        qrResult = { url: previousFranchiseWithSameNumber.qrCode };
+        console.log('[sbAdminAcceptNewFranchise] Recycled revoked franchise number:', franchiseNo, '- Reusing previous QR code from archived version');
+      } else {
+        // New franchise number - generate new QR code with hashed franchise number (static)
+        const hashedFranchiseNo = generateHashedFranchiseNo(franchiseNo);
+        const qrBuffer = await generateQRCodeBuffer(hashedFranchiseNo);
+        qrResult = await uploadFile(qrBuffer, `qr-${franchiseNo}.png`, 'image/png',
+          { baseFolder: 'franchiseInformations', subFolder: `${franchiseNo}/${franchiseChainId}`, category: 'QRCode', customKey: `version-1/QRCode/qr-${franchiseNo}.png` });
+        console.log('[sbAdminAcceptNewFranchise] New franchise number:', franchiseNo, '- Generated static QR code with hash:', hashedFranchiseNo);
+      }
     }
     
     // Check version (no transaction for standalone MongoDB compatibility)
