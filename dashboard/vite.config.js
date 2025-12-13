@@ -41,6 +41,9 @@ export default defineConfig({
       workbox: {
         // Increase the max file size for precaching (5 MB)
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
+        // Don't precache index.html (let it be handled by navigation fallback)
+        navigateFallback: '/index.html',
+        navigateFallbackDenylist: [/^\/api\//],
         // Cache strategies
         runtimeCaching: [
           {
@@ -82,8 +85,71 @@ export default defineConfig({
               }
             }
           },
+          // Cache announcements API (public, important for offline)
           {
-            urlPattern: /^https:\/\/api\..*/i,
+            urlPattern: /\/announcements/i,
+            handler: 'StaleWhileRevalidate',
+            options: {
+              cacheName: 'announcements-cache',
+              expiration: {
+                maxEntries: 50,
+                maxAgeSeconds: 60 * 60 * 24 * 7 // 7 days
+              },
+              cacheableResponse: {
+                statuses: [0, 200]
+              }
+            }
+          },
+          // Cache fare matrix (public data)
+          {
+            urlPattern: /\/fare-matrix/i,
+            handler: 'StaleWhileRevalidate',
+            options: {
+              cacheName: 'fare-matrix-cache',
+              expiration: {
+                maxEntries: 10,
+                maxAgeSeconds: 60 * 60 * 24 * 7 // 7 days
+              },
+              cacheableResponse: {
+                statuses: [0, 200]
+              }
+            }
+          },
+          // Cache user's own franchise data (for operators)
+          {
+            urlPattern: /\/auth\/me/i,
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'user-data-cache',
+              expiration: {
+                maxEntries: 5,
+                maxAgeSeconds: 60 * 60 * 24 // 1 day
+              },
+              networkTimeoutSeconds: 5,
+              cacheableResponse: {
+                statuses: [0, 200]
+              }
+            }
+          },
+          // Cache franchise information for operators
+          {
+            urlPattern: /\/franchise-information\/my-franchises/i,
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'my-franchises-cache',
+              expiration: {
+                maxEntries: 20,
+                maxAgeSeconds: 60 * 60 * 24 // 1 day
+              },
+              networkTimeoutSeconds: 5,
+              cacheableResponse: {
+                statuses: [0, 200]
+              }
+            }
+          },
+          // General API cache (fallback for other endpoints)
+          {
+            urlPattern: /\/(api|auth|franchise|qr|verify)/i,
             handler: 'NetworkFirst',
             options: {
               cacheName: 'api-cache',
@@ -91,7 +157,25 @@ export default defineConfig({
                 maxEntries: 100,
                 maxAgeSeconds: 60 * 60 * 24 // 1 day
               },
-              networkTimeoutSeconds: 10
+              networkTimeoutSeconds: 10,
+              cacheableResponse: {
+                statuses: [0, 200]
+              }
+            }
+          },
+          // Cache uploads/images from server
+          {
+            urlPattern: /\/uploads\//i,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'uploads-cache',
+              expiration: {
+                maxEntries: 100,
+                maxAgeSeconds: 60 * 60 * 24 * 30 // 30 days
+              },
+              cacheableResponse: {
+                statuses: [0, 200]
+              }
             }
           }
         ]

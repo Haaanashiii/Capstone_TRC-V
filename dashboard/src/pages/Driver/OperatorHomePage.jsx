@@ -7,7 +7,7 @@ import { logger } from '../../utils/logger';
 import "../../Styles/Operator's_CSS/OperatorHomePage.css";
 import "../../Styles/Operator's_CSS/TableResponsive.css";
 import { Link2, PlusCircle } from 'lucide-react';
-import io from 'socket.io-client';
+import websocketService from '../../services/websocket';
 import {
   Table,
   TableBody,
@@ -379,19 +379,20 @@ const OperatorHomePage = () => {
 
   // Setup WebSocket listeners for BPLO notifications
   useEffect(() => {
-    const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170';
-    const socket = io(API_BASE_URL);
-
-    socket.on('connect', () => {
-      logger.log('[OperatorHomePage] Connected to WebSocket');
-      // Join user-specific room if we have user ID
-      if (currentUser?.id) {
-        socket.emit('join', { userId: currentUser.id, userType: 'operator' });
-      }
-    });
+    // Connect using the websocketService (with auth token)
+    if (!websocketService.isConnected()) {
+      websocketService.connect('operators-room');
+    } else {
+      websocketService.joinRoom('operators-room');
+    }
+    
+    // Also join user-specific room for personal notifications
+    if (currentUser?.id) {
+      websocketService.emit('join', { userId: currentUser.id, userType: 'operator' });
+    }
 
     // Listen for BPLO disapproval notifications
-    socket.on('bplo-disapproval', (data) => {
+    const handleBploDisapproval = (data) => {
       logger.log('[OperatorHomePage] Received BPLO disapproval:', data);
       Swal.fire({
         ...alertStyle.errorAlert,
@@ -410,10 +411,10 @@ const OperatorHomePage = () => {
         }
       };
       fetchApplications();
-    });
+    };
 
     // Listen for BPLO approval notifications
-    socket.on('bplo-approval', (data) => {
+    const handleBploApproval = (data) => {
       logger.log('[OperatorHomePage] Received BPLO approval:', data);
       Swal.fire({
         ...alertStyle.successAlert,
@@ -432,10 +433,10 @@ const OperatorHomePage = () => {
         }
       };
       fetchApplications();
-    });
+    };
 
     // Listen for SB approval notifications
-    socket.on('sb-approval', (data) => {
+    const handleSbApproval = (data) => {
       logger.log('[OperatorHomePage] Received SB approval:', data);
       Swal.fire({
         ...alertStyle.successAlert,
@@ -454,10 +455,24 @@ const OperatorHomePage = () => {
         }
       };
       fetchApplications();
-    });
+    };
+    
+    // Listen for franchise updates (for FranchiseeListOperatorSide sync)
+    const handleFranchiseUpdated = (data) => {
+      logger.log('[OperatorHomePage] Received franchise update:', data);
+      // Could trigger a refresh if needed
+    };
+
+    websocketService.on('bplo-disapproval', handleBploDisapproval);
+    websocketService.on('bplo-approval', handleBploApproval);
+    websocketService.on('sb-approval', handleSbApproval);
+    websocketService.on('franchise-updated', handleFranchiseUpdated);
 
     return () => {
-      socket.disconnect();
+      websocketService.off('bplo-disapproval', handleBploDisapproval);
+      websocketService.off('bplo-approval', handleBploApproval);
+      websocketService.off('sb-approval', handleSbApproval);
+      websocketService.off('franchise-updated', handleFranchiseUpdated);
     };
   }, [currentUser]);
 

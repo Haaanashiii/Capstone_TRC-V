@@ -5,6 +5,7 @@ const morgan = require('morgan');
 const dotenv = require('dotenv');
 const cookieParser = require('cookie-parser');
 const helmet = require('helmet');
+const hpp = require('hpp');
 const http = require('http');
 const { Server } = require('socket.io');
 const jwt = require('jsonwebtoken');
@@ -335,6 +336,9 @@ app.use(enforceHttps);
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 app.use(cookieParser());
+
+// Prevent HTTP Parameter Pollution attacks
+app.use(hpp());
 
 // CORS
 const corsOriginEnv = process.env.CORS_ORIGIN || '';

@@ -1712,18 +1712,21 @@ function FranchiseeList() {
     }
 
     // Subscribe to franchisee updates
-    const handleFranchiseeUpdates = (franchisees) => {
-      if (Array.isArray(franchisees) && franchisees.length > 0) {
-        fetchFranchisees();
-      }
+    const handleFranchiseeUpdates = (data) => {
+      logger.log('[FranchiseeList] WebSocket franchisee update received:', data);
+      fetchFranchisees();
     };
 
-    websocketService.on('franchisees', handleFranchiseeUpdates);
+    websocketService.on('franchises-list-updated', handleFranchiseeUpdates);
     websocketService.on('franchisee-updated', handleFranchiseeUpdates);
+    websocketService.on('franchise-created', handleFranchiseeUpdates);
+    websocketService.on('franchise-updated', handleFranchiseeUpdates);
 
     return () => {
-      websocketService.off('franchisees', handleFranchiseeUpdates);
+      websocketService.off('franchises-list-updated', handleFranchiseeUpdates);
       websocketService.off('franchisee-updated', handleFranchiseeUpdates);
+      websocketService.off('franchise-created', handleFranchiseeUpdates);
+      websocketService.off('franchise-updated', handleFranchiseeUpdates);
     };
   }, [fetchFranchisees]);
 

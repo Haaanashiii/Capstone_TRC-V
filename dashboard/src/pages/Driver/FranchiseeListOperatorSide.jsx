@@ -13,6 +13,7 @@ import '../../Styles/Operator\'s_CSS/FranchiseeListOperatorSide.css';
 import dayjs from 'dayjs';
 import { franchiseInformationAPI } from '../Services/api';
 import { logger } from '../../utils/logger';
+import websocketService from '../../services/websocket';
 
 function FranchiseeListOperatorSide() {
   const navigate = useNavigate();
@@ -151,6 +152,34 @@ function FranchiseeListOperatorSide() {
     checkFranchiseStatus();
    
   }, [fetchUserDetails]);
+
+  // WebSocket subscription for real-time franchise updates
+  useEffect(() => {
+    if (!user?.id) return;
+
+    // Connect to WebSocket if not already connected
+    if (!websocketService.isConnected()) {
+      websocketService.connect('operators-room');
+    }
+
+    // Also join user-specific room for personal updates
+    websocketService.emit('join', { userId: user.id });
+
+    // Handle franchise updates for this user
+    const handleFranchiseUpdated = (data) => {
+      logger.log('[FranchiseeListOperatorSide] Received franchise update:', data);
+      // Refresh user details to get updated franchise info
+      if (data?.franchiseId || data?.linkedUser === user.id) {
+        fetchUserDetails();
+      }
+    };
+
+    websocketService.on('franchise-updated', handleFranchiseUpdated);
+
+    return () => {
+      websocketService.off('franchise-updated', handleFranchiseUpdated);
+    };
+  }, [user?.id, fetchUserDetails]);
 
   
   useEffect(() => {

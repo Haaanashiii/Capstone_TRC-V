@@ -3,6 +3,7 @@
  * Centralized API calls for announcement management
  */
 import api from '../pages/Services/api';
+import offlineStorage from './offlineStorage';
 
 /**
  * Handle API response and extract data
@@ -67,13 +68,33 @@ const announcementService = {
 
   /**
    * Get published announcements (public endpoint)
+   * Uses offline cache when network is unavailable
    * @returns {Promise<object>} Published announcements
    */
   getPublished: async () => {
     try {
       const response = await api.get('/announcements/published');
-      return handleResponse(response);
+      const data = handleResponse(response);
+      
+      // Cache for offline use
+      if (data.announcements) {
+        offlineStorage.saveAnnouncements(data.announcements);
+      }
+      
+      return data;
     } catch (error) {
+      // If offline or network error, try to return cached data
+      if (!navigator.onLine || error.message === 'Network Error') {
+        const cached = offlineStorage.getAnnouncements();
+        if (cached?.data) {
+          console.log('[AnnouncementService] Returning cached announcements (offline mode)');
+          return { 
+            announcements: cached.data,
+            fromCache: true,
+            cacheAge: cached.age
+          };
+        }
+      }
       handleError(error);
     }
   },
