@@ -11,18 +11,20 @@ updates:
       day: "monday"
       time: "09:00"
       timezone: "Asia/Manila"
-    open-pull-requests-limit: 10
+    # REDUCED: Limit to 2 open PRs to avoid clutter
+    open-pull-requests-limit: 2
     commit-message:
       prefix: "chore(deps)"
     labels:
       - "dependencies"
       - "frontend"
-    # Group minor and patch updates together to reduce PR noise
+    # Group ALL updates together into a SINGLE PR
     groups:
-      minor-and-patch:
+      all-dashboard-deps:
         patterns:
           - "*"
         update-types:
+          - "major"
           - "minor"
           - "patch"
 
@@ -34,25 +36,31 @@ updates:
       day: "monday"
       time: "09:00"
       timezone: "Asia/Manila"
-    open-pull-requests-limit: 10
+    # REDUCED: Limit to 2 open PRs
+    open-pull-requests-limit: 2
     commit-message:
       prefix: "chore(deps)"
     labels:
       - "dependencies"
       - "backend"
+    # Group ALL updates together into a SINGLE PR
     groups:
-      minor-and-patch:
+      all-server-deps:
         patterns:
           - "*"
         update-types:
+          - "major"
           - "minor"
           - "patch"
 
-  # Docker dependencies (if using Docker)
+  # Docker dependencies - monthly only (less frequent)
   - package-ecosystem: "docker"
     directory: "/server"
     schedule:
-      interval: "weekly"
+      interval: "monthly"
+    open-pull-requests-limit: 1
+    commit-message:
+      prefix: "chore(docker)"
     labels:
       - "dependencies"
       - "docker"
