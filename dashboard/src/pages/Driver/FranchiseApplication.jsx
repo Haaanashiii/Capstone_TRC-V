@@ -82,10 +82,11 @@ export default function FranchiseApplication() {
     const fetchUserData = async () => {
       try {
         const token = TokenManager.getAccessToken();
-        if (!token) {
-          logger.error('[FranchiseApplication] No access token found');
-          return;
-        }
+        // TEMPORARILY DISABLED: Protective route check
+        // if (!token) {
+        //   logger.error('[FranchiseApplication] No access token found');
+        //   return;
+        // }
         
         const userData = TokenManager.decodeToken(token);
         logger.log('[FranchiseApplication] JWT payload (no email for security):', userData);
@@ -414,14 +415,14 @@ export default function FranchiseApplication() {
     date: dayjs(),
     operatorName: "",
     contact: "",
-    birthPlace: "",
+    birthPlace: "Municipality / Province", // Prefilled value
     birthDate: null,
     civilStatus: "",
     citizenship: "",
     todaMembership: "",
     unitModel: "",
     colorMotor: "",
-    colorSidecar: "B / Y", // Default to "Blue and Yellow"
+    colorSidecar: "B/Y", // Prefilled and read-only
     mvPlateNo: "",
     motorEngineNumber: "",
     chassisNumber: "",
@@ -444,6 +445,7 @@ export default function FranchiseApplication() {
 
   // Error states for sidecar fields
   const [sidecarColorError, setSidecarColorError] = useState("");
+  const [mvPlateError, setMvPlateError] = useState("");
 
   const [addressError, setAddressError] = useState("");
   const [barangayError, setBarangayError] = useState("");
@@ -489,6 +491,65 @@ export default function FranchiseApplication() {
     } else {
       setContactError("Only numbers are allowed in the contact field");
     }
+  };
+
+  // MV Plate validation handler - Philippine format: 3 letters + numbers (e.g., ABC1234)
+  // STRICTLY enforces format at input time, not just on submit
+  const handleMVPlateChange = (e) => {
+    let inputValue = e.target.value.toUpperCase().trim();
+    let error = "";
+    let validatedValue = "";
+    
+    // Handle empty input
+    if (inputValue === "") {
+      setFields({ ...fields, mvPlateNo: "" });
+      setMvPlateError("");
+      return;
+    }
+    
+    // Process character by character to enforce strict rules
+    for (let i = 0; i < inputValue.length; i++) {
+      const char = inputValue[i];
+      const charCode = char.charCodeAt(0);
+      
+      // Skip spaces (will be handled separately)
+      if (char === " ") {
+        continue;
+      }
+      
+      // First 3 characters: MUST be letters only
+      if (validatedValue.length < 3) {
+        if (/^[A-Z]$/.test(char)) {
+          validatedValue += char;
+        } else {
+          // Block invalid character - letter required at this position
+          error = "First 3 characters must be letters only (A-Z)";
+          break;
+        }
+      } 
+      // After 3 letters: MUST be numbers only
+      else if (validatedValue.length >= 3) {
+        if (/^[0-9]$/.test(char)) {
+          validatedValue += char;
+        } else {
+          // Block invalid character - number required after 3 letters
+          error = "Numbers only after the first 3 letters";
+          break;
+        }
+      }
+      
+      // Enforce maximum length (3 letters + 4 numbers = 7 total)
+      if (validatedValue.length >= 7) {
+        if (i < inputValue.length - 1) {
+          error = "MV Plate format maximum: 3 letters + 4 numbers";
+        }
+        break;
+      }
+    }
+    
+    // Set the validated value and error state
+    setFields({ ...fields, mvPlateNo: validatedValue });
+    setMvPlateError(error);
   };
 
   // Helper function to truncate long filenames
@@ -558,6 +619,18 @@ export default function FranchiseApplication() {
       setSidecarColorError('Sidecar color is required');
     } else {
       setSidecarColorError('');
+    }
+
+    // Validation for MV Plate Number (Philippine format)
+    if (!fields.mvPlateNo || !fields.mvPlateNo.trim()) {
+      newErrors.mvPlateNo = 'MV Plate is required';
+      setMvPlateError('MV Plate is required');
+    } else if (!/^[A-Z]{3}[0-9]{1,4}$/.test(fields.mvPlateNo)) {
+      // Should not happen with strict input validation, but added for safety
+      newErrors.mvPlateNo = 'Invalid MV Plate format. Must be 3 letters + 1-4 numbers (e.g., ABC1234)';
+      setMvPlateError('Invalid MV Plate format. Must be 3 letters + 1-4 numbers (e.g., ABC1234)');
+    } else {
+      setMvPlateError('');
     }
 
     // Required documents
@@ -982,7 +1055,15 @@ export default function FranchiseApplication() {
             </div>
           </div>
           <div className="franchise-app-grid-4">
-            <TextField label={t.placeOfBirth} size="small" className="franchise-app-input" value={fields.birthPlace} onChange={handleChange('birthPlace')} />
+            <TextField 
+              label={t.placeOfBirth} 
+              size="small" 
+              className="franchise-app-input" 
+              value={fields.birthPlace} 
+              onChange={handleChange('birthPlace')}
+              placeholder="e.g., Manila, Metro Manila"
+            
+            />
             <LocalizationProvider dateAdapter={AdapterDayjs}>
               <DatePicker
                 label={t.dateOfBirth}
@@ -1128,14 +1209,27 @@ export default function FranchiseApplication() {
               label={t.colorSidecar}
               size="small"
               className="franchise-app-input"
-              value={fields.colorSidecar || "Blue and Yellow"}
-              onChange={handleChange('colorSidecar')}
+              value={fields.colorSidecar || "B/Y"}
+              inputProps={{ readOnly: true }}
               required
               error={!!sidecarColorError}
-              helperText={sidecarColorError || "Default: Blue and Yellow"}
-              placeholder="Blue and Yellow"
+              helperText={sidecarColorError || "Default: B/Y"}
+              placeholder="B/Y"
             />
-            <TextField label={t.mvPlateNo} size="small" className="franchise-app-input" value={fields.mvPlateNo} onChange={handleChange('mvPlateNo')} />
+            <TextField 
+              label={t.mvPlateNo} 
+              size="small" 
+              className="franchise-app-input" 
+              value={fields.mvPlateNo} 
+              onChange={handleMVPlateChange}
+              error={!!mvPlateError}
+              helperText={mvPlateError || "Format: ABC1234 (3 letters + up to 4 numbers)"}
+              placeholder="ABC1234"
+              inputProps={{
+                maxLength: 7,
+                autoComplete: "off"
+              }}
+            />
           </div>
           <div className="franchise-app-grid-2">
             <TextField label={t.motorEngineNumber} size="small" className="franchise-app-input" value={fields.motorEngineNumber} onChange={handleChange('motorEngineNumber')} />
@@ -1583,6 +1677,7 @@ export default function FranchiseApplication() {
                       // Debug: Check token before submission (axios interceptor handles refresh automatically)
                       const token = sessionStorage.getItem('accessToken');
                       
+                      // TEMPORARILY DISABLED: Protective route check
                       if (!token) {
                         Swal.fire({
                           ...alertStyle.errorAlert,
@@ -1621,14 +1716,14 @@ export default function FranchiseApplication() {
                         date: dayjs(),
                         operatorName: "",
                         contact: "",
-                        birthPlace: "",
+                        birthPlace: "Municipality / Province",
                         birthDate: null,
                         civilStatus: "",
                         citizenship: "",
                         todaMembership: "",
                         unitModel: "",
                         colorMotor: "",
-                        colorSidecar: "",
+                        colorSidecar: "B/Y",
                         mvPlateNo: "",
                         motorEngineNumber: "",
                         chassisNumber: "",
