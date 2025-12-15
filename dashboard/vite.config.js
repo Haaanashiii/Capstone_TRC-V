@@ -39,11 +39,15 @@ export default defineConfig({
         ]
       },
       workbox: {
+        // Reduce console noise - only log errors in development
+        cleanupOutdatedCaches: true,
+        clientsClaim: true,
+        skipWaiting: true,
         // Increase the max file size for precaching (5 MB)
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
         // Don't precache index.html (let it be handled by navigation fallback)
         navigateFallback: '/index.html',
-        navigateFallbackDenylist: [/^\/api\//],
+        navigateFallbackDenylist: [/^\/api\//, /^http/],
         // Cache strategies
         runtimeCaching: [
           {
@@ -100,9 +104,10 @@ export default defineConfig({
               }
             }
           },
-          // Cache fare matrix (public data)
+          // Cache fare matrix (public data - used in Settings & Landing page)
+          // Strategy: StaleWhileRevalidate - Shows cached version immediately, updates in background
           {
-            urlPattern: /\/fare-matrix/i,
+            urlPattern: ({ url }) => url.pathname.includes('/fare-matrix'),
             handler: 'StaleWhileRevalidate',
             options: {
               cacheName: 'fare-matrix-cache',
@@ -147,9 +152,32 @@ export default defineConfig({
               }
             }
           },
-          // General API cache (fallback for other endpoints)
+          // Cache API files (GridFS images - fare matrix, operator photos, etc.)
+          // Strategy: CacheFirst - Images rarely change, serve from cache for speed
           {
-            urlPattern: /\/(api|auth|franchise|qr|verify)/i,
+            urlPattern: ({ url }) => url.pathname.startsWith('/api/files/'),
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'api-files-cache',
+              expiration: {
+                maxEntries: 100,
+                maxAgeSeconds: 60 * 60 * 24 * 30 // 30 days
+              },
+              cacheableResponse: {
+                statuses: [0, 200]
+              }
+            }
+          },
+          // General API cache (fallback for other endpoints) - UPDATED for cross-origin
+          {
+            urlPattern: ({ url }) => {
+              const pathname = url.pathname;
+              return pathname.includes('/api/') || 
+                     pathname.includes('/auth/') || 
+                     pathname.includes('/franchise/') || 
+                     pathname.includes('/qr/') || 
+                     pathname.includes('/verify/');
+            },
             handler: 'NetworkFirst',
             options: {
               cacheName: 'api-cache',
@@ -181,7 +209,13 @@ export default defineConfig({
         ]
       },
       devOptions: {
-        enabled: true // Enable PWA in development for testing
+        enabled: true, // Enable PWA in development for testing
+        type: 'module',
+        navigateFallback: 'index.html'
+      },
+      // Reduce console noise in development
+      injectManifest: {
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,webp}']
       }
     })
   ],

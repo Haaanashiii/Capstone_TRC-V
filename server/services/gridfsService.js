@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const { GridFSBucket } = require('mongodb');
+const { GridFSBucket } = require('mongoose').mongo; // Use mongoose's bundled mongodb
 const sharp = require('sharp');
 const { PDFDocument } = require('pdf-lib');
 const crypto = require('crypto');
@@ -86,12 +86,20 @@ async function uploadToGridFS(buffer, originalName, mimetype, options = {}) {
 
   try {
     const bucket = getBucket();
+    console.log('[GridFS] uploadToGridFS - Starting upload for:', originalName);
+    console.log('[GridFS] File size:', buffer.length, 'bytes');
+    console.log('[GridFS] Mimetype:', mimetype);
+    
     let finalBuffer = buffer;
     
     if (mimetype.startsWith('image/')) {
+      console.log('[GridFS] Compressing image...');
       finalBuffer = await compressImage(buffer, mimetype);
+      console.log('[GridFS] Compressed to:', finalBuffer.length, 'bytes');
     } else if (mimetype === 'application/pdf') {
+      console.log('[GridFS] Compressing PDF...');
       finalBuffer = await compressPDF(buffer);
+      console.log('[GridFS] Compressed to:', finalBuffer.length, 'bytes');
     }
 
     const fileExt = path.extname(originalName).toLowerCase();
@@ -126,6 +134,9 @@ async function uploadToGridFS(buffer, originalName, mimetype, options = {}) {
       filePath = `TRC-V/${baseFolder}/${subFolder}/${category}/${fileName}`;
     }
 
+    console.log('[GridFS] Creating upload stream for:', fileName);
+    console.log('[GridFS] File path:', filePath);
+    
     const uploadStream = bucket.openUploadStream(fileName, {
       metadata: {
         originalName, mimetype, filePath, baseFolder, subFolder,
@@ -137,18 +148,27 @@ async function uploadToGridFS(buffer, originalName, mimetype, options = {}) {
     const bufferStream = new stream.PassThrough();
     bufferStream.end(finalBuffer);
 
+    console.log('[GridFS] Starting stream upload...');
+    
     return new Promise((resolve, reject) => {
       bufferStream.pipe(uploadStream)
-        .on('error', () => reject(new Error('Failed to upload file to GridFS')))
-        .on('finish', () => resolve({ 
-          url: `gridfs://${uploadStream.id}`,
-          id: uploadStream.id.toString(),
-          filename: fileName,
-          filePath: filePath
-        }));
+        .on('error', (err) => {
+          console.error('[GridFS] Upload stream error:', err);
+          reject(new Error(`Failed to upload file to GridFS: ${err.message}`));
+        })
+        .on('finish', () => {
+          console.log('[GridFS] Upload successful! File ID:', uploadStream.id);
+          resolve({ 
+            url: `gridfs://${uploadStream.id}`,
+            id: uploadStream.id.toString(),
+            filename: fileName,
+            filePath: filePath
+          });
+        });
     });
   } catch (error) {
-    throw new Error('Failed to upload file to GridFS');
+    console.error('[GridFS] uploadToGridFS error:', error);
+    throw new Error(`Failed to upload file to GridFS: ${error.message}`);
   }
 }
 

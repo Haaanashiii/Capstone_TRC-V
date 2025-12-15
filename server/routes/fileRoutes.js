@@ -31,13 +31,15 @@ router.get('/:fileId', async (req, res) => {
       return res.status(404).json({ error: 'File not found' });
     }
     
-    // Set appropriate headers
+    // Set appropriate headers including CORS for image display
     res.set({
       'Content-Type': file.contentType || 'application/octet-stream',
       'Content-Length': file.buffer.length,
       'Content-Disposition': `inline; filename="${file.filename || 'file'}"`,
       'Cache-Control': 'public, max-age=86400', // Cache for 1 day
-      'X-Content-Type-Options': 'nosniff'
+      'X-Content-Type-Options': 'nosniff',
+      'Access-Control-Allow-Origin': '*', // Allow cross-origin image loading
+      'Cross-Origin-Resource-Policy': 'cross-origin'
     });
     
     // Send file buffer
