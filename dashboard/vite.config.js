@@ -104,7 +104,8 @@ export default defineConfig({
               }
             }
           },
-          // Cache fare matrix (public data) - UPDATED for cross-origin
+          // Cache fare matrix (public data - used in Settings & Landing page)
+          // Strategy: StaleWhileRevalidate - Shows cached version immediately, updates in background
           {
             urlPattern: ({ url }) => url.pathname.includes('/fare-matrix'),
             handler: 'StaleWhileRevalidate',
@@ -151,7 +152,8 @@ export default defineConfig({
               }
             }
           },
-          // Cache API files (GridFS images) - NEW ROUTE
+          // Cache API files (GridFS images - fare matrix, operator photos, etc.)
+          // Strategy: CacheFirst - Images rarely change, serve from cache for speed
           {
             urlPattern: ({ url }) => url.pathname.startsWith('/api/files/'),
             handler: 'CacheFirst',

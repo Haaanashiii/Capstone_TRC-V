@@ -29,6 +29,8 @@ const LandingPage = () => {
   const [loadingAnnouncements, setLoadingAnnouncements] = useState(true);
   const [openFareModal, setOpenFareModal] = useState(false);
   const [activeTab, setActiveTab] = useState('documents');
+  const [fareMatrixImage, setFareMatrixImage] = useState(SBFareImage); // Default to imported image
+  const [fareMatrixDate, setFareMatrixDate] = useState('November 4, 2025');
   const [currentAnnouncementIndex, setCurrentAnnouncementIndex] = useState(0);
   const [_announcementDirection, setAnnouncementDirection] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
@@ -42,6 +44,32 @@ const LandingPage = () => {
   
   // Determine display name from user
   const displayName = user?.full_name || user?.name || user?.username || null;
+  
+  // Fetch fare matrix from API (public endpoint, no auth required)
+  useEffect(() => {
+    const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170';
+    fetch(`${API_BASE_URL}/api/fare-matrix`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && data.fareMatrix) {
+          let imageUrl = data.fareMatrix.imageUrl;
+          // Prepend API_BASE_URL if it's a relative path
+          if (imageUrl && imageUrl.startsWith('/api/files/')) {
+            imageUrl = `${API_BASE_URL}${imageUrl}`;
+          }
+          setFareMatrixImage(imageUrl);
+          setFareMatrixDate(new Date(data.fareMatrix.createdAt).toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+          }));
+        }
+      })
+      .catch(err => {
+        logger.error('[LandingPage] Error fetching fare matrix:', err);
+        // Keep default image on error
+      });
+  }, []);
   
   // Fetch published announcements
   useEffect(() => {
@@ -974,13 +1002,14 @@ const LandingPage = () => {
                 width: '100%',
                 height: '100%',
                 display: 'flex',
+                flexDirection: 'column',
                 justifyContent: 'center',
-                alignItems: 'flex-start',
+                alignItems: 'center',
                 overflow: 'auto'
               }}>
                 <Box
                   component="img"
-                  src={SBFareImage}
+                  src={fareMatrixImage}
                   alt="SB Fare Matrix"
                   sx={{
                     width: '100%',
@@ -989,6 +1018,16 @@ const LandingPage = () => {
                     borderRadius: '8px'
                   }}
                 />
+                <Typography 
+                  variant="caption" 
+                  sx={{ 
+                    mt: 2, 
+                    color: '#666',
+                    fontStyle: 'italic'
+                  }}
+                >
+                  Last updated: {fareMatrixDate}
+                </Typography>
               </Box>
             </>
           )}
