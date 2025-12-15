@@ -33,6 +33,8 @@ function QROperatorID() {
   const [storedFranchiseNumber, setStoredFranchiseNumber] = useState(null);
   const [loading, setLoading] = useState(true);
   const [fareMatrixOpen, setFareMatrixOpen] = useState(false);
+  const [fareMatrixImage, setFareMatrixImage] = useState(SBFareImage); // Default to imported image
+  const [fareMatrixDate, setFareMatrixDate] = useState('November 4, 2025');
   const [reportModalOpen, setReportModalOpen] = useState(false);
   const [reportStep, setReportStep] = useState(0); // 0: Category, 1: Details, 2: Terms & Conditions
   const [submittingReport, setSubmittingReport] = useState(false);
@@ -130,6 +132,58 @@ function QROperatorID() {
         setLoading(false);
       });
   }, [operatorId]);
+
+  // Fetch fare matrix from API
+  useEffect(() => {
+    const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170';
+    fetch(`${API_BASE_URL}/api/fare-matrix`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && data.fareMatrix) {
+          let imageUrl = data.fareMatrix.imageUrl;
+          // Prepend API_BASE_URL if it's a relative path
+          if (imageUrl && imageUrl.startsWith('/api/files/')) {
+            imageUrl = `${API_BASE_URL}${imageUrl}`;
+          }
+          setFareMatrixImage(imageUrl);
+          setFareMatrixDate(new Date(data.fareMatrix.createdAt).toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+          }));
+        }
+      })
+      .catch(err => {
+        logger.error('[QROperatorID] Error fetching fare matrix:', err);
+        // Keep default image on error
+      });
+  }, []);
+
+  // Fetch fare matrix from API
+  useEffect(() => {
+    const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170';
+    fetch(`${API_BASE_URL}/api/fare-matrix`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && data.fareMatrix) {
+          let imageUrl = data.fareMatrix.imageUrl;
+          // Prepend API_BASE_URL if it's a relative path
+          if (imageUrl && imageUrl.startsWith('/api/files/')) {
+            imageUrl = `${API_BASE_URL}${imageUrl}`;
+          }
+          setFareMatrixImage(imageUrl);
+          setFareMatrixDate(new Date(data.fareMatrix.createdAt).toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+          }));
+        }
+      })
+      .catch(err => {
+        logger.error('[QROperatorID] Error fetching fare matrix:', err);
+        // Keep default image on error
+      });
+  }, []);
 
   // Store operatorId in state before URL changes (for report submission)
   const [storedOperatorId] = useState(operatorId);
@@ -1231,7 +1285,7 @@ function QROperatorID() {
             >
               <Box
                 component="img"
-                src={SBFareImage}
+                src={fareMatrixImage}
                 alt="Tricycle Fare Matrix"
                 sx={{
                   maxWidth: '100%',
@@ -1247,7 +1301,7 @@ function QROperatorID() {
             </Box>
             
             <Typography variant="caption" sx={{ display: 'block', mt: 2, textAlign: 'center', color: 'text.secondary' }}>
-              Last updated: November 4, 2025
+              Last updated: {fareMatrixDate}
             </Typography>
           </DialogContent>
         </Box>

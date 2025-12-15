@@ -322,7 +322,12 @@ function Settings() {
       if (response.ok) {
         const result = await response.json();
         if (result.success && result.fareMatrix) {
-          setFareMatrixPreview(result.fareMatrix.imageUrl);
+          // Prepend API_BASE_URL to imageUrl if it's a relative path
+          let imageUrl = result.fareMatrix.imageUrl;
+          if (imageUrl && imageUrl.startsWith('/api/files/')) {
+            imageUrl = `${API_BASE_URL}${imageUrl}`;
+          }
+          setFareMatrixPreview(imageUrl);
           setFareMatrixId(result.fareMatrix.fareMatrixId);
           setCurrentFileName(result.fareMatrix.fileName);
           setUploadDate(new Date(result.fareMatrix.createdAt).toLocaleString());
@@ -406,7 +411,12 @@ function Settings() {
       }
 
       if (result.success && result.fareMatrix) {
-        setFareMatrixPreview(result.fareMatrix.imageUrl);
+        // Prepend API_BASE_URL to imageUrl if it's a relative path
+        let imageUrl = result.fareMatrix.imageUrl;
+        if (imageUrl && imageUrl.startsWith('/api/files/')) {
+          imageUrl = `${API_BASE_URL}${imageUrl}`;
+        }
+        setFareMatrixPreview(imageUrl);
         setFareMatrixId(result.fareMatrix.fareMatrixId);
         setCurrentFileName(result.fareMatrix.fileName);
         setUploadDate(new Date(result.fareMatrix.createdAt).toLocaleString());

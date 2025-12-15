@@ -45,8 +45,11 @@ exports.uploadFareMatrix = async (req, res, next) => {
 
     const result = await storage.uploadFileToStorage(req.file, 'fare-matrices');
     
+    console.log('[FareMatrix] Upload result:', JSON.stringify(result, null, 2));
+    
     if (!result.success) {
-      return res.status(500).json({ error: 'Failed to upload file' });
+      console.error('[FareMatrix] Upload failed:', result.error);
+      return res.status(500).json({ error: result.error || 'Failed to upload file' });
     }
 
     const oldFareMatrix = await fareMatrixRepository.getActiveFareMatrix();
@@ -94,10 +97,13 @@ exports.uploadFareMatrix = async (req, res, next) => {
 
     console.log('[FareMatrix] Successfully uploaded:', fareMatrix.fareMatrixId);
 
+    // Convert gridfs:// URLs to HTTP URLs for frontend display
+    const convertedFareMatrix = storage.convertGridFSUrls(fareMatrix);
+
     return res.status(201).json({
       success: true,
       message: 'Fare matrix uploaded successfully',
-      fareMatrix
+      fareMatrix: convertedFareMatrix
     });
   } catch (error) {
     console.error('[FareMatrix] Upload error:', error);
