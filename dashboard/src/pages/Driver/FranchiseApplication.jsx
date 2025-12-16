@@ -82,11 +82,11 @@ export default function FranchiseApplication() {
     const fetchUserData = async () => {
       try {
         const token = TokenManager.getAccessToken();
-        // TEMPORARILY DISABLED: Protective route check
-        // if (!token) {
-        //   logger.error('[FranchiseApplication] No access token found');
-        //   return;
-        // }
+       
+        if (!token) {
+          logger.error('[FranchiseApplication] No access token found');
+          return;
+        }
         
         const userData = TokenManager.decodeToken(token);
         logger.log('[FranchiseApplication] JWT payload (no email for security):', userData);

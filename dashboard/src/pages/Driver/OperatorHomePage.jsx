@@ -317,14 +317,18 @@ const OperatorHomePage = () => {
         logger.log('[OperatorHomePage] Franchises array:', response?.data?.data);
         
         if (response.data?.success && Array.isArray(response.data.data)) {
-          logger.log('[OperatorHomePage] Setting franchises:', response.data.data.length, 'items');
-          setActiveFranchises(response.data.data);
+          // Filter to show only active franchises (status is 'Active' with capital A)
+          const activeFranchises = response.data.data.filter(f => 
+            f.franchiseStatus === 'Active'
+          );
+          logger.log('[OperatorHomePage] Total franchises:', response.data.data.length, 'Active franchises:', activeFranchises.length);
+          setActiveFranchises(activeFranchises);
           
-          // If user has franchises, update the franchise linked state
-          if (response.data.data.length > 0) {
+          // If user has active franchises, update the franchise linked state
+          if (activeFranchises.length > 0) {
             setFranchiseLinked(true);
-            // Store first franchise as primary
-            const primaryFranchise = response.data.data[0];
+            // Store first active franchise as primary
+            const primaryFranchise = activeFranchises[0];
             const franchiseInfo = {
               orNumber: primaryFranchise.franchiseNumber,
               status: primaryFranchise.franchiseStatus,
@@ -590,7 +594,17 @@ const OperatorHomePage = () => {
 
 
   const handleLinkFranchise = () => setShowModal(true);
-  const handleApplyNew = () => navigate('/operator/franchise/application');
+  const handleApplyNew = () => {
+    // Check if user is authenticated before navigating
+    const token = sessionStorage.getItem('accessToken');
+    if (!token) {
+      logger.warn('[OperatorHomePage] No authentication token found, redirecting to login');
+      navigate('/login');
+      return;
+    }
+    // User is authenticated, proceed to franchise application
+    navigate('/operator/franchise/application');
+  };
 
   const handleOpenNoticeModal = (application) => {
     // If application is disapproved, show alert with reason then navigate to resubmission form
@@ -881,14 +895,14 @@ const OperatorHomePage = () => {
                   marginBottom: '8px',
                   fontFamily: 'Poppins, sans-serif'
                 }}>
-                  No, apply for a new franchise
+                  {franchiseLinked ? 'Create new application' : 'No, apply for a new franchise'}
                 </Typography>
                 <Typography sx={{ 
                   color: '#174D7A', 
                   fontSize: '14px',
                   fontFamily: 'Poppins, sans-serif'
                 }}>
-                  Apply your franchise now.
+                  {franchiseLinked ? 'Apply for additional franchise.' : 'Apply your franchise now.'}
                 </Typography>
               </Box>
             </Box>
@@ -949,7 +963,6 @@ const OperatorHomePage = () => {
                   <TableCell>Franchise Number</TableCell>
                   <TableCell>Make</TableCell>
                   <TableCell>Plate Number</TableCell>
-                  <TableCell>Sidecar Number</TableCell>
                   <TableCell>Status</TableCell>
                   <TableCell>Expiry Date</TableCell>
                 </TableRow>
@@ -957,7 +970,7 @@ const OperatorHomePage = () => {
               <TableBody>
                 {loadingFranchises ? (
                   <TableRow>
-                    <TableCell colSpan={7} sx={{ textAlign: 'center', padding: '40px', color: '#666' }}>
+                    <TableCell colSpan={6} sx={{ textAlign: 'center', padding: '40px', color: '#666' }}>
                       Loading franchises...
                     </TableCell>
                   </TableRow>
@@ -977,7 +990,6 @@ const OperatorHomePage = () => {
                       <TableCell>{franchise.franchiseNumber || 'N/A'}</TableCell>
                       <TableCell>{franchise.unitModel || 'N/A'}</TableCell>
                       <TableCell>{franchise.mvPlateNo || 'N/A'}</TableCell>
-                      <TableCell>{franchise.sideCarPlateNumber || 'N/A'}</TableCell>
                       <TableCell>
                         <Chip 
                           label={franchise.franchiseStatus || 'Active'}
@@ -1064,14 +1076,6 @@ const OperatorHomePage = () => {
                   </Box>
                   <Box sx={{ mb: 2 }}>
                     <Typography sx={{ fontSize: 12, color: '#666', mb: 0.5 }}>
-                      Sidecar Number
-                    </Typography>
-                    <Typography sx={{ fontSize: 14, fontWeight: 600 }}>
-                      {franchise.sideCarPlateNumber || 'N/A'}
-                    </Typography>
-                  </Box>
-                  <Box sx={{ mb: 2 }}>
-                    <Typography sx={{ fontSize: 12, color: '#666', mb: 0.5 }}>
                       Status
                     </Typography>
                     <Chip 
@@ -1110,160 +1114,6 @@ const OperatorHomePage = () => {
           </Box>
           </Box>
 
-          {/* Franchise Information Table */}
-          {franchiseLinked && userFranchiseInfo && (
-            <Box sx={{ width: '100%', maxWidth: '900px' }}>
-              <Typography variant="h6" sx={{
-                color: '#fff', 
-                fontWeight: 700, 
-                marginBottom: '16px',
-                marginTop: '32px',
-                fontFamily: 'Poppins, sans-serif',
-                fontSize: { xs: '1.125rem', sm: '1.25rem' }
-              }}>
-                MY FRANCHISE INFORMATION
-              </Typography>
-              
-              {/* Desktop Table View */}
-              <Box sx={{ display: { xs: 'none', md: 'block' } }}>
-              <TableContainer component={Paper} sx={{ 
-                marginBottom: '32px',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                overflowX: 'auto',
-                width: '100%',
-                '& .MuiTableCell-head': {
-                  backgroundColor: '#174D7A',
-                  color: '#fff',
-                  fontWeight: 700,
-                  fontSize: 'clamp(10px, 2vw, 14px)',
-                  position: 'sticky',
-                  top: 0,
-                  zIndex: 10,
-                  fontFamily: 'Poppins, sans-serif',
-                  whiteSpace: 'nowrap',
-                  padding: 'clamp(6px, 1.5vw, 16px)'
-                },
-                '& .MuiTableCell-body': {
-                  fontSize: 'clamp(10px, 2vw, 14px)',
-                  fontFamily: 'Poppins, sans-serif',
-                  whiteSpace: 'nowrap',
-                  padding: 'clamp(6px, 1.5vw, 16px)'
-                },
-                '& .MuiTableRow-root': {
-                  '&:hover': {
-                    backgroundColor: '#f5f7fa'
-                  }
-                },
-                '& .MuiTable-root': {
-                  width: '100%',
-                  tableLayout: 'auto'
-                }
-              }}>
-                <Table>
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>Franchise Number</TableCell>
-                      <TableCell>Make</TableCell>
-                      <TableCell>Plate Number</TableCell>
-                      <TableCell>Sidecar Number</TableCell>
-                      <TableCell>Status</TableCell>
-                      <TableCell>Expiry Date</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    <TableRow>
-                      <TableCell>{userFranchiseInfo.franchiseNumber || userFranchiseInfo.orNumber || 'N/A'}</TableCell>
-                      <TableCell>{userFranchiseInfo.make || 'N/A'}</TableCell>
-                      <TableCell>{userFranchiseInfo.plateNumber || 'N/A'}</TableCell>
-                      <TableCell>{userFranchiseInfo.sidecarNumber || 'N/A'}</TableCell>
-                      <TableCell>
-                        <Chip 
-                          label={userFranchiseInfo.status}
-                          size="small"
-                          sx={{
-                            backgroundColor: '#2ecc71',
-                            color: '#fff',
-                            fontWeight: 600
-                          }}
-                        />
-                      </TableCell>
-                      <TableCell>{userFranchiseInfo.expiryDate ? new Date(userFranchiseInfo.expiryDate).toLocaleDateString() : 'N/A'}</TableCell>
-                    </TableRow>
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            </Box>
-
-            {/* Mobile Card View */}
-            <Box sx={{ display: { xs: 'block', md: 'none' }, mb: 4 }}>
-              <Paper
-                elevation={3}
-                sx={{
-                  p: 2.5,
-                  borderRadius: 2,
-                  bgcolor: '#fff'
-                }}
-              >
-                <Box sx={{ mb: 2 }}>
-                  <Typography sx={{ fontSize: 12, color: '#666', mb: 0.5 }}>
-                    Franchise Number
-                  </Typography>
-                  <Typography sx={{ fontSize: 16, fontWeight: 700, color: '#174D7A' }}>
-                    {userFranchiseInfo.franchiseNumber || userFranchiseInfo.orNumber || 'N/A'}
-                  </Typography>
-                </Box>
-                <Box sx={{ mb: 2 }}>
-                  <Typography sx={{ fontSize: 12, color: '#666', mb: 0.5 }}>
-                    Make
-                  </Typography>
-                  <Typography sx={{ fontSize: 14, fontWeight: 600 }}>
-                    {userFranchiseInfo.make || 'N/A'}
-                  </Typography>
-                </Box>
-                <Box sx={{ mb: 2 }}>
-                  <Typography sx={{ fontSize: 12, color: '#666', mb: 0.5 }}>
-                    Plate Number
-                  </Typography>
-                  <Typography sx={{ fontSize: 14, fontWeight: 600 }}>
-                    {userFranchiseInfo.plateNumber || 'N/A'}
-                  </Typography>
-                </Box>
-                <Box sx={{ mb: 2 }}>
-                  <Typography sx={{ fontSize: 12, color: '#666', mb: 0.5 }}>
-                    Sidecar Number
-                  </Typography>
-                  <Typography sx={{ fontSize: 14, fontWeight: 600 }}>
-                    {userFranchiseInfo.sidecarNumber || 'N/A'}
-                  </Typography>
-                </Box>
-                <Box sx={{ mb: 2 }}>
-                  <Typography sx={{ fontSize: 12, color: '#666', mb: 0.5 }}>
-                    Status
-                  </Typography>
-                  <Chip 
-                    label={userFranchiseInfo.status}
-                    size="small"
-                    sx={{
-                      backgroundColor: '#2ecc71',
-                      color: '#fff',
-                      fontWeight: 600,
-                      mt: 0.5
-                    }}
-                  />
-                </Box>
-                <Box>
-                  <Typography sx={{ fontSize: 12, color: '#666', mb: 0.5 }}>
-                    Expiry Date
-                  </Typography>
-                  <Typography sx={{ fontSize: 14, fontWeight: 600 }}>
-                    {userFranchiseInfo.expiryDate ? new Date(userFranchiseInfo.expiryDate).toLocaleDateString() : 'N/A'}
-                  </Typography>
-                </Box>
-              </Paper>
-            </Box>
-            </Box>
-          )}
-
           {/* Pending Applications Section */}
           <Box sx={{ width: '100%', maxWidth: '900px' }}>
             <Typography variant="h6" sx={{ 
@@ -1279,7 +1129,7 @@ const OperatorHomePage = () => {
 
           {userApplications.length > 0 ? (
             <>
-            {/* Desktop Table View */}
+              {/* Desktop Table View */}
             <Box sx={{ display: { xs: 'none', md: 'block' } }}>
             <TableContainer component={Paper} sx={{ 
               boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
