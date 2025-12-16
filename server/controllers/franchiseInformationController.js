@@ -69,7 +69,7 @@ exports.getAllFranchiseInformation = async (req, res, next) => {
     // Execute query with pagination
     const [franchises, total] = await Promise.all([
       FranchiseInformation.find(query)
-        .select('-documents') // Exclude heavy document references for list view
+        // Documents are now included - needed for FranchiseeList to display document links
         .populate('linkedUser', 'username email')
         .sort({ franchiseNumber: 1 })
         .skip(skip)

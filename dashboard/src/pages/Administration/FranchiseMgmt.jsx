@@ -58,7 +58,13 @@ const APPLICATION_TYPE_LABELS = {
   [APPLICATION_TYPES.NEW]: 'New',
   [APPLICATION_TYPES.RENEWAL]: 'Renewal',
   [APPLICATION_TYPES.CHANGE_UNIT]: 'Change Unit',
-  [APPLICATION_TYPES.UPDATE_OWNERSHIP]: 'Update Ownership'
+  [APPLICATION_TYPES.UPDATE_OWNERSHIP]: 'Update Ownership',
+  // Backend variations with underscores
+  'change_unit': 'Change Unit',
+  'update_ownership': 'Update Ownership',
+  // Amendment variations
+  'amend-change_unit': 'Amendment - Change Unit',
+  'amend-update_ownership': 'Amendment - Update Ownership'
 }
 
 /**
@@ -296,6 +302,29 @@ function FranchiseMgmt() {
 
  
   /**
+   * Helper function to deduplicate applications by ID
+   * Prevents duplicate entries in the state
+   */
+  const deduplicateApplications = useCallback((applications) => {
+    const seen = new Map()
+    const deduplicated = []
+    
+    for (const app of applications) {
+      const id = app.id || app._id
+      if (!id) continue
+      
+      if (!seen.has(id)) {
+        seen.set(id, true)
+        deduplicated.push(app)
+      } else {
+        logger.warn('[FranchiseMgmt] Duplicate application detected and removed:', id)
+      }
+    }
+    
+    return deduplicated
+  }, [])
+
+  /**
    * Fetch all pending franchise applications from backend
    * Uses secure franchiseAPI.getPending() with automatic token refresh
    */
@@ -374,16 +403,17 @@ function FranchiseMgmt() {
         sbResolutionDocument: it.sbResolutionDocument || '',
         // Documents - backend now returns enriched objects with {url, displayName, type, ...}
         // Using normalizeDocument handles both new format and legacy string format
-        documentRegistration: normalizeDocument(it.documents?.motorRegistrationObj, 'Motor Registration'),
-        documentBarangayClearance: normalizeDocument(it.documents?.barangayClearanceObj, 'Barangay Clearance'),
-        documentCedula: normalizeDocument(it.documents?.cedulaObj, 'Cedula'),
-        documentDriversLicense: normalizeDocument(it.documents?.driversLicenseObj, "Driver's License"),
-        documentVotersAffidavit: normalizeDocument(it.documents?.votersAffidavitObj, "Voter's Affidavit"),
-        documentChassisStencil: normalizeDocument(it.documents?.motorChassisStencilObj, 'Chassis Stencil'),
-        documentPicture: normalizeDocument(it.documents?.driverPictureObj, 'Driver Picture'),
-        documentOperatorPicture: normalizeDocument(it.documents?.operatorPictureObj, 'Operator Picture'),
-        documentORLTO: normalizeDocument(it.documents?.oRLTOObj, 'OR LTO'),
-        documentCRLTO: normalizeDocument(it.documents?.cRLTOObj, 'CR LTO'),
+        // Try both Obj suffix and without suffix for backwards compatibility
+        documentRegistration: normalizeDocument(it.documents?.motorRegistrationObj || it.documents?.motorRegistration, 'Motor Registration'),
+        documentBarangayClearance: normalizeDocument(it.documents?.barangayClearanceObj || it.documents?.barangayClearance, 'Barangay Clearance'),
+        documentCedula: normalizeDocument(it.documents?.cedulaObj || it.documents?.cedula, 'Cedula'),
+        documentDriversLicense: normalizeDocument(it.documents?.driversLicenseObj || it.documents?.driversLicense, "Driver's License"),
+        documentVotersAffidavit: normalizeDocument(it.documents?.votersAffidavitObj || it.documents?.votersAffidavit, "Voter's Affidavit"),
+        documentChassisStencil: normalizeDocument(it.documents?.motorChassisStencilObj || it.documents?.motorChassisStencil, 'Chassis Stencil'),
+        documentPicture: normalizeDocument(it.documents?.driverPictureObj || it.documents?.driverPicture, 'Driver Picture'),
+        documentOperatorPicture: normalizeDocument(it.documents?.operatorPictureObj || it.documents?.operatorPicture, 'Operator Picture'),
+        documentORLTO: normalizeDocument(it.documents?.oRLTOObj || it.documents?.oRLTO, 'OR LTO'),
+        documentCRLTO: normalizeDocument(it.documents?.cRLTOObj || it.documents?.cRLTO, 'CR LTO'),
         documents: {
           ...it.documents,
           oRTreasurerOfficeObj: it.documents?.oRTreasurerOfficeObj || null
@@ -391,7 +421,11 @@ function FranchiseMgmt() {
         qrCode: it.qrCode || null,
       })) : []
 
-      setPendingApplications(normalizedServerApps)
+      // Deduplicate before setting state (safety check)
+      const deduplicatedServerApps = deduplicateApplications(normalizedServerApps)
+      
+      setPendingApplications(deduplicatedServerApps)
+      logger.log('[FranchiseMgmt] fetchAllPending complete:', deduplicatedServerApps.length, 'applications')
     } catch (err) {
       logger.error('[FranchiseMgmt] Error fetching pending applications:', err)
       
@@ -406,7 +440,7 @@ function FranchiseMgmt() {
       setIsLoading(false)
       isFetchingRef.current = false
     }
-  }, [userRole])
+  }, [userRole, deduplicateApplications])
 
   // Pause polling when any modal is open
   const isAnyModalOpen = openAddModal || openViewModal || openRejectModal || openFilePreview
@@ -515,16 +549,17 @@ function FranchiseMgmt() {
         sbResolutionNumber: it.sbResolutionNumber || '',
         sbResolutionDocument: it.sbResolutionDocument || '',
         // Documents - using normalizeDocument for enriched backend format
-        documentRegistration: normalizeDocument(it.documents?.motorRegistrationObj, 'Motor Registration'),
-        documentBarangayClearance: normalizeDocument(it.documents?.barangayClearanceObj, 'Barangay Clearance'),
-        documentCedula: normalizeDocument(it.documents?.cedulaObj, 'Cedula'),
-        documentDriversLicense: normalizeDocument(it.documents?.driversLicenseObj, "Driver's License"),
-        documentVotersAffidavit: normalizeDocument(it.documents?.votersAffidavitObj, "Voter's Affidavit"),
-        documentChassisStencil: normalizeDocument(it.documents?.motorChassisStencilObj, 'Chassis Stencil'),
-        documentPicture: normalizeDocument(it.documents?.driverPictureObj, 'Driver Picture'),
-        documentOperatorPicture: normalizeDocument(it.documents?.operatorPictureObj, 'Operator Picture'),
-        documentORLTO: normalizeDocument(it.documents?.oRLTOObj, 'OR LTO'),
-        documentCRLTO: normalizeDocument(it.documents?.cRLTOObj, 'CR LTO'),
+        // Try both Obj suffix and without suffix for backwards compatibility
+        documentRegistration: normalizeDocument(it.documents?.motorRegistrationObj || it.documents?.motorRegistration, 'Motor Registration'),
+        documentBarangayClearance: normalizeDocument(it.documents?.barangayClearanceObj || it.documents?.barangayClearance, 'Barangay Clearance'),
+        documentCedula: normalizeDocument(it.documents?.cedulaObj || it.documents?.cedula, 'Cedula'),
+        documentDriversLicense: normalizeDocument(it.documents?.driversLicenseObj || it.documents?.driversLicense, "Driver's License"),
+        documentVotersAffidavit: normalizeDocument(it.documents?.votersAffidavitObj || it.documents?.votersAffidavit, "Voter's Affidavit"),
+        documentChassisStencil: normalizeDocument(it.documents?.motorChassisStencilObj || it.documents?.motorChassisStencil, 'Chassis Stencil'),
+        documentPicture: normalizeDocument(it.documents?.driverPictureObj || it.documents?.driverPicture, 'Driver Picture'),
+        documentOperatorPicture: normalizeDocument(it.documents?.operatorPictureObj || it.documents?.operatorPicture, 'Operator Picture'),
+        documentORLTO: normalizeDocument(it.documents?.oRLTOObj || it.documents?.oRLTO, 'OR LTO'),
+        documentCRLTO: normalizeDocument(it.documents?.cRLTOObj || it.documents?.cRLTO, 'CR LTO'),
         documents: {
           ...it.documents,
           oRTreasurerOfficeObj: it.documents?.oRTreasurerOfficeObj || null
@@ -533,30 +568,44 @@ function FranchiseMgmt() {
         statusOfBPLO: it.statusOfBPLO || 'pending',
         submittedAt: it.submittedAt || '',
       }))
-      setPendingApplications(normalizedApps)
-      logger.log('[FranchiseMgmt] State updated with', normalizedApps.length, 'applications')
       
-      // Reset the updating flag immediately after state update
+      // Deduplicate applications before setting state
+      const deduplicatedApps = deduplicateApplications(normalizedApps)
+      
+      setPendingApplications(deduplicatedApps)
+      logger.log('[FranchiseMgmt] State updated with', deduplicatedApps.length, 'applications', normalizedApps.length !== deduplicatedApps.length ? `(removed ${normalizedApps.length - deduplicatedApps.length} duplicates)` : '')
+      
+      // Reset the updating flag after state update
       // Using setTimeout to ensure state has been committed
       setTimeout(() => {
         isUpdatingRef.current = false
         logger.log('[FranchiseMgmt] Update lock released')
-      }, 50)
+      }, 150)
     }
 
     websocketService.on(websocketEvent, handleApplicationUpdates)
     
-    // Listen for all application type events - backend should re-emit full list
+    // Listen for individual application updates - merge into existing list
     const handleNewApplication = (application) => {
       const appType = application?.applicationType || 'unknown'
+      const appId = application?._id || application?.id
+      
       logger.log(`[FranchiseMgmt] New ${appType} application received:`, {
-        id: application?._id,
+        id: appId,
         type: appType,
         status: application?.statusOfBPLO,
         role: userRole
       })
-      // Backend should automatically re-emit full list via main event
-      // No manual refetch needed to prevent duplicate requests
+      
+      // Don't process if we're currently updating or no valid ID
+      if (isUpdatingRef.current || !appId) {
+        logger.log('[FranchiseMgmt] Skipping individual app update - lock active or invalid ID')
+        return
+      }
+      
+      // Merge this application into the existing list (or wait for full list update)
+      // Individual events are just notifications - the main event will update the full list
+      logger.log('[FranchiseMgmt] Waiting for full list update from main WebSocket event')
     }
     
     // Subscribe to all application type events
@@ -601,7 +650,7 @@ function FranchiseMgmt() {
       if (pollId) clearInterval(pollId)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAnyModalOpen, userRole]) // Removed fetchAllPending from dependencies to prevent refetch loops
+  }, [isAnyModalOpen, userRole, deduplicateApplications]) // Removed fetchAllPending from dependencies to prevent refetch loops
 
 
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('')
@@ -1669,8 +1718,12 @@ function FranchiseMgmt() {
                             <span className={`status-badge ${
                               application.applicationType === APPLICATION_TYPES.NEW ? 'status-pending' : 
                               application.applicationType === APPLICATION_TYPES.RENEWAL ? 'status-active' : 
-                              application.applicationType === APPLICATION_TYPES.CHANGE_UNIT ? 'status-investigating' :
-                              application.applicationType === APPLICATION_TYPES.UPDATE_OWNERSHIP ? 'status-warning' :
+                              application.applicationType === APPLICATION_TYPES.CHANGE_UNIT || 
+                              application.applicationType === 'change_unit' || 
+                              application.applicationType === 'amend-change_unit' ? 'status-investigating' :
+                              application.applicationType === APPLICATION_TYPES.UPDATE_OWNERSHIP || 
+                              application.applicationType === 'update_ownership' || 
+                              application.applicationType === 'amend-update_ownership' ? 'status-warning' :
                               'status-default'
                             }`}>
                               {APPLICATION_TYPE_LABELS[application.applicationType] || application.applicationType || 'Unknown'}
@@ -2565,64 +2618,124 @@ function FranchiseMgmt() {
             
             <div className="info-grid">
               <Typography variant="subtitle2" className="label">Registration:</Typography>
-              <Link className="document-link" onClick={() => handleOpenFilePreview(selectedApplication.documentRegistration)}>
-                {getFileIcon(selectedApplication.documentRegistration?.type)}
-                <span>{selectedApplication.documentRegistration?.name || 'No file'}</span>
-              </Link>
+              {selectedApplication.documentRegistration ? (
+                <Link className="document-link" onClick={() => handleOpenFilePreview(selectedApplication.documentRegistration)}>
+                  {getFileIcon(selectedApplication.documentRegistration?.type)}
+                  <span>{selectedApplication.documentRegistration?.name}</span>
+                </Link>
+              ) : (
+                <Typography sx={{ color: 'text.secondary', fontStyle: 'italic' }}>
+                  Not uploaded
+                </Typography>
+              )}
               
               <Typography variant="subtitle2" className="label">Barangay Clearance:</Typography>
-              <Link className="document-link" onClick={() => handleOpenFilePreview(selectedApplication.documentBarangayClearance)}>
-                {getFileIcon(selectedApplication.documentBarangayClearance?.type)}
-                <span>{selectedApplication.documentBarangayClearance?.name || 'No file'}</span>
-              </Link>
+              {selectedApplication.documentBarangayClearance ? (
+                <Link className="document-link" onClick={() => handleOpenFilePreview(selectedApplication.documentBarangayClearance)}>
+                  {getFileIcon(selectedApplication.documentBarangayClearance?.type)}
+                  <span>{selectedApplication.documentBarangayClearance?.name}</span>
+                </Link>
+              ) : (
+                <Typography sx={{ color: 'text.secondary', fontStyle: 'italic' }}>
+                  Not uploaded
+                </Typography>
+              )}
               
               <Typography variant="subtitle2" className="label">Cedula:</Typography>
-              <Link className="document-link" onClick={() => handleOpenFilePreview(selectedApplication.documentCedula)}>
-                {getFileIcon(selectedApplication.documentCedula?.type)}
-                <span>{selectedApplication.documentCedula?.name || 'No file'}</span>
-              </Link>
+              {selectedApplication.documentCedula ? (
+                <Link className="document-link" onClick={() => handleOpenFilePreview(selectedApplication.documentCedula)}>
+                  {getFileIcon(selectedApplication.documentCedula?.type)}
+                  <span>{selectedApplication.documentCedula?.name}</span>
+                </Link>
+              ) : (
+                <Typography sx={{ color: 'text.secondary', fontStyle: 'italic' }}>
+                  Not uploaded
+                </Typography>
+              )}
               
               <Typography variant="subtitle2" className="label">Driver's License:</Typography>
-              <Link className="document-link" onClick={() => handleOpenFilePreview(selectedApplication.documentDriversLicense)}>
-                {getFileIcon(selectedApplication.documentDriversLicense?.type)}
-                <span>{selectedApplication.documentDriversLicense?.name || 'No file'}</span>
-              </Link>
+              {selectedApplication.documentDriversLicense ? (
+                <Link className="document-link" onClick={() => handleOpenFilePreview(selectedApplication.documentDriversLicense)}>
+                  {getFileIcon(selectedApplication.documentDriversLicense?.type)}
+                  <span>{selectedApplication.documentDriversLicense?.name}</span>
+                </Link>
+              ) : (
+                <Typography sx={{ color: 'text.secondary', fontStyle: 'italic' }}>
+                  Not uploaded
+                </Typography>
+              )}
               
               <Typography variant="subtitle2" className="label">Voter's Affidavit:</Typography>
-              <Link className="document-link" onClick={() => handleOpenFilePreview(selectedApplication.documentVotersAffidavit)}>
-                {getFileIcon(selectedApplication.documentVotersAffidavit?.type)}
-                <span>{selectedApplication.documentVotersAffidavit?.name || 'No file'}</span>
-              </Link>
+              {selectedApplication.documentVotersAffidavit ? (
+                <Link className="document-link" onClick={() => handleOpenFilePreview(selectedApplication.documentVotersAffidavit)}>
+                  {getFileIcon(selectedApplication.documentVotersAffidavit?.type)}
+                  <span>{selectedApplication.documentVotersAffidavit?.name}</span>
+                </Link>
+              ) : (
+                <Typography sx={{ color: 'text.secondary', fontStyle: 'italic' }}>
+                  Not uploaded
+                </Typography>
+              )}
               
               <Typography variant="subtitle2" className="label">Chassis Stencil:</Typography>
-              <Link className="document-link" onClick={() => handleOpenFilePreview(selectedApplication.documentChassisStencil)}>
-                {getFileIcon(selectedApplication.documentChassisStencil?.type)}
-                <span>{selectedApplication.documentChassisStencil?.name || 'No file'}</span>
-              </Link>
+              {selectedApplication.documentChassisStencil ? (
+                <Link className="document-link" onClick={() => handleOpenFilePreview(selectedApplication.documentChassisStencil)}>
+                  {getFileIcon(selectedApplication.documentChassisStencil?.type)}
+                  <span>{selectedApplication.documentChassisStencil?.name}</span>
+                </Link>
+              ) : (
+                <Typography sx={{ color: 'text.secondary', fontStyle: 'italic' }}>
+                  Not uploaded
+                </Typography>
+              )}
               
               <Typography variant="subtitle2" className="label">Driver Picture:</Typography>
-              <Link className="document-link" onClick={() => handleOpenFilePreview(selectedApplication.documentPicture)}>
-                {getFileIcon(selectedApplication.documentPicture?.type)}
-                <span>{selectedApplication.documentPicture?.name || 'No file'}</span>
-              </Link>
+              {selectedApplication.documentPicture ? (
+                <Link className="document-link" onClick={() => handleOpenFilePreview(selectedApplication.documentPicture)}>
+                  {getFileIcon(selectedApplication.documentPicture?.type)}
+                  <span>{selectedApplication.documentPicture?.name}</span>
+                </Link>
+              ) : (
+                <Typography sx={{ color: 'text.secondary', fontStyle: 'italic' }}>
+                  Not uploaded
+                </Typography>
+              )}
               
               <Typography variant="subtitle2" className="label">Operator Picture:</Typography>
-              <Link className="document-link" onClick={() => handleOpenFilePreview(selectedApplication.documentOperatorPicture)}>
-                {getFileIcon(selectedApplication.documentOperatorPicture?.type)}
-                <span>{selectedApplication.documentOperatorPicture?.name || 'No file'}</span>
-              </Link>
+              {selectedApplication.documentOperatorPicture ? (
+                <Link className="document-link" onClick={() => handleOpenFilePreview(selectedApplication.documentOperatorPicture)}>
+                  {getFileIcon(selectedApplication.documentOperatorPicture?.type)}
+                  <span>{selectedApplication.documentOperatorPicture?.name}</span>
+                </Link>
+              ) : (
+                <Typography sx={{ color: 'text.secondary', fontStyle: 'italic' }}>
+                  Not uploaded
+                </Typography>
+              )}
               
               <Typography variant="subtitle2" className="label">OR LTO:</Typography>
-              <Link className="document-link" onClick={() => handleOpenFilePreview(selectedApplication.documentORLTO)}>
-                {getFileIcon(selectedApplication.documentORLTO?.type)}
-                <span>{selectedApplication.documentORLTO?.name || 'No file'}</span>
-              </Link>
+              {selectedApplication.documentORLTO ? (
+                <Link className="document-link" onClick={() => handleOpenFilePreview(selectedApplication.documentORLTO)}>
+                  {getFileIcon(selectedApplication.documentORLTO?.type)}
+                  <span>{selectedApplication.documentORLTO?.name}</span>
+                </Link>
+              ) : (
+                <Typography sx={{ color: 'text.secondary', fontStyle: 'italic' }}>
+                  Not uploaded
+                </Typography>
+              )}
               
               <Typography variant="subtitle2" className="label">CR LTO:</Typography>
-              <Link className="document-link" onClick={() => handleOpenFilePreview(selectedApplication.documentCRLTO)}>
-                {getFileIcon(selectedApplication.documentCRLTO?.type)}
-                <span>{selectedApplication.documentCRLTO?.name || 'No file'}</span>
-              </Link>
+              {selectedApplication.documentCRLTO ? (
+                <Link className="document-link" onClick={() => handleOpenFilePreview(selectedApplication.documentCRLTO)}>
+                  {getFileIcon(selectedApplication.documentCRLTO?.type)}
+                  <span>{selectedApplication.documentCRLTO?.name}</span>
+                </Link>
+              ) : (
+                <Typography sx={{ color: 'text.secondary', fontStyle: 'italic' }}>
+                  Not uploaded
+                </Typography>
+              )}
             </div>
             
             {/* PDF Preview and Download Section - Available for BPLO */}
