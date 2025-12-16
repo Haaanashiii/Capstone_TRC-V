@@ -2,6 +2,14 @@
    Shared Table Styles for Administration Pages
    ======================================== */
 
+/* Content Area - Prevents scrollbar flash during loading */
+.content-area,
+.content-container {
+  min-height: calc(100vh - 64px);
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
 /* Table Container with animation */
 .admin-table-container {
   border-radius: 12px;
@@ -10,6 +18,13 @@
   background: #ffffff;
   border: 1px solid rgba(10, 53, 107, 0.08);
   animation: fadeInUp 0.4s ease-out;
+  position: relative;
+  /* Dynamic height - fills available space */
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 320px);
+  height: calc(100dvh - 320px);
+  min-height: 300px;
 }
 
 @keyframes fadeInUp {
@@ -24,29 +39,50 @@
 }
 
 .admin-table-wrapper {
-  /* Dynamic height calculation based on viewport */
-  max-height: calc(100vh - 280px);
-  max-height: calc(100dvh - 280px); /* Dynamic viewport height for mobile */
-  min-height: 300px;
+  /* Fills remaining container space */
+  flex: 1;
   overflow-x: auto;
   overflow-y: auto;
-  /* Smooth scrolling */
   scroll-behavior: smooth;
 }
 
-/* Large screens - more space for table */
-@media (min-height: 900px) {
-  .admin-table-wrapper {
-    max-height: calc(100vh - 260px);
-    min-height: 500px;
+/* Adjust container height based on screen size */
+@media (min-height: 800px) {
+  .admin-table-container {
+    height: calc(100vh - 300px);
+    height: calc(100dvh - 300px);
   }
 }
 
-/* Extra large screens */
+@media (min-height: 900px) {
+  .admin-table-container {
+    height: calc(100vh - 280px);
+    height: calc(100dvh - 280px);
+  }
+}
+
 @media (min-height: 1080px) {
-  .admin-table-wrapper {
-    max-height: calc(100vh - 240px);
-    min-height: 600px;
+  .admin-table-container {
+    height: calc(100vh - 260px);
+    height: calc(100dvh - 260px);
+  }
+}
+
+/* Smaller screens - reduce height */
+@media (max-height: 700px) {
+  .admin-table-container {
+    height: calc(100vh - 280px);
+    height: calc(100dvh - 280px);
+    min-height: 200px;
+  }
+}
+
+/* Mobile landscape */
+@media (max-height: 500px) {
+  .admin-table-container {
+    height: calc(100vh - 200px);
+    height: calc(100dvh - 200px);
+    min-height: 150px;
   }
 }
 
@@ -54,6 +90,7 @@
 .admin-table {
   width: 100%;
   table-layout: fixed;
+  min-width: 800px; /* Prevent table from shrinking below this width */
 }
 
 .admin-table thead {
@@ -72,6 +109,7 @@
   text-align: center !important;
   white-space: nowrap !important;
   border-bottom: 2px solid #082548 !important;
+  min-width: 100px !important; 
 }
 
 .admin-table-cell {
@@ -201,6 +239,65 @@
   min-height: 400px;
 }
 
+/* Skeleton Loading Styles */
+.skeleton-container {
+  padding: 24px;
+  min-height: 400px;
+}
+
+.skeleton-row {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 12px;
+  animation: fadeIn 0.3s ease-out;
+}
+
+.skeleton-cell {
+  height: 40px;
+  border-radius: 6px;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e8e8e8 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+.skeleton-cell:nth-child(1) { flex: 2; }
+.skeleton-cell:nth-child(2) { flex: 1; }
+.skeleton-cell:nth-child(3) { flex: 1; }
+.skeleton-cell:nth-child(4) { flex: 1; }
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* Page Content Loading Container - Prevents scrollbar flash */
+.page-loading-container {
+  min-height: calc(100vh - 120px);
+  display: flex;
+  flex-direction: column;
+}
+
+/* Content Fade Transition */
+.content-fade-enter {
+  opacity: 0;
+  transform: translateY(10px);
+}
+
+.content-fade-enter-active {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 300ms ease-out, transform 300ms ease-out;
+}
+
+.content-fade-exit {
+  opacity: 1;
+}
+
+.content-fade-exit-active {
+  opacity: 0;
+  transition: opacity 200ms ease-in;
+}
+
 /* Badges and Status */
 .status-badge {
   display: inline-flex;
@@ -325,4 +422,560 @@
     max-height: calc(100vh - 180px);
     min-height: 150px;
   }
+}
+
+/* ========================================
+   SHARED MODAL & DIALOG STYLES
+   ======================================== */
+
+/* Base Modal Container */
+.shared-modal-container {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background-color: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 20px 60px rgba(10, 53, 107, 0.2);
+  padding: 32px;
+  max-width: 600px;
+  width: 90%;
+  max-height: 90vh;
+  overflow-y: auto;
+  outline: none;
+  animation: modalSlideIn 0.3s ease-out;
+}
+
+.shared-modal-container.modal-lg {
+  max-width: 800px;
+}
+
+.shared-modal-container.modal-xl {
+  max-width: 1000px;
+}
+
+@keyframes modalSlideIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -48%) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+/* Modal Header */
+.shared-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 16px;
+  margin-bottom: 24px;
+  border-bottom: 2px solid rgba(10, 53, 107, 0.1);
+}
+
+.shared-modal-title {
+  color: #0A356B;
+  font-size: 20px;
+  font-weight: 700;
+  margin: 0;
+  letter-spacing: -0.3px;
+}
+
+.shared-modal-close {
+  color: #5f6368 !important;
+  padding: 8px !important;
+  transition: all 0.2s ease !important;
+}
+
+.shared-modal-close:hover {
+  background-color: rgba(10, 53, 107, 0.08) !important;
+  color: #0A356B !important;
+}
+
+/* Modal Actions */
+.shared-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(10, 53, 107, 0.1);
+}
+
+/* Primary Action Button */
+.btn-primary {
+  background-color: #0A356B !important;
+  color: white !important;
+  font-weight: 600 !important;
+  padding: 10px 24px !important;
+  border-radius: 8px !important;
+  text-transform: none !important;
+  box-shadow: 0 4px 12px rgba(10, 53, 107, 0.2) !important;
+  transition: all 0.3s ease !important;
+}
+
+.btn-primary:hover {
+  background-color: #083057 !important;
+  box-shadow: 0 6px 16px rgba(10, 53, 107, 0.3) !important;
+  transform: translateY(-1px);
+}
+
+.btn-primary:disabled {
+  background-color: #9ca3af !important;
+  box-shadow: none !important;
+}
+
+/* Secondary/Cancel Button */
+.btn-secondary {
+  color: #0A356B !important;
+  border-color: rgba(10, 53, 107, 0.3) !important;
+  font-weight: 500 !important;
+  padding: 10px 24px !important;
+  border-radius: 8px !important;
+  text-transform: none !important;
+  transition: all 0.2s ease !important;
+}
+
+.btn-secondary:hover {
+  background-color: rgba(10, 53, 107, 0.04) !important;
+  border-color: #0A356B !important;
+}
+
+/* Danger Button */
+.btn-danger {
+  background-color: #dc2626 !important;
+  color: white !important;
+  font-weight: 600 !important;
+  padding: 10px 24px !important;
+  border-radius: 8px !important;
+  text-transform: none !important;
+  transition: all 0.2s ease !important;
+}
+
+.btn-danger:hover {
+  background-color: #b91c1c !important;
+}
+
+/* ========================================
+   SHARED DIALOG STYLES
+   ======================================== */
+
+.shared-dialog .MuiDialog-paper {
+  border-radius: 16px !important;
+  box-shadow: 0 20px 60px rgba(10, 53, 107, 0.2) !important;
+  max-width: 600px;
+}
+
+.shared-dialog-title {
+  background-color: #ffffff !important;
+  color: #0A356B !important;
+  font-weight: 700 !important;
+  border-bottom: 2px solid rgba(10, 53, 107, 0.1) !important;
+  padding: 20px 24px !important;
+}
+
+.shared-dialog-content {
+  padding: 24px !important;
+}
+
+.shared-dialog-actions {
+  padding: 16px 24px !important;
+  border-top: 1px solid rgba(10, 53, 107, 0.1) !important;
+  gap: 12px !important;
+}
+
+/* ========================================
+   SHARED FORM STYLES
+   ======================================== */
+
+.form-field {
+  margin-bottom: 20px !important;
+}
+
+.form-field .MuiOutlinedInput-root {
+  border-radius: 8px;
+}
+
+.form-field .MuiOutlinedInput-notchedOutline {
+  border-color: rgba(10, 53, 107, 0.2);
+}
+
+.form-field .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline {
+  border-color: rgba(10, 53, 107, 0.4);
+}
+
+.form-field .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline {
+  border-color: #0A356B;
+}
+
+/* ========================================
+   SHARED INFO CARD STYLES
+   ======================================== */
+
+.info-card {
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 20px;
+  border: 1px solid rgba(10, 53, 107, 0.08);
+  box-shadow: 0 2px 8px rgba(10, 53, 107, 0.08);
+  transition: all 0.3s ease;
+}
+
+.info-card:hover {
+  box-shadow: 0 8px 24px rgba(10, 53, 107, 0.12);
+  transform: translateY(-2px);
+}
+
+.info-card-title {
+  font-size: 14px;
+  color: #6b7280;
+  margin-bottom: 8px;
+  font-weight: 500;
+}
+
+.info-card-value {
+  font-size: 24px;
+  font-weight: 700;
+  color: #0A356B;
+}
+
+/* ========================================
+   RESPONSIVE MODAL ADJUSTMENTS
+   ======================================== */
+
+@media (max-width: 768px) {
+  .shared-modal-container {
+    width: 95%;
+    padding: 24px;
+    max-height: 85vh;
+  }
+  
+  .shared-modal-title {
+    font-size: 18px;
+  }
+  
+  .shared-modal-actions {
+    flex-direction: column;
+  }
+  
+  .shared-modal-actions .MuiButton-root {
+    width: 100%;
+  }
+}
+
+/* ========================================
+   MODERN CHIP STYLES
+   ======================================== */
+
+/* Base chip - modern glassmorphism style */
+.MuiChip-root {
+  font-weight: 600 !important;
+  font-size: 0.75rem !important;
+  letter-spacing: 0.3px !important;
+  border-radius: 8px !important;
+  height: 26px !important;
+  transition: all 0.2s ease !important;
+}
+
+.MuiChip-root:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* Success chip - Active/Approved status */
+.MuiChip-colorSuccess {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
+  color: white !important;
+  border: none !important;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3) !important;
+}
+
+.MuiChip-colorSuccess.MuiChip-outlined {
+  background: rgba(16, 185, 129, 0.1) !important;
+  border: 1.5px solid #10b981 !important;
+  color: #059669 !important;
+  box-shadow: none !important;
+}
+
+/* Primary chip - Renewal/Info status */
+.MuiChip-colorPrimary {
+  background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%) !important;
+  color: white !important;
+  border: none !important;
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3) !important;
+}
+
+.MuiChip-colorPrimary.MuiChip-outlined {
+  background: rgba(59, 130, 246, 0.1) !important;
+  border: 1.5px solid #3b82f6 !important;
+  color: #1d4ed8 !important;
+  box-shadow: none !important;
+}
+
+/* Warning chip - Pending/Expired status */
+.MuiChip-colorWarning {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%) !important;
+  color: white !important;
+  border: none !important;
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.3) !important;
+}
+
+.MuiChip-colorWarning.MuiChip-outlined {
+  background: rgba(245, 158, 11, 0.1) !important;
+  border: 1.5px solid #f59e0b !important;
+  color: #d97706 !important;
+  box-shadow: none !important;
+}
+
+/* Error chip - Revoked/Rejected status */
+.MuiChip-colorError {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%) !important;
+  color: white !important;
+  border: none !important;
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3) !important;
+}
+
+.MuiChip-colorError.MuiChip-outlined {
+  background: rgba(239, 68, 68, 0.1) !important;
+  border: 1.5px solid #ef4444 !important;
+  color: #dc2626 !important;
+  box-shadow: none !important;
+}
+
+/* Info chip - Change unit/Investigating status */
+.MuiChip-colorInfo {
+  background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%) !important;
+  color: white !important;
+  border: none !important;
+  box-shadow: 0 2px 8px rgba(6, 182, 212, 0.3) !important;
+}
+
+.MuiChip-colorInfo.MuiChip-outlined {
+  background: rgba(6, 182, 212, 0.1) !important;
+  border: 1.5px solid #06b6d4 !important;
+  color: #0891b2 !important;
+  box-shadow: none !important;
+}
+
+/* Secondary chip - Default/Neutral status */
+.MuiChip-colorSecondary {
+  background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%) !important;
+  color: white !important;
+  border: none !important;
+  box-shadow: 0 2px 8px rgba(139, 92, 246, 0.3) !important;
+}
+
+/* Default chip */
+.MuiChip-colorDefault {
+  background: linear-gradient(135deg, #64748b 0%, #475569 100%) !important;
+  color: white !important;
+  border: none !important;
+  box-shadow: 0 2px 8px rgba(100, 116, 139, 0.3) !important;
+}
+
+/* Small chip adjustments */
+.MuiChip-sizeSmall {
+  height: 24px !important;
+  font-size: 0.7rem !important;
+}
+
+/* Chip label padding */
+.MuiChip-label {
+  padding: 0 10px !important;
+}
+
+.MuiChip-sizeSmall .MuiChip-label {
+  padding: 0 8px !important;
+}
+
+/* ========================================
+   CIRCULAR COUNT BADGE STYLES
+   ======================================== */
+
+/* Circular count badge - modern minimal design */
+.count-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  height: 36px;
+  padding: 4px;
+  border-radius: 50%;
+  font-size: 0.875rem;
+  font-weight: 600;
+  background: linear-gradient(135deg, #e0f2f1 0%, #b2dfdb 100%);
+  color: #00695c;
+  border: 2px solid #80cbc4;
+  box-shadow: 0 2px 8px rgba(0, 105, 92, 0.15);
+  transition: all 0.2s ease;
+}
+
+.count-badge:hover {
+  transform: scale(1.05);
+  box-shadow: 0 4px 12px rgba(0, 105, 92, 0.25);
+}
+
+/* Count badge variants */
+.count-badge.primary {
+  background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+  color: #1565c0;
+  border-color: #64b5f6;
+  box-shadow: 0 2px 8px rgba(21, 101, 192, 0.15);
+}
+
+.count-badge.success {
+  background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
+  color: #2e7d32;
+  border-color: #81c784;
+  box-shadow: 0 2px 8px rgba(46, 125, 50, 0.15);
+}
+
+.count-badge.warning {
+  background: linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%);
+  color: #e65100;
+  border-color: #ffb74d;
+  box-shadow: 0 2px 8px rgba(230, 81, 0, 0.15);
+}
+
+.count-badge.error {
+  background: linear-gradient(135deg, #ffebee 0%, #ffcdd2 100%);
+  color: #c62828;
+  border-color: #e57373;
+  box-shadow: 0 2px 8px rgba(198, 40, 40, 0.15);
+}
+
+/* Smaller count badge */
+.count-badge.small {
+  min-width: 28px;
+  height: 28px;
+  font-size: 0.75rem;
+  border-width: 1.5px;
+}
+
+/* Larger count badge */
+.count-badge.large {
+  min-width: 44px;
+  height: 44px;
+  font-size: 1rem;
+}
+
+/* ========================================
+   MODERN TOGGLE SWITCH STYLES
+   ======================================== */
+
+/* Custom styled switch - iOS-like modern design */
+.MuiSwitch-root {
+  width: 52px !important;
+  height: 28px !important;
+  padding: 0 !important;
+}
+
+.MuiSwitch-switchBase {
+  padding: 2px !important;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+.MuiSwitch-switchBase.Mui-checked {
+  transform: translateX(24px) !important;
+}
+
+.MuiSwitch-thumb {
+  width: 24px !important;
+  height: 24px !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2) !important;
+  background: white !important;
+  transition: all 0.3s ease !important;
+}
+
+.MuiSwitch-switchBase:hover .MuiSwitch-thumb {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25) !important;
+}
+
+.MuiSwitch-track {
+  border-radius: 14px !important;
+  background: linear-gradient(135deg, #cbd5e1 0%, #94a3b8 100%) !important;
+  opacity: 1 !important;
+  transition: all 0.3s ease !important;
+}
+
+/* Checked state - success green */
+.MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track {
+  background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%) !important;
+  opacity: 1 !important;
+}
+
+/* Disabled state */
+.MuiSwitch-switchBase.Mui-disabled + .MuiSwitch-track {
+  opacity: 0.5 !important;
+}
+
+.MuiSwitch-switchBase.Mui-disabled .MuiSwitch-thumb {
+  background: #f1f5f9 !important;
+}
+
+/* Small switch variant */
+.MuiSwitch-sizeSmall {
+  width: 44px !important;
+  height: 24px !important;
+}
+
+.MuiSwitch-sizeSmall .MuiSwitch-thumb {
+  width: 20px !important;
+  height: 20px !important;
+}
+
+.MuiSwitch-sizeSmall .MuiSwitch-switchBase.Mui-checked {
+  transform: translateX(20px) !important;
+}
+
+/* ========================================
+   SCROLLBAR CONTROL - PREVENT FLASH
+   ======================================== */
+
+/* Force consistent scrollbar behavior */
+.content-area,
+.content-container {
+  min-height: calc(100vh - 64px);
+  overflow-y: scroll !important; /* Always show scrollbar track */
+  overflow-x: hidden;
+  scrollbar-gutter: stable; /* Reserve space for scrollbar */
+}
+
+/* Custom scrollbar styling */
+.content-area::-webkit-scrollbar,
+.content-container::-webkit-scrollbar,
+.admin-table-wrapper::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.content-area::-webkit-scrollbar-track,
+.content-container::-webkit-scrollbar-track,
+.admin-table-wrapper::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 4px;
+}
+
+.content-area::-webkit-scrollbar-thumb,
+.content-container::-webkit-scrollbar-thumb,
+.admin-table-wrapper::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+  transition: background 0.2s ease;
+}
+
+.content-area::-webkit-scrollbar-thumb:hover,
+.content-container::-webkit-scrollbar-thumb:hover,
+.admin-table-wrapper::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Firefox scrollbar */
+.content-area,
+.content-container,
+.admin-table-wrapper {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 #f1f5f9;
 }

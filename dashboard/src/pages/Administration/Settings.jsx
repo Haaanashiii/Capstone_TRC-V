@@ -20,6 +20,16 @@ import {
   Card,
   CardContent,
   Fade,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  List,
+  ListItem,
+  ListItemButton,
+  ListItemIcon,
+  ListItemText,
+  Radio,
 } from '@mui/material';
 import PageLoader from '../../components/PageLoader';
 import { styled } from '@mui/material/styles';
@@ -43,6 +53,10 @@ import FolderIcon from '@mui/icons-material/Folder';
 import VerifiedIcon from '@mui/icons-material/Verified';
 import LockIcon from '@mui/icons-material/Lock';
 import LockOpenIcon from '@mui/icons-material/LockOpen';
+import RefreshIcon from '@mui/icons-material/Refresh';
+import CleaningServicesIcon from '@mui/icons-material/CleaningServices';
+import SaveAltIcon from '@mui/icons-material/SaveAlt';
+import SettingsIcon from '@mui/icons-material/Settings';
 
 // Import backup service
 import * as backupService from '../../services/backupService';
@@ -51,7 +65,7 @@ import { logger } from '../../utils/logger';
 // API Configuration
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170';
 
-const StyledTab = styled(Tab)(({ theme }) => ({
+const StyledTab = styled(Tab)(() => ({
   textTransform: 'none',
   fontWeight: 600,
   fontSize: '16px',
@@ -210,7 +224,7 @@ function Settings() {
   // Fare Matrix State (Photo Upload)
   const [fareMatrixImage, setFareMatrixImage] = useState(null);
   const [fareMatrixPreview, setFareMatrixPreview] = useState(null);
-  const [fareMatrixId, setFareMatrixId] = useState(null);
+  const [, setFareMatrixId] = useState(null); // ID stored for future reference
   const [uploadDate, setUploadDate] = useState(null);
   const [currentFileName, setCurrentFileName] = useState('');
 
@@ -228,11 +242,14 @@ function Settings() {
   const [restoreProgress, setRestoreProgress] = useState(0);
   const [selectedBackupFile, setSelectedBackupFile] = useState(null);
   const [autoBackupEnabled, setAutoBackupEnabled] = useState(true);
-  const [backupFrequency, setBackupFrequency] = useState('daily');
   const [lastBackupTime, setLastBackupTime] = useState(null);
   const [backupStats, setBackupStats] = useState({ totalBackups: 0, totalSize: 0 });
   const [loadingBackups, setLoadingBackups] = useState(true);
-  const [backupConfig, setBackupConfig] = useState(null);
+  const [isCleaningUp, setIsCleaningUp] = useState(false);
+  const [isExportingFull, setIsExportingFull] = useState(false);
+  const [isResettingConfig, setIsResettingConfig] = useState(false);
+  const [downloadDialogOpen, setDownloadDialogOpen] = useState(false);
+  const [selectedDownloadBackup, setSelectedDownloadBackup] = useState(null);
   const fileInputRef = useRef(null);
 
   // Tab Change Handler
@@ -560,11 +577,11 @@ function Settings() {
         // Clear the Sidebar's cached pages for this role so it fetches fresh data
         try {
           sessionStorage.removeItem(`allowedPages_${selectedRole}`);
-        } catch (e) {
+        } catch {
           logger.warn('[Settings] Failed to clear cached pages');
         }
         
-        // Refresh the data
+        showNotification('Page access permissions saved successfully');
         await fetchAllPageAccess();
       } else {
         throw new Error('Invalid response from server');
@@ -622,7 +639,7 @@ function Settings() {
         // Clear the Sidebar's cached pages for this role so it fetches fresh data
         try {
           sessionStorage.removeItem(`allowedPages_${selectedRole}`);
-        } catch (e) {
+        } catch {
           logger.warn('[Settings] Failed to clear cached pages');
         }
         
@@ -724,22 +741,17 @@ function Settings() {
 
   /**
    * Fetch backup configuration settings
-   * Includes auto backup status and frequency
+   * Includes auto backup status
    */
   const fetchBackupConfig = useCallback(async () => {
     try {
       const response = await backupService.getBackupConfig();
       if (response.success && response.data) {
-        const config = response.data;
-        setBackupConfig(config);
-        setAutoBackupEnabled(config.autoBackupEnabled !== false);
-        setBackupFrequency(config.frequency || config.schedule?.frequency || 'daily');
+        setAutoBackupEnabled(response.data.autoBackupEnabled !== false);
       }
     } catch (error) {
       logger.error('[Settings] Error fetching backup config:', error);
-      // Set defaults on error
       setAutoBackupEnabled(true);
-      setBackupFrequency('daily');
     }
   }, []);
 
@@ -1086,10 +1098,169 @@ function Settings() {
     } catch (error) {
       logger.error('[Settings] Toggle auto backup error:', error);
       showNotification(error.message || 'Failed to update backup settings', 'error');
-      // Revert the switch state
       setAutoBackupEnabled(!enabled);
     }
   }, [showNotification]);
+
+  /**
+   * Reset backup configuration to defaults
+   */
+  const handleResetBackupConfig = useCallback(async () => {
+    if (!window.confirm(
+      '⚠️ Reset Backup Configuration?\n\n' +
+      'This will:\n' +
+      '• Reset backup settings to defaults\n' +
+      '• Enable auto backup (daily at 2:00 AM)\n' +
+      '• Set retention to 30 days\n\n' +
+      'Existing backup files will NOT be deleted.'
+    )) {
+      return;
+    }
+
+    setIsResettingConfig(true);
+    try {
+      const response = await backupService.updateBackupConfig({
+        autoBackupEnabled: true,
+        frequency: 'daily',
+        retentionDays: 30,
+        maxBackups: 50
+      });
+
+      if (response.success) {
+        setAutoBackupEnabled(true);
+        await Promise.all([fetchBackupHistory(), fetchLastBackupInfo(), fetchBackupConfig()]);
+        showNotification('Backup configuration reset successfully', 'success');
+      } else {
+        throw new Error(response.message || 'Failed to reset configuration');
+      }
+    } catch (error) {
+      logger.error('[Settings] Reset backup config error:', error);
+      showNotification(error.message || 'Failed to reset backup configuration', 'error');
+    } finally {
+      setIsResettingConfig(false);
+    }
+  }, [showNotification, fetchBackupHistory, fetchLastBackupInfo, fetchBackupConfig]);
+
+  /**
+   * Cleanup old backups based on retention policy
+   */
+  const handleCleanupBackups = useCallback(async () => {
+    if (!window.confirm(
+      '🧹 Cleanup Old Backups?\n\n' +
+      'This will remove:\n' +
+      '• Backups older than retention period\n' +
+      '• Failed/corrupted backup files\n\n' +
+      'Protected backups will NOT be deleted.'
+    )) {
+      return;
+    }
+
+    setIsCleaningUp(true);
+    try {
+      const response = await backupService.triggerCleanup();
+      
+      if (response.success) {
+        const deletedCount = response.data?.deletedCount || 0;
+        const freedSpace = response.data?.freedSpace || 0;
+        showNotification(
+          `Cleanup complete! Removed ${deletedCount} backup(s), freed ${formatFileSize(freedSpace)}`,
+          'success'
+        );
+        await fetchBackupHistory();
+      } else {
+        throw new Error(response.message || 'Cleanup failed');
+      }
+    } catch (error) {
+      logger.error('[Settings] Cleanup backups error:', error);
+      showNotification(error.message || 'Failed to cleanup backups', 'error');
+    } finally {
+      setIsCleaningUp(false);
+    }
+  }, [showNotification, fetchBackupHistory]);
+
+  /**
+   * Create a full database export for local/external storage (HDD)
+   */
+  const handleExportFullBackup = useCallback(async () => {
+    if (!window.confirm(
+      '💾 Create Full Database Export?\n\n' +
+      'This will create a complete backup including:\n' +
+      '• All database collections\n' +
+      '• All uploaded files (photos, documents)\n\n' +
+      'The file will be downloaded for external storage (USB/HDD).'
+    )) {
+      return;
+    }
+
+    setIsExportingFull(true);
+    setBackupProgress(0);
+
+    const progressInterval = setInterval(() => {
+      setBackupProgress((prev) => (prev >= 90 ? 90 : prev + Math.random() * 8));
+    }, 600);
+
+    try {
+      const response = await backupService.exportFullDatabase({
+        includeGridFSFiles: true,
+        notes: 'Full export for external storage'
+      });
+      
+      clearInterval(progressInterval);
+      setBackupProgress(100);
+
+      if (response.success && response.data?.exportId) {
+        showNotification('Export created! Starting download...', 'info');
+        await backupService.downloadFullExport(response.data.exportId);
+        showNotification(`Full backup exported successfully! (${response.data.formattedSize || 'N/A'})`, 'success');
+        await fetchBackupHistory();
+      } else {
+        throw new Error(response.message || 'Export failed');
+      }
+    } catch (error) {
+      clearInterval(progressInterval);
+      logger.error('[Settings] Full export error:', error);
+      showNotification(error.message || 'Failed to create full export', 'error');
+    } finally {
+      setTimeout(() => {
+        setIsExportingFull(false);
+        setBackupProgress(0);
+      }, 500);
+    }
+  }, [showNotification, fetchBackupHistory]);
+
+  /**
+   * Open download selection dialog
+   */
+  const handleOpenDownloadDialog = useCallback(() => {
+    if (backupHistory.length === 0) {
+      showNotification('No backups available to download', 'warning');
+      return;
+    }
+    setSelectedDownloadBackup(backupHistory[0]?.backupId || null);
+    setDownloadDialogOpen(true);
+  }, [backupHistory, showNotification]);
+
+  /**
+   * Handle download from dialog selection
+   */
+  const handleConfirmDownload = useCallback(async () => {
+    if (!selectedDownloadBackup) {
+      showNotification('Please select a backup to download', 'error');
+      return;
+    }
+    
+    setDownloadDialogOpen(false);
+    try {
+      showNotification('Preparing download...', 'info');
+      const result = await backupService.downloadBackup(selectedDownloadBackup);
+      if (result.success) {
+        showNotification(`Backup "${result.filename}" downloaded successfully!`, 'success');
+      }
+    } catch (error) {
+      logger.error('[Settings] Download backup error:', error);
+      showNotification(error.message || 'Failed to download backup', 'error');
+    }
+  }, [selectedDownloadBackup, showNotification]);
 
   // Load existing fare matrix on mount
   useEffect(() => {
@@ -1419,34 +1590,36 @@ function Settings() {
           {activeTab === 2 && (
             <div className="backup-recovery-tab">
               {/* Progress Overlay */}
-              {(isCreatingBackup || isRestoring) && (
+              {(isCreatingBackup || isRestoring || isExportingFull) && (
                 <Box className="backup-progress-overlay">
                   <Paper className="progress-modal" elevation={3}>
                     <Box sx={{ textAlign: 'center', p: 4 }}>
-                      {isCreatingBackup ? (
+                      {isExportingFull ? (
+                        <SaveAltIcon sx={{ fontSize: 60, color: '#7c3aed', mb: 2 }} />
+                      ) : isCreatingBackup ? (
                         <BackupIcon sx={{ fontSize: 60, color: '#0A356B', mb: 2 }} />
                       ) : (
                         <RestoreIcon sx={{ fontSize: 60, color: '#059669', mb: 2 }} />
                       )}
                       <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                        {isCreatingBackup ? 'Creating Backup...' : 'Restoring System...'}
+                        {isExportingFull ? 'Exporting Full Backup...' : isCreatingBackup ? 'Creating Backup...' : 'Restoring System...'}
                       </Typography>
                       <Box sx={{ width: '100%', mb: 2 }}>
                         <LinearProgress 
                           variant="determinate" 
-                          value={isCreatingBackup ? backupProgress : restoreProgress} 
+                          value={isCreatingBackup || isExportingFull ? backupProgress : restoreProgress} 
                           sx={{ 
                             height: 10, 
                             borderRadius: 5,
                             backgroundColor: '#e2e8f0',
                             '& .MuiLinearProgress-bar': {
-                              backgroundColor: isCreatingBackup ? '#0A356B' : '#059669',
+                              backgroundColor: isExportingFull ? '#7c3aed' : isCreatingBackup ? '#0A356B' : '#059669',
                             }
                           }}
                         />
                       </Box>
                       <Typography variant="body2" color="textSecondary">
-                        {Math.round(isCreatingBackup ? backupProgress : restoreProgress)}% Complete
+                        {Math.round(isCreatingBackup || isExportingFull ? backupProgress : restoreProgress)}% Complete
                       </Typography>
                       <Typography variant="caption" color="textSecondary" sx={{ display: 'block', mt: 1 }}>
                         Please do not close this page...
@@ -1525,38 +1698,82 @@ function Settings() {
               {/* Action Cards */}
               <div className="backup-action-grid">
                 {/* Create Backup Card */}
-                <Paper className="backup-action-card" elevation={0}>
+                <Paper className="backup-action-card create-backup" elevation={0}>
                   <Box className="action-card-header">
-                    <BackupIcon sx={{ fontSize: 32, color: '#0A356B' }} />
-                    <Typography variant="h6" sx={{ fontWeight: 700, color: '#0A356B' }}>
-                      Create Backup
-                    </Typography>
+                    <Box className="action-icon-bg primary">
+                      <BackupIcon sx={{ fontSize: 28, color: '#0A356B' }} />
+                    </Box>
+                    <Box>
+                      <Typography variant="h6" sx={{ fontWeight: 700, color: '#0A356B', lineHeight: 1.2 }}>
+                        Create Backup
+                      </Typography>
+                      <Typography variant="caption" sx={{ color: '#64748b' }}>
+                        Server-side backup
+                      </Typography>
+                    </Box>
                   </Box>
-                  <Typography variant="body2" color="textSecondary" sx={{ mb: 3 }}>
-                    Create a complete backup of the database including all franchise records, user accounts, and system configurations.
+                  <Typography variant="body2" color="textSecondary" sx={{ mb: 3, lineHeight: 1.6 }}>
+                    Create a complete backup of the database including all records, user accounts, and system configurations.
                   </Typography>
                   <Button
                     variant="contained"
-                    startIcon={<CloudUploadIcon />}
+                    startIcon={isCreatingBackup ? <CircularProgress size={20} color="inherit" /> : <CloudUploadIcon />}
                     onClick={handleCreateBackup}
-                    disabled={isCreatingBackup || isRestoring}
+                    disabled={isCreatingBackup || isRestoring || isExportingFull}
                     fullWidth
                     className="backup-action-btn primary"
                   >
-                    Create Backup Now
+                    {isCreatingBackup ? 'Creating Backup...' : 'Create Backup Now'}
+                  </Button>
+                </Paper>
+
+                {/* Local Backup (Full Export) Card */}
+                <Paper className="backup-action-card local-backup" elevation={0}>
+                  <Box className="action-card-header">
+                    <Box className="action-icon-bg purple">
+                      <SaveAltIcon sx={{ fontSize: 28, color: '#7c3aed' }} />
+                    </Box>
+                    <Box>
+                      <Typography variant="h6" sx={{ fontWeight: 700, color: '#7c3aed', lineHeight: 1.2 }}>
+                        Local Backup
+                      </Typography>
+                      <Typography variant="caption" sx={{ color: '#64748b' }}>
+                        Export to external storage
+                      </Typography>
+                    </Box>
+                  </Box>
+                  <Typography variant="body2" color="textSecondary" sx={{ mb: 3, lineHeight: 1.6 }}>
+                    Export complete database with all files for external storage (USB drive, hard disk, or cloud storage).
+                  </Typography>
+                  <Button
+                    variant="contained"
+                    startIcon={isExportingFull ? <CircularProgress size={20} color="inherit" /> : <SaveAltIcon />}
+                    onClick={handleExportFullBackup}
+                    disabled={isCreatingBackup || isRestoring || isExportingFull}
+                    fullWidth
+                    className="backup-action-btn purple"
+                  >
+                    {isExportingFull ? 'Exporting...' : 'Export to Device'}
                   </Button>
                 </Paper>
 
                 {/* Upload Backup Card */}
-                <Paper className="backup-action-card" elevation={0}>
+                <Paper className="backup-action-card restore-backup" elevation={0}>
                   <Box className="action-card-header">
-                    <RestoreIcon sx={{ fontSize: 32, color: '#059669' }} />
-                    <Typography variant="h6" sx={{ fontWeight: 700, color: '#059669' }}>
-                      Restore from File
-                    </Typography>
+                    <Box className="action-icon-bg success">
+                      <RestoreIcon sx={{ fontSize: 28, color: '#059669' }} />
+                    </Box>
+                    <Box>
+                      <Typography variant="h6" sx={{ fontWeight: 700, color: '#059669', lineHeight: 1.2 }}>
+                        Restore from File
+                      </Typography>
+                      <Typography variant="caption" sx={{ color: '#64748b' }}>
+                        Import external backup
+                      </Typography>
+                    </Box>
                   </Box>
-                  <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
-                    Upload and restore from an external backup file. Supported formats: .json.gz, .gz
+                  <Typography variant="body2" color="textSecondary" sx={{ mb: 2, lineHeight: 1.6 }}>
+                    Upload and restore from an external backup file (.json.gz, .gz format).
                   </Typography>
                   
                   <Box sx={{ mb: 2 }}>
@@ -1574,31 +1791,77 @@ function Settings() {
                         component="span"
                         startIcon={<FolderIcon />}
                         fullWidth
-                        sx={{ mb: 1 }}
+                        sx={{ mb: 1, borderStyle: 'dashed', py: 1.5 }}
                         className="backup-select-btn"
                       >
                         Select Backup File
                       </Button>
                     </label>
                     {selectedBackupFile && (
-                      <Typography variant="body2" className="selected-backup-file">
-                        📁 {selectedBackupFile.name} ({formatFileSize(selectedBackupFile.size)})
-                      </Typography>
+                      <Box className="selected-backup-file" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <CheckCircleIcon sx={{ fontSize: 16, color: '#16a34a' }} />
+                        <Typography variant="body2" sx={{ color: '#166534', fontWeight: 500 }}>
+                          {selectedBackupFile.name} ({formatFileSize(selectedBackupFile.size)})
+                        </Typography>
+                      </Box>
                     )}
                   </Box>
                   
                   <Button
                     variant="contained"
-                    startIcon={<CloudDownloadIcon />}
+                    startIcon={isRestoring ? <CircularProgress size={20} color="inherit" /> : <CloudDownloadIcon />}
                     onClick={handleImportBackup}
                     disabled={!selectedBackupFile || isRestoring || isCreatingBackup}
                     fullWidth
                     className="backup-action-btn success"
                   >
-                    Restore from Upload
+                    {isRestoring ? 'Restoring...' : 'Restore from Upload'}
                   </Button>
                 </Paper>
               </div>
+
+              {/* Quick Actions Bar */}
+              <Paper className="backup-quick-actions" elevation={0} sx={{ position: 'relative' }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mr: 'auto' }}>
+                  <SettingsIcon sx={{ fontSize: 18, color: '#64748b' }} />
+                  <Typography variant="body2" sx={{ fontWeight: 600, color: '#475569' }}>
+                    Quick Actions
+                  </Typography>
+                </Box>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  startIcon={<CloudDownloadIcon />}
+                  onClick={handleOpenDownloadDialog}
+                  disabled={backupHistory.length === 0 || isRestoring || isCreatingBackup}
+                  className="quick-action-btn download"
+                  sx={{ fontWeight: 600, textTransform: 'none' }}
+                >
+                  Download Backup
+                </Button>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  startIcon={isCleaningUp ? <CircularProgress size={16} /> : <CleaningServicesIcon />}
+                  onClick={handleCleanupBackups}
+                  disabled={isCleaningUp || isRestoring || isCreatingBackup}
+                  className="quick-action-btn cleanup"
+                  sx={{ fontWeight: 600, textTransform: 'none' }}
+                >
+                  {isCleaningUp ? 'Cleaning...' : 'Cleanup Old'}
+                </Button>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  startIcon={isResettingConfig ? <CircularProgress size={16} /> : <RefreshIcon />}
+                  onClick={handleResetBackupConfig}
+                  disabled={isResettingConfig || isRestoring || isCreatingBackup}
+                  className="quick-action-btn reset"
+                  sx={{ fontWeight: 600, textTransform: 'none' }}
+                >
+                  {isResettingConfig ? 'Resetting...' : 'Reset Config'}
+                </Button>
+              </Paper>
 
               {/* Backup History */}
               <Paper className="backup-history-container" elevation={0}>
@@ -1780,6 +2043,148 @@ function Settings() {
           )}
         </Box>
       </main>
+
+      {/* Download Backup Selection Dialog */}
+      <Dialog 
+        open={downloadDialogOpen} 
+        onClose={() => setDownloadDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{
+          sx: { borderRadius: 3, overflow: 'hidden' }
+        }}
+      >
+        <DialogTitle 
+          sx={{ 
+            background: 'linear-gradient(135deg, #0A356B 0%, #1e4b8e 100%)',
+            color: 'white',
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: 1.5,
+            py: 2.5
+          }}
+        >
+          <Box sx={{ 
+            backgroundColor: 'rgba(255,255,255,0.15)', 
+            borderRadius: 2, 
+            p: 1, 
+            display: 'flex' 
+          }}>
+            <CloudDownloadIcon />
+          </Box>
+          <Box>
+            <Typography variant="h6" sx={{ fontWeight: 700, lineHeight: 1.2 }}>
+              Download Backup
+            </Typography>
+            <Typography variant="caption" sx={{ opacity: 0.85 }}>
+              Select a backup file to download
+            </Typography>
+          </Box>
+        </DialogTitle>
+        <DialogContent sx={{ p: 0 }}>
+          <List sx={{ maxHeight: 400, overflow: 'auto' }}>
+            {backupHistory.map((backup) => {
+              const fileName = backup.filePath?.split(/[/\\]/).pop() || backup.backupId;
+              const typeColor = getBackupTypeColor(backup.backupType);
+              const isSelected = selectedDownloadBackup === backup.backupId;
+              return (
+                <ListItem key={backup.backupId} disablePadding divider>
+                  <ListItemButton
+                    selected={isSelected}
+                    onClick={() => setSelectedDownloadBackup(backup.backupId)}
+                    sx={{ 
+                      py: 2,
+                      borderLeft: isSelected ? '4px solid #0A356B' : '4px solid transparent',
+                      backgroundColor: isSelected ? '#eff6ff' : 'transparent',
+                      '&:hover': {
+                        backgroundColor: isSelected ? '#eff6ff' : '#f8fafc'
+                      }
+                    }}
+                  >
+                    <ListItemIcon sx={{ minWidth: 44 }}>
+                      <Radio
+                        checked={isSelected}
+                        value={backup.backupId}
+                        size="small"
+                        sx={{ 
+                          color: '#0A356B',
+                          '&.Mui-checked': { color: '#0A356B' }
+                        }}
+                      />
+                    </ListItemIcon>
+                    <ListItemText
+                      primary={
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Typography variant="body2" sx={{ fontWeight: 600, color: '#1e293b' }}>
+                            {fileName}
+                          </Typography>
+                          {backup.isProtected && (
+                            <Tooltip title="Protected backup">
+                              <LockIcon sx={{ fontSize: 14, color: '#d97706' }} />
+                            </Tooltip>
+                          )}
+                        </Box>
+                      }
+                      secondary={
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5, flexWrap: 'wrap' }}>
+                          <Typography variant="caption" color="textSecondary">
+                            {formatBackupDate(backup.createdAt)}
+                          </Typography>
+                          <Chip 
+                            label={formatFileSize(backup.fileSize)} 
+                            size="small" 
+                            sx={{ 
+                              height: 20, 
+                              fontSize: '11px',
+                              fontWeight: 600,
+                              backgroundColor: '#f1f5f9',
+                              color: '#475569'
+                            }} 
+                          />
+                          <Chip 
+                            label={getBackupTypeLabel(backup.backupType)} 
+                            size="small" 
+                            sx={{ 
+                              height: 20, 
+                              fontSize: '11px', 
+                              fontWeight: 600,
+                              backgroundColor: typeColor.bg, 
+                              color: typeColor.text 
+                            }} 
+                          />
+                        </Box>
+                      }
+                    />
+                  </ListItemButton>
+                </ListItem>
+              );
+            })}
+          </List>
+        </DialogContent>
+        <DialogActions sx={{ p: 2.5, borderTop: '1px solid #e2e8f0', backgroundColor: '#f8fafc' }}>
+          <Button 
+            onClick={() => setDownloadDialogOpen(false)} 
+            sx={{ color: '#64748b', fontWeight: 600, textTransform: 'none' }}
+          >
+            Cancel
+          </Button>
+          <Button 
+            variant="contained" 
+            onClick={handleConfirmDownload}
+            disabled={!selectedDownloadBackup}
+            startIcon={<CloudDownloadIcon />}
+            sx={{ 
+              backgroundColor: '#0A356B',
+              fontWeight: 600,
+              textTransform: 'none',
+              px: 3,
+              '&:hover': { backgroundColor: '#083057' }
+            }}
+          >
+            Download Selected
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Notification Snackbar */}
       <Snackbar

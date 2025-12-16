@@ -10,15 +10,16 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'Logos/*.png', 'Logos/*.gif'],
       manifest: {
-        name: 'TRC-V Dashboard',
-        short_name: 'TRC-V',
-        description: 'TRC-V Tricycle Regulatory Commission Dashboard',
-        theme_color: '#1976d2',
+        name: 'TRC-V Admin Dashboard',
+        short_name: 'TRC-V Admin',
+        description: 'TRC-V Tricycle Regulatory Commission - Admin Dashboard for managing franchises and operators',
+        theme_color: '#0A356B',
         background_color: '#ffffff',
         display: 'standalone',
         orientation: 'portrait',
         scope: '/',
         start_url: '/',
+        categories: ['business', 'productivity'],
         icons: [
           {
             src: 'pwa-192x192.png',
@@ -39,17 +40,22 @@ export default defineConfig({
         ]
       },
       workbox: {
-        // Reduce console noise - only log errors in development
+        // MINIMAL PWA CONFIGURATION FOR ADMIN DASHBOARD
+        // Security-focused: Only cache static assets, never cache sensitive admin data
         cleanupOutdatedCaches: true,
         clientsClaim: true,
         skipWaiting: true,
-        // Increase the max file size for precaching (5 MB)
-        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
-        // Don't precache index.html (let it be handled by navigation fallback)
+        maximumFileSizeToCacheInBytes: 15 * 1024 * 1024, // 15 MB to accommodate large assets
         navigateFallback: '/index.html',
-        navigateFallbackDenylist: [/^\/api\//, /^http/],
-        // Cache strategies
+        navigateFallbackDenylist: [/^\/api\//], // Never cache API routes offline
+        
+        // Only precache essential files (HTML, CSS, small images)
+        // Large JS bundles and GIFs will be cached on first use (runtime caching)
+        globPatterns: ['**/*.{html,css,png,svg,jpg,jpeg,ico,webp,woff,woff2}'],
+        globIgnores: ['**/node_modules/**', '**/Logos/**'], // Exclude large logo assets
+        
         runtimeCaching: [
+          // 1. External fonts (safe to cache, improves performance)
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
             handler: 'CacheFirst',
@@ -78,89 +84,15 @@ export default defineConfig({
               }
             }
           },
+          
+          // 2. Static images (logos, icons) - CacheFirst for performance
           {
-            urlPattern: /\.(?:png|jpg|jpeg|svg|gif|webp)$/,
+            urlPattern: /\.(?:png|jpg|jpeg|svg|gif|webp|ico)$/,
             handler: 'CacheFirst',
             options: {
-              cacheName: 'images-cache',
+              cacheName: 'static-images-cache',
               expiration: {
-                maxEntries: 50,
-                maxAgeSeconds: 60 * 60 * 24 * 30 // 30 days
-              }
-            }
-          },
-          // Cache announcements API (public, important for offline)
-          {
-            urlPattern: /\/announcements/i,
-            handler: 'StaleWhileRevalidate',
-            options: {
-              cacheName: 'announcements-cache',
-              expiration: {
-                maxEntries: 50,
-                maxAgeSeconds: 60 * 60 * 24 * 7 // 7 days
-              },
-              cacheableResponse: {
-                statuses: [0, 200]
-              }
-            }
-          },
-          // Cache fare matrix (public data - used in Settings & Landing page)
-          // Strategy: StaleWhileRevalidate - Shows cached version immediately, updates in background
-          {
-            urlPattern: ({ url }) => url.pathname.includes('/fare-matrix'),
-            handler: 'StaleWhileRevalidate',
-            options: {
-              cacheName: 'fare-matrix-cache',
-              expiration: {
-                maxEntries: 10,
-                maxAgeSeconds: 60 * 60 * 24 * 7 // 7 days
-              },
-              cacheableResponse: {
-                statuses: [0, 200]
-              }
-            }
-          },
-          // Cache user's own franchise data (for operators)
-          {
-            urlPattern: /\/auth\/me/i,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'user-data-cache',
-              expiration: {
-                maxEntries: 5,
-                maxAgeSeconds: 60 * 60 * 24 // 1 day
-              },
-              networkTimeoutSeconds: 5,
-              cacheableResponse: {
-                statuses: [0, 200]
-              }
-            }
-          },
-          // Cache franchise information for operators
-          {
-            urlPattern: /\/franchise-information\/my-franchises/i,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'my-franchises-cache',
-              expiration: {
-                maxEntries: 20,
-                maxAgeSeconds: 60 * 60 * 24 // 1 day
-              },
-              networkTimeoutSeconds: 5,
-              cacheableResponse: {
-                statuses: [0, 200]
-              }
-            }
-          },
-          // Cache API files (GridFS images - fare matrix, operator photos, etc.)
-          // Strategy: CacheFirst - Images rarely change, serve from cache for speed
-          {
-            urlPattern: ({ url }) => url.pathname.startsWith('/api/files/'),
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'api-files-cache',
-              expiration: {
-                maxEntries: 100,
+                maxEntries: 30,
                 maxAgeSeconds: 60 * 60 * 24 * 30 // 30 days
               },
               cacheableResponse: {
@@ -168,38 +100,33 @@ export default defineConfig({
               }
             }
           },
-          // General API cache (fallback for other endpoints) - UPDATED for cross-origin
+          
+          // 3. API REQUESTS - NetworkFirst (always try server first)
+          // CRITICAL: Admin operations require real-time data, no offline fallbacks for sensitive data
           {
             urlPattern: ({ url }) => {
               const pathname = url.pathname;
               return pathname.includes('/api/') || 
                      pathname.includes('/auth/') || 
                      pathname.includes('/franchise/') || 
-                     pathname.includes('/qr/') || 
-                     pathname.includes('/verify/');
+                     pathname.includes('/admin/') ||
+                     pathname.includes('/qr/');
             },
-            handler: 'NetworkFirst',
+            handler: 'NetworkOnly', // CHANGED: Network-only for admin security
             options: {
-              cacheName: 'api-cache',
-              expiration: {
-                maxEntries: 100,
-                maxAgeSeconds: 60 * 60 * 24 // 1 day
-              },
-              networkTimeoutSeconds: 10,
-              cacheableResponse: {
-                statuses: [0, 200]
-              }
+              // No caching for admin API requests to prevent stale/sensitive data exposure
             }
           },
-          // Cache uploads/images from server
+          
+          // 4. JS/CSS bundles - StaleWhileRevalidate (fast load, update in background)
           {
-            urlPattern: /\/uploads\//i,
-            handler: 'CacheFirst',
+            urlPattern: /\.(?:js|css)$/,
+            handler: 'StaleWhileRevalidate',
             options: {
-              cacheName: 'uploads-cache',
+              cacheName: 'static-resources-cache',
               expiration: {
-                maxEntries: 100,
-                maxAgeSeconds: 60 * 60 * 24 * 30 // 30 days
+                maxEntries: 20,
+                maxAgeSeconds: 60 * 60 * 24 * 7 // 7 days
               },
               cacheableResponse: {
                 statuses: [0, 200]

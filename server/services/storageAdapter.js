@@ -142,6 +142,7 @@ function generateDocumentDisplayName(documentType, operatorName, uploadDate) {
 /**
  * Convert documents object with gridfs:// URLs to enriched objects with metadata
  * This fetches metadata from GridFS to provide proper display names
+ * OPTIMIZED: Uses batch metadata fetching for better performance
  * @param {Object} documents - Documents object with field names pointing to gridfs:// URLs
  * @param {Object} applicationData - Application data containing operator info for naming
  * @returns {Object} Enhanced documents object with {url, displayName, type, uploadedAt}
@@ -171,6 +172,36 @@ async function enrichDocumentsWithMetadata(documents, applicationData = {}) {
     'resolutionDocumentObj': 'resolution'
   };
   
+  // First pass: collect all gridfs URLs for batch fetching
+  const gridfsUrls = [];
+  const urlToFieldMap = new Map();
+  
+  for (const [fieldName, value] of Object.entries(documents)) {
+    if (value && typeof value === 'string' && value.startsWith('gridfs://')) {
+      gridfsUrls.push(value);
+      urlToFieldMap.set(value, fieldName);
+    }
+  }
+  
+  // Batch fetch metadata for all URLs at once
+  let metadataArray = [];
+  if (gridfsUrls.length > 0) {
+    try {
+      metadataArray = await gridfsService.batchGetFileMetadata(gridfsUrls);
+    } catch (err) {
+      console.error('[StorageAdapter] Batch metadata fetch error:', err);
+    }
+  }
+  
+  // Create metadata map for quick lookup
+  const metadataMap = new Map();
+  metadataArray.forEach((metadata, index) => {
+    if (metadata) {
+      metadataMap.set(gridfsUrls[index], metadata);
+    }
+  });
+  
+  // Second pass: enrich documents with metadata
   for (const [fieldName, value] of Object.entries(documents)) {
     if (!value) {
       enrichedDocs[fieldName] = null;
@@ -181,13 +212,8 @@ async function enrichDocumentsWithMetadata(documents, applicationData = {}) {
       const fileId = value.substring(9);
       const docType = fieldToDocType[fieldName] || fieldName.replace(/Obj$/, '').toLowerCase();
       
-      // Try to get metadata from GridFS
-      let metadata = null;
-      try {
-        metadata = await gridfsService.getFileMetadata(value);
-      } catch (err) {
-        // Silently fail - use fallback naming
-      }
+      // Get metadata from batch results
+      const metadata = metadataMap.get(value);
       
       const uploadDate = metadata?.uploadedAt || submittedAt;
       const mimeType = metadata?.mimetype || 'application/octet-stream';

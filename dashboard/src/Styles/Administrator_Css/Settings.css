@@ -13,6 +13,9 @@
   margin-left: 240px;
   width: calc(100% - 240px);
   animation: pageContentFadeIn 0.4s ease-out;
+  min-height: calc(100vh - 64px);
+  overflow-y: scroll;
+  scrollbar-gutter: stable;
 }
 
 @keyframes pageContentFadeIn {
@@ -939,3 +942,379 @@ button:focus-visible,
     transition: none !important;
   }
 }
+
+/* ==================== Enhanced Backup & Recovery Styles ==================== */
+
+/* Action Card Left Border Accents */
+.backup-action-card.create-backup {
+  border-left: 4px solid #0A356B !important;
+  background: linear-gradient(135deg, #f0f5fa 0%, #ffffff 100%) !important;
+}
+
+.backup-action-card.create-backup:hover {
+  border-left-color: #083057 !important;
+}
+
+/* Local Backup Card - Purple Theme */
+.backup-action-card.local-backup {
+  border-left: 4px solid #7c3aed !important;
+  background: linear-gradient(135deg, #faf5ff 0%, #ffffff 100%) !important;
+}
+
+.backup-action-card.local-backup:hover {
+  border-left-color: #6d28d9 !important;
+}
+
+/* Restore Backup Card - Green Theme */
+.backup-action-card.restore-backup {
+  border-left: 4px solid #059669 !important;
+  background: linear-gradient(135deg, #f0fdf4 0%, #ffffff 100%) !important;
+}
+
+.backup-action-card.restore-backup:hover {
+  border-left-color: #047857 !important;
+}
+
+.backup-action-btn.purple {
+  background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%) !important;
+  color: white !important;
+  box-shadow: 0 4px 12px rgba(124, 58, 237, 0.25) !important;
+}
+
+.backup-action-btn.purple:hover:not(:disabled) {
+  background: linear-gradient(135deg, #6d28d9 0%, #5b21b6 100%) !important;
+  box-shadow: 0 6px 16px rgba(124, 58, 237, 0.35) !important;
+  transform: translateY(-2px);
+}
+
+/* Quick Actions Bar */
+.backup-quick-actions {
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%) !important;
+  border: 1px solid rgba(10, 53, 107, 0.1) !important;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 16px 20px !important;
+  border-radius: 12px !important;
+  align-items: center;
+  justify-content: flex-end;
+  box-shadow: 0 2px 8px rgba(10, 53, 107, 0.06) !important;
+}
+
+.backup-quick-actions::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: linear-gradient(180deg, #0A356B 0%, #1e4b8e 100%);
+  border-radius: 12px 0 0 12px;
+}
+
+.quick-action-btn {
+  font-weight: 600 !important;
+  text-transform: none !important;
+  padding: 8px 16px !important;
+  border-radius: 8px !important;
+  transition: all 0.3s ease !important;
+  min-width: 140px !important;
+}
+
+.quick-action-btn.download {
+  border-color: #0A356B !important;
+  color: #0A356B !important;
+}
+
+.quick-action-btn.download:hover:not(:disabled) {
+  background-color: rgba(10, 53, 107, 0.08) !important;
+  border-color: #083057 !important;
+}
+
+.quick-action-btn.cleanup {
+  border-color: #d97706 !important;
+  color: #d97706 !important;
+}
+
+.quick-action-btn.cleanup:hover:not(:disabled) {
+  background-color: rgba(217, 119, 6, 0.08) !important;
+  border-color: #b45309 !important;
+}
+
+.quick-action-btn.reset {
+  border-color: #dc2626 !important;
+  color: #dc2626 !important;
+}
+
+.quick-action-btn.reset:hover:not(:disabled) {
+  background-color: rgba(220, 38, 38, 0.08) !important;
+  border-color: #b91c1c !important;
+}
+
+/* Enhanced Status Cards */
+.backup-status-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.backup-status-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #0A356B 0%, #1e4b8e 50%, #3b6db5 100%);
+}
+
+.backup-status-card.success-theme::before {
+  background: linear-gradient(90deg, #059669 0%, #10b981 50%, #34d399 100%);
+}
+
+.backup-status-card.warning-theme::before {
+  background: linear-gradient(90deg, #d97706 0%, #f59e0b 50%, #fbbf24 100%);
+}
+
+/* Enhanced Action Cards */
+.backup-action-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.backup-action-card::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: transparent;
+  transition: background 0.3s ease;
+}
+
+.backup-action-card:hover::after {
+  background: linear-gradient(90deg, #0A356B 0%, #1e4b8e 100%);
+}
+
+.backup-action-card.create-backup:hover::after {
+  background: linear-gradient(90deg, #0A356B 0%, #1e4b8e 100%);
+}
+
+.backup-action-card.local-backup:hover::after {
+  background: linear-gradient(90deg, #7c3aed 0%, #6d28d9 100%);
+}
+
+.backup-action-card.restore-backup:hover::after {
+  background: linear-gradient(90deg, #059669 0%, #10b981 100%);
+}
+
+/* Icon backgrounds for action cards */
+.action-icon-bg {
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+}
+
+.action-icon-bg.primary {
+  background: linear-gradient(135deg, #e8f0f8 0%, #d1e0f0 100%);
+}
+
+.action-icon-bg.purple {
+  background: linear-gradient(135deg, #f3e8ff 0%, #e9d5ff 100%);
+}
+
+.action-icon-bg.success {
+  background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%);
+}
+
+.backup-action-card:hover .action-icon-bg {
+  transform: scale(1.1);
+}
+
+/* Download Dialog Enhancements */
+.download-dialog-header {
+  background: linear-gradient(135deg, #0A356B 0%, #1e4b8e 100%);
+  color: white;
+  padding: 20px 24px !important;
+}
+
+.download-dialog-list-item {
+  transition: all 0.2s ease;
+  border-left: 3px solid transparent;
+}
+
+.download-dialog-list-item:hover {
+  background-color: #f8fafc;
+}
+
+.download-dialog-list-item.selected {
+  background-color: #eff6ff;
+  border-left-color: #0A356B;
+}
+
+/* Enhanced Backup History */
+.backup-history-container {
+  position: relative;
+  overflow: hidden;
+}
+
+.backup-history-container::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #0A356B 0%, #1e4b8e 33%, #3b6db5 66%, #6b8fc7 100%);
+}
+
+.history-header {
+  padding-top: 8px;
+}
+
+.backup-history-item {
+  position: relative;
+  border-left: 3px solid transparent;
+  transition: all 0.3s ease;
+}
+
+.backup-history-item:hover {
+  border-left-color: #0A356B;
+}
+
+.backup-history-item.protected {
+  border-left-color: #d97706;
+  background: linear-gradient(90deg, rgba(254, 243, 199, 0.3) 0%, #f8fafc 100%);
+}
+
+/* Animated progress bar for backup operations */
+@keyframes progressPulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+.backup-progress-overlay .MuiLinearProgress-root {
+  animation: progressPulse 1.5s ease-in-out infinite;
+}
+
+/* Enhanced file selection area */
+.file-drop-zone {
+  border: 2px dashed #cbd5e1;
+  border-radius: 12px;
+  padding: 24px;
+  text-align: center;
+  transition: all 0.3s ease;
+  background: #f8fafc;
+  cursor: pointer;
+}
+
+.file-drop-zone:hover {
+  border-color: #059669;
+  background: #f0fdf4;
+}
+
+.file-drop-zone.dragover {
+  border-color: #059669;
+  background: #dcfce7;
+  transform: scale(1.02);
+}
+
+/* Badge for backup type */
+.backup-type-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.backup-type-badge.manual {
+  background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+  color: #1d4ed8;
+}
+
+.backup-type-badge.automatic {
+  background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%);
+  color: #15803d;
+}
+
+.backup-type-badge.emergency {
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+  color: #b45309;
+}
+
+.backup-type-badge.full-export {
+  background: linear-gradient(135deg, #f3e8ff 0%, #e9d5ff 100%);
+  color: #6d28d9;
+}
+
+/* Responsive adjustments for quick actions */
+@media (max-width: 900px) {
+  .backup-quick-actions {
+    justify-content: center;
+    padding: 16px !important;
+  }
+  
+  .backup-quick-actions .MuiTypography-root {
+    width: 100%;
+    text-align: center;
+    margin-bottom: 8px;
+  }
+  
+  .quick-action-btn {
+    flex: 1;
+    min-width: 120px !important;
+  }
+}
+
+@media (max-width: 600px) {
+  .backup-quick-actions {
+    flex-direction: column;
+  }
+  
+  .quick-action-btn {
+    width: 100%;
+  }
+  
+  .backup-action-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* Animation for cards on load */
+@keyframes cardSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.backup-status-card,
+.backup-action-card {
+  animation: cardSlideUp 0.4s ease-out forwards;
+}
+
+.backup-status-card:nth-child(1) { animation-delay: 0.1s; }
+.backup-status-card:nth-child(2) { animation-delay: 0.2s; }
+.backup-status-card:nth-child(3) { animation-delay: 0.3s; }
+
+.backup-action-card:nth-child(1) { animation-delay: 0.15s; }
+.backup-action-card:nth-child(2) { animation-delay: 0.25s; }
+.backup-action-card:nth-child(3) { animation-delay: 0.35s; }
+

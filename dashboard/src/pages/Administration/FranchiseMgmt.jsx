@@ -1642,7 +1642,7 @@ function FranchiseMgmt() {
               <Table className="admin-table" stickyHeader aria-label="pending franchises table">
                 <TableHead>
                   <TableRow>
-                    <TableCell className="admin-table-header-cell col-id">Record No.</TableCell>
+                    <TableCell className="admin-table-header-cell col-id">Franchise Number</TableCell>
                     <TableCell className="admin-table-header-cell col-name" align="left">Franchisee Name</TableCell>
                     <TableCell className="admin-table-header-cell col-contact">Make</TableCell>
                     <TableCell className="admin-table-header-cell col-status">Application Type</TableCell>
@@ -1662,7 +1662,7 @@ function FranchiseMgmt() {
                           onClick={() => handleOpenViewModal(application)}
                           hover
                         >
-                          <TableCell className="admin-table-cell">{index + 1}</TableCell>
+                          <TableCell className="admin-table-cell">{application.franchiseNumber || 'Pending'}</TableCell>
                           <TableCell className="admin-table-cell col-name" align="left">{application.name}</TableCell>
                           <TableCell className="admin-table-cell">{application.make}</TableCell>
                           <TableCell className="admin-table-cell">
