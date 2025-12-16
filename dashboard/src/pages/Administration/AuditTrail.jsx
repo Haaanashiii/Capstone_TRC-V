@@ -42,6 +42,7 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ErrorIcon from '@mui/icons-material/Error';
 import CloseIcon from '@mui/icons-material/Close';
 import { logger } from '../../utils/logger';
+import { getToken } from '../Services/api';
 
 // API Configuration
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170';
@@ -131,9 +132,9 @@ function AuditTrail() {
   const [selectedLog, setSelectedLog] = useState(null);
   const [viewModalOpen, setViewModalOpen] = useState(false);
 
-  // Get auth token from storage
+  // Get auth token from centralized secure token manager
   const getAuthToken = useCallback(() => {
-    return sessionStorage.getItem('accessToken') || localStorage.getItem('accessToken');
+    return getToken();
   }, []);
 
   // Verify admin access on component mount

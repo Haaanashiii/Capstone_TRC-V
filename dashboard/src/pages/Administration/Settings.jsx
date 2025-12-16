@@ -61,6 +61,7 @@ import SettingsIcon from '@mui/icons-material/Settings';
 // Import backup service
 import * as backupService from '../../services/backupService';
 import { logger } from '../../utils/logger';
+import { getToken } from '../Services/api';
 
 // API Configuration
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170';
@@ -264,9 +265,9 @@ function Settings() {
     }
   }, [hasPermissionChanges]);
 
-  // Get auth token from storage
+  // Get auth token from centralized secure token manager
   const getAuthToken = useCallback(() => {
-    return sessionStorage.getItem('accessToken') || localStorage.getItem('accessToken');
+    return getToken();
   }, []);
 
   // Notification Handler

@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import Sidebar from './Sidebar';
-import { franchiseInformationAPI, API_BASE_URL } from '../Services/api';
+import { franchiseInformationAPI, API_BASE_URL, getToken } from '../Services/api';
 import websocketService from '../../services/websocket';
 import { useAuth } from '../../contexts/AuthContext';
 import {
@@ -2086,9 +2086,9 @@ function FranchiseeList() {
     return 'document'
   }
 
-  // Get auth token
+  // Get auth token using centralized secure token manager
   const getAuthToken = () => {
-    return sessionStorage.getItem('accessToken') || localStorage.getItem('accessToken');
+    return getToken();
   };
 
   // Fetch franchisees from API (from franchise information, not applications)
@@ -2498,8 +2498,8 @@ function FranchiseeList() {
         path 
       });
       
-      // Get auth token for secure file access
-      const token = sessionStorage.getItem('accessToken') || localStorage.getItem('accessToken');
+      // Get auth token for secure file access using centralized token manager
+      const token = getToken();
       const headers = {};
       if (token) {
         headers['Authorization'] = `Bearer ${token}`;

@@ -4,6 +4,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import websocketService from '../../services/websocket';
 import { showWarning } from '../../utils/sweetAlert';
 import { logger } from '../../utils/logger';
+import { getToken } from '../Services/api';
 import '../../Styles/Administrator_Css/Sidebar.css';
 import logoImage from '../../assets/TRC-vLogo.png';
 import DashboardIcon from '@mui/icons-material/Dashboard';
@@ -171,7 +172,8 @@ function Sidebar() {
     }
 
     try {
-      const token = sessionStorage.getItem('accessToken') || localStorage.getItem('accessToken');
+      // Use centralized secure token manager
+      const token = getToken();
       if (!token) {
         if (!cached) {
           setAllowedPages(getDefaultPages(user.role));

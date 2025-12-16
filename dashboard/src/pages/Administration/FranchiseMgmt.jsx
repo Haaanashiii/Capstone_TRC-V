@@ -42,8 +42,7 @@ import ImageIcon from '@mui/icons-material/Image'
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf'
 import VisibilityIcon from '@mui/icons-material/Visibility'
 import DownloadIcon from '@mui/icons-material/Download'
-import GetAppIcon from '@mui/icons-material/GetApp'
-import { previewFilledPDF, downloadFilledPDF, getPdfFieldNames } from '../../utils/pdfFiller'
+import { previewFilledPDF, downloadFilledPDF } from '../../utils/pdfFiller'
 import { logger } from '../../utils/logger'
 
 // Application type constants for better type safety and maintainability
@@ -235,7 +234,6 @@ function FranchiseMgmt() {
   const [openViewModal, setOpenViewModal] = useState(false)
   const [openRejectModal, setOpenRejectModal] = useState(false)
   const [openSBApprovalModal, setOpenSBApprovalModal] = useState(false)
-  const [openAcceptFranchiseModal, setOpenAcceptFranchiseModal] = useState(false)
   const [selectedApplication, setSelectedApplication] = useState(null)
   const [rejectionReason, setRejectionReason] = useState('')
   const [resolutionNumber, setResolutionNumber] = useState('')
@@ -1083,7 +1081,7 @@ function FranchiseMgmt() {
    * 
    * Note: The franchise number is NOT assigned at submission time.
    * It will be generated and linked when the SB admin accepts the application
-   * after final approval (handleAcceptFranchise or handleSBApproval)
+   * after final approval (handleSBApproval)
    */
   const handleSubmitApplication = async (e) => {
     e.preventDefault()
@@ -1395,57 +1393,6 @@ function FranchiseMgmt() {
   }
   
   /**
-   * SB Admin accept franchise - creates FranchiseInformation record
-   * This is the final step after SB approval that moves the application to the franchise list
-   */
-  const handleAcceptFranchise = async () => {
-    if (!selectedApplication) {
-      setNotification({
-        open: true,
-        message: 'No application selected',
-        type: 'error'
-      })
-      return
-    }
-    
-    setIsLoading(true)
-    
-    try {
-      logger.log('[FranchiseMgmt] Accepting franchise for application:', selectedApplication.id)
-      
-      // Determine which endpoint to call based on application type
-      const isNew = selectedApplication.applicationType === 'new'
-      const response = isNew 
-        ? await franchiseAPI.acceptNewFranchise(selectedApplication.id, {})
-        : await franchiseAPI.acceptRenewAmend(selectedApplication.id, {})
-      
-      logger.log('[FranchiseMgmt] Franchise created/updated successfully:', response.data)
-
-      await fetchAllPending()
-
-      setNotification({ 
-        open: true, 
-        message: 'Franchise record created successfully. The franchise is now active in the system.', 
-        type: 'success' 
-      })
-      
-      setOpenAcceptFranchiseModal(false)
-      handleCloseViewModal()
-    } catch (error) {
-      logger.error('[FranchiseMgmt] Error accepting franchise:', error)
-      
-      const errorMessage = error.response?.data?.error || error.message || 'Failed to accept franchise'
-      setNotification({
-        open: true,
-        message: errorMessage,
-        type: 'error'
-      })
-    } finally {
-      setIsLoading(false)
-    }
-  }
-  
-  /**
    * Submit disapproval/rejection (BPLO only)
    */
   const handleSubmitRejection = async () => {
@@ -1563,28 +1510,6 @@ function FranchiseMgmt() {
     if (pdfPreviewUrl) {
       URL.revokeObjectURL(pdfPreviewUrl)
       setPdfPreviewUrl(null)
-    }
-  }
-
-  /**
-   * Debug: Show PDF field names
-   */
-  const handleShowPdfFields = async () => {
-    try {
-      const fields = await getPdfFieldNames()
-      logger.log('[FranchiseMgmt] PDF Fields:', fields)
-      setNotification({
-        open: true,
-        message: `Found ${fields.length} fields in PDF. Check console for details.`,
-        type: 'info'
-      })
-    } catch (error) {
-      logger.error('[FranchiseMgmt] Error getting PDF fields:', error)
-      setNotification({
-        open: true,
-        message: 'Failed to read PDF fields',
-        type: 'error'
-      })
     }
   }
 

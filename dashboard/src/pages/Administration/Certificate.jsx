@@ -74,6 +74,7 @@ import CancelIcon from '@mui/icons-material/Cancel';
 import ArticleIcon from '@mui/icons-material/Article';
 import AssignmentIcon from '@mui/icons-material/Assignment';
 import { logger } from '../../utils/logger';
+import { getToken } from '../Services/api';
 
 const StyledModal = styled(Modal)({
   display: 'flex',
@@ -182,8 +183,9 @@ function Certificate() {
   const [pdfPreviewUrl, setPdfPreviewUrl] = useState(null);
   const [loadingPreview, setLoadingPreview] = useState(false);
 
+  // Get auth token from centralized secure token manager
   const getAuthToken = useCallback(() => {
-    return sessionStorage.getItem('accessToken') || localStorage.getItem('accessToken');
+    return getToken();
   }, []);
 
   const loadFranchises = useCallback(async () => {
