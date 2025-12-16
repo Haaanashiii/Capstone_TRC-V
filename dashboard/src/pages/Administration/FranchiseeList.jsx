@@ -219,7 +219,7 @@ const EditableField = ({ label, value, field, isEditing, editData, onChange, typ
 /**
  * FranchiseHistorySection - Collapsible section showing franchise ownership history in table format
  */
-const FranchiseHistorySection = ({ franchisee, isEditing }) => {
+const FranchiseHistorySection = ({ franchisee, isEditing, onViewHistoryItem }) => {
   const [showHistory, setShowHistory] = useState(false);
   const [historyData, setHistoryData] = useState(null);
   const [loadingHistory, setLoadingHistory] = useState(false);
@@ -272,12 +272,20 @@ const FranchiseHistorySection = ({ franchisee, isEditing }) => {
       <TableContainer component={Paper} variant="outlined" sx={{ mt: 1 }}>
         <Table size="small">
           <TableHead>
-            <TableRow sx={{ bgcolor: '#f5f5f5' }}>
-              <TableCell sx={{ fontWeight: 600 }}>Franchise #</TableCell>
+            <TableRow
+              sx={{
+                 bgcolor: '#f5f5f5',
+                        '& th': {
+                        color: '#fff',
+                       fontWeight: 600,
+                          }, }}>
+              <TableCell sx={{ fontWeight: 600 }}>Franchise Number</TableCell>
               <TableCell sx={{ fontWeight: 600 }}>Owner Name</TableCell>
               <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
               <TableCell sx={{ fontWeight: 600 }}>Versions</TableCell>
               <TableCell sx={{ fontWeight: 600 }}>Registered</TableCell>
+              <TableCell sx={{ fontWeight: 600 }}>Expired On</TableCell>
+              <TableCell sx={{ fontWeight: 600 }}>Revoked On</TableCell>
               <TableCell sx={{ fontWeight: 600 }}>Ownership</TableCell>
             </TableRow>
           </TableHead>
@@ -287,13 +295,40 @@ const FranchiseHistorySection = ({ franchisee, isEditing }) => {
               const ownerName = owner.franchises[0]?.operatorName || 'Unknown';
               const firstRegistered = owner.franchises[0]?.changedAt;
               const isActiveOwner = owner.currentStatus === 'Active';
+              // Get the latest version for this owner to show in detail modal
+              const latestVersion = owner.franchises?.length > 0 
+                ? owner.franchises.reduce((latest, current) => 
+                    (current.version > latest.version) ? current : latest
+                  )
+                : null;
+              
+              // Find when the franchise was expired (auto_expired changeType)
+              const expiredVersion = owner.franchises?.find(f => 
+                f.changeType === 'auto_expired' || f.changeType === 'auto_expired_catchup'
+              );
+              const expiredOn = expiredVersion?.changedAt || 
+                (owner.currentStatus === 'Expired' || owner.currentStatus === 'Revoked' 
+                  ? latestVersion?.expiryDate 
+                  : null);
+              
+              // Find when the franchise was revoked (auto_revoked changeType or revokedAt field)
+              const revokedVersion = owner.franchises?.find(f => 
+                f.changeType === 'auto_revoked'
+              );
+              const revokedOn = revokedVersion?.revokedAt || revokedVersion?.changedAt ||
+                (owner.currentStatus === 'Revoked' ? latestVersion?.revokedAt : null);
               
               return (
                 <TableRow 
                   key={owner.franchiseChainId}
+                  onClick={() => latestVersion && onViewHistoryItem?.(latestVersion)}
                   sx={{ 
                     bgcolor: isCurrentOwner ? '#e3f2fd' : 'inherit',
-                    '&:hover': { bgcolor: isCurrentOwner ? '#bbdefb' : '#f5f5f5' }
+                    '&:hover': { 
+                      bgcolor: isCurrentOwner ? '#bbdefb' : '#f5f5f5',
+                      cursor: 'pointer'
+                    },
+                    transition: 'background-color 0.2s'
                   }}
                 >
                   <TableCell>
@@ -322,6 +357,28 @@ const FranchiseHistorySection = ({ franchisee, isEditing }) => {
                   </TableCell>
                   <TableCell>
                     <Typography variant="body2">{formatDate(firstRegistered)}</Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Typography 
+                      variant="body2" 
+                      sx={{ 
+                        color: expiredOn ? '#ed6c02' : 'text.secondary',
+                        fontStyle: expiredOn ? 'normal' : 'italic'
+                      }}
+                    >
+                      {expiredOn ? formatDate(expiredOn) : '—'}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Typography 
+                      variant="body2" 
+                      sx={{ 
+                        color: revokedOn ? '#d32f2f' : 'text.secondary',
+                        fontStyle: revokedOn ? 'normal' : 'italic'
+                      }}
+                    >
+                      {revokedOn ? formatDate(revokedOn) : '—'}
+                    </Typography>
                   </TableCell>
                   <TableCell>
                     <Chip 
@@ -363,7 +420,7 @@ const FranchiseHistorySection = ({ franchisee, isEditing }) => {
       <Box>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
           <Typography variant="subtitle2" sx={{ color: '#0A356B', fontWeight: 600 }}>
-            Franchise #{historyData.franchiseNumber} - Ownership History
+            Franchise Number {historyData.franchiseNumber} - Ownership History
           </Typography>
           <Typography variant="caption" sx={{ color: 'text.secondary' }}>
             {historyData.uniqueOwners} owner(s) | {historyData.totalVersions} version(s)
@@ -413,9 +470,17 @@ const FranchiseeDetailsModal = ({
   getFileIcon, 
   getDocumentDisplayName, 
   qrBlobUrl,
-  saving
+  saving,
+  user
 }) => {
+  // Only sb-admin and super-admin can edit franchisees
+  const canEdit = user?.role === 'sb-admin' || user?.role === 'super-admin';
   const [editData, setEditData] = useState({});
+  const [historyItemModalOpen, setHistoryItemModalOpen] = useState(false);
+  const [selectedHistoryItem, setSelectedHistoryItem] = useState(null);
+  const [loadingHistoryItem, setLoadingHistoryItem] = useState(false);
+  const [historyItemQrBlobUrl, setHistoryItemQrBlobUrl] = useState(null);
+  const historyItemQrBlobUrlRef = useRef(null);
 
   // Initialize edit data when entering edit mode
   useEffect(() => {
@@ -459,6 +524,192 @@ const FranchiseeDetailsModal = ({
     onSave({ ...franchisee, ...editData });
   };
 
+  // Helper function to determine file type from URL
+  const getFileTypeFromUrl = (url) => {
+    if (!url) return 'unknown';
+    const ext = url.split('.').pop().toLowerCase();
+    if (['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'].includes(ext)) return 'image';
+    if (ext === 'pdf') return 'pdf';
+    return 'document';
+  };
+
+  /**
+   * Handle viewing a historical franchise record
+   */
+  const handleViewHistoryItem = useCallback(async (historyRecord) => {
+    if (!historyRecord?._id) return;
+    
+    setLoadingHistoryItem(true);
+    setHistoryItemModalOpen(true);
+    
+    try {
+      // Fetch full details of the historical franchise record
+      const response = await franchiseInformationAPI.getById(historyRecord._id);
+      const data = response.data?.data || response.data;
+      
+      // Transform the data to match expected format
+      const docs = data.documents || {};
+      
+      // Log document data for debugging
+      logger.log('[History Item] Raw document data:', docs);
+      
+      const transformedData = {
+        id: data._id || data.id,
+        franchiseeName: data.operatorName || '',
+        franchiseNumber: data.franchiseNumber || '',
+        make: data.unitModel || 'N/A',
+        plateNumber: data.mvPlateNo || 'N/A',
+        applicationType: data.changeType ? formatChangeType(data.changeType) : 'New',
+        changeType: data.changeType || 'new',
+        franchiseChainId: data.franchiseChainId || '',
+        version: data.version || 1,
+        address: data.operatorAddress || '',
+        barangay: data.operatorBarangay || '',
+        contactNumber: data.operatorContactNumber || '',
+        email: data.operatorEmail || '',
+        coOwnerName: data.coOwnerName || '',
+        coOwnerAddress: data.coOwnerAddress || '',
+        civilStatus: data.operatorCivilStatus || '',
+        birthPlace: data.operatorBirthPlace || '',
+        birthDate: data.operatorBirthDate ? new Date(data.operatorBirthDate).toLocaleDateString() : '',
+        citizenship: data.operatorCitizenship || '',
+        todaMembership: data.todaMembership || '',
+        unitModel: data.unitModel || '',
+        colorMotor: data.colorMotor || '',
+        colorSidecar: data.sideCarColor || '',
+        mvPlate: data.mvPlateNo || '',
+        motorEngineNumber: data.motorEngineNo || '',
+        chassisNumber: data.chasisNo || '',
+        driverName: data.driverName || '',
+        driversAddress: data.driversAddress || '',
+        rate: data.rate || '',
+        franchiseStatus: data.franchiseStatus || '',
+        approvedAt: data.approvedAt ? new Date(data.approvedAt).toLocaleDateString() : '',
+        expiryDate: data.expiryDate ? new Date(data.expiryDate).toLocaleDateString() : '',
+        resolutionNumber: data.resolutionNumber || data.sbResolutionNumber || '',
+        resolutionDocument: (data.resolutionDocument || data.sbResolutionDocument || docs.resolutionDocumentObj) ? {
+          name: (data.resolutionDocument || data.sbResolutionDocument || docs.resolutionDocumentObj).split('/').pop(),
+          path: data.resolutionDocument || data.sbResolutionDocument || docs.resolutionDocumentObj,
+          type: getFileTypeFromUrl(data.resolutionDocument || data.sbResolutionDocument || docs.resolutionDocumentObj)
+        } : null,
+        orNumber: data.officialReceiptNumber || '',
+        qrCode: data.qrCode || null,
+        // Document files - check both URL string and enriched object format
+        documentRegistration: docs.motorRegistrationObj || docs.motorRegistration ? { 
+          name: (typeof docs.motorRegistrationObj === 'string' ? docs.motorRegistrationObj : (docs.motorRegistration?.url || docs.motorRegistrationObj?.url || docs.motorRegistrationObj))?.split('/').pop() || 'Registration',
+          path: typeof docs.motorRegistrationObj === 'string' ? docs.motorRegistrationObj : (docs.motorRegistration?.url || docs.motorRegistrationObj?.url || docs.motorRegistrationObj),
+          type: getFileTypeFromUrl(typeof docs.motorRegistrationObj === 'string' ? docs.motorRegistrationObj : (docs.motorRegistration?.url || docs.motorRegistrationObj?.url || docs.motorRegistrationObj))
+        } : null,
+        documentBarangayClearance: docs.barangayClearanceObj || docs.barangayClearance ? {
+          name: (typeof docs.barangayClearanceObj === 'string' ? docs.barangayClearanceObj : docs.barangayClearance?.url || docs.barangayClearanceObj?.url)?.split('/').pop() || 'Barangay Clearance',
+          path: typeof docs.barangayClearanceObj === 'string' ? docs.barangayClearanceObj : (docs.barangayClearance?.url || docs.barangayClearanceObj?.url),
+          type: getFileTypeFromUrl(typeof docs.barangayClearanceObj === 'string' ? docs.barangayClearanceObj : (docs.barangayClearance?.url || docs.barangayClearanceObj?.url))
+        } : null,
+        documentCedula: docs.cedulaObj || docs.cedula ? {
+          name: (typeof docs.cedulaObj === 'string' ? docs.cedulaObj : docs.cedula?.url || docs.cedulaObj?.url)?.split('/').pop() || 'Cedula',
+          path: typeof docs.cedulaObj === 'string' ? docs.cedulaObj : (docs.cedula?.url || docs.cedulaObj?.url),
+          type: getFileTypeFromUrl(typeof docs.cedulaObj === 'string' ? docs.cedulaObj : (docs.cedula?.url || docs.cedulaObj?.url))
+        } : null,
+        documentDriversLicense: docs.driversLicenseObj || docs.driversLicense ? {
+          name: (typeof docs.driversLicenseObj === 'string' ? docs.driversLicenseObj : docs.driversLicense?.url || docs.driversLicenseObj?.url)?.split('/').pop() || 'Drivers License',
+          path: typeof docs.driversLicenseObj === 'string' ? docs.driversLicenseObj : (docs.driversLicense?.url || docs.driversLicenseObj?.url),
+          type: getFileTypeFromUrl(typeof docs.driversLicenseObj === 'string' ? docs.driversLicenseObj : (docs.driversLicense?.url || docs.driversLicenseObj?.url))
+        } : null,
+        documentVotersAffidavit: docs.votersAffidavitObj || docs.votersAffidavit ? {
+          name: (typeof docs.votersAffidavitObj === 'string' ? docs.votersAffidavitObj : docs.votersAffidavit?.url || docs.votersAffidavitObj?.url)?.split('/').pop() || 'Voters Affidavit',
+          path: typeof docs.votersAffidavitObj === 'string' ? docs.votersAffidavitObj : (docs.votersAffidavit?.url || docs.votersAffidavitObj?.url),
+          type: getFileTypeFromUrl(typeof docs.votersAffidavitObj === 'string' ? docs.votersAffidavitObj : (docs.votersAffidavit?.url || docs.votersAffidavitObj?.url))
+        } : null,
+        documentChassisStencil: docs.motorChassisStencilObj || docs.motorChassisStencil ? {
+          name: (typeof docs.motorChassisStencilObj === 'string' ? docs.motorChassisStencilObj : docs.motorChassisStencil?.url || docs.motorChassisStencilObj?.url)?.split('/').pop() || 'Chassis Stencil',
+          path: typeof docs.motorChassisStencilObj === 'string' ? docs.motorChassisStencilObj : (docs.motorChassisStencil?.url || docs.motorChassisStencilObj?.url),
+          type: getFileTypeFromUrl(typeof docs.motorChassisStencilObj === 'string' ? docs.motorChassisStencilObj : (docs.motorChassisStencil?.url || docs.motorChassisStencilObj?.url))
+        } : null,
+        documentORLTO: docs.oRLTOObj || docs.oRLTO ? {
+          name: (typeof docs.oRLTOObj === 'string' ? docs.oRLTOObj : docs.oRLTO?.url || docs.oRLTOObj?.url)?.split('/').pop() || 'OR LTO',
+          path: typeof docs.oRLTOObj === 'string' ? docs.oRLTOObj : (docs.oRLTO?.url || docs.oRLTOObj?.url),
+          type: getFileTypeFromUrl(typeof docs.oRLTOObj === 'string' ? docs.oRLTOObj : (docs.oRLTO?.url || docs.oRLTOObj?.url))
+        } : null,
+        documentCRLTO: docs.cRLTOObj || docs.cRLTO ? {
+          name: (typeof docs.cRLTOObj === 'string' ? docs.cRLTOObj : docs.cRLTO?.url || docs.cRLTOObj?.url)?.split('/').pop() || 'CR LTO',
+          path: typeof docs.cRLTOObj === 'string' ? docs.cRLTOObj : (docs.cRLTO?.url || docs.cRLTOObj?.url),
+          type: getFileTypeFromUrl(typeof docs.cRLTOObj === 'string' ? docs.cRLTOObj : (docs.cRLTO?.url || docs.cRLTOObj?.url))
+        } : null,
+        documentPicture: docs.driverPictureObj || docs.driverPicture ? {
+          name: (typeof docs.driverPictureObj === 'string' ? docs.driverPictureObj : docs.driverPicture?.url || docs.driverPictureObj?.url)?.split('/').pop() || 'Driver Picture',
+          path: typeof docs.driverPictureObj === 'string' ? docs.driverPictureObj : (docs.driverPicture?.url || docs.driverPictureObj?.url),
+          type: getFileTypeFromUrl(typeof docs.driverPictureObj === 'string' ? docs.driverPictureObj : (docs.driverPicture?.url || docs.driverPictureObj?.url))
+        } : null,
+        documentOperatorPicture: docs.operatorPictureObj || docs.operatorPicture ? {
+          name: (typeof docs.operatorPictureObj === 'string' ? docs.operatorPictureObj : docs.operatorPicture?.url || docs.operatorPictureObj?.url)?.split('/').pop() || 'Operator Picture',
+          path: typeof docs.operatorPictureObj === 'string' ? docs.operatorPictureObj : (docs.operatorPicture?.url || docs.operatorPictureObj?.url),
+          type: getFileTypeFromUrl(typeof docs.operatorPictureObj === 'string' ? docs.operatorPictureObj : (docs.operatorPicture?.url || docs.operatorPictureObj?.url))
+        } : null,
+        documentTreasurerOR: docs.oRTreasurerOfficeObj || docs.oRTreasurerOffice ? {
+          name: (typeof docs.oRTreasurerOfficeObj === 'string' ? docs.oRTreasurerOfficeObj : docs.oRTreasurerOffice?.url || docs.oRTreasurerOfficeObj?.url)?.split('/').pop() || 'OR Treasurer',
+          path: typeof docs.oRTreasurerOfficeObj === 'string' ? docs.oRTreasurerOfficeObj : (docs.oRTreasurerOffice?.url || docs.oRTreasurerOfficeObj?.url),
+          type: getFileTypeFromUrl(typeof docs.oRTreasurerOfficeObj === 'string' ? docs.oRTreasurerOfficeObj : (docs.oRTreasurerOffice?.url || docs.oRTreasurerOfficeObj?.url))
+        } : null
+      };
+      
+      setSelectedHistoryItem(transformedData);
+      
+      // Fetch QR code if available
+      if (data.qrCode) {
+        try {
+          const apiBase = API_BASE_URL || 'http://localhost:5170';
+          const qrUrl = data.qrCode.startsWith('gridfs://') 
+            ? `${apiBase}/api/files/${data.qrCode.substring(9)}`
+            : data.qrCode.startsWith('/') 
+            ? `${apiBase}${data.qrCode}`
+            : data.qrCode;
+          
+          const qrResp = await fetch(qrUrl, { mode: 'cors' });
+          if (qrResp.ok) {
+            const qrBlob = await qrResp.blob();
+            const qrObjUrl = URL.createObjectURL(qrBlob);
+            
+            if (historyItemQrBlobUrlRef.current) {
+              URL.revokeObjectURL(historyItemQrBlobUrlRef.current);
+            }
+            historyItemQrBlobUrlRef.current = qrObjUrl;
+            setHistoryItemQrBlobUrl(qrObjUrl);
+          }
+        } catch (qrError) {
+          logger.warn('Failed to load QR code for history item:', qrError);
+        }
+      }
+    } catch (error) {
+      logger.error('Error fetching history item details:', error);
+      setSelectedHistoryItem(null);
+    } finally {
+      setLoadingHistoryItem(false);
+    }
+  }, []);
+
+  /**
+   * Handle closing history item modal
+   */
+  const handleCloseHistoryItemModal = useCallback(() => {
+    setHistoryItemModalOpen(false);
+    if (historyItemQrBlobUrlRef.current) {
+      URL.revokeObjectURL(historyItemQrBlobUrlRef.current);
+      historyItemQrBlobUrlRef.current = null;
+    }
+    setHistoryItemQrBlobUrl(null);
+    // Delay clearing the selected item to allow modal close animation
+    setTimeout(() => setSelectedHistoryItem(null), 300);
+  }, []);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (historyItemQrBlobUrlRef.current) {
+        URL.revokeObjectURL(historyItemQrBlobUrlRef.current);
+      }
+    };
+  }, []);
+
   if (!franchisee) return null;
 
   // Only mark as previous owner if franchise was revoked (taken away and given to someone else)
@@ -495,13 +746,13 @@ const FranchiseeDetailsModal = ({
               )}
             </Box>
             <Box sx={{ display: 'flex', gap: 1 }}>
-              {!isEditing ? (
+              {!isEditing && canEdit ? (
                 <Tooltip title="Edit Franchisee">
                   <IconButton onClick={onEdit} sx={{ color: 'white' }}>
                     <EditIcon />
                   </IconButton>
                 </Tooltip>
-              ) : (
+              ) : isEditing ? (
                 <>
                   <Tooltip title="Save Changes">
                     <IconButton 
@@ -518,7 +769,7 @@ const FranchiseeDetailsModal = ({
                     </IconButton>
                   </Tooltip>
                 </>
-              )}
+              ) : null}
               <IconButton onClick={onClose} sx={{ color: 'white' }}>
                 <CloseIcon />
               </IconButton>
@@ -774,7 +1025,11 @@ const FranchiseeDetailsModal = ({
             </div>
 
             {/* Franchise History Section */}
-            <FranchiseHistorySection franchisee={franchisee} isEditing={isEditing} />
+            <FranchiseHistorySection 
+              franchisee={franchisee} 
+              isEditing={isEditing}
+              onViewHistoryItem={handleViewHistoryItem}
+            />
             
             <Typography variant="h6" className="section-header">
               MOTORCYCLE INFORMATION
@@ -996,6 +1251,277 @@ const FranchiseeDetailsModal = ({
               )}
             </div>
           </div>
+
+          {/* Nested Modal for History Item Details */}
+          {selectedHistoryItem && (
+            <Modal
+              open={historyItemModalOpen}
+              onClose={handleCloseHistoryItemModal}
+              aria-labelledby="history-item-details-modal"
+              closeAfterTransition
+              BackdropProps={{
+                timeout: 500,
+                sx: { backgroundColor: 'rgba(0, 0, 0, 0.7)' }
+              }}
+              sx={{ zIndex: (theme) => theme.zIndex.modal + 1 }}
+            >
+              <Fade in={historyItemModalOpen}>
+                <Box className="modal-container" sx={{ maxWidth: '850px' }}>
+                  <div className="modal-header">
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                      <HistoryIcon />
+                      <Typography variant="h5" component="h2">
+                        HISTORICAL FRANCHISE RECORD
+                      </Typography>
+                      <Chip 
+                        label={`Version ${selectedHistoryItem.version}`}
+                        size="small" 
+                        color="primary"
+                        sx={{ fontWeight: 600 }} 
+                      />
+                    </Box>
+                    <IconButton onClick={handleCloseHistoryItemModal} sx={{ color: 'white' }}>
+                      <CloseIcon />
+                    </IconButton>
+                  </div>
+                  
+                  <div className="modal-body">
+                    {loadingHistoryItem ? (
+                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', p: 4 }}>
+                        <CircularProgress />
+                        <Typography sx={{ ml: 2 }}>Loading details...</Typography>
+                      </Box>
+                    ) : (
+                      <>
+                        <Alert severity="info" sx={{ mb: 2 }}>
+                          This is a historical snapshot of franchise #{selectedHistoryItem.franchiseNumber} (Version {selectedHistoryItem.version}).
+                          {selectedHistoryItem.franchiseStatus === 'Revoked' && ' This record represents a previous owner.'}
+                        </Alert>
+
+                        <Typography variant="h6" className="section-header">
+                          PERSONAL INFORMATION
+                        </Typography>
+                        
+                        <div className="info-grid">
+                          <Typography variant="subtitle2" className="label">Franchise Number:</Typography>
+                          <Typography sx={{ fontWeight: 600, color: '#0A356B' }}>{selectedHistoryItem.franchiseNumber}</Typography>
+                          
+                          <Typography variant="subtitle2" className="label">Name:</Typography>
+                          <Typography>{selectedHistoryItem.franchiseeName}</Typography>
+                          
+                          <Typography variant="subtitle2" className="label">Contact Number:</Typography>
+                          <Typography>{selectedHistoryItem.contactNumber || 'N/A'}</Typography>
+                          
+                          <Typography variant="subtitle2" className="label">Email:</Typography>
+                          <Typography>{selectedHistoryItem.email || 'N/A'}</Typography>
+                          
+                          <Typography variant="subtitle2" className="label">Barangay:</Typography>
+                          <Typography>{selectedHistoryItem.barangay || 'N/A'}</Typography>
+                          
+                          <Typography variant="subtitle2" className="label">Birth Place:</Typography>
+                          <Typography>{selectedHistoryItem.birthPlace || 'N/A'}</Typography>
+                          
+                          <Typography variant="subtitle2" className="label">Birth Date:</Typography>
+                          <Typography>{selectedHistoryItem.birthDate || 'N/A'}</Typography>
+                          
+                          <Typography variant="subtitle2" className="label">Civil Status:</Typography>
+                          <Typography>{selectedHistoryItem.civilStatus || 'N/A'}</Typography>
+                          
+                          <Typography variant="subtitle2" className="label">Citizenship:</Typography>
+                          <Typography>{selectedHistoryItem.citizenship || 'N/A'}</Typography>
+                          
+                          <Typography variant="subtitle2" className="label">TODA Membership:</Typography>
+                          <Typography>{selectedHistoryItem.todaMembership || 'N/A'}</Typography>
+                          
+                          <Typography variant="subtitle2" className="label">Address:</Typography>
+                          <Typography>{selectedHistoryItem.address || 'N/A'}</Typography>
+                          
+                          {selectedHistoryItem.coOwnerName && (
+                            <>
+                              <Typography variant="subtitle2" className="label">Co-Owner Name:</Typography>
+                              <Typography>{selectedHistoryItem.coOwnerName}</Typography>
+                              
+                              <Typography variant="subtitle2" className="label">Co-Owner Address:</Typography>
+                              <Typography>{selectedHistoryItem.coOwnerAddress || 'N/A'}</Typography>
+                            </>
+                          )}
+                        </div>
+                        
+                        <Typography variant="h6" className="section-header">
+                          DRIVER INFORMATION
+                        </Typography>
+                        
+                        <div className="info-grid">
+                          <Typography variant="subtitle2" className="label">Driver Name:</Typography>
+                          <Typography>{selectedHistoryItem.driverName || 'N/A'}</Typography>
+                          
+                          <Typography variant="subtitle2" className="label">Driver Address:</Typography>
+                          <Typography>{selectedHistoryItem.driversAddress || 'N/A'}</Typography>
+                        </div>
+                        
+                        <Typography variant="h6" className="section-header">
+                          FRANCHISE STATUS
+                        </Typography>
+                        
+                        <div className="info-grid">
+                          <Typography variant="subtitle2" className="label">Status:</Typography>
+                          <Chip 
+                            label={selectedHistoryItem.franchiseStatus || 'N/A'}
+                            size="small"
+                            color={getStatusColor(selectedHistoryItem.franchiseStatus)}
+                            sx={{ fontWeight: 600 }}
+                          />
+                          
+                          <Typography variant="subtitle2" className="label">Rate:</Typography>
+                          <Typography>{selectedHistoryItem.rate || 'N/A'}</Typography>
+                          
+                          <Typography variant="subtitle2" className="label">Approved Date:</Typography>
+                          <Typography>{selectedHistoryItem.approvedAt || 'N/A'}</Typography>
+                          
+                          <Typography variant="subtitle2" className="label">Expiry Date:</Typography>
+                          <Typography>{selectedHistoryItem.expiryDate || 'N/A'}</Typography>
+                          
+                          <Typography variant="subtitle2" className="label">Resolution Number:</Typography>
+                          <Typography>{selectedHistoryItem.resolutionNumber || 'N/A'}</Typography>
+                        </div>
+                        
+                        <Typography variant="h6" className="section-header">
+                          FRANCHISE INFORMATION
+                        </Typography>
+                        
+                        <div className="info-grid">
+                          <Typography variant="subtitle2" className="label">Application Type:</Typography>
+                          <Chip 
+                            label={selectedHistoryItem.applicationType || 'New'}
+                            size="small"
+                            color={getChangeTypeColor(selectedHistoryItem.changeType)}
+                            sx={{ fontWeight: 600 }}
+                          />
+                          
+                          <Typography variant="subtitle2" className="label">Version:</Typography>
+                          <Typography>{selectedHistoryItem.version || 1}</Typography>
+                          
+                          <Typography variant="subtitle2" className="label">OR Number:</Typography>
+                          <Typography>{selectedHistoryItem.orNumber || 'N/A'}</Typography>
+                        </div>
+                        
+                        <Typography variant="h6" className="section-header">
+                          MOTORCYCLE INFORMATION
+                        </Typography>
+                        
+                        <div className="info-grid">
+                          <Typography variant="subtitle2" className="label">Unit Model:</Typography>
+                          <Typography>{selectedHistoryItem.unitModel || 'N/A'}</Typography>
+                          
+                          <Typography variant="subtitle2" className="label">Color (Motor):</Typography>
+                          <Typography>{selectedHistoryItem.colorMotor || 'N/A'}</Typography>
+                          
+                          <Typography variant="subtitle2" className="label">Color (Sidecar):</Typography>
+                          <Typography>{selectedHistoryItem.colorSidecar || 'N/A'}</Typography>
+                          
+                          <Typography variant="subtitle2" className="label">MV Plate:</Typography>
+                          <Typography>{selectedHistoryItem.mvPlate || 'N/A'}</Typography>
+                          
+                          <Typography variant="subtitle2" className="label">Motor/Engine Number:</Typography>
+                          <Typography>{selectedHistoryItem.motorEngineNumber || 'N/A'}</Typography>
+                          
+                          <Typography variant="subtitle2" className="label">Chassis Number:</Typography>
+                          <Typography>{selectedHistoryItem.chassisNumber || 'N/A'}</Typography>
+                          
+                          <Typography variant="subtitle2" className="label">Make:</Typography>
+                          <Typography>{selectedHistoryItem.make || 'N/A'}</Typography>
+                          
+                          <Typography variant="subtitle2" className="label">Plate Number:</Typography>
+                          <Typography>{selectedHistoryItem.plateNumber || 'N/A'}</Typography>
+                        </div>
+
+                        {historyItemQrBlobUrl && (
+                          <>
+                            <Typography variant="h6" className="section-header">
+                              QR CODE
+                            </Typography>
+                            
+                            <div className="qr-code-container">
+                              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px' }}>
+                                <img 
+                                  src={historyItemQrBlobUrl}
+                                  alt="Historical QR Code"
+                                  className="qr-code-image"
+                                  style={{ maxWidth: '200px', maxHeight: '200px' }}
+                                />
+                                <Button
+                                  variant="contained"
+                                  href={historyItemQrBlobUrl}
+                                  download={`QR-${selectedHistoryItem.franchiseNumber}-v${selectedHistoryItem.version}.png`}
+                                  className="button-primary"
+                                  size="small"
+                                >
+                                  Download QR Code
+                                </Button>
+                              </div>
+                            </div>
+                          </>
+                        )}
+
+                        <Typography variant="h6" className="section-header">
+                          DOCUMENTS
+                        </Typography>
+                        
+                        <div className="info-grid">
+                          {[
+                            { label: 'Registration', doc: selectedHistoryItem.documentRegistration },
+                            { label: 'Barangay Clearance', doc: selectedHistoryItem.documentBarangayClearance },
+                            { label: 'Cedula', doc: selectedHistoryItem.documentCedula },
+                            { label: "Driver's License", doc: selectedHistoryItem.documentDriversLicense },
+                            { label: "Voter's Affidavit", doc: selectedHistoryItem.documentVotersAffidavit },
+                            { label: 'Chassis Stencil', doc: selectedHistoryItem.documentChassisStencil },
+                            { label: 'Operator Picture', doc: selectedHistoryItem.documentOperatorPicture },
+                            { label: 'Driver Picture', doc: selectedHistoryItem.documentPicture },
+                            { label: 'OR LTO', doc: selectedHistoryItem.documentORLTO },
+                            { label: 'CR LTO', doc: selectedHistoryItem.documentCRLTO },
+                            { label: 'OR Treasurer', doc: selectedHistoryItem.documentTreasurerOR },
+                            { label: 'Resolution Document', doc: selectedHistoryItem.resolutionDocument },
+                          ].map(({ label, doc }) => (
+                            <React.Fragment key={label}>
+                              <Typography variant="subtitle2" className="label">{label}:</Typography>
+                              {doc ? (
+                                <Link 
+                                  className="document-link" 
+                                  onClick={() => onFilePreview(doc)}
+                                  sx={{ cursor: 'pointer' }}
+                                >
+                                  {getFileIcon(doc.type)}
+                                  <span>{getDocumentDisplayName(doc)}</span>
+                                </Link>
+                              ) : (
+                                <Typography sx={{ color: 'text.secondary', fontStyle: 'italic' }}>Not uploaded</Typography>
+                              )}
+                            </React.Fragment>
+                          ))}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                  
+                  <Box sx={{ 
+                    p: 2, 
+                    borderTop: '1px solid #E5E7EB',
+                    display: 'flex',
+                    justifyContent: 'flex-end',
+                    bgcolor: '#F9FAFB'
+                  }}>
+                    <Button
+                      variant="contained"
+                      onClick={handleCloseHistoryItemModal}
+                      sx={{ minWidth: '120px' }}
+                    >
+                      Close
+                    </Button>
+                  </Box>
+                </Box>
+              </Fade>
+            </Modal>
+          )}
         </Box>
       </Fade>
     </Modal>
@@ -1966,10 +2492,29 @@ function FranchiseeList() {
     const tryFetchAndPreview = async () => {
       const path = normalized.path;
       
+      logger.log('[FilePreview] Attempting to fetch file:', { 
+        originalFile: file,
+        normalized,
+        path 
+      });
+      
+      // Get auth token for secure file access
+      const token = sessionStorage.getItem('accessToken') || localStorage.getItem('accessToken');
+      const headers = {};
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      
       // First, try to fetch the file to get its actual content type
       try {
-        const resp = await fetch(path, { mode: 'cors' });
-        if (!resp.ok) throw new Error(`Failed to fetch file: ${resp.status}`);
+        const resp = await fetch(path, { 
+          mode: 'cors',
+          headers
+        });
+        if (!resp.ok) {
+          logger.error('[FilePreview] Fetch failed with status:', resp.status, resp.statusText);
+          throw new Error(`Failed to fetch file: ${resp.status} ${resp.statusText}`);
+        }
         
         const blob = await resp.blob();
         const contentType = blob.type || resp.headers.get('Content-Type') || '';
@@ -2565,127 +3110,22 @@ function FranchiseeList() {
         )}
 
         {/* Franchisee Records Table */}
+        {loading ? (
+          <PageLoader 
+            loading={loading} 
+            message="Loading franchisees..." 
+            minHeight={400}
+          />
+        ) : (
+          <Fade in={!loading} timeout={400}>
+            <Box>
         <Paper className="admin-table-container" elevation={2}>
-          {loading && (
-            <Box 
-              sx={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                backgroundColor: 'rgba(255, 255, 255, 0.95)',
-                zIndex: 10,
-                backdropFilter: 'blur(4px)',
-              }}
-            >
-              <Box
-                sx={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  gap: 2,
-                }}
-              >
-                <Box sx={{ position: 'relative' }}>
-                  <CircularProgress 
-                    size={60}
-                    thickness={4}
-                    sx={{ 
-                      color: '#0A356B',
-                      animationDuration: '1s'
-                    }}
-                  />
-                  <Box
-                    sx={{
-                      position: 'absolute',
-                      top: '50%',
-                      left: '50%',
-                      transform: 'translate(-50%, -50%)',
-                    }}
-                  >
-                    <Typography
-                      variant="caption"
-                      sx={{
-                        color: '#0A356B',
-                        fontWeight: 600,
-                        fontSize: '0.7rem',
-                      }}
-                    >
-                      TRC-V
-                    </Typography>
-                  </Box>
-                </Box>
-                <Typography
-                  variant="body1"
-                  sx={{
-                    color: '#0A356B',
-                    fontWeight: 500,
-                    fontSize: '1rem',
-                    letterSpacing: '0.5px',
-                  }}
-                >
-                  Loading franchisees...
-                </Typography>
-                <Box sx={{ display: 'flex', gap: 0.5, mt: 1 }}>
-                  <Box
-                    sx={{
-                      width: 8,
-                      height: 8,
-                      borderRadius: '50%',
-                      backgroundColor: '#0A356B',
-                      animation: 'pulse 1.5s ease-in-out infinite',
-                      animationDelay: '0s',
-                      '@keyframes pulse': {
-                        '0%, 100%': { opacity: 0.3, transform: 'scale(0.8)' },
-                        '50%': { opacity: 1, transform: 'scale(1.2)' },
-                      },
-                    }}
-                  />
-                  <Box
-                    sx={{
-                      width: 8,
-                      height: 8,
-                      borderRadius: '50%',
-                      backgroundColor: '#0A356B',
-                      animation: 'pulse 1.5s ease-in-out infinite',
-                      animationDelay: '0.3s',
-                      '@keyframes pulse': {
-                        '0%, 100%': { opacity: 0.3, transform: 'scale(0.8)' },
-                        '50%': { opacity: 1, transform: 'scale(1.2)' },
-                      },
-                    }}
-                  />
-                  <Box
-                    sx={{
-                      width: 8,
-                      height: 8,
-                      borderRadius: '50%',
-                      backgroundColor: '#0A356B',
-                      animation: 'pulse 1.5s ease-in-out infinite',
-                      animationDelay: '0.6s',
-                      '@keyframes pulse': {
-                        '0%, 100%': { opacity: 0.3, transform: 'scale(0.8)' },
-                        '50%': { opacity: 1, transform: 'scale(1.2)' },
-                      },
-                    }}
-                  />
-                </Box>
-              </Box>
-            </Box>
-          )}
-          
           <TableContainer className="admin-table-wrapper">
             <Table className="admin-table" stickyHeader aria-label="franchisee table">
             <TableHead>
               <TableRow>
-                <TableCell className="admin-table-header-cell col-id">Record #</TableCell>
+                <TableCell className="admin-table-header-cell col-id">Franchise Number</TableCell>
                 <TableCell className="admin-table-header-cell col-name" align="left">Franchisee Name</TableCell>
-                <TableCell className="admin-table-header-cell col-id">Franchise #</TableCell>
                 <TableCell className="admin-table-header-cell col-contact">Plate Number</TableCell>
                 <TableCell className="admin-table-header-cell col-status">Type</TableCell>
                 <TableCell className="admin-table-header-cell col-status">Status</TableCell>
@@ -2694,7 +3134,7 @@ function FranchiseeList() {
               </TableRow>
             </TableHead>
             <TableBody>
-              {!loading && paginatedFranchisees.length > 0 ? (
+              {paginatedFranchisees.length > 0 ? (
                 paginatedFranchisees.map((row) => {
                   // Only mark as previous owner if franchise was revoked
                   const isPreviousOwner = row.franchiseStatus === 'Revoked';
@@ -2707,7 +3147,7 @@ function FranchiseeList() {
                       hover
                       sx={isPreviousOwner ? { bgcolor: '#fff3e0' } : {}}
                     >
-                      <TableCell className="admin-table-cell">{row.recordNumber}</TableCell>
+                      <TableCell className="admin-table-cell">{row.franchiseNumber}</TableCell>
                       <TableCell className="admin-table-cell col-name" align="left">
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                           {row.franchiseeName}
@@ -2722,7 +3162,6 @@ function FranchiseeList() {
                           )}
                         </Box>
                       </TableCell>
-                      <TableCell className="admin-table-cell">{row.franchiseNumber}</TableCell>
                       <TableCell className="admin-table-cell">{row.plateNumber}</TableCell>
                       <TableCell className="admin-table-cell">
                         <Chip 
@@ -2761,7 +3200,7 @@ function FranchiseeList() {
                 <TableRow>
                   <TableCell colSpan={8} className="admin-table-empty">
                     <Typography className="admin-table-empty-text">
-                      {loading ? 'Loading...' : 'No franchisees found'}
+                      No franchisees found
                     </Typography>
                   </TableCell>
                 </TableRow>
@@ -2782,6 +3221,9 @@ function FranchiseeList() {
             />
           </div>
         </Paper>
+            </Box>
+          </Fade>
+        )}
 
         {/* Franchisee Details Modal */}
         <FranchiseeDetailsModal
@@ -2797,6 +3239,7 @@ function FranchiseeList() {
           getDocumentDisplayName={getDocumentDisplayName}
           qrBlobUrl={qrBlobUrl}
           saving={saving}
+          user={user}
         />
 
         {/* Export Options Dialog */}
@@ -2813,6 +3256,7 @@ function FranchiseeList() {
           open={openFilePreview}
           onClose={handleCloseFilePreview}
           aria-labelledby="file-preview-modal"
+          sx={{ zIndex: (theme) => theme.zIndex.modal + 2 }}
           slotProps={{
             backdrop: {
               sx: {

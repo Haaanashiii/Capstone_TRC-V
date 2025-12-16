@@ -1294,7 +1294,9 @@ exports.sbAdminAcceptNewFranchise = async (req, res, next) => {
       applicationId: id,
       franchiseNumber: franchiseNo,
       operatorName: application.operatorName,
-      sbResolutionNumber: application.sbResolutionNumber || 'NOT FOUND'
+      sbResolutionNumber: application.sbResolutionNumber || 'NOT FOUND',
+      hasDocuments: !!application.documents,
+      documentKeys: application.documents ? Object.keys(application.documents).filter(k => application.documents[k]) : []
     });
     
     // Create franchiseChainId early for folder organization
@@ -1434,6 +1436,14 @@ exports.sbAdminAcceptNewFranchise = async (req, res, next) => {
     
     const FranchiseInformationModel = require('../models/franchiseInformationModel');
     const franchise = await FranchiseInformationModel.create([franchiseData]);
+    
+    // Log created franchise document structure for debugging
+    console.log('[sbAdminAcceptNewFranchise] Franchise created with documents:', {
+      franchiseId: franchise[0]._id,
+      franchiseNumber: franchise[0].franchiseNumber,
+      hasDocumentsField: !!franchise[0].documents,
+      documentKeys: franchise[0].documents ? Object.keys(franchise[0].documents).filter(k => franchise[0].documents[k]) : []
+    });
     
     // Invalidate QR cache - important for recycled franchise numbers
     // When 0001 goes from gabatino-0001 (revoked) to gonzales-0001 (new), QR shows new owner
@@ -1643,11 +1653,15 @@ exports.sbAdminAcceptRenewOrAmendment = async (req, res, next) => {
       version,
       isCurrentVersion: true,
       previousVersion,
-      changeType: application.applicationType,
+      // Map amendment types to their base types for franchise changeType
+      changeType: application.applicationType === 'amend-update_ownership' ? 'update_ownership' :
+                  application.applicationType === 'amend-change_unit' ? 'change_unit' :
+                  application.applicationType,
       changedBy: req.user?.username || 'SB Admin',
       changedAt: new Date(),
       qrCode: qrResult.url,
       approvedAt: new Date(),
+      franchiseStatus: 'Active', // Set status to Active after SB approval for renewals/amendments
       expiryDate: new Date(Date.now() + 3 * 365 * 24 * 60 * 60 * 1000),
       officialReceiptNumber: application.officialReceiptNumber || '', // Use new OR number from application (updated data)
       resolutionNumber: application.sbResolutionNumber, // Use new resolution number from application

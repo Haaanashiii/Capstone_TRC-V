@@ -8,13 +8,25 @@ const stream = require('stream');
 
 let gfsBucket = null;
 
+/**
+ * Initialize GridFS bucket
+ * Uses connection pooling from mongoose for optimal performance
+ */
 function initGridFS() {
   if (!gfsBucket && mongoose.connection.db) {
-    gfsBucket = new GridFSBucket(mongoose.connection.db, { bucketName: 'trcv_files' });
+    gfsBucket = new GridFSBucket(mongoose.connection.db, { 
+      bucketName: 'trcv_files',
+      chunkSizeBytes: 1024 * 255 // ~255KB chunks for optimal performance
+    });
+    console.log('[GridFS] Bucket initialized with chunk size: 255KB');
   }
   return gfsBucket;
 }
 
+/**
+ * Get GridFS bucket instance (exported for streaming support)
+ * @returns {GridFSBucket} GridFS bucket instance
+ */
 function getBucket() {
   if (!gfsBucket) initGridFS();
   if (!gfsBucket) throw new Error('GridFS bucket not initialized. Ensure MongoDB is connected.');
@@ -315,6 +327,93 @@ async function listFiles(pathPrefix) {
   }
 }
 
+/**
+ * Get metadata for multiple files in a single batch operation
+ * This is much more efficient than calling getFileMetadata in a loop
+ * @param {string[]} gridfsUrls - Array of gridfs:// URLs
+ * @returns {Promise<Object[]>} Array of metadata objects
+ */
+async function batchGetFileMetadata(gridfsUrls) {
+  try {
+    if (!gridfsUrls || gridfsUrls.length === 0) return [];
+    
+    const bucket = getBucket();
+    
+    // Extract file IDs from URLs
+    const fileIds = gridfsUrls
+      .filter(url => url && url.startsWith('gridfs://'))
+      .map(url => {
+        try {
+          return new mongoose.Types.ObjectId(url.substring(9));
+        } catch (e) {
+          return null;
+        }
+      })
+      .filter(id => id !== null);
+    
+    if (fileIds.length === 0) return [];
+    
+    // Fetch all files in one query
+    const files = await bucket.find({ _id: { $in: fileIds } }).toArray();
+    
+    // Create a map for quick lookup
+    const fileMap = new Map();
+    files.forEach(file => {
+      fileMap.set(file._id.toString(), {
+        id: file._id.toString(),
+        filename: file.filename,
+        originalName: file.metadata?.originalName || file.filename,
+        mimetype: file.metadata?.mimetype || 'application/octet-stream',
+        documentType: file.metadata?.documentType || 'unknown',
+        fileSize: file.length,
+        uploadedAt: file.uploadDate,
+        filePath: file.metadata?.filePath,
+        category: file.metadata?.category
+      });
+    });
+    
+    // Return in same order as input
+    return gridfsUrls.map(url => {
+      if (!url || !url.startsWith('gridfs://')) return null;
+      const fileId = url.substring(9);
+      return fileMap.get(fileId) || null;
+    }).filter(metadata => metadata !== null);
+    
+  } catch (error) {
+    console.error('[GridFS] Batch metadata error:', error);
+    return [];
+  }
+}
+
+/**
+ * Get multiple files in batch (for preview generation, etc.)
+ * @param {string[]} gridfsUrls - Array of gridfs:// URLs
+ * @returns {Promise<Object[]>} Array of file objects with buffers
+ */
+async function batchGetFiles(gridfsUrls) {
+  try {
+    if (!gridfsUrls || gridfsUrls.length === 0) return [];
+    
+    const bucket = getBucket();
+    const results = [];
+    
+    // Fetch files concurrently with Promise.all (limit concurrency to 5)
+    const batchSize = 5;
+    for (let i = 0; i < gridfsUrls.length; i += batchSize) {
+      const batch = gridfsUrls.slice(i, i + batchSize);
+      const batchResults = await Promise.all(
+        batch.map(url => getFileFromGridFS(url).catch(err => null))
+      );
+      results.push(...batchResults);
+    }
+    
+    return results.filter(file => file !== null);
+  } catch (error) {
+    console.error('[GridFS] Batch get files error:', error);
+    return [];
+  }
+}
+
 module.exports = {
   initGridFS,
   getBucket,
@@ -329,5 +428,7 @@ module.exports = {
   compressImage,
   compressPDF,
   listFiles,
+  batchGetFileMetadata,
+  batchGetFiles,
   MAX_FILE_SIZE
 };

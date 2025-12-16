@@ -359,11 +359,10 @@ async function sendFranchiseExpiryEmail(to, operatorName, mtopNumber, expiryDate
                     <div style="margin: 30px 0;">
                       <h3 style="color: #1e293b; margin: 0 0 15px 0; font-size: 18px; font-weight: 600; font-family: 'Poppins', sans-serif;">How to Renew Your Franchise:</h3>
                       <ol style="color: #64748b; font-size: 14px; line-height: 1.8; margin: 0; padding-left: 20px; font-family: 'Poppins', sans-serif;">
-                        <li>Visit your nearest TODA office or Municipal Hall</li>
-                        <li>Bring your current franchise documents</li>
+                        <li>Access the TRC-V website</li>
+                        <li>Log in to your account and select the “Renew” option.</li>
                         <li>Submit the required renewal forms</li>
-                        <li>Pay the renewal fees</li>
-                        <li>Receive your updated franchise certificate</li>
+                        <li>Settle the renewal fees after the tricycle inspection.</li>
                       </ol>
                     </div>
                     
@@ -491,10 +490,10 @@ async function sendFranchiseCreatedEmail(to, operatorName, franchiseNumber) {
                     <div style="background-color: #f0fdf4; border-left: 4px solid #10b981; padding: 20px; margin: 30px 0; border-radius: 6px;">
                       <h3 style="color: #1e293b; margin: 0 0 15px 0; font-size: 16px; font-weight: 600; font-family: 'Poppins', sans-serif;">Next Steps:</h3>
                       <ol style="color: #64748b; font-size: 14px; line-height: 1.8; margin: 0; padding-left: 20px; font-family: 'Poppins', sans-serif;">
-                        <li>Login to your TRC-V account</li>
-                        <li>Navigate to your franchise dashboard</li>
-                        <li>Download your franchise certificate and QR code</li>
-                        <li>Keep your franchise documents safe</li>
+                        <li>Your approved franchise details are now available in your TRC-V account.</li>
+                        <li>The franchise dashboard provides access to your official franchise records.</li>
+                        <li>Your franchise certificate and QR code may be downloaded for authorized use.</li>
+                        <li>Please retain all franchise documents for compliance and future reference.</li>
                       </ol>
                     </div>
                     
@@ -610,7 +609,7 @@ async function sendFranchiseUpdatedEmail(to, operatorName, franchiseNumber, upda
                 <!-- Main Content -->
                 <tr>
                   <td style="padding: 45px 40px;">
-                    <h2 style="color: #1e293b; margin: 0 0 15px 0; font-size: 28px; font-weight: 700; text-align: center; font-family: 'Poppins', sans-serif;">✓ Approved</h2>
+                    <h2 style="color: #1e293b; margin: 0 0 15px 0; font-size: 28px; font-weight: 700; text-align: center; font-family: 'Poppins', sans-serif;">Approved</h2>
                     <p style="color: #64748b; font-size: 16px; line-height: 1.6; margin: 0 0 30px 0; text-align: center; font-family: 'Poppins', sans-serif;">
                       Your franchise <strong style="color: #0ea5e9;">${typeMessage}</strong> has been approved!
                     </p>
@@ -738,7 +737,7 @@ async function sendFranchiseDisapprovalEmail(to, operatorName, reason) {
                 <!-- Main Content -->
                 <tr>
                   <td style="padding: 45px 40px;">
-                    <h2 style="color: #1e293b; margin: 0 0 15px 0; font-size: 28px; font-weight: 700; text-align: center; font-family: 'Poppins', sans-serif;">⚠ Action Required</h2>
+                    <h2 style="color: #1e293b; margin: 0 0 15px 0; font-size: 28px; font-weight: 700; text-align: center; font-family: 'Poppins', sans-serif;">Action Required</h2>
                     <p style="color: #64748b; font-size: 16px; line-height: 1.6; margin: 0 0 30px 0; text-align: center; font-family: 'Poppins', sans-serif;">
                       Your franchise application requires attention
                     </p>

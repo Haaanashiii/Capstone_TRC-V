@@ -11,6 +11,9 @@
   margin-left: 240px;
   width: calc(100% - 240px);
   animation: pageContentFadeIn 0.4s ease-out;
+  min-height: calc(100vh - 64px);
+  overflow-y: scroll;
+  scrollbar-gutter: stable;
 }
 
 @keyframes pageContentFadeIn {

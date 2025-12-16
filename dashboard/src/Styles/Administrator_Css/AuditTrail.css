@@ -15,6 +15,9 @@
     width: calc(100% - 240px);
     background-color: #f5f7fa;
     animation: pageContentFadeIn 0.4s ease-out;
+    min-height: calc(100vh - 64px);
+    overflow-y: scroll;
+    scrollbar-gutter: stable;
 }
 
 @keyframes pageContentFadeIn {
