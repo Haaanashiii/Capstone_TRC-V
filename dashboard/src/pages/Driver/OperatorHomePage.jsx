@@ -317,14 +317,14 @@ const OperatorHomePage = () => {
         logger.log('[OperatorHomePage] Franchises array:', response?.data?.data);
         
         if (response.data?.success && Array.isArray(response.data.data)) {
-          // Filter to show only active franchises (status is 'Active' with capital A)
+          // Filter to show active and expired franchises (exclude only revoked)
           const activeFranchises = response.data.data.filter(f => 
-            f.franchiseStatus === 'Active'
+            f.franchiseStatus !== 'Revoked'
           );
-          logger.log('[OperatorHomePage] Total franchises:', response.data.data.length, 'Active franchises:', activeFranchises.length);
+          logger.log('[OperatorHomePage] Total franchises:', response.data.data.length, 'Non-revoked franchises (Active/Expired):', activeFranchises.length);
           setActiveFranchises(activeFranchises);
           
-          // If user has active franchises, update the franchise linked state
+          // If user has active/expired franchises, update the franchise linked state
           if (activeFranchises.length > 0) {
             setFranchiseLinked(true);
             // Store first active franchise as primary

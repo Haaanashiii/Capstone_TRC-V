@@ -39,6 +39,7 @@ function FranchiseeListOperatorSide() {
   const translations = {
     en: {
       activeFranchise: "ACTIVE FRANCHISE",
+      expiredFranchise: "EXPIRED FRANCHISE",
       noFranchise: "NO FRANCHISE",
       addressNotProvided: "Address not provided",
       singleNoCoOwner: "SINGLE | NO CO-OWNER",
@@ -46,6 +47,7 @@ function FranchiseeListOperatorSide() {
     },
     tl: {
       activeFranchise: "AKTIBONG PRANGKISA",
+      expiredFranchise: "NATAPOS NA ANG PRANGKISA",
       noFranchise: "WALANG PRANGKISA",
       addressNotProvided: "Walang nakalagay na address",
       singleNoCoOwner: "NAG-IISA | WALANG KASAMA",
@@ -448,11 +450,11 @@ function FranchiseeListOperatorSide() {
         logger.log('[FranchiseeListOperatorSide] Franchises array:', response?.data?.data);
         
         if (response.data?.success && Array.isArray(response.data.data)) {
-          // Filter to show only active franchises (status is 'Active' with capital A)
+          // Filter to show active and expired franchises (exclude only revoked)
           const activeFranchises = response.data.data.filter(f => 
-            f.franchiseStatus === 'Active'
+            f.franchiseStatus !== 'Revoked'
           );
-          logger.log('[FranchiseeListOperatorSide] Total franchises:', response.data.data.length, 'Active franchises:', activeFranchises.length);
+          logger.log('[FranchiseeListOperatorSide] Total franchises:', response.data.data.length, 'Non-revoked franchises (Active/Expired):', activeFranchises.length);
           setAllUserFranchises(activeFranchises);
         } else {
           logger.warn('[FranchiseeListOperatorSide] No franchises data or invalid format:', response.data);
@@ -750,7 +752,7 @@ function FranchiseeListOperatorSide() {
                 variant="contained" 
                 onClick={handleOpenFranchisePage}
                 sx={{ 
-                  background: franchiseStatus ? '#2ecc71' : '#e74c3c', 
+                  background: franchiseStatus ? (matchedFranchise?.franchiseStatus === 'Expired' ? '#f39c12' : '#2ecc71') : '#e74c3c', 
                   color: '#fff', 
                   fontWeight: 700, 
                   borderRadius: 2, 
@@ -761,23 +763,25 @@ function FranchiseeListOperatorSide() {
                   fontSize: { xs: '0.875rem', sm: '1rem' },
                   width: { xs: '100%', sm: 'auto' },
                   '&:hover': { 
-                    background: franchiseStatus ? '#27ae60' : '#c0392b' 
+                    background: franchiseStatus ? (matchedFranchise?.franchiseStatus === 'Expired' ? '#e67e22' : '#27ae60') : '#c0392b' 
                   } 
                 }}
               >
-                {franchiseStatus ? t.activeFranchise : t.noFranchise}
+                {franchiseStatus ? (
+                  matchedFranchise?.franchiseStatus === 'Expired' ? t.expiredFranchise : t.activeFranchise
+                ) : t.noFranchise}
               </Button>
               {franchiseStatus && (
                 <IconButton
                   onClick={() => setFranchiseListModalOpen(true)}
                   sx={{
-                    background: '#2ecc71',
+                    background: matchedFranchise?.franchiseStatus === 'Expired' ? '#f39c12' : '#2ecc71',
                     color: '#fff',
                     width: { xs: '100%', sm: 40 },
                     height: 40,
                     borderRadius: 2,
                     '&:hover': {
-                      background: '#27ae60'
+                      background: matchedFranchise?.franchiseStatus === 'Expired' ? '#e67e22' : '#27ae60'
                     }
                   }}
                 >
@@ -821,19 +825,38 @@ function FranchiseeListOperatorSide() {
                         variant="contained"
                         startIcon={<AutorenewIcon />}
                         onClick={() => {
-                          // Navigate to franchise application with renewal data
-                          navigate('/operator/franchise', {
+                          // Navigate to franchise application with all franchise data pre-filled (except documents)
+                          navigate('/operator/franchise/application', {
                             state: {
                               applicationType: 'renewal',
+                              franchise: matchedFranchise,
+                              // Pre-fill all operator and motorcycle information
+                              operatorName: matchedFranchise?.operatorName || user?.name || '',
+                              operatorContactNumber: matchedFranchise?.operatorContactNumber || user?.phoneNumber || '',
+                              operatorAddress: matchedFranchise?.operatorAddress || '',
+                              operatorBarangay: matchedFranchise?.operatorBarangay || '',
+                              operatorCivilStatus: matchedFranchise?.operatorCivilStatus || '',
+                              operatorBirthPlace: matchedFranchise?.operatorBirthPlace || '',
+                              operatorBirthDate: matchedFranchise?.operatorBirthDate || '',
+                              operatorCitizenship: matchedFranchise?.operatorCitizenship || '',
+                              operatorEmail: matchedFranchise?.operatorEmail || user?.email || '',
+                              coOwnerName: matchedFranchise?.coOwnerName || '',
+                              coOwnerAddress: matchedFranchise?.coOwnerAddress || '',
+                              driverName: matchedFranchise?.driverName || '',
+                              driversAddress: matchedFranchise?.driversAddress || '',
+                              todaMembership: matchedFranchise?.todaMembership || '',
+                              unitModel: matchedFranchise?.unitModel || fields.make || '',
+                              colorMotor: matchedFranchise?.colorMotor || '',
+                              sideCarColor: matchedFranchise?.sideCarColor || '',
+                              sideCarPlateNumber: matchedFranchise?.sideCarPlateNumber || fields.sidecarNumber || '',
+                              mvPlateNo: matchedFranchise?.mvPlateNo || fields.plateNumber || '',
+                              motorEngineNo: matchedFranchise?.motorEngineNo || fields.motorNumber || '',
+                              chasisNo: matchedFranchise?.chasisNo || fields.chassisNumber || '',
+                              franchiseNumber: matchedFranchise?.franchiseNumber || fields.franchiseNumber || '',
+                              franchiseChainId: matchedFranchise?.franchiseChainId || '',
                               previousFranchiseId: matchedFranchise?._id,
-                              franchiseNumber: fields.franchiseNumber,
                               dateApproved: fields.dateApproved,
-                              expiryDate: fields.expiryDate,
-                              make: fields.make,
-                              sidecarNumber: fields.sidecarNumber,
-                              plateNumber: fields.plateNumber,
-                              chassisNumber: fields.chassisNumber,
-                              motorNumber: fields.motorNumber
+                              expiryDate: fields.expiryDate
                             }
                           });
                         }}

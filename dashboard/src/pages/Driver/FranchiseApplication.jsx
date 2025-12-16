@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import Swal from 'sweetalert2';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import UnifiedNavbar from "../../components/UnifiedNavbar";
 import PrivacyPolicyModal from "../../components/PrivacyPolicyModal";
 import { TextField, Button, CircularProgress, Select, MenuItem, FormControl, InputLabel, FormHelperText, Typography } from "@mui/material";
@@ -73,6 +73,10 @@ const alertStyle = {
 };
 
 export default function FranchiseApplication() {
+  // Hooks must be at the top
+  const navigate = useNavigate();
+  const location = useLocation();
+  
   // Language state
   const [language, setLanguage] = useState('en'); // 'en' for English, 'tl' for Tagalog
   
@@ -211,11 +215,54 @@ export default function FranchiseApplication() {
     
     checkResubmission();
   }, []);
+
+  // Pre-fill form data when coming from renewal
+  useEffect(() => {
+    if (location.state && location.state.applicationType === 'renewal') {
+      const renewalData = location.state;
+      logger.log('[FranchiseApplication] Renewal mode - pre-filling data:', renewalData);
+      setApplicationType('renewal');
+      
+      setFields({
+        date: dayjs(),
+        operatorName: renewalData.operatorName || "",
+        contact: renewalData.operatorContactNumber || "",
+        birthPlace: renewalData.operatorBirthPlace || "Municipality / Province",
+        birthDate: renewalData.operatorBirthDate ? dayjs(renewalData.operatorBirthDate) : null,
+        civilStatus: renewalData.operatorCivilStatus || "",
+        citizenship: renewalData.operatorCitizenship || "",
+        todaMembership: renewalData.todaMembership || "",
+        address: renewalData.operatorAddress || "",
+        barangay: renewalData.operatorBarangay || "",
+        hasCoOwner: renewalData.coOwnerName ? "Yes" : "No",
+        driverName: renewalData.driverName || "",
+        driverAddress: renewalData.driversAddress || "",
+        unitModel: renewalData.unitModel || "",
+        colorMotor: renewalData.colorMotor || "",
+        colorSidecar: renewalData.sideCarColor || "B/Y",
+        mvPlateNo: renewalData.mvPlateNo || "",
+        motorEngineNumber: renewalData.motorEngineNo || "",
+        chassisNumber: renewalData.chasisNo || "",
+        operatorPicture: null,
+        driverPicture: null
+      });
+      
+      // Set co-owners array if there's co-owner data
+      if (renewalData.coOwnerName) {
+        setCoOwners([{
+          name: renewalData.coOwnerName,
+          address: renewalData.coOwnerAddress || '',
+          relationship: renewalData.coOwnerRelationship || ''
+        }]);
+      }
+    }
+  }, [location.state]);
   
   // Translation object
   const translations = {
     en: {
       title: "FRANCHISE APPLICATION",
+      renewalTitle: "FRANCHISE RENEWAL",
       date: "DATE",
       sidecarPlate: "SIDECAR PLATE NUMBER",
       personalInfo: "PERSONAL INFORMATION",
@@ -273,6 +320,7 @@ export default function FranchiseApplication() {
     },
     tl: {
       title: "APLIKASYON PARA SA PRANGKISA",
+      renewalTitle: "PAGPAPANIBAGO NG PRANGKISA",
       date: "PETSA",
       sidecarPlate: "NUMERO NG PLAKA NG SIDECAR",
       personalInfo: "PERSONAL NA IMPORMASYON",
@@ -439,6 +487,9 @@ export default function FranchiseApplication() {
   const [isResubmission, setIsResubmission] = useState(false);
   const [resubmissionAppId, setResubmissionAppId] = useState(null);
   const [existingDocuments, setExistingDocuments] = useState(null);
+  
+  // Track application type (new, renewal, amendment, change_unit)
+  const [applicationType, setApplicationType] = useState('new');
 
   // Co-owner state
   const [coOwners, setCoOwners] = useState([]);
@@ -588,8 +639,6 @@ export default function FranchiseApplication() {
     }
   }, [errors]);
 
-  const navigate = useNavigate();
-
   const _handleFileChange = (key) => (e) => {
     setUploads({ ...uploads, [key]: e.target.files[0] });
   };
@@ -600,9 +649,9 @@ export default function FranchiseApplication() {
     const newErrors = {};
     setSidecarColorError("");
 
-    // Ensure every field in fields (except date, hasCoOwner, operatorPicture, driverPicture, and todaMembership) is present and non-empty
+    // Ensure every field in fields (except date, hasCoOwner, operatorPicture, driverPicture, todaMembership, and sidecarPlate) is present and non-empty
     Object.keys(fields).forEach(k => {
-      if (k === 'date' || k === 'hasCoOwner' || k === 'operatorPicture' || k === 'driverPicture' || k === 'todaMembership') return;
+      if (k === 'date' || k === 'hasCoOwner' || k === 'operatorPicture' || k === 'driverPicture' || k === 'todaMembership' || k === 'sidecarPlate') return;
       const v = fields[k];
       if (k === 'birthDate') {
         if (!v) newErrors[k] = 'Date of birth is required';
@@ -981,7 +1030,7 @@ export default function FranchiseApplication() {
             <img src="/public/Logos/SBLogo.png" alt="Seal" />
             <img src="/public/Logos/TRC-vLogo.png" alt="TRC-V Logo" />
           </div>
-          <div className="franchise-app-title">{t.title}</div>
+          <div className="franchise-app-title">{applicationType === 'renewal' ? t.renewalTitle : t.title}</div>
           <div className="franchise-app-date-row">
             <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
               <label style={{ fontWeight: 700, marginBottom: 4 }}>{t.date}</label>
@@ -1599,6 +1648,9 @@ export default function FranchiseApplication() {
                         formDataToSend.append('coOwnerAddress', '');
                       }
                       
+                      // Application Type (new, renewal, amendment, change_unit)
+                      formDataToSend.append('applicationType', applicationType);
+                      
                       // Documents - EXACT field names backend expects (with 'Obj' suffix)
                       // Only upload new files if provided, otherwise keep existing documents
                       if (uploads.registration) {
@@ -1697,12 +1749,17 @@ export default function FranchiseApplication() {
                       }
                       
                       logger.log('[FranchiseApplication] Submitting application...')
+                      logger.log('[FranchiseApplication] Application type:', applicationType);
                       
                       let response;
                       if (isResubmission && resubmissionAppId) {
                         // Update existing disapproved application
                         logger.log('[FranchiseApplication] Resubmitting application:', resubmissionAppId);
                         response = await franchiseAPI.update(resubmissionAppId, formDataToSend);
+                      } else if (applicationType === 'renewal' || applicationType === 'amendment' || applicationType === 'change_unit') {
+                        // Renewal, amendment, or change unit - use the renew-amend endpoint
+                        logger.log('[FranchiseApplication] Creating renewal/amendment/change_unit application');
+                        response = await franchiseAPI.createRenewAmend(formDataToSend);
                       } else {
                         // Create new application
                         response = await franchiseAPI.create(formDataToSend);
