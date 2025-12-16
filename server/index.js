@@ -95,6 +95,11 @@ const getCachedToken = (token) => {
 const cacheManager = require('./utils/cache');
 const { TTL } = require('./utils/cache');
 
+// Socket.IO Redis Adapter for PM2 Cluster Mode
+// Redis is the industry standard for Socket.IO clustering - fast, reliable, persistent
+const { createAdapter } = require('@socket.io/redis-adapter');
+const { createClient } = require('redis');
+
 // Socket.IO allowed origins from CORS_ORIGIN env
 const socketCorsOrigin = process.env.CORS_ORIGIN 
   ? process.env.CORS_ORIGIN.split(',').map(s => s.trim()).filter(Boolean)
@@ -111,6 +116,44 @@ const io = new Server(server, {
   pingInterval: 25000,
   transports: ['websocket', 'polling']
 });
+
+// Setup Redis adapter for cluster mode (PM2 multi-worker support)
+// Auto-detects Docker (redis:6379) or local (localhost:6379)
+const redisHost = process.env.REDIS_HOST || (process.env.DOCKER_ENV === 'true' ? 'redis' : 'localhost');
+const redisPort = process.env.REDIS_PORT || 6379;
+const redisPassword = process.env.REDIS_PASSWORD || '';
+
+// Build Redis URL with optional password
+let redisUrl;
+if (process.env.REDIS_URL) {
+  redisUrl = process.env.REDIS_URL;
+} else if (redisPassword) {
+  redisUrl = `redis://:${redisPassword}@${redisHost}:${redisPort}`;
+} else {
+  redisUrl = `redis://${redisHost}:${redisPort}`;
+}
+
+const pubClient = createClient({ 
+  url: redisUrl,
+  socket: {
+    reconnectStrategy: (retries) => Math.min(retries * 100, 3000)
+  }
+});
+const subClient = pubClient.duplicate();
+
+console.log(`[SOCKET.IO] Attempting to connect to Redis at: ${redisHost}:${redisPort}`);
+
+Promise.all([pubClient.connect(), subClient.connect()])
+  .then(() => {
+    io.adapter(createAdapter(pubClient, subClient));
+    console.log('[SOCKET.IO] ✅ Redis adapter initialized - Socket.IO clustering enabled');
+    console.log('[SOCKET.IO] 🔄 All PM2 workers now share Socket.IO rooms and events');
+  })
+  .catch((err) => {
+    console.error('[SOCKET.IO] ❌ Redis connection failed:', err.message);
+    console.warn('[SOCKET.IO] ⚠️  Running without adapter - PM2 cluster mode will NOT sync Socket.IO rooms!');
+    console.warn('[SOCKET.IO] 💡 Install Redis locally or use Docker to enable clustering');
+  });
 
 app.set('io', io);
 
@@ -208,7 +251,7 @@ io.on('connection', (socket) => {
     }
     
     // Allowed rooms
-    const allowedRooms = ['general', 'announcements', 'operators-room', 'bplo-admins', 'sb-admins'];
+    const allowedRooms = ['general', 'announcements', 'operators-room', 'bplo-admins', 'sb-admins', 'super-admin-room'];
     const isPersonalRoom = room.startsWith('user-') && room.length < 50;
     
     if (!allowedRooms.includes(room) && !isPersonalRoom) {
@@ -224,7 +267,11 @@ io.on('connection', (socket) => {
       if (room === 'general' || room === 'announcements') return true;
       
       if (socket.userRole === 'super-admin') {
-        return !isPersonalRoom || socket.userId === requestedUserId;
+        // Super admins can access all admin rooms and their personal room
+        return room === 'super-admin-room' || 
+               room === 'bplo-admins' || 
+               room === 'sb-admins' || 
+               (isPersonalRoom && socket.userId === requestedUserId);
       }
       if (socket.userRole === 'bplo-admin') {
         return room === 'bplo-admins' || (isPersonalRoom && socket.userId === requestedUserId);

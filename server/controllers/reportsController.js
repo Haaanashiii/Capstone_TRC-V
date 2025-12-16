@@ -169,9 +169,9 @@ exports.createPublicReport = async (req, res, next) => {
                 category: newReport.category,
                 categoryLabel: CATEGORY_LABELS[newReport.category]
             };
-            req.app.get('io').to('general').emit('fare-reports', eventData);
-            req.app.get('io').to('bplo-admins').emit('fare-reports', eventData);
-            req.app.get('io').to('sb-admins').emit('fare-reports', eventData);
+            req.app.get('io').to('general').emit('incident-reports', eventData);
+            req.app.get('io').to('bplo-admins').emit('incident-reports', eventData);
+            req.app.get('io').to('sb-admins').emit('incident-reports', eventData);
         }
         
         res.status(201).json({ 
@@ -312,9 +312,9 @@ exports.updateReport = async (req, res, next) => {
                 categoryLabel: CATEGORY_LABELS[updatedReport.category],
                 timestamp: new Date().toISOString()
             };
-            req.app.get('io').to('general').emit('report-updated', eventData);
-            req.app.get('io').to('bplo-admins').emit('fare-reports', eventData);
-            req.app.get('io').to('sb-admins').emit('fare-reports', eventData);
+            req.app.get('io').to('general').emit('incident-report-updated', eventData);
+            req.app.get('io').to('bplo-admins').emit('incident-report-updated', eventData);
+            req.app.get('io').to('sb-admins').emit('incident-report-updated', eventData);
         }
         
         res.status(200).json({ 

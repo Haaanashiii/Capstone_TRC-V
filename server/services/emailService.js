@@ -205,7 +205,7 @@ async function sendOTPEmail(to, otp) {
     `,
     attachments: [{
       filename: 'TRC-vLogo.png',
-      path: path.join(__dirname, '..', '..', 'dashboard', 'src', 'assets', 'TRC-vLogo.png'),
+        path: path.join(__dirname, '..', 'assets', 'TRC-vLogo.png'),
       cid: 'logo'
     }]
   };
@@ -402,7 +402,7 @@ async function sendFranchiseExpiryEmail(to, operatorName, mtopNumber, expiryDate
     `,
     attachments: [{
       filename: 'TRC-vLogo.png',
-      path: path.join(__dirname, '..', '..', 'dashboard', 'src', 'assets', 'TRC-vLogo.png'),
+      path: path.join(__dirname, '..', 'assets', 'TRC-vLogo.png'),
       cid: 'logo'
     }]
   };
@@ -533,7 +533,7 @@ async function sendFranchiseCreatedEmail(to, operatorName, franchiseNumber) {
     `,
     attachments: [{
       filename: 'TRC-vLogo.png',
-      path: path.join(__dirname, '..', '..', 'dashboard', 'src', 'assets', 'TRC-vLogo.png'),
+      path: path.join(__dirname, '..', 'assets', 'TRC-vLogo.png'),
       cid: 'logo'
     }]
   };
@@ -664,7 +664,7 @@ async function sendFranchiseUpdatedEmail(to, operatorName, franchiseNumber, upda
     `,
     attachments: [{
       filename: 'TRC-vLogo.png',
-      path: path.join(__dirname, '..', '..', 'dashboard', 'src', 'assets', 'TRC-vLogo.png'),
+      path: path.join(__dirname, '..', 'assets', 'TRC-vLogo.png'),
       cid: 'logo'
     }]
   };
@@ -795,7 +795,7 @@ async function sendFranchiseDisapprovalEmail(to, operatorName, reason) {
     `,
     attachments: [{
       filename: 'TRC-vLogo.png',
-      path: path.join(__dirname, '..', '..', 'dashboard', 'src', 'assets', 'TRC-vLogo.png'),
+      path: path.join(__dirname, '..', 'assets', 'TRC-vLogo.png'),
       cid: 'logo'
     }]
   };
@@ -959,7 +959,7 @@ async function sendBPLOApprovalNotification(application) {
     `,
     attachments: [{
       filename: 'TRC-vLogo.png',
-      path: path.join(__dirname, '..', '..', 'dashboard', 'src', 'assets', 'TRC-vLogo.png'),
+      path: path.join(__dirname, '..', 'assets', 'TRC-vLogo.png'),
       cid: 'logo'
     }]
   };

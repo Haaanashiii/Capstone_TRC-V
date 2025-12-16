@@ -29,6 +29,11 @@ RUN rm -rf tests/ *.test.js .env.example
 # Create non-root user for security
 RUN addgroup -g 1001 -S nodejs && \
     adduser -S nodejs -u 1001
+
+# Create necessary directories with proper permissions
+RUN mkdir -p uploads logs backups assets && \
+    chown -R nodejs:nodejs /app
+
 USER nodejs
 
 # Expose port

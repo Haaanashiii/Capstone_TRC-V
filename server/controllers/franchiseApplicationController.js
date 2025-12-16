@@ -250,7 +250,7 @@ exports.createNewApplication = async (req, res, next) => {
           console.log(`[Walk-in] Notified SB admins - Application ${appId} status: ${initialStatus}`);
         } else {
           // Regular applications go to BPLO admins first
-          io.to('bplo-admin').emit('pending-applications', [finalApplication]);
+          io.to('bplo-admins').emit('pending-applications', [finalApplication]);
         }
         io.to('general').emit('application-updated', finalApplication);
       }

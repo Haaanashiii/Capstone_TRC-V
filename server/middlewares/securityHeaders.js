@@ -3,6 +3,11 @@ function enforceHttps(req, res, next) {
   const isProd = process.env.NODE_ENV === 'production';
   if (!isProd) return next();
 
+  // Skip HTTPS enforcement in Docker/containerized environments
+  // The reverse proxy (nginx) should handle HTTPS termination
+  const isDocker = process.env.DOCKER_ENV === 'true' || process.env.SKIP_HTTPS === 'true';
+  if (isDocker) return next();
+
   // Check if connection is using HTTPS
   const xfwd = String(req.headers['x-forwarded-proto'] || '');
   const isHttps = Boolean(req.secure) || xfwd.split(',')[0].trim() === 'https';
