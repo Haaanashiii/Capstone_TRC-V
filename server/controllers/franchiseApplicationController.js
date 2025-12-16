@@ -541,28 +541,8 @@ exports.createRenewOrAmendment = async (req, res, next) => {
       relatedFranchise: existingFranchise._id,
       operatorInfo: userId,
       statusOfBPLO: 'pending',
-      ...(appType === 'change_unit' ? {
-        // Keep operator, update motor + driver
-        operatorName: body.operatorName || existingFranchise.operatorName,
-        operatorContactNumber: body.operatorContactNumber || existingFranchise.operatorContactNumber,
-        operatorAddress: body.operatorAddress || existingFranchise.operatorAddress,
-        operatorBarangay: body.operatorBarangay || existingFranchise.operatorBarangay,
-        operatorCivilStatus: body.operatorCivilStatus || existingFranchise.operatorCivilStatus,
-        operatorBirthPlace: existingFranchise.operatorBirthPlace,
-        operatorBirthDate: existingFranchise.operatorBirthDate,
-        operatorCitizenship: existingFranchise.operatorCitizenship,
-        operatorEmail: userEmail || existingFranchise.operatorEmail,
-        driverName: body.driverName || existingFranchise.driverName,
-        driversAddress: body.driversAddress || existingFranchise.driversAddress,
-        todaMembership: body.todaMembership || existingFranchise.todaMembership,
-        unitModel: body.unitModel || existingFranchise.unitModel,
-        colorMotor: body.colorMotor || existingFranchise.colorMotor,
-        sideCarColor: body.sideCarColor || existingFranchise.sideCarColor,
-        mvPlateNo: body.mvPlateNo || existingFranchise.mvPlateNo,
-        motorEngineNo: body.motorEngineNo || existingFranchise.motorEngineNo,
-        chasisNo: body.chasisNo || existingFranchise.chasisNo
-      } : appType === 'update_ownership' ? {
-        // Update operator, keep motor + driver
+      ...(appType === 'amendment' ? {
+        // Amendment: Update operator information, keep motor + driver
         operatorName: body.operatorName || existingFranchise.operatorName,
         operatorContactNumber: body.operatorContactNumber || existingFranchise.operatorContactNumber,
         operatorAddress: body.operatorAddress || existingFranchise.operatorAddress,
@@ -572,6 +552,9 @@ exports.createRenewOrAmendment = async (req, res, next) => {
         operatorBirthDate: body.operatorBirthDate ? new Date(body.operatorBirthDate) : existingFranchise.operatorBirthDate,
         operatorCitizenship: body.operatorCitizenship || existingFranchise.operatorCitizenship,
         operatorEmail: userEmail || body.operatorEmail || existingFranchise.operatorEmail,
+        coOwnerName: body.coOwnerName || existingFranchise.coOwnerName,
+        coOwnerAddress: body.coOwnerAddress || existingFranchise.coOwnerAddress,
+        // Keep existing motor and driver info
         driverName: existingFranchise.driverName,
         driversAddress: existingFranchise.driversAddress,
         todaMembership: existingFranchise.todaMembership,
@@ -581,28 +564,52 @@ exports.createRenewOrAmendment = async (req, res, next) => {
         mvPlateNo: existingFranchise.mvPlateNo,
         motorEngineNo: existingFranchise.motorEngineNo,
         chasisNo: existingFranchise.chasisNo
-      } : {
-        // Renewal - keep all fields, allow user overrides
-        operatorName: body.operatorName || existingFranchise.operatorName,
-        operatorContactNumber: body.operatorContactNumber || existingFranchise.operatorContactNumber,
-        operatorAddress: body.operatorAddress || existingFranchise.operatorAddress,
-        operatorBarangay: body.operatorBarangay || existingFranchise.operatorBarangay,
-        operatorCivilStatus: body.operatorCivilStatus || existingFranchise.operatorCivilStatus,
+      } : appType === 'change_unit' ? {
+        // Change Unit: Keep operator, update motor + driver
+        operatorName: existingFranchise.operatorName,
+        operatorContactNumber: existingFranchise.operatorContactNumber,
+        operatorAddress: existingFranchise.operatorAddress,
+        operatorBarangay: existingFranchise.operatorBarangay,
+        operatorCivilStatus: existingFranchise.operatorCivilStatus,
         operatorBirthPlace: existingFranchise.operatorBirthPlace,
         operatorBirthDate: existingFranchise.operatorBirthDate,
         operatorCitizenship: existingFranchise.operatorCitizenship,
         operatorEmail: userEmail || existingFranchise.operatorEmail,
+        coOwnerName: existingFranchise.coOwnerName,
+        coOwnerAddress: existingFranchise.coOwnerAddress,
+        // Allow updates to motor/driver info
         driverName: body.driverName || existingFranchise.driverName,
         driversAddress: body.driversAddress || existingFranchise.driversAddress,
         todaMembership: body.todaMembership || existingFranchise.todaMembership,
         unitModel: body.unitModel || existingFranchise.unitModel,
         colorMotor: body.colorMotor || existingFranchise.colorMotor,
         sideCarColor: body.sideCarColor || existingFranchise.sideCarColor,
-        sideCarPlateNumber: body.sideCarPlateNumber || existingFranchise.sideCarPlateNumber,
-        coOwnerName: body.coOwnerName || existingFranchise.coOwnerName,
         mvPlateNo: body.mvPlateNo || existingFranchise.mvPlateNo,
         motorEngineNo: body.motorEngineNo || existingFranchise.motorEngineNo,
         chasisNo: body.chasisNo || existingFranchise.chasisNo
+      } : {
+        // Renewal: Keep everything from existing franchise, extend expiry date
+        operatorName: existingFranchise.operatorName,
+        operatorContactNumber: existingFranchise.operatorContactNumber,
+        operatorAddress: existingFranchise.operatorAddress,
+        operatorBarangay: existingFranchise.operatorBarangay,
+        operatorCivilStatus: existingFranchise.operatorCivilStatus,
+        operatorBirthPlace: existingFranchise.operatorBirthPlace,
+        operatorBirthDate: existingFranchise.operatorBirthDate,
+        operatorCitizenship: existingFranchise.operatorCitizenship,
+        operatorEmail: userEmail || existingFranchise.operatorEmail,
+        coOwnerName: existingFranchise.coOwnerName,
+        coOwnerAddress: existingFranchise.coOwnerAddress,
+        driverName: existingFranchise.driverName,
+        driversAddress: existingFranchise.driversAddress,
+        todaMembership: existingFranchise.todaMembership,
+        unitModel: existingFranchise.unitModel,
+        colorMotor: existingFranchise.colorMotor,
+        sideCarColor: existingFranchise.sideCarColor,
+        sideCarPlateNumber: existingFranchise.sideCarPlateNumber,
+        mvPlateNo: existingFranchise.mvPlateNo,
+        motorEngineNo: existingFranchise.motorEngineNo,
+        chasisNo: existingFranchise.chasisNo
       })
     };
     
@@ -1593,18 +1600,11 @@ exports.sbAdminAcceptRenewOrAmendment = async (req, res, next) => {
     const franchiseNo = existingFranchise.franchiseNumber;
     
     // Determine franchiseChainId based on application type:
-    // - For renewal/change_unit: KEEP same chainId (same owner, just new version)
-    // - For ownership_transfer: CREATE NEW chainId for new owner
-    let newFranchiseChainId;
-    if (application.applicationType === 'update_ownership') {
-      // Ownership transfer: new owner gets NEW franchiseChainId
-      newFranchiseChainId = `${franchiseNo}-${application.operatorName.toLowerCase().replace(/\s+/g, '-')}`;
-      console.log('[sbAdminAcceptRenewOrAmendment] Ownership transfer - creating NEW franchiseChainId:', newFranchiseChainId);
-    } else {
-      // Renewal/change_unit: same owner keeps SAME franchiseChainId (version increments)
-      newFranchiseChainId = existingFranchise.franchiseChainId;
-      console.log('[sbAdminAcceptRenewOrAmendment] Renewal/Amendment - keeping same franchiseChainId:', newFranchiseChainId);
-    }
+    // - Amendment: KEEP same franchise number AND chainId (just update operator info, version increments)
+    // - Renewal: KEEP same franchise number AND chainId (extend expiry, version increments)
+    // - Change_unit: KEEP same franchise number AND chainId (update motor/driver, version increments)
+    const newFranchiseChainId = existingFranchise.franchiseChainId;
+    console.log('[sbAdminAcceptRenewOrAmendment] ' + application.applicationType + ' - keeping same franchiseChainId:', newFranchiseChainId);
     
     // Handle versioning (no transaction for standalone MongoDB compatibility)
     const { version, previousVersion } = await handleVersionControl(franchiseNo, application.applicationType);
@@ -1686,17 +1686,8 @@ exports.sbAdminAcceptRenewOrAmendment = async (req, res, next) => {
     };
     
     // Update specific sections based on type
-    if (application.applicationType === 'change_unit') {
-      newVersionData.unitModel = application.unitModel;
-      newVersionData.colorMotor = application.colorMotor;
-      newVersionData.sideCarColor = application.sideCarColor;
-      newVersionData.mvPlateNo = application.mvPlateNo;
-      newVersionData.motorEngineNo = application.motorEngineNo;
-      newVersionData.chasisNo = application.chasisNo;
-      newVersionData.driverName = application.driverName;
-      newVersionData.driversAddress = application.driversAddress;
-      newVersionData.todaMembership = application.todaMembership;
-    } else if (application.applicationType === 'update_ownership') {
+    if (application.applicationType === 'amendment') {
+      // Amendment: Update operator information only, keep franchise number
       newVersionData.operatorName = application.operatorName;
       newVersionData.operatorContactNumber = application.operatorContactNumber;
       newVersionData.operatorAddress = application.operatorAddress;
@@ -1706,7 +1697,25 @@ exports.sbAdminAcceptRenewOrAmendment = async (req, res, next) => {
       newVersionData.operatorBirthDate = application.operatorBirthDate;
       newVersionData.operatorCitizenship = application.operatorCitizenship;
       newVersionData.operatorEmail = application.operatorEmail;
-      newVersionData.linkedUser = application.operatorInfo;
+      newVersionData.coOwnerName = application.coOwnerName;
+      newVersionData.coOwnerAddress = application.coOwnerAddress;
+      // Keep existing motor/driver info and franchise number
+      console.log('[sbAdminAcceptRenewOrAmendment] Amendment - updated operator info, retained franchise number:', franchiseNo);
+    } else if (application.applicationType === 'change_unit') {
+      // Change Unit: Update motor/driver info, keep operator
+      newVersionData.unitModel = application.unitModel;
+      newVersionData.colorMotor = application.colorMotor;
+      newVersionData.sideCarColor = application.sideCarColor;
+      newVersionData.mvPlateNo = application.mvPlateNo;
+      newVersionData.motorEngineNo = application.motorEngineNo;
+      newVersionData.chasisNo = application.chasisNo;
+      newVersionData.driverName = application.driverName;
+      newVersionData.driversAddress = application.driversAddress;
+      newVersionData.todaMembership = application.todaMembership;
+      console.log('[sbAdminAcceptRenewOrAmendment] Change Unit - updated motor/driver info, retained franchise number:', franchiseNo);
+    } else if (application.applicationType === 'renewal') {
+      // Renewal: Keep all information, just extend expiry
+      console.log('[sbAdminAcceptRenewOrAmendment] Renewal - extended expiry date, retained all information and franchise number:', franchiseNo);
     }
     
     const FranchiseInformationModel = require('../models/franchiseInformationModel');

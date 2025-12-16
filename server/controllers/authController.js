@@ -751,6 +751,7 @@ exports.getCurrentUser = async (req, res, next) => {
     
     // Fetch full user details from database with franchise info
     const User = require('../models/userAccountModel');
+    const FranchiseInformation = require('../models/franchiseInformationModel');
     const mongoose = require('mongoose');
     
     // Handle both ObjectId and UUID-based user lookup
@@ -766,6 +767,17 @@ exports.getCurrentUser = async (req, res, next) => {
     }
     
     if (!user) return res.status(404).json({ error: 'User not found' });
+    
+    // Fetch user's active franchise (include Active and Expired, exclude only Revoked)
+    // Get the latest version of their franchise
+    let userFranchise = null;
+    if (user._id) {
+      userFranchise = await FranchiseInformation.findOne({
+        linkedUser: user._id,
+        isCurrentVersion: true,
+        franchiseStatus: { $ne: 'Revoked' } // Exclude only revoked franchises
+      }).sort({ version: -1 });
+    }
     
     // Return comprehensive user info (excluding sensitive data)
     // Note: franchiseChainIds are strings (not ObjectId refs), so we use them directly
@@ -783,7 +795,8 @@ exports.getCurrentUser = async (req, res, next) => {
       hasFranchiseChainIds: !!(user.franchiseChainIds && user.franchiseChainIds.length > 0),
       franchiseApplicationsCount: user.franchiseApplications ? user.franchiseApplications.length : 0,
       franchiseChainIdsCount: user.franchiseChainIds ? user.franchiseChainIds.length : 0,
-      franchiseChainIds: user.franchiseChainIds || []
+      franchiseChainIds: user.franchiseChainIds || [],
+      franchise: userFranchise // Include franchise info (Active or Expired, but not Revoked)
     };
     
     res.json({ user: userInfo });

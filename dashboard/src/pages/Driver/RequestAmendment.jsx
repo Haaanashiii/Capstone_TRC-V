@@ -8,8 +8,10 @@ import {
   FormControl, 
   FormHelperText,
   CircularProgress,
-  InputLabel
+  InputLabel,
+  Typography
 } from '@mui/material';
+import PrivacyPolicyModal from "../../components/PrivacyPolicyModal";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
@@ -168,8 +170,15 @@ export default function RequestAmendment() {
     license: null,
     affidavit: null,
     picture: null,
-    stencil: null
+    stencil: null,
+    oRLTO: null,
+    cRLTO: null
   });
+
+  // Privacy agreement checkbox state
+  const [agreeToPrivacy, setAgreeToPrivacy] = useState(false);
+  // Privacy modal state
+  const [privacyModalOpen, setPrivacyModalOpen] = useState(false);
 
   const translations = {
     en: { 
@@ -204,7 +213,18 @@ export default function RequestAmendment() {
       sidecarNumber: 'SIDECAR NUMBER',
       plateNumber: 'PLATE NUMBER',
       chassisNumber: 'CHASSIS NUMBER',
-      motorNumber: 'MOTOR NUMBER'
+      motorNumber: 'MOTOR NUMBER',
+      swornStatement: "SWORN STATEMENT OF APPLICANT'S UNDERTAKINGS",
+      swornDeclaration: "I declare that I shall conform to the conditions relevant to the operation of my tricycle-for-hire such as:",
+      swornItem1: "Submit myself including my tricycle unit to obey and to abide faithfully the TRICYCLE CODE OF SOLANO, other existing laws and ordinances relevant to motorized tricycle-for-hire;",
+      swornItem2: "I shall pay without delay my corresponding taxes and fees, and submit all necessary documentary requirements;",
+      swornItem3: "Notify the Tricycle Regulatory Unit any change, transfer and cessation of my tricycle operations;",
+      swornItem4: "Any violation on my part or on the part of my driver herein stipulated conditions shall be sufficient cause for the revocation of my Franchise/Permit or any penalty may be imposed by the Solano Tricycle Franchising and Regulatory (STFRB)",
+      swornCompliance: "In compliance, thereof, I voluntarily affixed my signature,",
+      agreement: "AGREEMENT",
+      agreeText1: "I hereby warrant the truth and correctness of all the particulars stated herein and any false statements made by me will constitute sufficient cause for the cancellation of any authorization given to me;",
+      agreeText2: "Submit myself including my tricycle unit to obey and to abide faithfully the TRICYCLE CODE OF SOLANO, other existing laws and ordinances relevant to motorized tricycle-for-hire;",
+      agreeText3: "That I bind myself to conform with the rules and regulations promulgated by the LGU in connection with operation of motorized tricycle-for-hire."
     },
     tl: { 
       title: 'HILING PARA SA PAG-AAYOS', 
@@ -238,7 +258,18 @@ export default function RequestAmendment() {
       sidecarNumber: 'NUMERO NG SIDECAR',
       plateNumber: 'NUMERO NG PLAKA',
       chassisNumber: 'NUMERO NG CHASSIS',
-      motorNumber: 'NUMERO NG MOTOR'
+      motorNumber: 'NUMERO NG MOTOR',
+      swornStatement: "SINUMPAANG SALAYSAY NG MGA PANGAKO NG APLIKANTE",
+      swornDeclaration: "Nagpapatunay ako na susundin ko ang mga kondisyon na may kaugnayan sa operasyon ng aking tricycle-for-hire tulad ng:",
+      swornItem1: "Isusuko ko ang aking sarili kasama ang aking tricycle unit upang sumunod at tumupad nang tapat sa TRICYCLE CODE NG SOLANO, sa iba pang umiiral na mga batas at ordinansa na may kaugnayan sa motorized tricycle-for-hire;",
+      swornItem2: "Babayaran ko nang walang pagkakaantala ang aking kaukulang mga buwis at bayad, at isusumite ang lahat ng kinakailangang mga dokumento;",
+      swornItem3: "Ipababalita ko sa Tricycle Regulatory Unit ang anumang pagbabago, paglipat at paghinto ng aking tricycle operations;",
+      swornItem4: "Ang anumang paglabag sa aking bahagi o sa bahagi ng aking driver sa mga kondisyong nabanggit dito ay magiging sapat na dahilan para sa pagpapawalang-bisa ng aking Franchise/Permit o anumang parusa na maaaring ipataw ng Solano Tricycle Franchising and Regulatory (STFRB)",
+      swornCompliance: "Bilang pagsunod dito, kusang-loob kong nilagda ang aking pirma,",
+      agreement: "KASUNDUAN",
+      agreeText1: "Pinapatunayan ko na ang lahat ng mga detalyeng nabanggit dito ay totoo at tama, at ang anumang maling pahayag na aking gagawin ay magiging sapat na dahilan para sa pagkansela ng anumang pahintulot na ibinigay sa akin;",
+      agreeText2: "Isusuko ko ang aking sarili kasama ang aking tricycle unit upang sumunod at tumupad nang tapat sa TRICYCLE CODE NG SOLANO, sa iba pang umiiral na mga batas at ordinansa na may kaugnayan sa motorized tricycle-for-hire;",
+      agreeText3: "Na aking itinatatag ang aking sarili na sumunod sa mga tuntunin at regulasyon na pinatupad ng LGU na may kaugnayan sa operasyon ng motorized tricycle-for-hire."
     }
   };
 
@@ -546,6 +577,16 @@ export default function RequestAmendment() {
     
     if (isSubmitting) return; // Prevent duplicate submissions
     
+    // Validate privacy agreement
+    if (!agreeToPrivacy) {
+      Swal.fire({
+        ...alertStyle.errorAlert,
+        title: 'Privacy Agreement Required',
+        text: 'You must agree to the privacy policy before submitting your amendment request.'
+      });
+      return;
+    }
+    
     setIsSubmitting(true);
     
     try {
@@ -629,6 +670,8 @@ export default function RequestAmendment() {
         await uploadHelper('votersAffidavitObj', 'affidavit');
         await uploadHelper('motorChassisStencilObj', 'stencil');
         await uploadHelper('driverPictureObj', 'picture');
+        await uploadHelper('oRLTOObj', 'oRLTO');
+        await uploadHelper('cRLTOObj', 'cRLTO');
       }
       
       logger.log('[RequestAmendment] Submitting amendment request...');
@@ -657,7 +700,9 @@ export default function RequestAmendment() {
         license: null,
         affidavit: null,
         picture: null,
-        stencil: null
+        stencil: null,
+        oRLTO: null,
+        cRLTO: null
       });
       
       // Redirect to franchisee list after 2 seconds
@@ -1191,6 +1236,8 @@ export default function RequestAmendment() {
                       { key: 'stencil', label: 'PHOTOCOPY OF MOTOR CHASSIS STENCIL' },
                       { key: 'license', label: "PHOTOCOPY OF DRIVER'S LICENSE" },
                       { key: 'affidavit', label: "PHOTOCOPY OF VOTER'S AFFIDAVIT" },
+                      { key: 'oRLTO', label: 'OR LTO (OFFICIAL RECEIPT)' },
+                      { key: 'cRLTO', label: 'CR (CERTIFICATE OF REGISTRATION)' },
                       { key: 'picture', label: '1X1 PICTURE' }
                     ].map((doc) => (
                       <div key={doc.key} style={{ display: 'flex', alignItems: 'center', gap: 'clamp(12px, 3vw, 24px)', flexWrap: 'wrap' }}>
@@ -1260,6 +1307,148 @@ export default function RequestAmendment() {
                   </div>
                 </div>
               )}
+
+              {/* Agreement Section */}
+              <div style={{ marginTop: 3, padding: '24px', background: '#fafbfd', borderRadius: '12px', boxShadow: '0 4px 12px rgba(23, 77, 122, 0.15)' }}>
+                <div style={{ fontWeight: 700, fontSize: '18px', letterSpacing: '0.5px', textTransform: 'uppercase', marginBottom: 24, color: '#174D7A' }}>
+                  {t.agreement}
+                </div>
+                <ol style={{ 
+                  marginLeft: 24,
+                  lineHeight: 1.8,
+                  color: '#444'
+                }}>
+                  <li style={{ marginBottom: 16 }}>
+                    <Typography sx={{ 
+                      fontSize: '15px',
+                      fontFamily: 'Poppins, sans-serif',
+                      color: '#333'
+                    }}>
+                      {t.agreeText1}
+                    </Typography>
+                  </li>
+                  <li style={{ marginBottom: 16 }}>
+                    <Typography sx={{ 
+                      fontSize: '15px',
+                      fontFamily: 'Poppins, sans-serif',
+                      color: '#333'
+                    }}>
+                      {t.agreeText2}
+                    </Typography>
+                  </li>
+                  <li style={{ marginBottom: 16 }}>
+                    <Typography sx={{ 
+                      fontSize: '15px',
+                      fontFamily: 'Poppins, sans-serif',
+                      color: '#333'
+                    }}>
+                      {t.agreeText3}
+                    </Typography>
+                  </li>
+                </ol>
+              </div>
+
+              {/* Sworn Statement Section */}
+              <div style={{ marginTop: 4, padding: '24px', background: '#fafbfd', borderRadius: '12px', boxShadow: '0 4px 12px rgba(23, 77, 122, 0.15)' }}>
+                <div style={{ fontWeight: 700, fontSize: '18px', letterSpacing: '0.5px', textTransform: 'uppercase', marginBottom: 24, color: '#174D7A' }}>
+                  {t.swornStatement}
+                </div>
+                <div className="franchise-app-sworn-statement">
+                  <Typography sx={{ 
+                    marginBottom: 2, 
+                    lineHeight: 1.8,
+                    color: '#333',
+                    fontSize: '15px',
+                    fontFamily: 'Poppins, sans-serif'
+                  }}>
+                    {t.swornDeclaration}
+                  </Typography>
+                  <ol style={{ 
+                    marginLeft: 24, 
+                    marginBottom: 24,
+                    lineHeight: 1.8,
+                    color: '#444'
+                  }}>
+                    <li style={{ marginBottom: 12 }}>{t.swornItem1}</li>
+                    <li style={{ marginBottom: 12 }}>{t.swornItem2}</li>
+                    <li style={{ marginBottom: 12 }}>{t.swornItem3}</li>
+                    <li style={{ marginBottom: 12 }}>{t.swornItem4}</li>
+                  </ol>
+                  <Typography sx={{ 
+                    marginBottom: 3,
+                    fontWeight: 500,
+                    color: '#333',
+                    fontSize: '15px',
+                    fontFamily: 'Poppins, sans-serif'
+                  }}>
+                    {t.swornCompliance}
+                  </Typography>
+                  <div className="franchise-app-digital-signature">
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 32 }}>
+                      <div style={{ width: 340 }}>
+                        <div
+                          style={{
+                            width: '100%',
+                            height: 80,
+                            background: 'transparent',
+                            borderTop: '2px solid #174D7A',
+                            borderBottom: 'none',
+                            borderLeft: 'none',
+                            borderRight: 'none',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontWeight: 600,
+                            fontSize: 14,
+                            color: '#174D7A',
+                            marginBottom: 8,
+                            paddingTop: '10px',
+                            letterSpacing: '1px'
+                          }}
+                        >
+                          SIGNATURE
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Privacy Agreement Checkbox */}
+              <div style={{ marginTop: 3, marginBottom: 24, padding: '16px', background: '#fff3cd', borderRadius: '8px', border: '1px solid #ffc107', display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                <input
+                  type="checkbox"
+                  checked={agreeToPrivacy}
+                  onChange={(e) => setAgreeToPrivacy(e.target.checked)}
+                  style={{ marginTop: 4, width: 20, height: 20, cursor: 'pointer' }}
+                />
+                <div style={{ flex: 1 }}>
+                  <label style={{ cursor: 'pointer', fontSize: 14, color: '#333', fontWeight: 500 }}>
+                    I agree to the{' '}
+                    <span
+                      onClick={() => setPrivacyModalOpen(true)}
+                      style={{ color: '#174D7A', textDecoration: 'underline', cursor: 'pointer', fontWeight: 600 }}
+                    >
+                      privacy policy
+                    </span>
+                    {' '}and understand that my personal information will be used for franchise amendment processing.
+                  </label>
+                </div>
+              </div>
+
+              {/* Privacy Policy Modal */}
+              <PrivacyPolicyModal
+                open={privacyModalOpen}
+                onClose={() => setPrivacyModalOpen(false)}
+                onAgree={() => {
+                  setAgreeToPrivacy(true);
+                  setPrivacyModalOpen(false);
+                }}
+                onDecline={() => {
+                  setAgreeToPrivacy(false);
+                  setPrivacyModalOpen(false);
+                }}
+              />
 
               {/* Submit Buttons - Matching FranchiseApplication style */}
               <div style={{ display: 'flex', justifyContent: 'center', margin: 'clamp(24px, 5vw, 40px) 0 0 0', gap: 'clamp(8px, 2vw, 16px)', flexWrap: 'wrap' }}>
