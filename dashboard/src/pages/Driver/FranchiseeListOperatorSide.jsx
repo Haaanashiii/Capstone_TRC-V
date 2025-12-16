@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Box, Typography, Button, Paper, Avatar, TextField, Dialog, DialogTitle, DialogContent, DialogActions, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, IconButton, Menu, MenuItem } from '@mui/material';
+import { useAuth } from '../../contexts/AuthContext';
+import { Box, Typography, Button, Paper, Avatar, TextField, Dialog, DialogTitle, DialogContent, DialogActions, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, IconButton, Menu, MenuItem, Chip } from '@mui/material';
 import PersonIcon from '@mui/icons-material/Person';
 import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
 import EditIcon from '@mui/icons-material/Edit';
@@ -18,9 +19,10 @@ import websocketService from '../../services/websocket';
 function FranchiseeListOperatorSide() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { user: authUser } = useAuth(); // Get authenticated user from context
+  const user = authUser; // Alias for backward compatibility with existing code
   const franchiseFromState = location.state?.franchise; // Get franchise from navigation state
   
-  const [user, setUser] = useState(null);
   const [language, setLanguage] = useState('en'); // Language state
   const [franchiseStatus, setFranchiseStatus] = useState(null); // Franchise status state
   const [matchedFranchise, setMatchedFranchise] = useState(franchiseFromState || null);
@@ -30,8 +32,8 @@ function FranchiseeListOperatorSide() {
   const [amendmentModalOpen, setAmendmentModalOpen] = useState(false);
   
   // User's franchises list (fetched from API)
-  const [franchiseList, setFranchiseList] = useState([]);
-  const [loadingFranchises, setLoadingFranchises] = useState(false);
+  const [allUserFranchises, setAllUserFranchises] = useState([]); // Store ALL franchises for this user
+  const [loadingFranchises, setLoadingFranchises] = useState(false); // Loading state for franchises
   
   // Translation object
   const translations = {
@@ -104,58 +106,19 @@ function FranchiseeListOperatorSide() {
       logger.log('FranchiseeListOperatorSide: Response status:', response.status);
 
       if (response.ok) {
-        const data = await response.json();
-        logger.log('FranchiseeListOperatorSide: User details received:', data);
-        logger.log('FranchiseeListOperatorSide: QR Code from user.franchise:', data.user?.franchise?.qrCode);
-        logger.log('FranchiseeListOperatorSide: Profile photo from user.franchise:', data.user?.franchise?.profilePhoto);
-        setUser(data.user);
+        logger.log('FranchiseeListOperatorSide: User details received');
       } else {
-        logger.log('FranchiseeListOperatorSide: /auth/me returned non-ok. Clearing any stored franchise info to avoid stale data.');
-        // If server says the user is not available (e.g., deleted), clear any stored franchise
-        sessionStorage.removeItem('userFranchiseInfo');
-        sessionStorage.removeItem('franchiseLinked');
-        sessionStorage.removeItem('franchiseMenuReplaced');
-        sessionStorage.removeItem('franchiseOwnerUserId');
-        setFranchiseStatus(null);
-        // Do not blindly trust token fallback when server indicates user missing. Use token data only as display fallback.
-        const tokenUser = getUserInfo();
-        setUser(tokenUser || null);
+        logger.log('FranchiseeListOperatorSide: /auth/me returned non-ok. Using context user.');
       }
     } catch (error) {
       logger.error('FranchiseeListOperatorSide: Error fetching user details:', error);
-     
-      sessionStorage.removeItem('userFranchiseInfo');
-      sessionStorage.removeItem('franchiseLinked');
-      sessionStorage.removeItem('franchiseOwnerUserId');
-      setFranchiseStatus(null);
-      const tokenUser = getUserInfo();
-      setUser(tokenUser || null);
     }
   }, []);
 
-  // Fetch user details on component mount
+  
+  // Simple dependency on authUser for WebSocket subscription
   useEffect(() => {
-    // Token is only in sessionStorage (secure storage)
-    const token = sessionStorage.getItem('accessToken');
-    if (token) {
-      logger.log('[FranchiseeListOperatorSide] Token found, initializing user data...');
-      const tokenUser = getUserInfo();
-      if (tokenUser) {
-        logger.log('[FranchiseeListOperatorSide] User from token:', tokenUser);
-        setUser(tokenUser);
-      }
-    
-      // Fetch full user details which will trigger the franchise loading effect
-      fetchUserDetails();
-    }
-    // Check franchise status
-    checkFranchiseStatus();
-   
-  }, [fetchUserDetails]);
-
-  // WebSocket subscription for real-time franchise updates
-  useEffect(() => {
-    if (!user?.id) return;
+    if (!authUser?.id) return;
 
     // Connect to WebSocket if not already connected
     if (!websocketService.isConnected()) {
@@ -163,23 +126,12 @@ function FranchiseeListOperatorSide() {
     }
 
     // Also join user-specific room for personal updates
-    websocketService.emit('join', { userId: user.id });
-
-    // Handle franchise updates for this user
-    const handleFranchiseUpdated = (data) => {
-      logger.log('[FranchiseeListOperatorSide] Received franchise update:', data);
-      // Refresh user details to get updated franchise info
-      if (data?.franchiseId || data?.linkedUser === user.id) {
-        fetchUserDetails();
-      }
-    };
-
-    websocketService.on('franchise-updated', handleFranchiseUpdated);
+    websocketService.emit('join', { userId: authUser.id });
 
     return () => {
-      websocketService.off('franchise-updated', handleFranchiseUpdated);
+      websocketService.off('franchise-updated', () => {});
     };
-  }, [user?.id, fetchUserDetails]);
+  }, [authUser?.id]);
 
   
   useEffect(() => {
@@ -291,7 +243,7 @@ function FranchiseeListOperatorSide() {
                   }))
                   
                   logger.log('[FranchiseeListOperatorSide] Successfully linked franchise via /mine endpoint with userId:', userId);
-                  return; 
+                  // REMOVED: return; - DO NOT EXIT, continue to fetch ALL franchises below
                 }
               }
             } catch (e) {
@@ -300,64 +252,37 @@ function FranchiseeListOperatorSide() {
           }
 
          
+          // Get ALL approved franchise applications (not just linked franchises)
+          logger.log('[FranchiseeListOperatorSide] Fetching ALL approved franchise applications...');
           const resp = await fetch(`${API_BASE_URL}/api/franchise-applications?status=approved`)
-          if (!resp.ok) return
-          const apps = await resp.json()
-          logger.debug('[FranchiseeListOperatorSide] approved applications fetched', Array.isArray(apps) ? apps.length : 'not-array', apps)
-          if (!Array.isArray(apps) || !apps.length) return
-        
-          const userIdentifiers = new Set();
-          if (user.email) userIdentifiers.add(String(user.email).toLowerCase());
-          if (user.username) userIdentifiers.add(String(user.username).toLowerCase());
-          if (user.name) userIdentifiers.add(String(user.name).toLowerCase());
-          if (user.operatorId) userIdentifiers.add(String(user.operatorId).toLowerCase());
-          if (user.driversID) userIdentifiers.add(String(user.driversID).toLowerCase());
-          if (user.driverId) userIdentifiers.add(String(user.driverId).toLowerCase());
-          if (user.mvPlate) userIdentifiers.add(String(user.mvPlate).toLowerCase());
-          if (user.plateNumber) userIdentifiers.add(String(user.plateNumber).toLowerCase());
-          if (user.mvPlateNo) userIdentifiers.add(String(user.mvPlateNo).toLowerCase());
+          if (!resp.ok) {
+            logger.error('[FranchiseeListOperatorSide] Failed to fetch:', resp.status);
+            return;
+          }
+          const appsResponse = await resp.json()
+          
+          let allFranchises = Array.isArray(appsResponse) ? appsResponse : (appsResponse?.data || [])
+          
+          logger.log('[FranchiseeListOperatorSide] ========== APPROVED APPLICATIONS FROM API ==========');
+          logger.log('[FranchiseeListOperatorSide] Total approved applications:', allFranchises.length);
+          allFranchises.forEach((f, idx) => {
+            logger.log(`[${idx}] ${f.franchiseNumber} | Email: ${f.operatorEmail || f.email} | Name: ${f.operatorName || f.name}`);
+          });
+          
+          if (!allFranchises.length) {
+            logger.warn('[FranchiseeListOperatorSide] No approved franchises found');
+            return;
+          }
+          
+          // Store ALL approved franchises for the modal (show all of them)
+          logger.log('[FranchiseeListOperatorSide] ⚠️ ABOUT TO SET allUserFranchises');
+          logger.log('[FranchiseeListOperatorSide] allFranchises to be stored:', allFranchises.length, 'items');
+          logger.log('[FranchiseeListOperatorSide] allFranchises details:', allFranchises.map(f => f.franchiseNumber));
+          setAllUserFranchises(allFranchises);
+          logger.log('[FranchiseeListOperatorSide] ✓✓✓ Called setAllUserFranchises with', allFranchises.length, 'approved franchises');
 
-          // Prefer strong exact identifier matches (email, driver id, plate). If none, fall back
-          // to a name-based match only when it yields a single unique candidate.
-          const matched = (() => {
-            try {
-              const toLower = s => (s || '').toLowerCase();
-              const emailMap = new Map();
-              const driverIdMap = new Map();
-              const plateMap = new Map();
-
-              for (const a of apps) {
-                if (!a) continue;
-                const appEmail = toLower(a.operatorEmail || a.email || '');
-                if (appEmail) emailMap.set(appEmail, a);
-                const appDriverId = toLower(a.driverName || a.driversID || a.driverId || '');
-                if (appDriverId) driverIdMap.set(appDriverId, a);
-                const appPlate = toLower(a.plateNumber || a.mvPlate || a.mvPlateNo || a.sidecarPlateNumber || '');
-                if (appPlate) plateMap.set(appPlate, a);
-              }
-
-              // Try exact matches using the collected user identifiers
-              for (const id of userIdentifiers) {
-                if (emailMap.has(id)) return emailMap.get(id);
-                if (driverIdMap.has(id)) return driverIdMap.get(id);
-                if (plateMap.has(id)) return plateMap.get(id);
-              }
-
-              // Name fallback: only accept if it uniquely identifies a single application
-              const uname = toLower(user.name || '');
-              if (uname && uname.length > 3) {
-                const nameMatches = apps.filter(a => {
-                  const nm = toLower(a.name || a.operatorName || a.driverName || '');
-                  return nm && nm.includes(uname);
-                });
-                if (nameMatches.length === 1) return nameMatches[0];
-              }
-
-            } catch (e) {
-              logger.warn('[FranchiseeListOperatorSide] matching error', e);
-            }
-            return null;
-          })();
+          // Use the first one as the "current" matched franchise
+          const matched = allFranchises.length > 0 ? allFranchises[0] : null;
 
           if (matched) {
             const franchiseInfo = {
@@ -375,38 +300,27 @@ function FranchiseeListOperatorSide() {
             setMatchedFranchise(matched);
     
             try {
-              // Debug: log raw date fields
               logger.debug('FranchiseeListOperatorSide: matched raw dates ->', { approvedAt: matched.approvedAt, expiryDate: matched.expiryDate });
-
 
               const approvedRaw = matched.approvedAt || matched.approved_at || matched.approved_at_string || '';
               const expiryRaw = matched.expiryDate || matched.expiry_date || matched.expiry_date_string || '';
 
               const parseToDayjs = (raw) => {
                 if (!raw && raw !== 0) return null;
-           
                 try {
                   const asDay = dayjs(raw);
                   if (asDay && asDay.isValid && asDay.isValid()) return asDay;
-                } catch {
-                  // fallthrough
-                }
-                // numeric timestamp
+                } catch { }
                 if (!isNaN(Number(raw))) {
                   try {
                     const asNum = dayjs(Number(raw));
                     if (asNum && asNum.isValid && asNum.isValid()) return asNum;
-                  } catch {
-                    // fallthrough
-                  }
+                  } catch { }
                 }
-              
                 try {
                   const d = new Date(String(raw));
                   if (!isNaN(d.getTime())) return dayjs(d);
-                } catch {
-                  // give up
-                }
+                } catch { }
                 return null;
               };
 
@@ -414,16 +328,14 @@ function FranchiseeListOperatorSide() {
               let parsedExpiry = parseToDayjs(expiryRaw);
               
               if (!parsedApproved && (approvedRaw || approvedRaw === 0)) {
-                try { parsedApproved = dayjs(new Date(String(approvedRaw))); } catch { /* ignore */ }
+                try { parsedApproved = dayjs(new Date(String(approvedRaw))); } catch { }
               }
               if (!parsedExpiry && (expiryRaw || expiryRaw === 0)) {
-                try { parsedExpiry = dayjs(new Date(String(expiryRaw))); } catch { /* ignore */ }
+                try { parsedExpiry = dayjs(new Date(String(expiryRaw))); } catch { }
               }
-              logger.debug('FranchiseeListOperatorSide: parsed dates valid ->', { approved: parsedApproved ? parsedApproved.isValid() : false, expiry: parsedExpiry ? parsedExpiry.isValid() : false });
 
               setFields(prev => ({
                 ...prev,
-               
                 orNumber: matched.orNumber || matched.franchiseNumber || '',
                 franchiseNumber: matched.franchiseNumber || matched.orNumber || '',
                 dateApproved: parsedApproved,
@@ -437,12 +349,9 @@ function FranchiseeListOperatorSide() {
             } catch (e) {
               logger.debug('Failed to populate franchise fields from matched application', e)
             }
-          }
-          else {
-          
+          } else {
             setMatchedFranchise(null);
             setFranchiseStatus(null);
-          
           }
         } catch (err) {
           logger.warn('FranchiseeListOperatorSide: error fetching approved franchises', err)
@@ -516,6 +425,50 @@ function FranchiseeListOperatorSide() {
     };
   }, [matchedFranchise?.qrCode, user?.franchise?.qrCode]);
 
+  // Fetch ALL active franchises for modal display (same logic as OperatorHomePage)
+  useEffect(() => {
+    if (!authUser?._id && !authUser?.id) return;
+    
+    logger.log('[FranchiseeListOperatorSide] Starting fetch of ALL active franchises for user:', authUser);
+    setLoadingFranchises(true);
+    
+    const fetchAllFranchises = async () => {
+      try {
+        const userId = authUser._id || authUser.id; // Prefer _id (MongoDB ObjectId) for linkedUser lookup
+        
+        logger.log('[FranchiseeListOperatorSide] Fetching franchises with userId:', userId);
+        
+        // Use the same API as OperatorHomePage
+        const response = await franchiseInformationAPI.getByUser(userId);
+        
+        logger.log('[FranchiseeListOperatorSide] ========== API RESPONSE ==========');
+        logger.log('[FranchiseeListOperatorSide] Response status:', response?.status);
+        logger.log('[FranchiseeListOperatorSide] Response data:', response?.data);
+        logger.log('[FranchiseeListOperatorSide] Franchise count:', response?.data?.count);
+        logger.log('[FranchiseeListOperatorSide] Franchises array:', response?.data?.data);
+        
+        if (response.data?.success && Array.isArray(response.data.data)) {
+          // Filter to show only active franchises (status is 'Active' with capital A)
+          const activeFranchises = response.data.data.filter(f => 
+            f.franchiseStatus === 'Active'
+          );
+          logger.log('[FranchiseeListOperatorSide] Total franchises:', response.data.data.length, 'Active franchises:', activeFranchises.length);
+          setAllUserFranchises(activeFranchises);
+        } else {
+          logger.warn('[FranchiseeListOperatorSide] No franchises data or invalid format:', response.data);
+          setAllUserFranchises([]);
+        }
+      } catch (err) {
+        logger.error('[FranchiseeListOperatorSide] Error fetching franchises:', err);
+        setAllUserFranchises([]);
+      } finally {
+        setLoadingFranchises(false);
+      }
+    };
+    
+    fetchAllFranchises();
+  }, [authUser]);
+
   
   useEffect(() => {
     const onVisibility = () => {
@@ -527,8 +480,6 @@ function FranchiseeListOperatorSide() {
     document.addEventListener('visibilitychange', onVisibility);
     return () => document.removeEventListener('visibilitychange', onVisibility);
   }, [fetchUserDetails]);
-  
-
 
   const [fields, setFields] = useState({
     orNumber: '',
@@ -772,7 +723,7 @@ function FranchiseeListOperatorSide() {
 
           <Box sx={{ ml: { xs: 0, md: 4 }, pt: { xs: 0, md: 2 }, flex: '0 0 auto', textAlign: { xs: 'center', md: 'left' }, width: { xs: '100%', md: 'auto' } }}>
             <Typography variant="h4" sx={{ color: '#fff', fontWeight: 700, mb: { xs: 0.5, sm: 0.75, md: 1 }, fontSize: { xs: '1.5rem', sm: '1.75rem', md: '2rem' } }}>
-              {user?.name || 'User Name'}
+              {authUser?.name || 'User Name'}
             </Typography>
             <Typography sx={{ color: '#fff', fontWeight: 500, fontSize: { xs: '0.875rem', sm: '1rem', md: '1rem' }, mb: { xs: 0.5, md: 0 } }}>
              
@@ -846,57 +797,63 @@ function FranchiseeListOperatorSide() {
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: { xs: 'center', sm: 'center', md: 'center' }, marginBottom: 1, flexDirection: { xs: 'row', md: 'row' }, gap: { xs: 1, md: 1 }, flexWrap: 'wrap' }}>
               <h3 className="id-title" style={{ flex: '0 0 auto', minWidth: 'auto' }}>TRICYCLE OPERATORS FRANCHISE</h3>
               <Box sx={{ display: 'flex', gap: 1, flexDirection: { xs: 'row', md: 'row' }, width: { xs: 'auto', md: 'auto' } }}>
-                {/* Show Renewal button if franchise expires within 3 months or is expired */}
+                {/* Show Renewal button if franchise expires within 3 months or is expired or status is expired */}
                 {(() => {
                   const expiryDate = fields.expiryDate && fields.expiryDate.isValid && fields.expiryDate.isValid() 
                     ? fields.expiryDate 
                     : (matchedFranchise?.expiryDate ? dayjs(matchedFranchise.expiryDate) : null);
                   
-                  if (expiryDate && expiryDate.isValid()) {
+                  const franchiseStatus = matchedFranchise?.franchiseStatus || 'Active';
+                  const isExpired = franchiseStatus === 'Expired';
+                  
+                  let shouldShowRenew = isExpired;
+                  
+                  if (!isExpired && expiryDate && expiryDate.isValid()) {
                     const today = dayjs();
                     const threeMonthsFromNow = today.add(3, 'month');
                     const isExpiringSoon = expiryDate.isBefore(threeMonthsFromNow) || expiryDate.isSame(threeMonthsFromNow, 'day');
-                    
-                    if (isExpiringSoon) {
-                      return (
-                        <Button
-                          variant="contained"
-                          startIcon={<AutorenewIcon />}
-                          onClick={() => {
-                            // Navigate to franchise application with renewal data
-                            navigate('/operator/franchise', {
-                              state: {
-                                applicationType: 'renewal',
-                                previousFranchiseId: matchedFranchise?._id,
-                                franchiseNumber: fields.franchiseNumber,
-                                dateApproved: fields.dateApproved,
-                                expiryDate: fields.expiryDate,
-                                make: fields.make,
-                                sidecarNumber: fields.sidecarNumber,
-                                plateNumber: fields.plateNumber,
-                                chassisNumber: fields.chassisNumber,
-                                motorNumber: fields.motorNumber
-                              }
-                            });
-                          }}
-                          sx={{
-                            bgcolor: '#27ae60',
-                            color: '#fff',
-                            fontWeight: 600,
-                            fontSize: 12,
-                            textTransform: 'none',
-                            borderRadius: 1,
-                            px: 2,
-                            py: 0.5,
-                            '&:hover': {
-                              bgcolor: '#229954'
+                    shouldShowRenew = isExpiringSoon;
+                  }
+                  
+                  if (shouldShowRenew) {
+                    return (
+                      <Button
+                        variant="contained"
+                        startIcon={<AutorenewIcon />}
+                        onClick={() => {
+                          // Navigate to franchise application with renewal data
+                          navigate('/operator/franchise', {
+                            state: {
+                              applicationType: 'renewal',
+                              previousFranchiseId: matchedFranchise?._id,
+                              franchiseNumber: fields.franchiseNumber,
+                              dateApproved: fields.dateApproved,
+                              expiryDate: fields.expiryDate,
+                              make: fields.make,
+                              sidecarNumber: fields.sidecarNumber,
+                              plateNumber: fields.plateNumber,
+                              chassisNumber: fields.chassisNumber,
+                              motorNumber: fields.motorNumber
                             }
-                          }}
-                        >
-                          Renew Franchise
-                        </Button>
-                      );
-                    }
+                          });
+                        }}
+                        sx={{
+                          bgcolor: '#27ae60',
+                          color: '#fff',
+                          fontWeight: 600,
+                          fontSize: 12,
+                          textTransform: 'none',
+                          borderRadius: 1,
+                          px: 2,
+                          py: 0.5,
+                          '&:hover': {
+                            bgcolor: '#229954'
+                          }
+                        }}
+                      >
+                        Renew Franchise
+                      </Button>
+                    );
                   }
                   return null;
                 })()}
@@ -997,127 +954,198 @@ function FranchiseeListOperatorSide() {
       <Dialog
         open={franchiseListModalOpen}
         onClose={() => setFranchiseListModalOpen(false)}
-        maxWidth="md"
+        maxWidth="lg"
         fullWidth
-        onTransitionEnter={() => {
-          // Fetch franchises when modal opens
-          const userId = user?._id || user?.id;
-          if (userId) {
-            setLoadingFranchises(true);
-            franchiseInformationAPI.getByUser(userId)
-              .then(response => {
-                if (response.data?.success && Array.isArray(response.data.data)) {
-                  setFranchiseList(response.data.data);
-                }
-              })
-              .catch(err => logger.error('Failed to fetch franchises:', err))
-              .finally(() => setLoadingFranchises(false));
-          }
-        }}
       >
         <DialogTitle sx={{ bgcolor: '#083d77', color: '#fff', fontWeight: 700 }}>
           Active Franchises
         </DialogTitle>
         <DialogContent sx={{ mt: 2 }}>
-          {loadingFranchises ? (
-            <Box sx={{ textAlign: 'center', py: 4 }}>
-              <Typography color="text.secondary">Loading franchises...</Typography>
-            </Box>
-          ) : franchiseList.length === 0 ? (
-            <Box sx={{ textAlign: 'center', py: 4 }}>
-              <Typography color="text.secondary">No franchises found</Typography>
-            </Box>
-          ) : (
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              {franchiseList.map((franchise) => {
-                const isCurrentFranchise = matchedFranchise?._id === franchise._id || 
-                                          matchedFranchise?.franchiseNumber === franchise.franchiseNumber;
-                return (
-                  <Paper
-                    key={franchise._id}
-                    elevation={isCurrentFranchise ? 4 : 2}
-                    onClick={() => {
-                      // Switch to this franchise
-                      setMatchedFranchise(franchise);
-                      setFranchiseStatus(franchise.franchiseStatus);
-                      
-                      // Update form fields
-                      const parsedApproved = franchise.approvedAt ? dayjs(franchise.approvedAt) : null;
-                      const parsedExpiry = franchise.expiryDate ? dayjs(franchise.expiryDate) : null;
-                      
-                      setFields({
-                        orNumber: franchise.franchiseNumber || '',
-                        franchiseNumber: franchise.franchiseNumber || '',
-                        dateApproved: parsedApproved,
-                        expiryDate: parsedExpiry,
-                        make: franchise.unitModel || '',
-                        sidecarNumber: franchise.sideCarPlateNumber || '',
-                        plateNumber: franchise.mvPlateNo || '',
-                        chassisNumber: franchise.chasisNo || '',
-                        motorNumber: franchise.motorEngineNo || ''
-                      });
-                      
-                      setFranchiseListModalOpen(false);
-                    }}
-                    sx={{
-                      p: 2,
-                      borderRadius: 2,
-                      border: isCurrentFranchise ? '2px solid #083d77' : '2px solid transparent',
-                      cursor: 'pointer',
-                      transition: 'all 0.2s',
-                      bgcolor: isCurrentFranchise ? '#f0f7ff' : 'transparent',
-                      '&:hover': {
-                        borderColor: '#083d77',
-                        boxShadow: 4
-                      }
-                    }}
-                  >
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
-                      <Box>
-                        <Typography sx={{ fontSize: 12, color: '#666', mb: 0.5 }}>
-                          Franchise Number
-                        </Typography>
-                        <Typography sx={{ fontSize: 18, fontWeight: 700, color: '#083d77' }}>
-                          {franchise.franchiseNumber}
-                        </Typography>
-                      </Box>
-                      <Box
-                        sx={{
-                          display: 'inline-block',
-                          color: franchise.franchiseStatus === 'Active' ? '#2ecc71' : '#e74c3c',
-                          fontWeight: 600,
-                          padding: '6px 16px',
-                          borderRadius: 1,
-                          backgroundColor: franchise.franchiseStatus === 'Active' ? '#e8f8f0' : '#ffe8e8',
-                          fontSize: 14
+          {/* Desktop Table View */}
+          <Box sx={{ display: { xs: 'none', md: 'block' } }}>
+            <TableContainer component={Paper}>
+              <Table>
+                <TableHead sx={{ bgcolor: '#083d77' }}>
+                  <TableRow>
+                    <TableCell sx={{ color: '#fff', fontWeight: 700 }}>NO.</TableCell>
+                    <TableCell sx={{ color: '#fff', fontWeight: 700 }}>FRANCHISE NUMBER</TableCell>
+                    <TableCell sx={{ color: '#fff', fontWeight: 700 }}>MAKE</TableCell>
+                    <TableCell sx={{ color: '#fff', fontWeight: 700 }}>PLATE NUMBER</TableCell>
+                    <TableCell sx={{ color: '#fff', fontWeight: 700 }}>STATUS</TableCell>
+                    <TableCell sx={{ color: '#fff', fontWeight: 700 }}>EXPIRY DATE</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {loadingFranchises ? (
+                    <TableRow>
+                      <TableCell colSpan={6} sx={{ textAlign: 'center', padding: '40px', color: '#666' }}>
+                        Loading franchises...
+                      </TableCell>
+                    </TableRow>
+                  ) : allUserFranchises && allUserFranchises.length > 0 ? (
+                    allUserFranchises.map((franchise, index) => (
+                      <TableRow 
+                        key={franchise._id || index}
+                        onClick={() => {
+                          setMatchedFranchise(franchise);
+                          setFranchiseStatus(franchise.franchiseStatus);
+                          
+                          const parsedApproved = franchise.approvedAt ? dayjs(franchise.approvedAt) : null;
+                          const parsedExpiry = franchise.expiryDate ? dayjs(franchise.expiryDate) : null;
+                          
+                          setFields({
+                            orNumber: franchise.franchiseNumber || '',
+                            franchiseNumber: franchise.franchiseNumber || '',
+                            dateApproved: parsedApproved,
+                            expiryDate: parsedExpiry,
+                            make: franchise.unitModel || '',
+                            sidecarNumber: franchise.sideCarPlateNumber || '',
+                            plateNumber: franchise.mvPlateNo || '',
+                            chassisNumber: franchise.chasisNo || '',
+                            motorNumber: franchise.motorEngineNo || ''
+                          });
+                          
+                          setFranchiseListModalOpen(false);
+                        }}
+                        sx={{ 
+                          cursor: 'pointer',
+                          '&:hover': {
+                            backgroundColor: 'rgba(8, 61, 119, 0.08)'
+                          }
                         }}
                       >
-                        {franchise.franchiseStatus || 'Active'}
-                      </Box>
-                    </Box>
-                    <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
-                      <Box>
-                        <Typography sx={{ fontSize: 12, color: '#666', mb: 0.5 }}>
-                          Date Approved
-                        </Typography>
-                        <Typography sx={{ fontSize: 14, fontWeight: 600 }}>
-                          {franchise.approvedAt ? new Date(franchise.approvedAt).toLocaleDateString() : 'N/A'}
-                        </Typography>
-                      </Box>
-                      <Box>
-                        <Typography sx={{ fontSize: 12, color: '#666', mb: 0.5 }}>
-                          Expiry Date
-                        </Typography>
-                        <Typography sx={{ fontSize: 14, fontWeight: 600 }}>
+                        <TableCell>{index + 1}</TableCell>
+                        <TableCell sx={{ fontWeight: 600, color: '#083d77' }}>{franchise.franchiseNumber || 'N/A'}</TableCell>
+                        <TableCell>{franchise.unitModel || 'N/A'}</TableCell>
+                        <TableCell>{franchise.mvPlateNo || 'N/A'}</TableCell>
+                        <TableCell>
+                          <Chip 
+                            label={franchise.franchiseStatus || 'Active'}
+                            size="small"
+                            sx={{
+                              backgroundColor: franchise.franchiseStatus === 'Active' ? '#2ecc71' : '#e74c3c',
+                              color: '#fff',
+                              fontWeight: 600
+                            }}
+                          />
+                        </TableCell>
+                        <TableCell>
                           {franchise.expiryDate ? new Date(franchise.expiryDate).toLocaleDateString() : 'N/A'}
-                        </Typography>
-                      </Box>
-                    </Box>
-                  </Paper>
-                );
-              })}
-            </Box>
-          )}
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan={6} sx={{ textAlign: 'center', padding: '40px', color: '#666' }}>
+                        No active franchise
+                      </TableCell>
+                    </TableRow>
+                  )}  
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </Box>
+
+          {/* Mobile Card View */}
+          <Box sx={{ display: { xs: 'block', md: 'none' } }}>
+            {loadingFranchises ? (
+              <Paper elevation={2} sx={{ p: 3, textAlign: 'center', color: '#666' }}>
+                <Typography>Loading franchises...</Typography>
+              </Paper>
+            ) : allUserFranchises && allUserFranchises.length > 0 ? (
+              allUserFranchises.map((franchise, index) => (
+                <Paper
+                  key={franchise._id || index}
+                  elevation={3}
+                  onClick={() => {
+                    setMatchedFranchise(franchise);
+                    setFranchiseStatus(franchise.franchiseStatus);
+                    
+                    const parsedApproved = franchise.approvedAt ? dayjs(franchise.approvedAt) : null;
+                    const parsedExpiry = franchise.expiryDate ? dayjs(franchise.expiryDate) : null;
+                    
+                    setFields({
+                      orNumber: franchise.franchiseNumber || '',
+                      franchiseNumber: franchise.franchiseNumber || '',
+                      dateApproved: parsedApproved,
+                      expiryDate: parsedExpiry,
+                      make: franchise.unitModel || '',
+                      sidecarNumber: franchise.sideCarPlateNumber || '',
+                      plateNumber: franchise.mvPlateNo || '',
+                      chassisNumber: franchise.chasisNo || '',
+                      motorNumber: franchise.motorEngineNo || ''
+                    });
+                    
+                    setFranchiseListModalOpen(false);
+                  }}
+                  sx={{
+                    p: 2.5,
+                    borderRadius: 2,
+                    bgcolor: '#fff',
+                    mb: 2,
+                    cursor: 'pointer',
+                    '&:hover': {
+                      boxShadow: 6,
+                      transform: 'translateY(-2px)',
+                      transition: 'all 0.2s'
+                    }
+                  }}
+                >
+                  <Box sx={{ mb: 2 }}>
+                    <Typography sx={{ fontSize: 12, color: '#666', mb: 0.5 }}>
+                      Franchise Number
+                    </Typography>
+                    <Typography sx={{ fontSize: 16, fontWeight: 700, color: '#083d77' }}>
+                      {franchise.franchiseNumber || 'N/A'}
+                    </Typography>
+                  </Box>
+                  <Box sx={{ mb: 2 }}>
+                    <Typography sx={{ fontSize: 12, color: '#666', mb: 0.5 }}>
+                      Make
+                    </Typography>
+                    <Typography sx={{ fontSize: 14, fontWeight: 600 }}>
+                      {franchise.unitModel || 'N/A'}
+                    </Typography>
+                  </Box>
+                  <Box sx={{ mb: 2 }}>
+                    <Typography sx={{ fontSize: 12, color: '#666', mb: 0.5 }}>
+                      Plate Number
+                    </Typography>
+                    <Typography sx={{ fontSize: 14, fontWeight: 600 }}>
+                      {franchise.mvPlateNo || 'N/A'}
+                    </Typography>
+                  </Box>
+                  <Box sx={{ mb: 2 }}>
+                    <Typography sx={{ fontSize: 12, color: '#666', mb: 0.5 }}>
+                      Status
+                    </Typography>
+                    <Chip 
+                      label={franchise.franchiseStatus || 'Active'}
+                      size="small"
+                      sx={{
+                        backgroundColor: franchise.franchiseStatus === 'Active' ? '#2ecc71' : '#e74c3c',
+                        color: '#fff',
+                        fontWeight: 600,
+                        mt: 0.5
+                      }}
+                    />
+                  </Box>
+                  <Box>
+                    <Typography sx={{ fontSize: 12, color: '#666', mb: 0.5 }}>
+                      Expiry Date
+                    </Typography>
+                    <Typography sx={{ fontSize: 14, fontWeight: 600 }}>
+                      {franchise.expiryDate ? new Date(franchise.expiryDate).toLocaleDateString() : 'N/A'}
+                    </Typography>
+                  </Box>
+                </Paper>
+              ))
+            ) : (
+              <Paper elevation={2} sx={{ p: 3, textAlign: 'center', color: '#666' }}>
+                <Typography>No active franchise</Typography>
+              </Paper>
+            )}
+          </Box>
         </DialogContent>
         <DialogActions sx={{ p: 2 }}>
           <Button 

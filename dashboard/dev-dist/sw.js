@@ -79,12 +79,12 @@ define(['./workbox-36e57b92'], (function (workbox) { 'use strict';
    */
   workbox.precacheAndRoute([{
     "url": "/index.html",
-    "revision": "0.snpbtvf59f8"
+    "revision": "0.ic1pt7n0vmc"
   }], {});
   workbox.cleanupOutdatedCaches();
   workbox.registerRoute(new workbox.NavigationRoute(workbox.createHandlerBoundToURL("/index.html"), {
     allowlist: [/^\/$/],
-    denylist: [/^\/api\//]
+    denylist: [/^\/api\//, /^http/]
   }));
   workbox.registerRoute(/^https:\/\/fonts\.googleapis\.com\/.*/i, new workbox.CacheFirst({
     "cacheName": "google-fonts-cache",
@@ -120,7 +120,9 @@ define(['./workbox-36e57b92'], (function (workbox) { 'use strict';
       statuses: [0, 200]
     })]
   }), 'GET');
-  workbox.registerRoute(/\/fare-matrix/i, new workbox.StaleWhileRevalidate({
+  workbox.registerRoute(({
+    url
+  }) => url.pathname.includes("/fare-matrix"), new workbox.StaleWhileRevalidate({
     "cacheName": "fare-matrix-cache",
     plugins: [new workbox.ExpirationPlugin({
       maxEntries: 10,
@@ -149,7 +151,23 @@ define(['./workbox-36e57b92'], (function (workbox) { 'use strict';
       statuses: [0, 200]
     })]
   }), 'GET');
-  workbox.registerRoute(/\/(api|auth|franchise|qr|verify)/i, new workbox.NetworkFirst({
+  workbox.registerRoute(({
+    url
+  }) => url.pathname.startsWith("/api/files/"), new workbox.CacheFirst({
+    "cacheName": "api-files-cache",
+    plugins: [new workbox.ExpirationPlugin({
+      maxEntries: 100,
+      maxAgeSeconds: 2592000
+    }), new workbox.CacheableResponsePlugin({
+      statuses: [0, 200]
+    })]
+  }), 'GET');
+  workbox.registerRoute(({
+    url
+  }) => {
+    const pathname = url.pathname;
+    return pathname.includes("/api/") || pathname.includes("/auth/") || pathname.includes("/franchise/") || pathname.includes("/qr/") || pathname.includes("/verify/");
+  }, new workbox.NetworkFirst({
     "cacheName": "api-cache",
     "networkTimeoutSeconds": 10,
     plugins: [new workbox.ExpirationPlugin({
