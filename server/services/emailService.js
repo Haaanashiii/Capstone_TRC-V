@@ -1,14 +1,203 @@
-// SMTP removed; only Gmail API is used
+/**
+ * TRC-V Email Service
+ * 
+ * Supports THREE email delivery methods (auto-detected based on environment variables):
+ * 
+ * 1. SMTP (Recommended for most deployments)
+ *    - Works with Gmail App Password, Outlook, Yahoo, or any SMTP server
+ *    - Requires: EMAIL_USER, EMAIL_PASSWORD, and optionally SMTP_HOST, SMTP_PORT
+ *    - Easiest to set up - just needs email and app password
+ * 
+ * 2. Domain SMTP (For professional/enterprise deployments)
+ *    - Works with custom domains (e.g., noreply@yourcompany.com)
+ *    - Requires: SMTP_HOST, SMTP_PORT, EMAIL_USER, EMAIL_PASSWORD
+ *    - Most professional option - uses your own domain
+ * 
+ * 3. Gmail API (Legacy - for advanced users only)
+ *    - Uses Google OAuth2 with refresh tokens
+ *    - Requires: GMAIL_API_CLIENT_ID, GMAIL_API_CLIENT_SECRET, GMAIL_API_REFRESH_TOKEN
+ *    - Most complex to set up but doesn't require App Password
+ * 
+ * Priority: SMTP > Gmail API (if SMTP credentials exist, SMTP is used)
+ */
+
 const path = require('path');
 const fs = require('fs');
+const nodemailer = require('nodemailer');
 const { google } = require('googleapis');
 
-// Build a fresh transporter using current environment variables. Creating a
-// transporter per send avoids stale auth when the server process is long-lived
-// and .env was modified without restarting the server.
-// SMTP logic removed
+// =============================================================================
+// EMAIL METHOD DETECTION
+// =============================================================================
 
-// --- Gmail API integration ---
+/**
+ * Detect which email method to use based on environment variables
+ * Priority: SMTP > Gmail API
+ */
+function detectEmailMethod() {
+  const hasSmtpCredentials = !!(process.env.EMAIL_USER && process.env.EMAIL_PASSWORD);
+  const hasCustomSmtp = !!(process.env.SMTP_HOST);
+  const hasGmailApi = !!(
+    process.env.GMAIL_API_CLIENT_ID && 
+    process.env.GMAIL_API_CLIENT_SECRET && 
+    process.env.GMAIL_API_REFRESH_TOKEN
+  );
+
+  if (hasCustomSmtp && hasSmtpCredentials) {
+    return 'domain-smtp'; // Custom domain SMTP server
+  } else if (hasSmtpCredentials) {
+    return 'smtp'; // Gmail/Outlook/Yahoo App Password
+  } else if (hasGmailApi) {
+    return 'gmail-api'; // Gmail OAuth2 API
+  } else {
+    return 'none';
+  }
+}
+
+/**
+ * Get email configuration status for diagnostics
+ */
+function getEmailConfigStatus() {
+  const method = detectEmailMethod();
+  return {
+    method,
+    configured: method !== 'none',
+    details: {
+      smtpHost: process.env.SMTP_HOST || 'Not set (will auto-detect)',
+      smtpPort: process.env.SMTP_PORT || 'Not set (will auto-detect)',
+      emailUser: process.env.EMAIL_USER ? '✓ Set' : '✗ Not set',
+      emailPassword: process.env.EMAIL_PASSWORD ? '✓ Set' : '✗ Not set',
+      gmailApiConfigured: !!(process.env.GMAIL_API_CLIENT_ID && process.env.GMAIL_API_REFRESH_TOKEN),
+    }
+  };
+}
+
+// Log email configuration on startup
+console.log('[EmailService] Configuration detected:', getEmailConfigStatus());
+
+// =============================================================================
+// SMTP TRANSPORT (App Password / Domain SMTP)
+// =============================================================================
+
+/**
+ * Detect SMTP settings based on email provider
+ */
+function detectSmtpSettings(email) {
+  const domain = email.split('@')[1]?.toLowerCase();
+  
+  // Common email provider settings
+  const providerSettings = {
+    'gmail.com': { host: 'smtp.gmail.com', port: 587, secure: false },
+    'googlemail.com': { host: 'smtp.gmail.com', port: 587, secure: false },
+    'outlook.com': { host: 'smtp-mail.outlook.com', port: 587, secure: false },
+    'hotmail.com': { host: 'smtp-mail.outlook.com', port: 587, secure: false },
+    'live.com': { host: 'smtp-mail.outlook.com', port: 587, secure: false },
+    'yahoo.com': { host: 'smtp.mail.yahoo.com', port: 587, secure: false },
+    'icloud.com': { host: 'smtp.mail.me.com', port: 587, secure: false },
+    'zoho.com': { host: 'smtp.zoho.com', port: 587, secure: false },
+  };
+
+  return providerSettings[domain] || null;
+}
+
+/**
+ * Create SMTP transporter (fresh per send to handle env changes)
+ */
+function createSmtpTransporter() {
+  const user = process.env.EMAIL_USER;
+  const pass = process.env.EMAIL_PASSWORD;
+  
+  if (!user || !pass) {
+    throw new Error('EMAIL_USER and EMAIL_PASSWORD are required for SMTP');
+  }
+
+  // Use custom SMTP settings if provided, otherwise auto-detect
+  let smtpConfig;
+  
+  if (process.env.SMTP_HOST) {
+    // Custom SMTP server (domain email)
+    smtpConfig = {
+      host: process.env.SMTP_HOST,
+      port: parseInt(process.env.SMTP_PORT || '587', 10),
+      secure: process.env.SMTP_SECURE === 'true' || parseInt(process.env.SMTP_PORT || '587', 10) === 465,
+      auth: { user, pass },
+      tls: {
+        rejectUnauthorized: process.env.SMTP_TLS_REJECT_UNAUTHORIZED !== 'false'
+      }
+    };
+    console.log('[EmailService] Using custom SMTP:', process.env.SMTP_HOST);
+  } else {
+    // Auto-detect based on email domain
+    const detected = detectSmtpSettings(user);
+    if (detected) {
+      smtpConfig = {
+        ...detected,
+        auth: { user, pass }
+      };
+      console.log('[EmailService] Auto-detected SMTP for:', user.split('@')[1]);
+    } else {
+      // Default fallback (generic SMTP settings)
+      smtpConfig = {
+        host: 'smtp.gmail.com',
+        port: 587,
+        secure: false,
+        auth: { user, pass }
+      };
+      console.log('[EmailService] Using default Gmail SMTP settings');
+    }
+  }
+
+  return nodemailer.createTransport(smtpConfig);
+}
+
+/**
+ * Send email via SMTP (App Password or Domain SMTP)
+ */
+async function sendViaSmtp({ from, to, subject, text, html, attachments }) {
+  if (!to || !subject || (!text && !html)) {
+    throw new Error('Missing required email parameters: to, subject, and text/html');
+  }
+
+  const transporter = createSmtpTransporter();
+  
+  // Convert attachments to nodemailer format
+  const nodeMailerAttachments = attachments?.map(att => ({
+    filename: att.filename,
+    path: att.path,
+    cid: att.cid
+  })) || [];
+
+  const mailOptions = {
+    from,
+    to,
+    subject,
+    text,
+    html,
+    attachments: nodeMailerAttachments
+  };
+
+  try {
+    console.log('[SMTP] Sending email to:', to);
+    const info = await transporter.sendMail(mailOptions);
+    console.log('[SMTP] Email sent successfully, messageId:', info.messageId);
+    return { messageId: info.messageId };
+  } catch (error) {
+    console.error('[EmailService] SMTP send failed:', error.message);
+    
+    // Provide helpful error messages
+    if (error.message.includes('Invalid login') || error.message.includes('authentication')) {
+      throw new Error('SMTP authentication failed. Please check your EMAIL_USER and EMAIL_PASSWORD. For Gmail, use an App Password (not your regular password).');
+    }
+    if (error.message.includes('ECONNREFUSED') || error.message.includes('ETIMEDOUT')) {
+      throw new Error(`Cannot connect to SMTP server. Check SMTP_HOST and SMTP_PORT settings.`);
+    }
+    throw error;
+  }
+}
+
+// =============================================================================
+// GMAIL API (OAuth2 - Legacy method)
+// =============================================================================
 
 function getGmailOAuth2Client() {
   const client_id = process.env.GMAIL_API_CLIENT_ID;
@@ -89,6 +278,42 @@ async function sendViaGmailApi({ from, to, subject, text, html, attachments }) {
       throw new Error('Gmail API authentication failed. Please check your refresh token.');
     }
     throw new Error(`Failed to send email via Gmail API: ${error.message}`);
+  }
+}
+
+// =============================================================================
+// UNIFIED EMAIL SENDER (Auto-selects method based on config)
+// =============================================================================
+
+/**
+ * Send email using the best available method
+ * Priority: SMTP > Gmail API
+ * 
+ * This is the main function that all email-sending functions should use
+ */
+async function sendEmail(mailOptions) {
+  const method = detectEmailMethod();
+  
+  if (method === 'none') {
+    throw new Error(
+      'No email configuration found. Please configure one of the following:\n' +
+      '1. SMTP (Recommended): Set EMAIL_USER and EMAIL_PASSWORD\n' +
+      '2. Domain SMTP: Set SMTP_HOST, SMTP_PORT, EMAIL_USER, and EMAIL_PASSWORD\n' +
+      '3. Gmail API: Set GMAIL_API_CLIENT_ID, GMAIL_API_CLIENT_SECRET, and GMAIL_API_REFRESH_TOKEN'
+    );
+  }
+
+  console.log(`[EmailService] Sending email via: ${method}`);
+
+  try {
+    if (method === 'domain-smtp' || method === 'smtp') {
+      return await sendViaSmtp(mailOptions);
+    } else if (method === 'gmail-api') {
+      return await sendViaGmailApi(mailOptions);
+    }
+  } catch (error) {
+    console.error(`[EmailService] Failed to send via ${method}:`, error.message);
+    throw error;
   }
 }
 
@@ -210,7 +435,7 @@ async function sendOTPEmail(to, otp) {
     }]
   };
   try {
-    const info = await sendViaGmailApi(mailOptions);
+    const info = await sendEmail(mailOptions);
     if (process.env.NODE_ENV !== 'production') {
       console.log('sendMail info:', info && info.messageId ? info.messageId : info);
     }
@@ -407,7 +632,7 @@ async function sendFranchiseExpiryEmail(to, operatorName, mtopNumber, expiryDate
     }]
   };
   try {
-    const info = await sendViaGmailApi(mailOptions);
+    const info = await sendEmail(mailOptions);
     if (process.env.NODE_ENV !== 'production') {
       console.log('Franchise expiry email sent:', info && info.messageId ? info.messageId : info);
     }
@@ -539,7 +764,7 @@ async function sendFranchiseCreatedEmail(to, operatorName, franchiseNumber) {
   };
   
   try {
-    const info = await sendViaGmailApi(mailOptions);
+    const info = await sendEmail(mailOptions);
     if (process.env.NODE_ENV !== 'production') {
       console.log('Franchise created email sent:', info && info.messageId ? info.messageId : info);
     }
@@ -670,7 +895,7 @@ async function sendFranchiseUpdatedEmail(to, operatorName, franchiseNumber, upda
   };
   
   try {
-    const info = await sendViaGmailApi(mailOptions);
+    const info = await sendEmail(mailOptions);
     if (process.env.NODE_ENV !== 'production') {
       console.log('Franchise updated email sent:', info && info.messageId ? info.messageId : info);
     }
@@ -801,7 +1026,7 @@ async function sendFranchiseDisapprovalEmail(to, operatorName, reason) {
   };
   
   try {
-    const info = await sendViaGmailApi(mailOptions);
+    const info = await sendEmail(mailOptions);
     if (process.env.NODE_ENV !== 'production') {
       console.log('Franchise disapproval email sent:', info && info.messageId ? info.messageId : info);
     }
@@ -965,7 +1190,7 @@ async function sendBPLOApprovalNotification(application) {
   };
   
   try {
-    await sendViaGmailApi(mailOptions);
+    await sendEmail(mailOptions);
     console.log('[emailService] BPLO approval email sent to:', email);
     return { success: true, email };
   } catch (err) {
@@ -981,5 +1206,9 @@ module.exports = {
   sendFranchiseUpdatedEmail,
   sendFranchiseDisapprovalEmail,
   sendBPLOApprovalNotification,
-  sendViaGmailApi 
+  sendEmail,
+  sendViaSmtp,
+  sendViaGmailApi,
+  getEmailConfigStatus,
+  detectEmailMethod
 };
