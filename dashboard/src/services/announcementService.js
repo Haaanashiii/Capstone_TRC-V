@@ -87,7 +87,6 @@ const announcementService = {
       if (!navigator.onLine || error.message === 'Network Error') {
         const cached = offlineStorage.getAnnouncements();
         if (cached?.data) {
-          console.log('[AnnouncementService] Returning cached announcements (offline mode)');
           return { 
             announcements: cached.data,
             fromCache: true,

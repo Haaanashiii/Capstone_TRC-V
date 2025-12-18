@@ -1,32 +1,115 @@
 const crypto = require('crypto');
+const OTP = require('../models/otpModel');
 
-// Store OTP codes with automatic case/space normalization
+// Database-backed OTP Store (cluster-mode compatible)
 class OTPStore {
-  constructor() {
-    this._map = new Map();
-  }
   _key(k) {
     return String(k || '').trim().toLowerCase();
   }
-  set(k, v) {
-    return this._map.set(this._key(k), v);
+  
+  async set(k, v) {
+    const email = this._key(k);
+    try {
+      // Upsert: update if exists, create if not
+      await OTP.findOneAndUpdate(
+        { email },
+        { 
+          email,
+          otp: v.otp,
+          expiresAt: new Date(v.expiresAt),
+          createdAt: new Date(v.createdAt),
+          attempts: v.attempts || 0
+        },
+        { upsert: true, new: true }
+      );
+      return true;
+    } catch (error) {
+      console.error('[OTP Store] Error saving OTP:', error.message);
+      return false;
+    }
   }
-  get(k) {
-    return this._map.get(this._key(k));
+  
+  async get(k) {
+    const email = this._key(k);
+    try {
+      const doc = await OTP.findOne({ email });
+      if (!doc) return null;
+      
+      // Check if expired
+      if (Date.now() > doc.expiresAt.getTime()) {
+        await this.delete(email);
+        return null;
+      }
+      
+      return {
+        otp: doc.otp,
+        expiresAt: doc.expiresAt.getTime(),
+        createdAt: doc.createdAt.getTime(),
+        attempts: doc.attempts || 0
+      };
+    } catch (error) {
+      console.error('[OTP Store] Error getting OTP:', error.message);
+      return null;
+    }
   }
-  delete(k) {
-    return this._map.delete(this._key(k));
+  
+  async delete(k) {
+    const email = this._key(k);
+    try {
+      await OTP.deleteOne({ email });
+      return true;
+    } catch (error) {
+      console.error('[OTP Store] Error deleting OTP:', error.message);
+      return false;
+    }
   }
-  has(k) {
-    return this._map.has(this._key(k));
+  
+  async has(k) {
+    const email = this._key(k);
+    try {
+      const count = await OTP.countDocuments({ email });
+      return count > 0;
+    } catch (error) {
+      console.error('[OTP Store] Error checking OTP:', error.message);
+      return false;
+    }
   }
-  // Get all stored OTP entries
-  entries() {
-    return Array.from(this._map.entries());
+  
+  async entries() {
+    try {
+      const docs = await OTP.find({});
+      return docs.map(doc => [
+        doc.email,
+        {
+          otp: doc.otp,
+          expiresAt: doc.expiresAt.getTime(),
+          createdAt: doc.createdAt.getTime(),
+          attempts: doc.attempts || 0
+        }
+      ]);
+    } catch (error) {
+      console.error('[OTP Store] Error getting entries:', error.message);
+      return [];
+    }
+  }
+  
+  // Update attempts count
+  async incrementAttempts(k) {
+    const email = this._key(k);
+    try {
+      await OTP.findOneAndUpdate(
+        { email },
+        { $inc: { attempts: 1 } }
+      );
+      return true;
+    } catch (error) {
+      console.error('[OTP Store] Error incrementing attempts:', error.message);
+      return false;
+    }
   }
 }
 
-const otpStore = new OTPStore(); // For production, use Redis or database
+const otpStore = new OTPStore(); // Database-backed storage for cluster mode
 
 // Track OTP request limits per email address
 class RateLimitStore {
@@ -66,7 +149,7 @@ function generateOTP(length = DEFAULT_OTP_LENGTH) {
   return crypto.randomInt(0, maxExclusive).toString().padStart(length, '0');
 }
 
-function setOTP(email, otp, expiresIn = DEFAULT_EXPIRES_MS) {
+async function setOTP(email, otp, expiresIn = DEFAULT_EXPIRES_MS) {
   // Save OTP with expiration time
   const otpExpiresIn = DEFAULT_EXPIRES_MS;
   
@@ -76,24 +159,25 @@ function setOTP(email, otp, expiresIn = DEFAULT_EXPIRES_MS) {
     createdAt: Date.now(),
     attempts: 0
   };
-  otpStore.set(email, value);
-  // Optional: proactively remove after TTL so entries don't linger in memory
-  const t = setTimeout(() => otpStore.delete(email), otpExpiresIn);
-  if (t && typeof t.unref === 'function') t.unref();
+  await otpStore.set(email, value);
+  // MongoDB TTL index will auto-delete expired documents
 }
 
-function verifyOTP(email, otp) {
-  const entry = otpStore.get(email);
+async function verifyOTP(email, otp) {
+  const entry = await otpStore.get(email);
   if (!entry) return false;
   if (Date.now() > entry.expiresAt) {
-    otpStore.delete(email);
+    await otpStore.delete(email);
     return false;
   }
   const submitted = String(otp);
   // Early reject on length mismatch and increment attempt counter
   if (submitted.length !== String(entry.otp).length) {
-    entry.attempts = (entry.attempts || 0) + 1;
-    if (entry.attempts >= MAX_VERIFICATION_ATTEMPTS) otpStore.delete(email);
+    await otpStore.incrementAttempts(email);
+    const updatedEntry = await otpStore.get(email);
+    if (updatedEntry && updatedEntry.attempts >= MAX_VERIFICATION_ATTEMPTS) {
+      await otpStore.delete(email);
+    }
     return false;
   }
   // Use timingSafeEqual for constant-time comparison
@@ -107,12 +191,15 @@ function verifyOTP(email, otp) {
   }
   if (valid) {
     // One-time use - clear OTP and rate limit data
-    otpStore.delete(email);
+    await otpStore.delete(email);
     rateLimitStore.delete(email);
     return true;
   }
-  entry.attempts = (entry.attempts || 0) + 1;
-  if (entry.attempts >= MAX_VERIFICATION_ATTEMPTS) otpStore.delete(email);
+  await otpStore.incrementAttempts(email);
+  const updatedEntry = await otpStore.get(email);
+  if (updatedEntry && updatedEntry.attempts >= MAX_VERIFICATION_ATTEMPTS) {
+    await otpStore.delete(email);
+  }
   return false;
 }
 

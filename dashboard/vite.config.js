@@ -3,7 +3,7 @@ import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
 // https://vite.dev/config/
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [
     react(),
     VitePWA({
@@ -12,7 +12,7 @@ export default defineConfig({
       manifest: {
         name: 'TRC-V',
         short_name: 'TRC-V',
-        description: 'TRC-V Tricycle Regulatory Commission - Admin Dashboard for managing franchises and operators',
+        description: 'TRC-V Tricycle Regulatory Commission - Verification System for franchises, operators, and public',
         theme_color: '#0A356B',
         background_color: '#ffffff',
         display: 'standalone',
@@ -146,4 +146,24 @@ export default defineConfig({
       }
     })
   ],
-})
+  build: {
+    // Production optimizations
+    minify: 'terser',
+    terserOptions: {
+      compress: {
+        // Remove console logs in production
+        drop_console: mode === 'production',
+        drop_debugger: mode === 'production'
+      }
+    },
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // Split vendor code for better caching
+          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+          'mui-vendor': ['@mui/material', '@mui/icons-material'],
+        }
+      }
+    }
+  }
+}))

@@ -161,13 +161,28 @@ exports.getUserAccountById = async (req, res, next) => {
 
 exports.findAccountByEmail = async (req, res, next) => {
   try {
-    const user = await userAccountRepository.findAccountByEmail(req.query.email, { lean: true });
+    let user = await userAccountRepository.findAccountByEmail(req.query.email, { lean: true });
+    
+    // If not found in users collection, check admin accounts
     if (!user) {
-      return res.status(404).json({ error: 'User not found' });
+      const adminAccountRepository = require('../repositories/adminAccountRepository');
+      const admin = await adminAccountRepository.findAdminByEmail(req.query.email, { lean: true });
+      
+      if (!admin) {
+        return res.status(404).json({ error: 'Account not found' });
+      }
+      
+      // Return admin data (admins typically don't have phone numbers for OTP)
+      return res.status(200).json({
+        phoneNumber: admin.phoneNumber || null,
+        isAdmin: true
+      });
     }
+    
     // Return only phone number and other non-sensitive data for verification modal
     res.status(200).json({
-      phoneNumber: user.phoneNumber || null
+      phoneNumber: user.phoneNumber || null,
+      isAdmin: false
     });
   } catch (err) {
     next(err);

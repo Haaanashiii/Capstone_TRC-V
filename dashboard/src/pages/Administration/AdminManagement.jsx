@@ -144,9 +144,9 @@ function AdminManagement() {
 
     // Connect to WebSocket for real-time updates
     if (!websocketService.isConnected()) {
-      websocketService.connect('super-admin-room');
+      websocketService.connect('general');
     } else {
-      websocketService.joinRoom('super-admin-room');
+      websocketService.joinRoom('general');
     }
 
     // Subscribe to admin account updates and permission changes
@@ -356,12 +356,22 @@ function AdminManagement() {
    * Uses secure adminAPI.create()
    */
   const handleVerificationSuccess = useCallback(async () => {
-    if (!pendingUserData) return;
+    logger.log('[AdminManagement] handleVerificationSuccess called');
+    logger.log('[AdminManagement] pendingUserData:', pendingUserData);
+    
+    if (!pendingUserData) {
+      logger.error('[AdminManagement] No pending user data!');
+      setError('No pending user data found. Please try again.');
+      return;
+    }
     
     try {
       setLoading(true);
+      setError('');
       
+      logger.log('[AdminManagement] Creating admin with data:', { ...pendingUserData, password: '***' });
       const response = await adminAPI.create(pendingUserData);
+      logger.log('[AdminManagement] Admin created successfully:', response);
       
       setSuccess('Admin account created and verified successfully!');
       setPendingUserData(null);
@@ -371,6 +381,8 @@ function AdminManagement() {
         setSuccess('');
       }, 3000);
     } catch (err) {
+      logger.error('[AdminManagement] Error creating admin:', err);
+      logger.error('[AdminManagement] Error response:', err.response?.data);
       logger.error('[AdminManagement] Error creating admin:', err);
       setError(err.response?.data?.error || 'Failed to create admin account');
     } finally {

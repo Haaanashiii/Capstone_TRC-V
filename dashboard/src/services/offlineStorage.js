@@ -52,7 +52,6 @@ class OfflineStorageService {
       localStorage.setItem(key, JSON.stringify(wrapper));
       return true;
     } catch (error) {
-      console.warn('[OfflineStorage] Failed to save:', error.message);
       // Try to clear old data if storage is full
       this._cleanup();
       return false;
@@ -110,8 +109,8 @@ class OfflineStorageService {
           localStorage.removeItem(key);
         }
       });
-    } catch (error) {
-      console.warn('[OfflineStorage] Cleanup failed:', error);
+    } catch {
+      // Silently fail - cleanup is best effort
     }
   }
 

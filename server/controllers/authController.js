@@ -1,5 +1,5 @@
 // Two-factor authentication and password recovery
-const { generateOTP, setOTP, verifyOTP, checkRateLimit, DEFAULT_EXPIRES_MS } = require('../middlewares/otpMiddleware');
+const { generateOTP, setOTP, verifyOTP, checkRateLimit, DEFAULT_EXPIRES_MS, MAX_VERIFICATION_ATTEMPTS } = require('../middlewares/otpMiddleware');
 const { sendOTPEmail } = require('../services/emailService');
 const { auditLogService } = require('../services/auditLogService');
 const { getClientIp } = require('../utils/ipHelper');
@@ -28,6 +28,21 @@ async function handleOtpRequest(email, phoneNumber, userId, res, next, message, 
       });
     }
     
+    // CLUSTER MODE RACE CONDITION CHECK: Check if OTP was recently generated (within last 30 seconds)
+    // This prevents duplicate OTP generation when multiple workers handle the same request
+    const { otpStore } = require('../middlewares/otpMiddleware');
+    const existingOtp = await otpStore.get(normalizedEmail);
+    if (existingOtp) {
+      const timeSinceCreation = Date.now() - existingOtp.createdAt;
+      const DUPLICATE_PREVENTION_WINDOW = 30 * 1000; // 30 seconds
+      
+      if (timeSinceCreation < DUPLICATE_PREVENTION_WINDOW) {
+        console.log(`[OTP] Duplicate OTP request blocked for "${normalizedEmail}" (${Math.round(timeSinceCreation / 1000)}s since last OTP)`);
+        // Return success without generating new OTP
+        return res.json({ message });
+      }
+    }
+    
     // Always say success (don't reveal if email exists or not)
     let user;
     try {
@@ -37,7 +52,7 @@ async function handleOtpRequest(email, phoneNumber, userId, res, next, message, 
     // Send OTP even if account doesn't exist yet (for signup flows)
     try {
       const otp = generateOTP();
-      setOTP(normalizedEmail, otp); // OTP expires in 5 minutes - use normalized email
+      await setOTP(normalizedEmail, otp); // OTP expires in 5 minutes - use normalized email
       
       console.log(`[OTP] Generated OTP for "${normalizedEmail}" - storing with normalized key`);
       
@@ -119,21 +134,35 @@ exports.verifyOtp = async (req, res, next) => {
     
     // Debug: Log what we're looking for
     console.log(`[OTP Verify] Checking OTP for email: "${email}"`);
+    console.log(`[OTP Verify] Received OTP from client: "${otp}" (length: ${String(otp).length})`);
     
     // Check if OTP entry exists
-    const entry = otpStore.get(email);
+    const entry = await otpStore.get(email);
     if (!entry) {
       console.log(`[OTP Verify] No OTP entry found for: "${email}"`);
+      const allEntries = await otpStore.entries();
+      console.log(`[OTP Verify] Available OTP entries:`, allEntries.map(([k, v]) => ({ 
+        email: k, 
+        otp: v.otp, 
+        expiresAt: new Date(v.expiresAt).toISOString(),
+        attempts: v.attempts 
+      })));
       return res.status(400).json({ error: 'Invalid or expired OTP. Please request a new one.' });
     }
     
-    console.log(`[OTP Verify] Found entry, expires at: ${new Date(entry.expiresAt).toISOString()}, attempts: ${entry.attempts}`);
+    console.log(`[OTP Verify] Found entry, stored OTP: "${entry.otp}" (length: ${String(entry.otp).length})`);
+    console.log(`[OTP Verify] Expires at: ${new Date(entry.expiresAt).toISOString()}, attempts: ${entry.attempts}`);
+    console.log(`[OTP Verify] OTP comparison: submitted="${otp}" vs stored="${entry.otp}" | Match: ${otp === entry.otp}`);
     
     // Use the middleware's verifyOTP function for consistent verification
-    const valid = verifyOTPFromStore(email, otp);
+    const valid = await verifyOTPFromStore(email, otp);
     
     if (!valid) {
       console.log(`[OTP Verify] OTP verification failed for: "${email}"`);
+      const updatedEntry = await otpStore.get(email);
+      if (updatedEntry) {
+        console.log(`[OTP Verify] Remaining attempts: ${MAX_VERIFICATION_ATTEMPTS - (updatedEntry.attempts || 0)}`);
+      }
       return res.status(400).json({ error: 'Invalid or expired OTP' });
     }
     
@@ -142,7 +171,7 @@ exports.verifyOtp = async (req, res, next) => {
     // Re-store the OTP for the reset-password step (since verifyOTP deletes it)
     // We need to allow the user to use the same OTP for password reset
     const { setOTP } = require('../middlewares/otpMiddleware');
-    setOTP(email, otp);  // Re-store for password reset step
+    await setOTP(email, otp);  // Re-store for password reset step
     
     // If remember device was checked, create a trusted device token
     if (rememberMe) {
@@ -210,7 +239,7 @@ exports.resetPassword = async (req, res, next) => {
       const { otpStore, verifyOTP: verifyOTPFromStore } = require('../middlewares/otpMiddleware');
       
       // Use the verifyOTP function for consistent verification
-      valid = verifyOTPFromStore(email, otp);
+      valid = await verifyOTPFromStore(email, otp);
       
       console.log(`[ResetPassword] OTP verification for "${email}": ${valid ? 'SUCCESS' : 'FAILED'}`);
       
@@ -566,16 +595,47 @@ exports.login = async (req, res, next) => {
     // still return successful login response. OTP is stored server-side via setOTP.
     if (!skipOTP) {
       try {
-        const otp = generateOTP();
         // Normalize email for consistent OTP storage (lowercase, trimmed)
-        const otpKey = String(user.email || user.username || identifier).trim().toLowerCase();
-        setOTP(otpKey, otp);
-        console.log(`[Login] OTP generated and stored for key: "${otpKey}"`);
+        // CRITICAL: Use email only, not username or identifier, to match verify-otp endpoint
+        const otpKey = String(user.email).trim().toLowerCase();
         
-        // send to the canonical email on file
-        if (user.email) {
-          // fire-and-forget
-          sendOTPEmail(user.email, otp).catch((e) => console.error('sendOTPEmail error:', e && e.message ? e.message : e));
+        // CLUSTER MODE RACE CONDITION CHECK: Check if OTP was recently generated (within last 30 seconds)
+        // This prevents duplicate OTP generation when multiple workers handle concurrent login requests
+        const { otpStore } = require('../middlewares/otpMiddleware');
+        let existingOtp = await otpStore.get(otpKey);
+        let shouldGenerateNewOtp = true;
+        
+        if (existingOtp) {
+          const timeSinceCreation = Date.now() - existingOtp.createdAt;
+          const DUPLICATE_PREVENTION_WINDOW = 30 * 1000; // 30 seconds
+          
+          if (timeSinceCreation < DUPLICATE_PREVENTION_WINDOW) {
+            console.log(`[Login] Reusing existing OTP for "${otpKey}" (${Math.round(timeSinceCreation / 1000)}s old) - preventing duplicate generation`);
+            shouldGenerateNewOtp = false;
+          }
+        }
+        
+        if (shouldGenerateNewOtp) {
+          const otp = generateOTP();
+          await setOTP(otpKey, otp);
+          console.log(`[Login] OTP generated and stored for key: "${otpKey}"`);
+          console.log(`[Login] Generated OTP code: "${otp}" (length: ${String(otp).length}) - DEVELOPMENT ONLY LOG`);
+          
+          // Verify OTP was stored correctly
+          const storedEntry = await otpStore.get(otpKey);
+          if (storedEntry) {
+            console.log(`[Login] OTP storage verified: OTP="${storedEntry.otp}", expires at ${new Date(storedEntry.expiresAt).toISOString()}`);
+          } else {
+            console.error(`[Login] WARNING: OTP was not stored correctly for key: "${otpKey}"`);
+          }
+          
+          // send to the canonical email on file
+          if (user.email) {
+            // fire-and-forget
+            sendOTPEmail(user.email, otp).catch((e) => console.error('sendOTPEmail error:', e && e.message ? e.message : e));
+          }
+        } else {
+          console.log(`[Login] Skipping email send - OTP already sent recently for "${otpKey}"`);
         }
       } catch (e) {
         console.error('Failed to generate/send OTP during login for', user && user.email, e && e.message ? e.message : e);
