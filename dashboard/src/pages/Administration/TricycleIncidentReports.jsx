@@ -45,10 +45,7 @@ import FilterListIcon from '@mui/icons-material/FilterList';
 import DateRangeIcon from '@mui/icons-material/DateRange';
 import { logger } from '../../utils/logger';
 
-// ========================================
-// CONSTANTS
-// ========================================
-
+// Constants
 /** Incident category labels - synced with backend */
 const INCIDENT_CATEGORIES = Object.freeze({
   'fare-related': 'Fare-Related Issues',
@@ -105,10 +102,7 @@ const DEFAULT_FILTERS = Object.freeze({
 /** Pagination options */
 const ROWS_PER_PAGE_OPTIONS = [10, 15, 25, 50];
 
-// ========================================
-// UTILITY FUNCTIONS
-// ========================================
-
+// Utility Functions
 /** Get category display label */
 const getCategoryLabel = (category) => 
   INCIDENT_CATEGORIES[category] || category;
@@ -144,32 +138,36 @@ const downloadBlob = (blob, filename) => {
   document.body.removeChild(anchor);
 };
 
-// ========================================
-// MEMOIZED SUB-COMPONENTS
-// ========================================
-
+// Memoized Sub-Components
 /** Memoized category chip component */
 const CategoryChip = memo(({ category }) => (
-  <Chip 
-    label={getCategoryLabel(category)}
-    size="small"
-    sx={{ 
-      backgroundColor: getCategoryColor(category),
-      color: 'white',
-      fontWeight: 500,
-      fontSize: '0.7rem'
-    }}
-  />
+  <span 
+    className={`status-badge ${
+      category === 'fare-related' ? 'status-category-fare' :
+      category === 'driver-conduct' ? 'status-category-conduct' :
+      category === 'vehicle-condition' ? 'status-category-vehicle' :
+      category === 'franchise-violations' ? 'status-category-franchise' :
+      category === 'safety-violations' ? 'status-category-safety' :
+      'status-category-other'
+    }`}
+  >
+    {getCategoryLabel(category)}
+  </span>
 ));
 CategoryChip.displayName = 'CategoryChip';
 
 /** Memoized status badge component */
 const StatusBadge = memo(({ status }) => (
   <span 
-    className={`status-badge status-${status}`}
-    style={{ backgroundColor: getStatusColor(status), color: 'white' }}
+    className={`status-badge ${
+      status === 'pending' ? 'status-pending' :
+      status === 'investigating' ? 'status-investigating' :
+      status === 'resolved' ? 'status-resolved' :
+      status === 'dismissed' ? 'status-dismissed' :
+      'status-default'
+    }`}
   >
-    {status}
+    {status.charAt(0).toUpperCase() + status.slice(1)}
   </span>
 ));
 StatusBadge.displayName = 'StatusBadge';
@@ -202,10 +200,7 @@ const CategorySelect = memo(({ value, onChange, includeAll = false, label = 'Cat
 ));
 CategorySelect.displayName = 'CategorySelect';
 
-// ========================================
-// MAIN COMPONENT
-// ========================================
-
+// Main Component
 function TricycleIncidentReports() {
   // Search and filter states
   const [searchTerm, setSearchTerm] = useState('');
@@ -249,10 +244,7 @@ function TricycleIncidentReports() {
   // Temporary filter states for dialog
   const [tempFilters, setTempFilters] = useState({ ...DEFAULT_FILTERS });
 
-  // ========================================
-  // SNACKBAR HELPERS
-  // ========================================
-  
+  // Snackbar Helpers
   const showSnackbar = useCallback((message, severity = 'info') => {
     setSnackbar({ open: true, message, severity });
   }, []);
@@ -261,10 +253,7 @@ function TricycleIncidentReports() {
     setSnackbar(prev => ({ ...prev, open: false }));
   }, []);
 
-  // ========================================
-  // DATA FETCHING
-  // ========================================
-  
+  // Data Fetching
   const fetchReports = useCallback(async () => {
     setLoading(true);
     setError('');
@@ -316,10 +305,7 @@ function TricycleIncidentReports() {
     };
   }, [fetchReports]);
 
-  // ========================================
-  // EXPORT FUNCTIONS
-  // ========================================
-  
+  // Export Functions
   const exportReports = useCallback(async () => {
     const { startDate, endDate, category, status } = exportFilters;
     
@@ -373,10 +359,7 @@ function TricycleIncidentReports() {
     }
   }, [categoryFilter, statusFilter, showSnackbar]);
 
-  // ========================================
-  // MODAL HANDLERS
-  // ========================================
-  
+  // Modal Handlers
   const handleOpenDetails = useCallback((report) => {
     setSelectedReport(report);
     setNewStatus(report.status);
@@ -414,21 +397,15 @@ function TricycleIncidentReports() {
     }
   }, [selectedReport, newStatus, showSnackbar, handleCloseDetails]);
 
-  // ========================================
-  // PAGINATION HANDLERS
-  // ========================================
-  
-  const handleChangePage = useCallback((_, newPage) => setPage(newPage), []);
+  // Pagination Handlers
+  const handleChangePage = useCallback((_, newPage) => setPage(newPage), []);;
   
   const handleChangeRowsPerPage = useCallback((event) => {
     setRowsPerPage(parseInt(event.target.value, 10));
     setPage(0);
   }, []);
 
-  // ========================================
-  // FILTER HANDLERS
-  // ========================================
-  
+  // Filter Handlers
   const handleSearch = useCallback(() => setPage(0), []);
 
   const handleOpenFilterDialog = useCallback(() => {
@@ -469,10 +446,7 @@ function TricycleIncidentReports() {
     setExportFilters(prev => ({ ...prev, [field]: value }));
   }, []);
 
-  // ========================================
-  // COMPUTED VALUES
-  // ========================================
-  
+  // Computed Values
   const activeFiltersCount = useMemo(() => {
     let count = 0;
     if (statusFilter) count++;
@@ -484,10 +458,7 @@ function TricycleIncidentReports() {
 
   const canExport = exportFilters.startDate && exportFilters.endDate;
 
-  // ========================================
-  // RENDER
-  // ========================================
-
+  // Render
   return (
     <div className="incident-reports-container">
       <Sidebar />
@@ -607,7 +578,7 @@ function TricycleIncidentReports() {
                         <CategoryChip category={report.category} />
                       </TableCell>
                       <TableCell className="admin-table-cell col-name" align="left">
-                        {report.operatorName}
+                        {report.operatorName || 'N/A'}
                       </TableCell>
                       <TableCell className="admin-table-cell">{formatDate(report.dateReported)}</TableCell>
                       <TableCell className="admin-table-cell">
@@ -831,7 +802,7 @@ function TricycleIncidentReports() {
                   <CategoryChip category={selectedReport.category} />
                   
                   <Typography variant="subtitle2" className="label">Franchisee:</Typography>
-                  <Typography>{selectedReport.operatorName}</Typography>
+                  <Typography>{selectedReport.operatorName || 'N/A'}</Typography>
                   
                   <Typography variant="subtitle2" className="label">Date:</Typography>
                   <Typography>{formatDate(selectedReport.dateReported)}</Typography>

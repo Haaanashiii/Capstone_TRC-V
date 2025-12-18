@@ -57,7 +57,6 @@ function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [retryCount, setRetryCount] = useState(0);
-  const [isAuthorized, setIsAuthorized] = useState(true);
   
   // Default to current year for more comprehensive trend data
   const getYearRange = useCallback(() => {
@@ -202,37 +201,6 @@ function Dashboard() {
 
     return { userName: name, greeting: greetingText };
   }, []); // Only calculate once on mount
-
-  // Verify admin access on component mount
-  useEffect(() => {
-    try {
-      const token = sessionStorage.getItem('accessToken');
-      if (!token) {
-        setIsAuthorized(false);
-        navigate('/login');
-        return;
-      }
-
-      // Decode token to check account type and role
-      const decoded = JSON.parse(atob(token.split('.')[1]));
-      
-      // Only admins (with admin roles) can access dashboard
-      const adminRoles = ['sb-admin', 'bplo-admin', 'super-admin'];
-      if (decoded.accountType !== 'admin' && !adminRoles.includes(decoded.role)) {
-        setIsAuthorized(false);
-        setError('You do not have permission to access the admin dashboard. Admin access only.');
-        setTimeout(() => navigate('/'), 2000);
-        return;
-      }
-
-      setIsAuthorized(true);
-    } catch (err) {
-      logger.error('[Dashboard] Authorization check failed:', err);
-      setIsAuthorized(false);
-      setError('Authorization verification failed. Please log in again.');
-      setTimeout(() => navigate('/login'), 2000);
-    }
-  }, [navigate]);
   
   const fetchDashboardData = useCallback(async () => {
     try {
@@ -332,34 +300,6 @@ function Dashboard() {
     setRetryCount(prev => prev + 1);
     fetchDashboardData();
   }, [fetchDashboardData]);
-
-  // Authorization guard
-  if (!isAuthorized) {
-    return (
-      <div className="dashboard-container">
-        <Sidebar />
-        <div className="content-container">
-          <Box
-            sx={{
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'center',
-              alignItems: 'center',
-              minHeight: '400px',
-              gap: 2,
-            }}
-          >
-            <Typography variant="h6" sx={{ color: '#EF4444', fontWeight: 700 }}>
-              Access Denied
-            </Typography>
-            <Typography sx={{ color: '#6B7280', textAlign: 'center' }}>
-              {error || 'You do not have permission to access the admin dashboard.'}
-            </Typography>
-          </Box>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="dashboard-container">

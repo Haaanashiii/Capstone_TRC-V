@@ -5,6 +5,26 @@
     <link rel="icon" type="image/png" href="/src/assets/TRC-vLogo.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     
+    <!-- Content Security Policy - XSS Protection -->
+    <meta http-equiv="Content-Security-Policy" content="
+      default-src 'self';
+      script-src 'self' 'unsafe-inline' 'unsafe-eval' https://apis.google.com https://accounts.google.com;
+      style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+      font-src 'self' https://fonts.gstatic.com data:;
+      img-src 'self' data: blob: https:;
+      connect-src 'self' https: wss: ws: http://localhost:* ws://localhost:*;
+      frame-src 'self' blob: https://accounts.google.com;
+      object-src 'self' blob:;
+      base-uri 'self';
+      form-action 'self';
+      upgrade-insecure-requests;
+    ">
+    
+    <!-- Additional Security Headers -->
+    <meta http-equiv="X-Content-Type-Options" content="nosniff">
+    <meta http-equiv="X-Frame-Options" content="SAMEORIGIN">
+    <meta name="referrer" content="strict-origin-when-cross-origin">
+    
     <!-- PWA Meta Tags -->
     <meta name="theme-color" content="#0A356B" />
     <meta name="description" content="TRC-V Admin Dashboard - Manage tricycle franchises, operators, and regulations" />
@@ -19,7 +39,7 @@
     <meta name="msapplication-TileColor" content="#0A356B" />
     <meta name="msapplication-tap-highlight" content="no" />
     
-    <title>TRC-V Admin Dashboard</title>
+    <title>TRC-V</title>
   </head>
   <body>
     <div id="root"></div>

@@ -4,7 +4,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import websocketService from '../../services/websocket';
 import { showWarning } from '../../utils/sweetAlert';
 import { logger } from '../../utils/logger';
-import { getToken } from '../Services/api';
+import { getToken, rolePageAccessAPI } from '../Services/api';
 import '../../Styles/Administrator_Css/Sidebar.css';
 import logoImage from '../../assets/TRC-vLogo.png';
 import DashboardIcon from '@mui/icons-material/Dashboard';
@@ -20,9 +20,6 @@ import HistoryIcon from '@mui/icons-material/History';
 import SettingsIcon from '@mui/icons-material/Settings';
 import MoreHorizIcon from '@mui/icons-material/MoreHoriz';
 import CloseIcon from '@mui/icons-material/Close';
-
-// API Configuration
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170';
 
 // Map page keys to menu items
 const pageKeyToMenuItem = {
@@ -172,41 +169,24 @@ function Sidebar() {
     }
 
     try {
-      // Use centralized secure token manager
-      const token = getToken();
-      if (!token) {
-        if (!cached) {
-          setAllowedPages(getDefaultPages(user.role));
-        }
-        setLoadingPages(false);
-        return;
-      }
+      const response = await rolePageAccessAPI.getByRole(user.role);
+      const result = response.data;
 
-      const response = await fetch(`${API_BASE_URL}/api/role-page-access/${user.role}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        if (result.success && result.data) {
-          const pages = result.data.allowedPages || [];
-          setAllowedPages(pages);
-          setCachedPages(user.role, pages);
-        }
+      if (result?.success && result?.data) {
+        const pages = result.data.allowedPages || [];
+        setAllowedPages(pages);
+        setCachedPages(user.role, pages);
       } else {
         // If API fails and no cache, use default fallback
         if (!cached) {
-          logger.warn('[Sidebar] Failed to fetch page access, using defaults');
+          logger.warn('[Sidebar] Invalid response, using defaults');
           const defaultPages = getDefaultPages(user.role);
           setAllowedPages(defaultPages);
           setCachedPages(user.role, defaultPages);
         }
       }
     } catch (error) {
-      logger.error('[Sidebar] Error fetching page access:', error);
+      logger.error('[Sidebar] Error fetching page access:', error?.message || 'Unknown error');
       // Use default fallback on error if no cache
       if (!cached) {
         const defaultPages = getDefaultPages(user.role);

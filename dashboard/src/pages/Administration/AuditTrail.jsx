@@ -4,8 +4,7 @@ import '../../Styles/Administrator_Css/AuditTrail.css';
 import '../../Styles/Administrator_Css/SharedTable.css';
 import Sidebar from './Sidebar';
 import websocketService from '../../services/websocket';
-import PageLoader, { TableLoader } from '../../components/PageLoader';
-import AnimatedPage, { AnimatedSection } from '../../components/AnimatedPage';
+import PageLoader from '../../components/PageLoader';
 import {
   Typography,
   Paper,
@@ -23,15 +22,12 @@ import {
   InputLabel,
   Select,
   MenuItem,
-  Chip,
-  CircularProgress,
   Alert,
   IconButton,
   Tooltip,
   Box,
   Modal,
   Divider,
-  Grid,
   Fade,
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
@@ -42,10 +38,8 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ErrorIcon from '@mui/icons-material/Error';
 import CloseIcon from '@mui/icons-material/Close';
 import { logger } from '../../utils/logger';
-import { getToken } from '../Services/api';
-
-// API Configuration
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170';
+import { auditLogsAPI } from '../Services/api';
+import { exportAuditLogsCSV } from '../../utils/csvExport';
 
 // Action type color mapping for chips
 const ACTION_COLORS = {
@@ -89,6 +83,37 @@ const ACTION_COLORS = {
   SEARCH_FRANCHISE_NUMBER: 'default',
 };
 
+// Map MUI color to CSS class for consistent styling
+const getActionStatusClass = (action) => {
+  const color = ACTION_COLORS[action] || 'default';
+  switch (color) {
+    case 'success': return 'status-active';
+    case 'error': return 'status-rejected';
+    case 'warning': return 'status-pending';
+    case 'info': return 'status-investigating';
+    default: return 'status-dismissed';
+  }
+};
+
+// Map role to CSS class for consistent tonal pill styling
+const getRoleStatusClass = (role) => {
+  switch (role) {
+    case 'super-admin': return 'status-role-super-admin';
+    case 'sb-admin': return 'status-role-sb-admin';
+    case 'bplo-admin': return 'status-role-bplo-admin';
+    case 'operator': return 'status-role-operator';
+    default: return 'status-dismissed';
+  }
+};
+
+// Map HTTP status to CSS class for consistent styling
+const getHttpStatusClass = (statusCode) => {
+  if (statusCode >= 200 && statusCode < 300) return 'status-active';
+  if (statusCode >= 400 && statusCode < 500) return 'status-pending';
+  if (statusCode >= 500) return 'status-rejected';
+  return 'status-dismissed';
+};
+
 // Role color mapping - matches the design system
 const ROLE_COLORS = {
   'super-admin': 'error',
@@ -128,113 +153,58 @@ function AuditTrail() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [totalCount, setTotalCount] = useState(0);
-  const [isAuthorized, setIsAuthorized] = useState(true);
   const [selectedLog, setSelectedLog] = useState(null);
   const [viewModalOpen, setViewModalOpen] = useState(false);
 
-  // Get auth token from centralized secure token manager
-  const getAuthToken = useCallback(() => {
-    return getToken();
-  }, []);
-
-  // Verify admin access on component mount
-  useEffect(() => {
-    try {
-      const token = getAuthToken();
-      if (!token) {
-        setIsAuthorized(false);
-        navigate('/login');
-        return;
-      }
-
-      // Decode token to check account type and role
-      const decoded = JSON.parse(atob(token.split('.')[1]));
-      
-      // Only admins (with admin roles) can access audit trail
-      const adminRoles = ['sb-admin', 'bplo-admin', 'super-admin'];
-      if (decoded.accountType !== 'admin' && !adminRoles.includes(decoded.role)) {
-        setIsAuthorized(false);
-        setError('You do not have permission to access the audit trail. Admin access only.');
-        setTimeout(() => navigate('/'), 2000);
-        return;
-      }
-
-      setIsAuthorized(true);
-    } catch (err) {
-      logger.error('[AuditTrail] Authorization check failed:', err);
-      setIsAuthorized(false);
-      setError('Authorization verification failed. Please log in again.');
-      setTimeout(() => navigate('/login'), 2000);
-    }
-  }, [getAuthToken, navigate]);
-
-  // Fetch audit logs from API
+  // Fetch audit logs from API using centralized auditLogsAPI
   const fetchAuditLogs = useCallback(async () => {
     setLoading(true);
     setError('');
     
     try {
-      const token = getAuthToken();
-      
-      if (!token) {
-        setError('Authentication required. Please log in.');
-        setLoading(false);
-        return;
-      }
-
       // Build query parameters
-      const params = new URLSearchParams({
-        page: (page + 1).toString(),
-        limit: rowsPerPage.toString(),
+      const params = {
+        page: page + 1,
+        limit: rowsPerPage,
         sort: 'createdAt',
         order: 'desc',
-      });
+      };
 
       // Add filters if they are set
       if (filterAction !== 'all') {
-        params.append('action', filterAction);
+        params.action = filterAction;
       }
       if (filterRole !== 'all') {
-        params.append('role', filterRole);
+        params.role = filterRole;
       }
       if (filterStatus !== 'all') {
-        params.append('success', filterStatus === 'success' ? 'true' : 'false');
+        params.success = filterStatus === 'success';
       }
 
-      const response = await fetch(`${API_BASE_URL}/api/audit-logs?${params.toString()}`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          throw new Error('Session expired. Please log in again.');
-        }
-        if (response.status === 403) {
-          throw new Error('You do not have permission to view audit logs.');
-        }
-        throw new Error(`Failed to fetch audit logs: ${response.statusText}`);
-      }
-
-      const result = await response.json();
+      const response = await auditLogsAPI.getAll(params);
       
-      if (result.success && Array.isArray(result.data)) {
-        setAuditLogs(result.data);
-        setTotalCount(result.pagination?.total || result.data.length);
+      if (response.data?.success && Array.isArray(response.data.data)) {
+        setAuditLogs(response.data.data);
+        setTotalCount(response.data.pagination?.total || response.data.data.length);
       } else {
         throw new Error('Invalid response format from server');
       }
     } catch (err) {
-      logger.error('Error fetching audit logs:', err);
-      setError(err.message || 'Failed to fetch audit logs. Please try again.');
+      logger.error('[AuditTrail] Error fetching logs:', err?.message || 'Unknown error');
+      
+      if (err.response?.status === 401) {
+        setError('Session expired. Please log in again.');
+        setTimeout(() => navigate('/login'), 2000);
+      } else if (err.response?.status === 403) {
+        setError('You do not have permission to view audit logs.');
+      } else {
+        setError('Failed to fetch audit logs. Please try again.');
+      }
       setAuditLogs([]);
     } finally {
       setLoading(false);
     }
-  }, [page, rowsPerPage, filterAction, filterRole, filterStatus, getAuthToken]);
+  }, [page, rowsPerPage, filterAction, filterRole, filterStatus, navigate]);
 
   // Fetch logs on component mount, setup WebSocket, and when filters/pagination change
   useEffect(() => {
@@ -281,77 +251,33 @@ function AuditTrail() {
     setPage(0);
   }, [filterAction, filterRole, filterStatus]);
 
-  // Export to CSV
+  // Export to CSV using secure sanitized export
   const handleExport = useCallback(async () => {
     try {
-      const token = getAuthToken();
-      
-      if (!token) {
-        setError('Authentication required. Please log in.');
-        return;
-      }
-
-      // For CSV export, fetch all logs without pagination
-      const params = new URLSearchParams({
-        limit: '10000', // Large limit to get all logs
+      // Build export parameters
+      const params = {
+        limit: 10000,
         sort: 'createdAt',
         order: 'desc',
-      });
+      };
 
-      if (filterAction !== 'all') params.append('action', filterAction);
-      if (filterRole !== 'all') params.append('role', filterRole);
-      if (filterStatus !== 'all') params.append('success', filterStatus === 'success' ? 'true' : 'false');
+      if (filterAction !== 'all') params.action = filterAction;
+      if (filterRole !== 'all') params.role = filterRole;
+      if (filterStatus !== 'all') params.success = filterStatus === 'success';
 
-      const response = await fetch(`${API_BASE_URL}/api/audit-logs?${params.toString()}`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
+      const response = await auditLogsAPI.getAll(params);
+      
+      if (response.data?.success && Array.isArray(response.data.data)) {
+        // Use secure CSV export utility with sanitization
+        exportAuditLogsCSV(response.data.data, 'audit_trail');
+      } else {
         throw new Error('Failed to fetch logs for export');
       }
-
-      const result = await response.json();
-      const logsToExport = result.success && Array.isArray(result.data) ? result.data : [];
-
-      // Create CSV content
-      const headers = ['Date/Time', 'Username', 'Email', 'Role', 'Action', 'Method', 'Route', 'Status Code', 'Success', 'Resource Type', 'IP Address'];
-      const csvContent = [
-        headers.join(','),
-        ...logsToExport.map(log => [
-          new Date(log.createdAt).toLocaleString(),
-          `"${log.username || ''}"`,
-          `"${log.email || ''}"`,
-          log.role || '',
-          log.action || '',
-          log.method || '',
-          `"${log.route || ''}"`,
-          log.statusCode || '',
-          log.success ? 'Yes' : 'No',
-          log.resourceType || '',
-          log.ipAddress || ''
-        ].join(','))
-      ].join('\n');
-
-      // Download CSV
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      const link = document.createElement('a');
-      const url = URL.createObjectURL(blob);
-      link.setAttribute('href', url);
-      link.setAttribute('download', `audit_trail_${new Date().toISOString().split('T')[0]}.csv`);
-      link.style.visibility = 'hidden';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
     } catch (err) {
-      logger.error('Export error:', err);
+      logger.error('[AuditTrail] Export error:', err?.message || 'Unknown error');
       setError('Failed to export audit logs. Please try again.');
     }
-  }, [filterAction, filterRole, filterStatus, getAuthToken]);
+  }, [filterAction, filterRole, filterStatus]);
 
   const handleChangePage = (event, newPage) => {
     setPage(newPage);
@@ -405,34 +331,6 @@ function AuditTrail() {
       second: '2-digit',
     });
   };
-
-  // Authorization guard
-  if (!isAuthorized) {
-    return (
-      <div className="audit-trail-container">
-        <Sidebar />
-        <div className="content-container">
-          <Box
-            sx={{
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'center',
-              alignItems: 'center',
-              minHeight: '400px',
-              gap: 2,
-            }}
-          >
-            <Typography variant="h6" sx={{ color: '#EF4444', fontWeight: 700 }}>
-              Access Denied
-            </Typography>
-            <Typography sx={{ color: '#6B7280', textAlign: 'center' }}>
-              {error || 'You do not have permission to access the audit trail.'}
-            </Typography>
-          </Box>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="audit-trail-container">
@@ -541,6 +439,7 @@ function AuditTrail() {
           </div>
         </div>
 
+        <Fade in={!loading} timeout={400}>
         <Paper elevation={2} className="admin-table-container">
           {/* Audit Logs Table */}
           {loading ? (
@@ -550,8 +449,7 @@ function AuditTrail() {
               minHeight={400}
             />
           ) : (
-            <Fade in={!loading} timeout={400}>
-              <Box>
+            <>
               <TableContainer className="admin-table-wrapper">
                 <Table className="admin-table" stickyHeader>
                   <TableHead>
@@ -594,55 +492,60 @@ function AuditTrail() {
                             </Typography>
                           </TableCell>
                           <TableCell className="admin-table-cell col-name">
-                            <Typography variant="body2" className="user-name">
-                              {log.name || log.username || 'Unknown'}
-                            </Typography>
-                            <Typography variant="caption" className="email-text">
-                              {log.email || 'N/A'}
-                            </Typography>
+                            <Tooltip title={`${log.name || log.username || 'Unknown'} - ${log.email || 'N/A'}`} arrow placement="top" enterDelay={500}>
+                              <Box>
+                                <Typography variant="body2" className="user-name truncate-text">
+                                  {log.name || log.username || 'Unknown'}
+                                </Typography>
+                                <Typography variant="caption" className="email-text truncate-text">
+                                  {log.email || 'N/A'}
+                                </Typography>
+                              </Box>
+                            </Tooltip>
                           </TableCell>
                           <TableCell className="admin-table-cell col-status">
-                            <Chip
-                              label={formatRoleLabel(log.role)}
-                              color={ROLE_COLORS[log.role] || 'default'}
-                              size="small"
-                              className="status-badge"
-                            />
+                            <Tooltip title={formatRoleLabel(log.role)} arrow placement="top" enterDelay={300}>
+                              <span className={`status-badge ${getRoleStatusClass(log.role)}`}>
+                                {formatRoleLabel(log.role)}
+                              </span>
+                            </Tooltip>
                           </TableCell>
                           <TableCell className="admin-table-cell col-name">
-                            <Typography variant="body2" className="description-text" sx={{ fontWeight: 500 }}>
-                              {log.description || log.action || 'N/A'}
-                            </Typography>
+                            <Tooltip title={log.description || log.action || 'N/A'} arrow placement="top" enterDelay={500}>
+                              <Typography variant="body2" className="description-text truncate-text" sx={{ fontWeight: 500 }}>
+                                {log.description || log.action || 'N/A'}
+                              </Typography>
+                            </Tooltip>
                           </TableCell>
                           <TableCell className="admin-table-cell col-status">
-                            <Chip
-                              label={log.action || 'N/A'}
-                              color={ACTION_COLORS[log.action] || 'default'}
-                              size="small"
-                              className="status-badge"
-                            />
+                            <Tooltip title={log.action || 'N/A'} arrow placement="top" enterDelay={300}>
+                              <span className={`status-badge ${getActionStatusClass(log.action)}`}>
+                                {log.action || 'N/A'}
+                              </span>
+                            </Tooltip>
                           </TableCell>
                           <TableCell className="admin-table-cell col-name">
-                            <Typography variant="body2" className="browser-text">
-                              {log.browser || 'Unknown Browser'}
-                            </Typography>
-                            <Typography variant="caption" className="device-text">
-                              {log.device || 'Unknown Device'}
-                            </Typography>
+                            <Tooltip title={`${log.browser || 'Unknown Browser'} - ${log.device || 'Unknown Device'}`} arrow placement="top" enterDelay={500}>
+                              <Box>
+                                <Typography variant="body2" className="browser-text truncate-text">
+                                  {log.browser || 'Unknown Browser'}
+                                </Typography>
+                                <Typography variant="caption" className="device-text truncate-text">
+                                  {log.device || 'Unknown Device'}
+                                </Typography>
+                              </Box>
+                            </Tooltip>
                           </TableCell>
                           <TableCell className="admin-table-cell col-status">
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
                               {log.success ? (
                                 <CheckCircleIcon sx={{ fontSize: 16, color: '#10B981' }} />
                               ) : (
                                 <ErrorIcon sx={{ fontSize: 16, color: '#EF4444' }} />
                               )}
-                              <Chip
-                                label={log.statusCode || 'N/A'}
-                                color={getStatusColor(log.statusCode)}
-                                size="small"
-                                className="status-badge"
-                              />
+                              <span className={`status-badge ${getHttpStatusClass(log.statusCode)}`}>
+                                {log.statusCode || 'N/A'}
+                              </span>
                             </Box>
                           </TableCell>
                           <TableCell className="admin-table-cell col-name">
@@ -657,20 +560,21 @@ function AuditTrail() {
                 </Table>
               </TableContainer>
 
-              <TablePagination
-                component="div"
-                count={totalCount}
-                page={page}
-                onPageChange={handleChangePage}
-                rowsPerPage={rowsPerPage}
-                onRowsPerPageChange={handleChangeRowsPerPage}
-                rowsPerPageOptions={[10, 15, 25, 50]}
-                className="admin-table-pagination"
-              />
-              </Box>
-            </Fade>
+              <div className="admin-table-pagination">
+                <TablePagination
+                  component="div"
+                  count={totalCount}
+                  page={page}
+                  onPageChange={handleChangePage}
+                  rowsPerPage={rowsPerPage}
+                  onRowsPerPageChange={handleChangeRowsPerPage}
+                  rowsPerPageOptions={[10, 15, 25, 50]}
+                />
+              </div>
+            </>
           )}
         </Paper>
+        </Fade>
 
         {/* View Audit Log Details Modal */}
         <Modal
@@ -703,11 +607,9 @@ function AuditTrail() {
                   
                   <Typography variant="subtitle2" className="label">Role:</Typography>
                   <Box>
-                    <Chip
-                      label={formatRoleLabel(selectedLog.role)}
-                      color={ROLE_COLORS[selectedLog.role] || 'default'}
-                      size="small"
-                    />
+                    <span className={`status-badge ${getRoleStatusClass(selectedLog.role)}`}>
+                      {formatRoleLabel(selectedLog.role)}
+                    </span>
                   </Box>
                   
                   <Typography variant="subtitle2" className="label">User ID:</Typography>
@@ -730,11 +632,9 @@ function AuditTrail() {
                   
                   <Typography variant="subtitle2" className="label">Action Type:</Typography>
                   <Box>
-                    <Chip
-                      label={selectedLog.action || 'N/A'}
-                      color={ACTION_COLORS[selectedLog.action] || 'default'}
-                      size="small"
-                    />
+                    <span className={`status-badge ${getActionStatusClass(selectedLog.action)}`}>
+                      {selectedLog.action || 'N/A'}
+                    </span>
                   </Box>
                   
                   <Typography variant="subtitle2" className="label">Timestamp:</Typography>
@@ -768,11 +668,9 @@ function AuditTrail() {
                     ) : (
                       <ErrorIcon sx={{ fontSize: 18, color: '#EF4444' }} />
                     )}
-                    <Chip
-                      label={selectedLog.statusCode || 'N/A'}
-                      color={getStatusColor(selectedLog.statusCode)}
-                      size="small"
-                    />
+                    <span className={`status-badge ${getHttpStatusClass(selectedLog.statusCode)}`}>
+                      {selectedLog.statusCode || 'N/A'}
+                    </span>
                   </Box>
                   
                   <Typography variant="subtitle2" className="label">Route:</Typography>

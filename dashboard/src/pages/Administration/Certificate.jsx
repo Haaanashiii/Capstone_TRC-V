@@ -74,7 +74,10 @@ import CancelIcon from '@mui/icons-material/Cancel';
 import ArticleIcon from '@mui/icons-material/Article';
 import AssignmentIcon from '@mui/icons-material/Assignment';
 import { logger } from '../../utils/logger';
-import { getToken } from '../Services/api';
+import { getToken, franchiseAPI, franchiseInformationAPI, certificateAPI } from '../Services/api';
+
+// API Base URL for error messages only
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 
 const StyledModal = styled(Modal)({
   display: 'flex',
@@ -97,8 +100,6 @@ const ModalContent = styled(Box)({
   position: 'relative',
   zIndex: 1301,
 });
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170';
 
 // Certificate types configuration
 const CERTIFICATE_TYPES = {
@@ -199,35 +200,26 @@ function Certificate() {
         return;
       }
 
-      const queryParams = new URLSearchParams({
-        page: page + 1,
-        limit: rowsPerPage,
-        search: searchTerm,
-      });
-
       // Determine if MTOF mode (date range selected for reports)
       const isMTOFMode = startDate && endDate;
       
-      if (startDate) queryParams.append('startDate', startDate.toISOString());
-      if (endDate) queryParams.append('endDate', endDate.toISOString());
+      const queryParams = {
+        page: page + 1,
+        limit: rowsPerPage,
+        search: searchTerm,
+      };
+      
+      if (startDate) queryParams.startDate = startDate.toISOString();
+      if (endDate) queryParams.endDate = endDate.toISOString();
 
       // MTOF Reports: Use franchise-applications (has applicationType for grouping)
       // Individual Certificates: Use franchise-information (approved franchises)
-      const endpoint = isMTOFMode 
-        ? `${API_BASE_URL}/api/franchise-applications?${queryParams}`
-        : `${API_BASE_URL}/api/franchise-information?${queryParams}`;
+      const response = isMTOFMode 
+        ? await franchiseAPI.getAll(queryParams)
+        : await franchiseInformationAPI.getAll(queryParams);
 
-      const response = await fetch(endpoint, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-
-      const result = await response.json();
-      const franchiseData = result.data || [];
+      const result = response.data;
+      const franchiseData = result?.data || [];
       
       // For MTOF: show all applications (for grouping by type)
       // For Individual: filter by active franchises only
@@ -464,20 +456,8 @@ function Certificate() {
         generatedDate: new Date().toISOString()
       };
 
-      const response = await fetch(`${API_BASE_URL}/api/certificates/generate`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(payload)
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to generate preview: ${response.status}`);
-      }
-
-      const blob = await response.blob();
+      const response = await certificateAPI.generate(payload);
+      const blob = response.data;
       const url = URL.createObjectURL(blob);
       setPdfPreviewUrl(url);
     } catch (err) {
@@ -549,35 +529,10 @@ function Certificate() {
         generatedDate: new Date().toISOString()
       };
 
-      const response = await fetch(`${API_BASE_URL}/api/certificates/generate`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(payload)
-      });
-
-      if (!response.ok) {
-        // Try to parse as JSON, fallback to text if it fails
-        let errorMessage = `HTTP error! status: ${response.status}`;
-        try {
-          const contentType = response.headers.get('content-type');
-          if (contentType && contentType.includes('application/json')) {
-            const errorData = await response.json();
-            errorMessage = errorData.error || errorMessage;
-          } else {
-            const errorText = await response.text();
-            errorMessage = errorText || errorMessage;
-          }
-        } catch (parseError) {
-          logger.error('[Certificate] Error parsing error response:', parseError);
-        }
-        throw new Error(errorMessage);
-      }
+      const response = await certificateAPI.generate(payload);
 
       // Download the filled PDF
-      const blob = await response.blob();
+      const blob = response.data;
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -592,18 +547,19 @@ function Certificate() {
       // Show success message
       alert('Certificate downloaded successfully!');
     } catch (err) {
-      logger.error('[Certificate] Error generating:', err);
+      const errorMsg = err?.response?.data?.error || err?.message || 'Failed to generate certificate. Please try again.';
+      logger.error('[Certificate] Error generating:', errorMsg);
       
       // Check if it's a network error
-      if (err.message.includes('Failed to fetch') || err.name === 'TypeError') {
-        setError('Cannot connect to server. Please ensure the server is running on ' + API_BASE_URL);
+      if (err?.code === 'ERR_NETWORK' || err?.message?.includes('Network Error')) {
+        setError('Cannot connect to server. Please check your connection.');
       } else {
-      setError(err.message || 'Failed to generate certificate. Please try again.');
+        setError(errorMsg);
+      }
+    } finally {
+      setGenerating(false);
     }
-  } finally {
-    setGenerating(false);
-  }
-}, [getAuthToken, selectedCertType, certificateData, user, formatUserRole]);  // Helper function to extract barangay from address
+  }, [selectedCertType, certificateData, user, formatUserRole]);  // Helper function to extract barangay from address
   const extractBarangay = (address) => {
     if (!address) return '';
     const match = address.match(/(?:Brgy\.?|Barangay)\s+([^,]+)/i);
@@ -672,22 +628,10 @@ function Certificate() {
         throw new Error('Invalid certificate type for MTOF report');
       }
 
-      const response = await fetch(`${API_BASE_URL}/api/certificates/generate`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(payload)
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `Server error: ${response.status}`);
-      }
+      const response = await certificateAPI.generate(payload);
 
       // Download the generated document
-      const blob = await response.blob();
+      const blob = response.data;
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;

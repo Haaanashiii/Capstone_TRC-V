@@ -23,7 +23,6 @@ import {
   Modal,
   IconButton,
   Chip,
-  tableCellClasses,
   CircularProgress,
   Alert,
   Link,
@@ -46,7 +45,6 @@ import {
   Radio,
   Tooltip,
 } from '@mui/material';
-import { styled } from "@mui/material/styles";
 import PageLoader from '../../components/PageLoader';
 import SearchIcon from '@mui/icons-material/Search';
 import SaveIcon from '@mui/icons-material/Save';
@@ -72,10 +70,7 @@ import { logger } from '../../utils/logger';
 import '../../Styles/Administrator_Css/FranchiseeList.css';
 import '../../Styles/Administrator_Css/SharedTable.css';
 
-// ============================================================================
-// CONSTANTS
-// ============================================================================
-
+// Constants
 const CIVIL_STATUS_OPTIONS = ['Single', 'Married', 'Widowed', 'Separated', 'Divorced'];
 const FRANCHISE_STATUS_OPTIONS = ['Active', 'Inactive', 'Suspended', 'Expired', 'Revoked'];
 const APPLICATION_TYPE_OPTIONS = ['New', 'Renewal', 'Update ownership', 'Change unit', 'Auto expired', 'Auto revoked'];
@@ -97,15 +92,8 @@ const FRANCHISE_STATUS_COLORS = {
   Revoked: 'error',
 };
 
-// ============================================================================
-// HELPER FUNCTIONS
-// ============================================================================
-
-/**
- * Get chip color based on change type
- * @param {string} changeType - The change type from backend
- * @returns {string} MUI color name
- */
+// Helper Functions
+/** Get chip color based on change type */
 const getChangeTypeColor = (changeType) => CHANGE_TYPE_COLORS[changeType] || 'default';
 
 /**
@@ -125,37 +113,6 @@ const formatChangeType = (changeType) => {
   return changeType.charAt(0).toUpperCase() + changeType.slice(1).replace(/_/g, ' ');
 };
 
-// ============================================================================
-// STYLED COMPONENTS
-// ============================================================================
-
-const StyledTableCell = styled(TableCell)(({ theme }) => ({
-  [`&.${tableCellClasses.head}`]: {
-    backgroundColor: '#0A356B',
-    color: '#ffffff',
-    fontWeight: 'bold',
-    textAlign: 'center',
-  },
-  [`&.${tableCellClasses.body}`]: {
-    fontSize: 14,
-    textAlign: 'center',
-    color: '#333',
-  },
-}));
-
-const StyledTableRow = styled(TableRow)(({ theme }) => ({
-  '&:nth-of-type(odd)': {
-    backgroundColor: '#f9f9f9',
-  },
-  '&:hover': {
-    backgroundColor: 'rgba(10, 53, 107, 0.08)',
-    cursor: 'pointer',
-  },
-  '&:last-child td, &:last-child th': {
-    border: 0,
-  },
-}));
-
 // Modal styles
 const modalStyle = {
   position: 'absolute',
@@ -171,14 +128,8 @@ const modalStyle = {
   flexDirection: 'column',
 };
 
-// ============================================================================
-// REUSABLE COMPONENTS
-// ============================================================================
-
-/**
- * EditableField - Inline editable field component
- * Renders as TextField/Select in edit mode, Typography in view mode
- */
+// Reusable Components
+/** EditableField - Inline editable field component */
 const EditableField = ({ label, value, field, isEditing, editData, onChange, type = 'text', options = [] }) => {
   const renderEditMode = () => {
     if (type === 'select') {
@@ -454,10 +405,7 @@ const FranchiseHistorySection = ({ franchisee, isEditing, onViewHistoryItem }) =
   );
 };
 
-// ============================================================================
-// FRANCHISEE DETAILS MODAL COMPONENT
-// ============================================================================
-
+// Franchisee Details Modal Component
 const FranchiseeDetailsModal = ({ 
   open, 
   onClose, 
@@ -3149,38 +3097,45 @@ function FranchiseeList() {
                     >
                       <TableCell className="admin-table-cell">{row.franchiseNumber}</TableCell>
                       <TableCell className="admin-table-cell col-name" align="left">
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          {row.franchiseeName}
-                          {isPreviousOwner && (
-                            <Chip 
-                              label="Past" 
-                              size="small" 
-                              variant="outlined"
-                              color="warning"
-                              sx={{ height: 20, fontSize: '0.65rem' }} 
-                            />
-                          )}
-                        </Box>
+                        <Tooltip title={row.franchiseeName} arrow placement="top" enterDelay={500}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <span className="truncate-text">{row.franchiseeName}</span>
+                            {isPreviousOwner && (
+                              <Chip 
+                                label="Past" 
+                                size="small" 
+                                variant="outlined"
+                                color="warning"
+                                sx={{ height: 20, fontSize: '0.65rem', flexShrink: 0 }} 
+                              />
+                            )}
+                          </Box>
+                        </Tooltip>
                       </TableCell>
                       <TableCell className="admin-table-cell">{row.plateNumber}</TableCell>
                       <TableCell className="admin-table-cell">
-                        <Chip 
-                          label={row.applicationType}
-                          size="small"
-                          color={getChangeTypeColor(row.changeType)}
-                          sx={{ fontWeight: 500, fontSize: '0.7rem' }}
-                        />
+                        <Tooltip title={row.applicationType} arrow placement="top" enterDelay={300}>
+                          <span>{row.applicationType}</span>
+                        </Tooltip>
                       </TableCell>
                       <TableCell className="admin-table-cell">
-                        <Chip 
-                          label={row.franchiseStatus || 'N/A'}
-                          size="small"
-                          color={getStatusColor(row.franchiseStatus)}
-                          variant={isPreviousOwner ? 'outlined' : 'filled'}
-                          sx={{ fontWeight: 500, fontSize: '0.7rem' }}
-                        />
+                        <Tooltip title={row.franchiseStatus || 'N/A'} arrow placement="top" enterDelay={300}>
+                          <span className={`status-badge ${
+                            row.franchiseStatus === 'Active' ? 'status-active' :
+                            row.franchiseStatus === 'Expired' ? 'status-expired' :
+                            row.franchiseStatus === 'Revoked' ? 'status-rejected' :
+                            row.franchiseStatus === 'Suspended' ? 'status-investigating' :
+                            'status-default'
+                          }`}>
+                            {row.franchiseStatus || 'N/A'}
+                          </span>
+                        </Tooltip>
                       </TableCell>
-                      <TableCell className="admin-table-cell col-barangay" align="left">{row.address}</TableCell>
+                      <TableCell className="admin-table-cell col-barangay" align="left">
+                        <Tooltip title={row.address} arrow placement="top" enterDelay={500}>
+                          <span className="truncate-text">{row.address}</span>
+                        </Tooltip>
+                      </TableCell>
                       <TableCell className="admin-table-cell">
                         <IconButton 
                           size="small" 

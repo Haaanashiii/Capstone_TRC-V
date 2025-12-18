@@ -48,6 +48,7 @@ import ClearIcon from "@mui/icons-material/Clear";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import CancelIcon from "@mui/icons-material/Cancel";
 import SortIcon from "@mui/icons-material/Sort";
+import ConfirmDialog from '../../components/ConfirmDialog';
 import { logger } from '../../utils/logger';
 
 const INITIAL_USER_STATE = {
@@ -102,6 +103,15 @@ function AdminManagement() {
   const [sortBy, setSortBy] = useState(SORT_OPTIONS.NAME_ASC);
   const [showFilters, setShowFilters] = useState(false);
   const [togglingUserId, setTogglingUserId] = useState(null);
+  
+  // Confirmation dialog state
+  const [confirmDialog, setConfirmDialog] = useState({
+    open: false,
+    title: '',
+    message: '',
+    severity: 'warning',
+    user: null
+  });
 
   /**
    * Fetch admin accounts from backend
@@ -369,17 +379,34 @@ function AdminManagement() {
   }, [pendingUserData, fetchUsers]);
 
   /**
-   * Handle toggle admin account status (active/inactive)
+   * Open confirmation dialog for toggling admin status
+   */
+  const handleToggleStatusRequest = useCallback((user) => {
+    const newStatus = !user.isActive;
+    const action = newStatus ? 'activate' : 'deactivate';
+    
+    setConfirmDialog({
+      open: true,
+      title: `${newStatus ? 'Activate' : 'Deactivate'} Admin Account`,
+      message: `Are you sure you want to ${action} ${user.name}'s account?${!newStatus ? ' They will no longer be able to access the system.' : ''}`,
+      severity: newStatus ? 'info' : 'warning',
+      user: user
+    });
+  }, []);
+
+  /**
+   * Handle confirmed toggle admin account status (active/inactive)
    * Uses secure adminAPI.toggleStatus()
    */
-  const handleToggleStatus = useCallback(async (user) => {
+  const handleToggleStatusConfirmed = useCallback(async () => {
+    const user = confirmDialog.user;
+    if (!user) return;
+    
     const adminId = user.adminId || user._id || user.id;
     const newStatus = !user.isActive;
     const action = newStatus ? 'activate' : 'deactivate';
     
-    if (!window.confirm(`Are you sure you want to ${action} ${user.name}'s account?`)) {
-      return;
-    }
+    setConfirmDialog(prev => ({ ...prev, open: false }));
     
     try {
       setTogglingUserId(adminId);
@@ -403,7 +430,7 @@ function AdminManagement() {
     } finally {
       setTogglingUserId(null);
     }
-  }, [fetchUsers]);
+  }, [confirmDialog.user, fetchUsers]);
 
   /**
    * Clear all filters (reset to defaults)
@@ -719,7 +746,7 @@ function AdminManagement() {
                               ) : (
                                 <Switch
                                   checked={user.isActive !== false}
-                                  onChange={() => handleToggleStatus(user)}
+                                  onChange={() => handleToggleStatusRequest(user)}
                                   disabled={loading || isToggling}
                                   color="success"
                                   size="small"
@@ -873,6 +900,18 @@ function AdminManagement() {
           email={pendingUserData?.email || ''}
           onVerificationSuccess={handleVerificationSuccess}
           buttonText="Add User"
+        />
+
+        {/* Confirmation Dialog for Status Toggle */}
+        <ConfirmDialog
+          open={confirmDialog.open}
+          title={confirmDialog.title}
+          message={confirmDialog.message}
+          severity={confirmDialog.severity}
+          onConfirm={handleToggleStatusConfirmed}
+          onCancel={() => setConfirmDialog(prev => ({ ...prev, open: false }))}
+          confirmText="Confirm"
+          cancelText="Cancel"
         />
       </div>
     </div>

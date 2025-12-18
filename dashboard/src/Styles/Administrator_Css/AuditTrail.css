@@ -6,6 +6,7 @@
     display: flex;
     background-color: #f5f7fa;
     min-height: 100vh;
+    width: 100%;
 }
 
 .audit-trail-container .content-container {
@@ -13,11 +14,12 @@
     padding: 32px;
     margin-left: 240px;
     width: calc(100% - 240px);
+    max-width: calc(100% - 240px);
     background-color: #f5f7fa;
     animation: pageContentFadeIn 0.4s ease-out;
     min-height: calc(100vh - 64px);
-    overflow-y: scroll;
-    scrollbar-gutter: stable;
+    overflow-y: auto;
+    box-sizing: border-box;
 }
 
 @keyframes pageContentFadeIn {
@@ -75,7 +77,7 @@
 }
 
 .audit-trail-container .page-title {
-    font-size: 36px;
+    font-size: 32px;
     font-weight: 700;
     color: #0A356B;
     margin: 0;
@@ -85,7 +87,7 @@
 
 /* Header */
 .audit-trail-container .audit-header {
-    margin-bottom: 32px;
+    margin-bottom: 20px;
 }
 
 .audit-trail-container .page-subtitle {
@@ -97,7 +99,35 @@
 
 /* Error Alert */
 .audit-trail-container .error-alert {
-    margin-bottom: 24px;
+    margin-bottom: 16px;
+}
+
+/* Override admin-table-container height for AuditTrail - accounts for header + filters */
+.audit-trail-container .admin-table-container {
+    height: calc(100vh - 280px);
+    height: calc(100dvh - 280px);
+    min-height: 350px;
+}
+
+@media (min-height: 800px) {
+    .audit-trail-container .admin-table-container {
+        height: calc(100vh - 270px);
+        height: calc(100dvh - 270px);
+    }
+}
+
+@media (min-height: 900px) {
+    .audit-trail-container .admin-table-container {
+        height: calc(100vh - 260px);
+        height: calc(100dvh - 260px);
+    }
+}
+
+@media (min-height: 1080px) {
+    .audit-trail-container .admin-table-container {
+        height: calc(100vh - 250px);
+        height: calc(100dvh - 250px);
+    }
 }
 
 /* Paper Container */
@@ -111,9 +141,9 @@
 
 /* Filters Section */
 .audit-trail-container .filters-section {
-    margin-bottom: 24px;
+    margin-bottom: 16px;
     background: white;
-    padding: 20px;
+    padding: 16px 20px;
     border-radius: 12px;
     box-shadow: 0 2px 8px rgba(10, 53, 107, 0.08);
 }

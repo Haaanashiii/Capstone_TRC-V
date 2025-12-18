@@ -33,7 +33,9 @@ import SearchIcon from '@mui/icons-material/Search';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
+import ConfirmDialog from '../../components/ConfirmDialog';
 import { logger } from '../../utils/logger';
+import { sanitize } from '../../utils/inputValidation';
 
 const INITIAL_ANNOUNCEMENT_STATE = {
   title: '',
@@ -54,6 +56,7 @@ function Announcement() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'info' });
+  const [confirmDialog, setConfirmDialog] = useState({ open: false, announcementId: null });
 
   const [rowsPerPage, setRowsPerPage] = useState(10);
 
@@ -166,8 +169,8 @@ function Announcement() {
       setError('');
 
       const announcementData = {
-        title: newAnnouncement.title,
-        description: newAnnouncement.description,
+        title: sanitize(newAnnouncement.title),
+        description: sanitize(newAnnouncement.description),
         date: new Date(newAnnouncement.date).toISOString(),
         published: newAnnouncement.published
       };
@@ -192,9 +195,17 @@ function Announcement() {
     }
   }, [isEditing, newAnnouncement, selectedAnnouncement, handleCloseModal, fetchAnnouncements]);
 
-  // Handle delete announcement
-  const handleDeleteAnnouncement = useCallback(async (announcementId) => {
-    if (!window.confirm('Are you sure you want to delete this announcement?')) return;
+  // Handle delete announcement request (opens confirmation dialog)
+  const handleDeleteRequest = useCallback((announcementId) => {
+    setConfirmDialog({ open: true, announcementId });
+  }, []);
+
+  // Handle confirmed delete announcement
+  const handleDeleteConfirmed = useCallback(async () => {
+    const announcementId = confirmDialog.announcementId;
+    if (!announcementId) return;
+    
+    setConfirmDialog({ open: false, announcementId: null });
 
     try {
       setLoading(true);
@@ -218,7 +229,7 @@ function Announcement() {
     } finally {
       setLoading(false);
     }
-  }, [fetchAnnouncements]);
+  }, [confirmDialog.announcementId, fetchAnnouncements]);
 
   // Handle toggle published status
   const handleTogglePublished = useCallback(async (announcement) => {
@@ -368,7 +379,7 @@ function Announcement() {
                         <IconButton
                           className="action-icon-button delete"
                           size="small"
-                          onClick={() => handleDeleteAnnouncement(announcement._id)}
+                          onClick={() => handleDeleteRequest(announcement._id)}
                           color="error"
                           disabled={loading}
                         >
@@ -495,6 +506,18 @@ function Announcement() {
             {snackbar.message}
           </Alert>
         </Snackbar>
+
+        {/* Confirmation Dialog for Delete */}
+        <ConfirmDialog
+          open={confirmDialog.open}
+          title="Delete Announcement"
+          message="Are you sure you want to delete this announcement? This action cannot be undone."
+          severity="error"
+          onConfirm={handleDeleteConfirmed}
+          onCancel={() => setConfirmDialog({ open: false, announcementId: null })}
+          confirmText="Delete"
+          cancelText="Cancel"
+        />
       </div>
     </div>
   );

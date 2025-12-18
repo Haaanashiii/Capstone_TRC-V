@@ -50,8 +50,9 @@ import {
 import websocketService from '../../services/websocket';
 import { dashboardAPI, franchiseInformationAPI } from '../Services/api';
 import { logger } from '../../utils/logger';
+import { exportBarangayAnalyticsCSV } from '../../utils/csvExport';
 
-// ==================== Constants ====================
+// Constants
 const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December'
@@ -68,8 +69,7 @@ const BARANGAY_FILTER_OPTIONS = {
   HIGHEST_EXPIRED: 'highest_expired',
 };
 
-// ==================== Utility Functions ====================
-
+// Utility Functions
 /**
  * Get the current month index (0-11)
  */
@@ -80,42 +80,7 @@ const getCurrentMonthIndex = () => new Date().getMonth();
  */
 const getCurrentYear = () => new Date().getFullYear();
 
-/**
- * Export data to CSV file
- * @param {Array} data - Array of objects to export
- * @param {string} filename - Name of the file without extension
- */
-const exportToCSV = (data, filename) => {
-  if (!data || data.length === 0) {
-    logger.warn('No data to export');
-    return;
-  }
-
-  const headers = Object.keys(data[0]);
-  const csvRows = [
-    headers.join(','),
-    ...data.map(row => 
-      headers.map(header => {
-        const value = row[header];
-        // Escape quotes and wrap in quotes if contains comma
-        const escaped = String(value).replace(/"/g, '""');
-        return escaped.includes(',') ? `"${escaped}"` : escaped;
-      }).join(',')
-    )
-  ];
-
-  const csvContent = csvRows.join('\n');
-  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  
-  const link = document.createElement('a');
-  link.setAttribute('href', url);
-  link.setAttribute('download', `${filename}_${new Date().toISOString().split('T')[0]}.csv`);
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
-};
+// CSV export is now handled by secure csvExport utility
 
 function Analytics() {
   const [loading, setLoading] = useState(true);
@@ -356,17 +321,13 @@ function Analytics() {
     return [currentYear - 1, currentYear, currentYear + 1];
   }, []);
 
-  // Export table data to CSV
+  // Export table data to CSV using secure utility
   const handleExportCSV = useCallback(() => {
-    const exportData = sortedTableData.map(item => ({
-      'Barangay': item.barangay,
-      'Active Franchises': item.active,
-      'Expired Franchises': item.expired,
-      'Total Franchises': item.total,
-      'Active Percentage (%)': item.total > 0 ? ((item.active / item.total) * 100).toFixed(1) : '0.0'
-    }));
-    
-    exportToCSV(exportData, 'barangay_franchise_analytics');
+    if (!sortedTableData || sortedTableData.length === 0) {
+      logger.warn('No data to export');
+      return;
+    }
+    exportBarangayAnalyticsCSV(sortedTableData, 'barangay_franchise_analytics');
   }, [sortedTableData]);
 
   return (

@@ -1,12 +1,53 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
+
+// Styles
 import '../../Styles/Administrator_Css/FranchiseMgmt.css'
 import '../../Styles/Administrator_Css/SharedTable.css'
+
+// Components
 import Sidebar from './Sidebar'
-import { franchiseAPI, API_BASE_URL } from '../Services/api'
+import PageLoader from '../../components/PageLoader'
+import { FileUploadField, DocumentLink } from './components/FranchiseFormComponents'
+
+// Services & Context
+import { franchiseAPI } from '../Services/api'
 import websocketService from '../../services/websocket'
 import { useAuth } from '../../contexts/AuthContext'
+
+// Utilities
 import { validateFile, formatFileSize } from '../../utils/fileValidation'
 import { compressFile } from '../../utils/compressFile'
+import { previewFilledPDF, downloadFilledPDF } from '../../utils/pdfFiller'
+import { logger } from '../../utils/logger'
+
+// Franchise-specific constants and utilities
+import {
+  APPLICATION_TYPES,
+  APPLICATION_TYPE_LABELS,
+  BARANGAY_LIST,
+  CIVIL_STATUS_OPTIONS,
+  MODAL_STATUS_CONFIG,
+  DOCUMENT_FIELDS,
+  MODAL_BACKDROP_PROPS,
+  SCROLLBAR_STYLES,
+  SECTION_HEADER_STYLES,
+  INITIAL_FORM_DATA,
+} from './constants/franchiseConstants'
+
+import {
+  triggerFileDownload,
+  formatDate,
+  getApplicationTypeClass,
+  isImageFile,
+  isPdfFile,
+  normalizeApplication,
+  sanitizeBaseUrl,
+} from './utils/franchiseUtils'
+
+// API configuration
+import { API_BASE_URL } from '../Services/api'
+
+// MUI Components
 import {
   Table,
   TableBody,
@@ -32,9 +73,10 @@ import {
   Alert,
   Chip,
   Fade,
-  LinearProgress,
+  Tooltip,
 } from '@mui/material'
-import PageLoader from '../../components/PageLoader'
+
+// MUI Icons
 import SearchIcon from '@mui/icons-material/Search'
 import CloseIcon from '@mui/icons-material/Close'
 import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFile'
@@ -42,267 +84,56 @@ import ImageIcon from '@mui/icons-material/Image'
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf'
 import VisibilityIcon from '@mui/icons-material/Visibility'
 import DownloadIcon from '@mui/icons-material/Download'
-import { previewFilledPDF, downloadFilledPDF } from '../../utils/pdfFiller'
-import { logger } from '../../utils/logger'
-
-// Application type constants for better type safety and maintainability
-const APPLICATION_TYPES = {
-  NEW: 'new',
-  RENEWAL: 'renewal',
-  CHANGE_UNIT: 'change-unit',
-  UPDATE_OWNERSHIP: 'update-ownership'
-}
-
-const APPLICATION_TYPE_LABELS = {
-  [APPLICATION_TYPES.NEW]: 'New',
-  [APPLICATION_TYPES.RENEWAL]: 'Renewal',
-  [APPLICATION_TYPES.CHANGE_UNIT]: 'Change Unit',
-  [APPLICATION_TYPES.UPDATE_OWNERSHIP]: 'Update Ownership',
-  // Backend variations with underscores
-  'change_unit': 'Change Unit',
-  'update_ownership': 'Update Ownership',
-  // Amendment variations
-  'amend-change_unit': 'Amendment - Change Unit',
-  'amend-update_ownership': 'Amendment - Update Ownership'
-}
-
-/**
- * Helper function to determine file type from URL extension
- * Moved outside component for use in normalizeDocument
- */
-const getFileTypeFromUrl = (url) => {
-  if (!url) return 'unknown'
-  if (typeof url !== 'string') return 'unknown'
-  const ext = url.split('.').pop().toLowerCase()
-  if (['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'].includes(ext)) return 'image'
-  if (ext === 'pdf') return 'pdf'
-  return 'document'
-}
-
-/**
- * Convert gridfs:// URL to proper HTTP URL
- * @param {string} url - URL that might be gridfs:// format
- * @returns {string} Converted HTTP URL
- */
-const convertGridFSUrl = (url) => {
-  if (!url || typeof url !== 'string') return url
-  if (url.startsWith('gridfs://')) {
-    const fileId = url.substring(9) // Remove 'gridfs://' prefix
-    return `${API_BASE_URL.replace(/\/$/, '')}/api/files/${fileId}`
-  }
-  if (url.startsWith('/')) {
-    return `${API_BASE_URL.replace(/\/$/, '')}${url}`
-  }
-  return url
-}
-
-/**
- * Normalize document from backend to frontend format
- * Backend now returns enriched documents as objects with {url, displayName, type, ...}
- * Handles both new format and legacy string format for backward compatibility
- * @param {Object|string} doc - Document object or legacy URL string
- * @param {string} fallbackName - Fallback name if not available
- * @returns {Object|null} Normalized document object {name, path, type}
- */
-const normalizeDocument = (doc, fallbackName = 'Document') => {
-  if (!doc) return null
-  
-  // New enriched format from backend: {url, displayName, type, documentType, ...}
-  if (typeof doc === 'object' && doc.url) {
-    return {
-      name: doc.displayName || fallbackName,
-      path: convertGridFSUrl(doc.url),
-      type: doc.type || 'application/octet-stream',
-      documentType: doc.documentType || null,
-      uploadedAt: doc.uploadedAt || null,
-      fileSize: doc.fileSize || null
-    }
-  }
-  
-  // Legacy string format (just URL - could be gridfs://, /api/files/, or other)
-  if (typeof doc === 'string') {
-    return {
-      name: fallbackName,
-      path: convertGridFSUrl(doc),
-      type: getFileTypeFromUrl(doc)
-    }
-  }
-  
-  return null
-}
-
-/**
- * Reusable File Upload Field Component with compression progress bar
- * Shows upload status, file size info, and compression progress
- */
-const FileUploadField = React.memo(({ 
-  name, 
-  label, 
-  required = true, 
-  accept = "image/jpeg,image/png,application/pdf",
-  formData,
-  processingFiles,
-  compressionProgress,
-  handleFileChange
-}) => {
-  const isProcessing = processingFiles[name] || false
-  const progress = compressionProgress[name] || 0
-  const fileData = formData[name]
-  
-  return (
-    <Box sx={{ mb: 2 }}>
-      <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#374151', mb: 1 }}>
-        {label}
-      </Typography>
-      <TextField
-        type="file"
-        name={name}
-        onChange={handleFileChange}
-        fullWidth
-        required={required}
-        size="small"
-        disabled={isProcessing}
-        InputLabelProps={{ shrink: true }}
-        inputProps={{ accept }}
-      />
-      
-      {/* Compression Progress Bar */}
-      {isProcessing && (
-        <Box sx={{ mt: 1 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
-            <CircularProgress size={14} sx={{ color: '#0A356B' }} />
-            <Typography variant="caption" sx={{ color: '#0A356B', fontWeight: 500 }}>
-              Compressing... {progress}%
-            </Typography>
-          </Box>
-          <LinearProgress 
-            variant="determinate" 
-            value={progress} 
-            sx={{ 
-              height: 6, 
-              borderRadius: 3,
-              backgroundColor: '#E5E7EB',
-              '& .MuiLinearProgress-bar': {
-                backgroundColor: '#0A356B',
-                borderRadius: 3,
-              }
-            }} 
-          />
-        </Box>
-      )}
-      
-      {/* File Info Display */}
-      {fileData && !isProcessing && (
-        <Box sx={{ 
-          mt: 1, 
-          p: 1, 
-          backgroundColor: '#F0FDF4', 
-          borderRadius: 1,
-          border: '1px solid #86EFAC',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 1
-        }}>
-          <Typography variant="caption" sx={{ color: '#166534', fontWeight: 500 }}>
-            ✓ {fileData.name}
-          </Typography>
-          {fileData.originalSize && fileData.compressedSize && fileData.originalSize !== fileData.compressedSize && (
-            <Chip 
-              label={`${formatFileSize(fileData.originalSize)} → ${formatFileSize(fileData.compressedSize)}`}
-              size="small"
-              sx={{ 
-                backgroundColor: '#DCFCE7',
-                color: '#166534',
-                fontSize: '0.7rem',
-                height: 20
-              }}
-            />
-          )}
-        </Box>
-      )}
-    </Box>
-  )
-})
 
 function FranchiseMgmt() {
-  const { user } = useAuth() // Get current user for role-based rendering
-  const userRole = user?.role || 'bplo-admin' // Default to bplo-admin for backward compatibility
+  const { user } = useAuth()
+  const userRole = user?.role || 'bplo-admin'
   
+  // Search and filter state
   const [searchTerm, setSearchTerm] = useState('')
-  const [statusFilter, setStatusFilter] = useState('all') // Filter: all, pending, bplo-approved, awaiting-sb
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('')
+  const [statusFilter, setStatusFilter] = useState('all')
+  
+  // Modal states
   const [openAddModal, setOpenAddModal] = useState(false)
   const [openViewModal, setOpenViewModal] = useState(false)
   const [openRejectModal, setOpenRejectModal] = useState(false)
   const [openSBApprovalModal, setOpenSBApprovalModal] = useState(false)
+  const [openFilePreview, setOpenFilePreview] = useState(false)
+  const [openPdfPreview, setOpenPdfPreview] = useState(false)
+  
+  // Application state
   const [selectedApplication, setSelectedApplication] = useState(null)
+  const [pendingApplications, setPendingApplications] = useState([])
+  
+  // Form state
+  const [formData, setFormData] = useState(INITIAL_FORM_DATA)
   const [rejectionReason, setRejectionReason] = useState('')
   const [resolutionNumber, setResolutionNumber] = useState('')
   const [resolutionFile, setResolutionFile] = useState(null)
+  
+  // UI state
   const [isLoading, setIsLoading] = useState(false)
   const [notification, setNotification] = useState({ open: false, message: '', type: 'info' })
-  
- 
-  const [openFilePreview, setOpenFilePreview] = useState(false)
   const [previewFile, setPreviewFile] = useState({ name: '', type: '', path: '' })
-  const currentBlobUrlRef = useRef(null)
-  const qrBlobUrlRef = useRef(null)
-  const [qrBlobUrl, setQrBlobUrl] = useState(null)
-  const isUpdatingRef = useRef(false) // Prevent duplicate WebSocket updates
   const [pdfPreviewUrl, setPdfPreviewUrl] = useState(null)
-  const [openPdfPreview, setOpenPdfPreview] = useState(false)
+  const [qrBlobUrl, setQrBlobUrl] = useState(null)
   
   // File compression states
   const [compressionProgress, setCompressionProgress] = useState({})
   const [processingFiles, setProcessingFiles] = useState({})
   
-  const [pendingApplications, setPendingApplications] = useState([])
+  // Refs for cleanup and preventing duplicate operations
+  const currentBlobUrlRef = useRef(null)
+  const qrBlobUrlRef = useRef(null)
+  const isUpdatingRef = useRef(false)
+  const isFetchingRef = useRef(false)
 
-  // Polling interval (ms). Set to 0 to disable polling completely.
-  // When WebSocket is connected, polling is automatically disabled
-  const POLL_INTERVAL_MS = 0 // Disabled - relying on WebSocket for real-time updates
+  // Polling disabled by default (WebSocket handles real-time updates)
+  const POLL_INTERVAL_MS = 0
+  const isAnyModalOpen = openAddModal || openViewModal || openRejectModal || openFilePreview
 
-  // State for the form when adding a new franchise
-  const [formData, setFormData] = useState({
-    date: new Date().toISOString().slice(0, 10),
-    sidecarPlateNumber: '',
-    name: '',
-    contactNumber: '',
-    operatorEmail: '',
-    address: '',
-    barangay: '',
-    birthPlace: '',
-    birthDate: '',
-    civilStatus: '',
-    citizenship: '',
-    todaMembership: '',
-    unitModel: '',
-    colorMotor: '',
-    colorSidecar: '',
-    mvPlate: '',
-    motorEngineNumber: '',
-    chassisNumber: '',
-    driverName: '',
-    driverAddress: '',
-    documentRegistration: null,
-    documentBarangayClearance: null,
-    documentCedula: null,
-    documentDriversLicense: null,
-    documentVotersAffidavit: null,
-    documentMotorChassisStencil: null,
-    documentOrLTO: null,
-    documentCR: null,
-    documentPicture: null,
-    documentOperatorPicture: null,
-    // Walk-in specific fields (OR submitted during walk-in application)
-    officialReceiptNumber: '',
-    documentOfficialReceipt: null,
-  })
-
- 
-  /**
-   * Helper function to deduplicate applications by ID
-   * Prevents duplicate entries in the state
-   */
+  /** Deduplicate applications by ID */
   const deduplicateApplications = useCallback((applications) => {
     const seen = new Map()
     const deduplicated = []
@@ -315,21 +146,15 @@ function FranchiseMgmt() {
         seen.set(id, true)
         deduplicated.push(app)
       } else {
-        logger.warn('[FranchiseMgmt] Duplicate application detected and removed:', id)
+        logger.warn('[FranchiseMgmt] Duplicate application removed:', id)
       }
     }
     
     return deduplicated
   }, [])
 
-  /**
-   * Fetch all pending franchise applications from backend
-   * Uses secure franchiseAPI.getPending() with automatic token refresh
-   */
-
-  const isFetchingRef = useRef(false)
+  /** Fetch pending applications from backend */
   const fetchAllPending = useCallback(async () => {
-    // Prevent duplicate simultaneous requests
     if (isFetchingRef.current) {
       logger.log('[FranchiseMgmt] Fetch already in progress, skipping')
       return
@@ -337,15 +162,12 @@ function FranchiseMgmt() {
     
     isFetchingRef.current = true
     setIsLoading(true)
+    
     try {
-      // Fetch applications based on user role
-      // SB Admin sees applications awaiting final approval (with OR submitted)
-      // BPLO Admin sees pending applications
       const response = userRole === 'sb-admin' 
         ? await franchiseAPI.getApproved() 
         : await franchiseAPI.getPending()
       
-      // Backend returns { success, data }, axios unwraps to response.data
       const serverApps = response.data?.data || response.data || []
       
       logger.log(`[FranchiseMgmt] Fetched ${userRole === 'sb-admin' ? 'SB approval' : 'pending'} applications:`, Array.isArray(serverApps) ? serverApps.length : 0)
@@ -358,66 +180,9 @@ function FranchiseMgmt() {
       )
       
       // Map backend fields to frontend format
-      // Backend uses operatorName, operatorContactNumber, operatorBirthPlace, etc.
-      const normalizedServerApps = Array.isArray(serverApps) ? serverApps.map((it) => ({
-        id: it.id || it._id,
-        franchiseNumber: it.franchiseNumber || '',
-        name: it.operatorName || it.driverName || '',
-        make: it.unitModel || '',
-        plateNumber: it.mvPlateNo || it.mvPlate || '',
-        applicationType: it.applicationType || 'new',
-        address: it.operatorAddress || '',
-        barangay: it.operatorBarangay || '',
-        contactNumber: it.operatorContactNumber || '',
-        email: it.operatorEmail || '',
-        coOwnerName: it.coOwnerName || '',
-        coOwnerAddress: it.coOwnerAddress || '',
-        sidecarPlateNumber: it.sideCarPlateNumber || '',
-        birthPlace: it.operatorBirthPlace || '',
-        birthDate: it.operatorBirthDate ? new Date(it.operatorBirthDate).toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' }) : '',
-        civilStatus: it.operatorCivilStatus || '',
-        citizenship: it.operatorCitizenship || '',
-        todaMembership: it.todaMembership || '',
-        unitModel: it.unitModel || '',
-        colorMotor: it.colorMotor || '',
-        colorSidecar: it.sideCarColor || '',
-        mvPlate: it.mvPlateNo || '',
-        motorEngineNumber: it.motorEngineNo || '',
-        chassisNumber: it.chasisNo || '',
-        driverName: it.driverName || '',
-        driverAddress: it.driversAddress || '',
-        statusOfBPLO: it.statusOfBPLO || 'pending',
-        submittedAt: it.submittedAt ? new Date(it.submittedAt).toLocaleDateString() : '',
-        // OR and approval information (for SB admins)
-        officialReceiptNumber: it.officialReceiptNumber || '',
-        orSubmittedAt: it.orSubmittedAt ? new Date(it.orSubmittedAt).toLocaleDateString() : '',
-        bploApprovedBy: it.bploApprovedBy || '',
-        bploApprovedAt: it.bploApprovedAt || '',
-        bploInspectionRequired: it.bploInspectionRequired || false,
-        bploDisapprovedReason: it.bploDisapprovedReason || '',
-        sbApprovedBy: it.sbApprovedBy || '',
-        sbApprovedAt: it.sbApprovedAt || '',
-        sbResolutionNumber: it.sbResolutionNumber || '',
-        sbResolutionDocument: it.sbResolutionDocument || '',
-        // Documents - backend now returns enriched objects with {url, displayName, type, ...}
-        // Using normalizeDocument handles both new format and legacy string format
-        // Try both Obj suffix and without suffix for backwards compatibility
-        documentRegistration: normalizeDocument(it.documents?.motorRegistrationObj || it.documents?.motorRegistration, 'Motor Registration'),
-        documentBarangayClearance: normalizeDocument(it.documents?.barangayClearanceObj || it.documents?.barangayClearance, 'Barangay Clearance'),
-        documentCedula: normalizeDocument(it.documents?.cedulaObj || it.documents?.cedula, 'Cedula'),
-        documentDriversLicense: normalizeDocument(it.documents?.driversLicenseObj || it.documents?.driversLicense, "Driver's License"),
-        documentVotersAffidavit: normalizeDocument(it.documents?.votersAffidavitObj || it.documents?.votersAffidavit, "Voter's Affidavit"),
-        documentChassisStencil: normalizeDocument(it.documents?.motorChassisStencilObj || it.documents?.motorChassisStencil, 'Chassis Stencil'),
-        documentPicture: normalizeDocument(it.documents?.driverPictureObj || it.documents?.driverPicture, 'Driver Picture'),
-        documentOperatorPicture: normalizeDocument(it.documents?.operatorPictureObj || it.documents?.operatorPicture, 'Operator Picture'),
-        documentORLTO: normalizeDocument(it.documents?.oRLTOObj || it.documents?.oRLTO, 'OR LTO'),
-        documentCRLTO: normalizeDocument(it.documents?.cRLTOObj || it.documents?.cRLTO, 'CR LTO'),
-        documents: {
-          ...it.documents,
-          oRTreasurerOfficeObj: it.documents?.oRTreasurerOfficeObj || null
-        },
-        qrCode: it.qrCode || null,
-      })) : []
+      const normalizedServerApps = Array.isArray(serverApps) 
+        ? serverApps.map(normalizeApplication) 
+        : []
 
       // Deduplicate before setting state (safety check)
       const deduplicatedServerApps = deduplicateApplications(normalizedServerApps)
@@ -430,7 +195,7 @@ function FranchiseMgmt() {
       setNotification({
         open: true,
         message: err.response?.data?.error || 'Failed to load pending applications',
-        type: 'error'
+        type: 'error',
       })
       
       setPendingApplications([])
@@ -440,10 +205,7 @@ function FranchiseMgmt() {
     }
   }, [userRole, deduplicateApplications])
 
-  // Pause polling when any modal is open
-  const isAnyModalOpen = openAddModal || openViewModal || openRejectModal || openFilePreview
-
-  // Initial fetch on mount - CRITICAL for reliable data loading
+  // Effects - Initial data fetch
   useEffect(() => {
     logger.log('[FranchiseMgmt] Component mounted, fetching initial data...')
     fetchAllPending()
@@ -509,63 +271,7 @@ function FranchiseMgmt() {
       isUpdatingRef.current = true
       logger.log('[FranchiseMgmt] Processing WebSocket update...')
       
-      const normalizedApps = applications.map((it) => ({
-        id: it.id || it._id,
-        franchiseNumber: it.franchiseNumber || '',
-        name: it.operatorName || it.driverName || '',
-        make: it.unitModel || '',
-        plateNumber: it.mvPlateNo || '',
-        applicationType: it.applicationType || 'new',
-        address: it.operatorAddress || it.driversAddress || '',
-        barangay: it.operatorBarangay || '',
-        contactNumber: it.operatorContactNumber || '',
-        email: it.operatorEmail || '',
-        sidecarPlateNumber: it.sideCarPlateNumber || '',
-        birthPlace: it.operatorBirthPlace || '',
-        birthDate: it.operatorBirthDate ? new Date(it.operatorBirthDate).toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' }) : '',
-        civilStatus: it.operatorCivilStatus || '',
-        citizenship: it.operatorCitizenship || '',
-        todaMembership: it.todaMembership || '',
-        unitModel: it.unitModel || '',
-        colorMotor: it.colorMotor || '',
-        colorSidecar: it.sideCarColor || '',
-        mvPlate: it.mvPlateNo || '',
-        motorEngineNumber: it.motorEngineNo || '',
-        chassisNumber: it.chasisNo || '',
-        driverName: it.driverName || '',
-        driverAddress: it.driversAddress || '',
-        coOwnerName: it.coOwnerName || '',
-        coOwnerAddress: it.coOwnerAddress || '',
-        officialReceiptNumber: it.officialReceiptNumber || '',
-        orSubmittedAt: it.orSubmittedAt ? new Date(it.orSubmittedAt).toLocaleDateString() : '',
-        bploApprovedBy: it.bploApprovedBy || '',
-        bploApprovedAt: it.bploApprovedAt || '',
-        bploDisapprovedReason: it.bploDisapprovedReason || '',
-        bploInspectionRequired: it.bploInspectionRequired || false,
-        sbApprovedBy: it.sbApprovedBy || '',
-        sbApprovedAt: it.sbApprovedAt || '',
-        sbResolutionNumber: it.sbResolutionNumber || '',
-        sbResolutionDocument: it.sbResolutionDocument || '',
-        // Documents - using normalizeDocument for enriched backend format
-        // Try both Obj suffix and without suffix for backwards compatibility
-        documentRegistration: normalizeDocument(it.documents?.motorRegistrationObj || it.documents?.motorRegistration, 'Motor Registration'),
-        documentBarangayClearance: normalizeDocument(it.documents?.barangayClearanceObj || it.documents?.barangayClearance, 'Barangay Clearance'),
-        documentCedula: normalizeDocument(it.documents?.cedulaObj || it.documents?.cedula, 'Cedula'),
-        documentDriversLicense: normalizeDocument(it.documents?.driversLicenseObj || it.documents?.driversLicense, "Driver's License"),
-        documentVotersAffidavit: normalizeDocument(it.documents?.votersAffidavitObj || it.documents?.votersAffidavit, "Voter's Affidavit"),
-        documentChassisStencil: normalizeDocument(it.documents?.motorChassisStencilObj || it.documents?.motorChassisStencil, 'Chassis Stencil'),
-        documentPicture: normalizeDocument(it.documents?.driverPictureObj || it.documents?.driverPicture, 'Driver Picture'),
-        documentOperatorPicture: normalizeDocument(it.documents?.operatorPictureObj || it.documents?.operatorPicture, 'Operator Picture'),
-        documentORLTO: normalizeDocument(it.documents?.oRLTOObj || it.documents?.oRLTO, 'OR LTO'),
-        documentCRLTO: normalizeDocument(it.documents?.cRLTOObj || it.documents?.cRLTO, 'CR LTO'),
-        documents: {
-          ...it.documents,
-          oRTreasurerOfficeObj: it.documents?.oRTreasurerOfficeObj || null
-        },
-        qrCode: it.qrCode || null,
-        statusOfBPLO: it.statusOfBPLO || 'pending',
-        submittedAt: it.submittedAt || '',
-      }))
+      const normalizedApps = applications.map(normalizeApplication)
       
       // Deduplicate applications before setting state
       const deduplicatedApps = deduplicateApplications(normalizedApps)
@@ -650,9 +356,7 @@ function FranchiseMgmt() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAnyModalOpen, userRole, deduplicateApplications]) // Removed fetchAllPending from dependencies to prevent refetch loops
 
-
-  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('')
-  
+  // Debounce search term
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearchTerm(searchTerm)
@@ -661,403 +365,372 @@ function FranchiseMgmt() {
     return () => clearTimeout(timer)
   }, [searchTerm])
 
-
+  /** Filter applications based on search term and status */
   const filteredApplications = useMemo(() => {
-    let filtered = pendingApplications.filter(app => {
-      const searchLower = debouncedSearchTerm.toLowerCase()
-      const appType = APPLICATION_TYPE_LABELS[app.applicationType] || app.applicationType || ''
-      
-      return (
+    const searchLower = debouncedSearchTerm.toLowerCase()
+    
+    return pendingApplications.filter((app) => {
+      const appType = APPLICATION_TYPE_LABELS[app.applicationType] ?? app.applicationType ?? ''
+      const matchesSearch = !searchLower || (
         app.name?.toLowerCase().includes(searchLower) ||
         app.franchiseNumber?.toLowerCase().includes(searchLower) ||
         app.plateNumber?.toLowerCase().includes(searchLower) ||
         appType.toLowerCase().includes(searchLower)
       )
+      
+      if (!matchesSearch) return false
+      
+      // Status filter
+      if (statusFilter === 'all') return true
+      
+      const status = app.statusOfBPLO || 'pending'
+      return status === statusFilter
     })
-
-    // Apply status filter
-    if (statusFilter !== 'all') {
-      filtered = filtered.filter(app => {
-        const status = app.statusOfBPLO || 'pending'
-        if (statusFilter === 'pending') {
-          return status === 'pending'
-        } else if (statusFilter === 'bplo-approved') {
-          return status === 'bplo-approved'
-        } else if (statusFilter === 'awaiting-sb') {
-          return status === 'awaiting-sb'
-        } else if (statusFilter === 'sb-approved') {
-          return status === 'sb-approved'
-        }
-        return true
-      })
-    }
-
-    return filtered
   }, [pendingApplications, debouncedSearchTerm, statusFilter])
 
-  
-
+  // Modal Handlers
   const handleOpenAddModal = useCallback(() => setOpenAddModal(true), [])
   const handleCloseAddModal = useCallback(() => setOpenAddModal(false), [])
   
+  /**
+   * Open view modal with selected application data
+   * Application is already normalized, so we use it directly
+   */
   const handleOpenViewModal = useCallback((application) => {
-   
-    // Use normalized fields directly, no further fallback needed
-    setSelectedApplication({
-      ...application,
-      unitModel: application.unitModel,
-      colorMotor: application.colorMotor,
-      colorSidecar: application.colorSidecar,
-      mvPlate: application.mvPlate,
-      motorEngineNumber: application.motorEngineNumber,
-      chassisNumber: application.chassisNumber,
-      driverName: application.driverName,
-      driverAddress: application.driverAddress,
-      contactNumber: application.contactNumber,
-      address: application.address,
-    })
+    setSelectedApplication(application)
     setOpenViewModal(true)
   }, [])
+  
   const handleCloseViewModal = useCallback(() => setOpenViewModal(false), [])
 
-  // When a selected application changes, attempt to fetch its QR image and create a blob URL
-  React.useEffect(() => {
-    let cancelled = false
-    
-    // Cleanup previous QR blob using centralized function
-    if (qrBlobUrlRef.current) {
+  /**
+   * Safely revoke a blob URL from a ref
+   * @param {React.MutableRefObject} ref - Ref containing blob URL
+   */
+  const safeRevokeUrl = useCallback((ref) => {
+    if (ref.current) {
       try {
-        URL.revokeObjectURL(qrBlobUrlRef.current)
-        qrBlobUrlRef.current = null
+        URL.revokeObjectURL(ref.current)
       } catch (e) {
-        logger.warn('Failed to revoke previous QR blob:', e)
+        logger.warn('Failed to revoke blob URL:', e)
       }
+      ref.current = null
     }
+  }, [])
 
-    const fetchQr = async () => {
-      if (!selectedApplication || !selectedApplication.qrCode) {
+  /**
+   * Build full URL from raw path
+   * @param {string} raw - Raw URL or path
+   * @returns {string} Full URL
+   */
+  const buildFullUrl = useCallback((raw) => {
+    if (/^https?:\/\//i.test(raw)) return raw
+    const baseUrl = sanitizeBaseUrl(API_BASE_URL)
+    return `${baseUrl}${raw.startsWith('/') ? '' : '/'}${raw}`
+  }, [])
+
+  // Fetch QR image when selected application changes
+  useEffect(() => {
+    let isCancelled = false
+    
+    safeRevokeUrl(qrBlobUrlRef)
+
+    const fetchQrCode = async () => {
+      const qrPath = selectedApplication?.qrCode
+      if (!qrPath) {
         setQrBlobUrl(null)
         return
       }
+      
       try {
-        const raw = selectedApplication.qrCode
-        const url = /^https?:\/\//i.test(raw) ? raw : (API_BASE_URL.replace(/\/$/, '') + (raw.startsWith('/') ? raw : '/' + raw))
-        const resp = await fetch(url)
-        if (!resp.ok) throw new Error('Failed to fetch QR')
-        const blob = await resp.blob()
-        if (cancelled) return
-        const objUrl = URL.createObjectURL(blob)
-        qrBlobUrlRef.current = objUrl
-        setQrBlobUrl(objUrl)
+        const url = buildFullUrl(qrPath)
+        const response = await fetch(url)
+        
+        if (!response.ok) {
+          throw new Error(`Failed to fetch QR: ${response.status}`)
+        }
+        
+        const blob = await response.blob()
+        if (isCancelled) return
+        
+        const objectUrl = URL.createObjectURL(blob)
+        qrBlobUrlRef.current = objectUrl
+        setQrBlobUrl(objectUrl)
       } catch (err) {
-        logger.warn('[FranchiseMgmt] Failed to fetch QR blob for inline display:', err)
+        logger.warn('[FranchiseMgmt] Failed to fetch QR blob:', err)
         setQrBlobUrl(null)
       }
     }
 
-    fetchQr()
+    fetchQrCode()
 
     return () => {
-      cancelled = true
-      if (qrBlobUrlRef.current) {
-        try {
-          URL.revokeObjectURL(qrBlobUrlRef.current)
-          qrBlobUrlRef.current = null
-        } catch (e) {
-          logger.warn('Failed to revoke QR blob on cleanup:', e)
-        }
-      }
+      isCancelled = true
+      safeRevokeUrl(qrBlobUrlRef)
       setQrBlobUrl(null)
     }
-  }, [selectedApplication])
+  }, [selectedApplication, safeRevokeUrl, buildFullUrl])
   
   const handleOpenRejectModal = useCallback(() => {
     setOpenViewModal(false)
     setOpenRejectModal(true)
   }, [])
+  
   const handleCloseRejectModal = useCallback(() => setOpenRejectModal(false), [])
   
+  // File Preview Handlers
+  /** Normalize file data from various formats */
+  const normalizeFileData = useCallback((file) => {
+    if (!file) return null
+    
+    // Object format: { name, type, path }
+    if (typeof file === 'object' && (file.path || file.name)) {
+      return {
+        name: file.name || file.originalname || '',
+        type: file.type || file.mimetype || '',
+        path: file.path || file.pathname || '',
+      }
+    }
+    
+    // Legacy string path format
+    if (typeof file === 'string') {
+      return {
+        name: file.split('/').pop() || file,
+        type: '',
+        path: file,
+      }
+    }
+    
+    return null
+  }, [])
+
   /**
-   *For PReview ng files
+   * Convert path to full HTTP URL
+   * Handles GridFS format and relative paths
+   * @param {string} path - File path to convert
+   * @returns {string} Full HTTP URL
    */
-  const handleOpenFilePreview = useCallback((file) => {
+  const convertToHttpUrl = useCallback((path) => {
+    if (!path) return ''
+    
+    const baseUrl = sanitizeBaseUrl(API_BASE_URL)
+    
+    // GridFS format: gridfs://fileId -> /api/files/fileId
+    if (path.startsWith('gridfs://')) {
+      const fileId = path.substring(9)
+      logger.log('[Preview] GridFS format detected, converting:', fileId)
+      return `${baseUrl}/api/files/${fileId}`
+    }
+    
+    // Already an HTTP URL
+    if (/^https?:\/\//i.test(path)) {
+      return path
+    }
+    
+    // Relative path -> prefix with API_BASE_URL
+    return `${baseUrl}${path.startsWith('/') ? '' : '/'}${path}`
+  }, [])
+
+  /**
+   * Open file preview modal
+   * Fetches file and creates blob URL for secure preview
+   */
+  const handleOpenFilePreview = useCallback(async (file) => {
     if (!file) {
       setNotification({ open: true, message: 'File not available for preview', type: 'info' })
       return
     }
 
-    // Normalize legacy values: the backend previously stored string paths for files
-    // (e.g. "/uploads/..") or newly stores objects { name, type, path }.
-    let normalized = { name: '', type: '', path: '' }
-
-    // If file is an object with expected properties, shallow-copy it
-    if (typeof file === 'object' && (file.path || file.name)) {
-      normalized = {
-        name: file.name || file.originalname || '',
-        type: file.type || file.mimetype || '',
-        path: file.path || file.pathname || ''
-      }
-    } else if (typeof file === 'string') {
-      // Legacy string path -> construct object
-      normalized = {
-        name: file.split('/').pop() || file,
-        type: '',
-        path: file
-      }
+    const normalized = normalizeFileData(file)
+    if (!normalized?.path) {
+      setNotification({ open: true, message: 'Invalid file data', type: 'error' })
+      return
     }
 
-    // Handle different URL formats
+    const fullUrl = convertToHttpUrl(normalized.path)
+
     try {
-      // GridFS format: gridfs://fileId -> convert to /api/files/fileId
-      if (normalized.path && normalized.path.startsWith('gridfs://')) {
-        const fileId = normalized.path.substring(9) // Remove 'gridfs://' prefix
-        normalized.path = `${API_BASE_URL.replace(/\/$/, '')}/api/files/${fileId}`
-        logger.log('[Preview] GridFS format detected, converting to HTTP URL:', fileId)
+      const response = await fetch(fullUrl, { mode: 'cors' })
+      if (!response.ok) {
+        throw new Error(`Failed to fetch file: ${response.status}`)
       }
-      // Relative path -> prefix with API_BASE_URL
-      else if (normalized.path && !/^https?:\/\//i.test(normalized.path)) {
-        const pathPart = normalized.path.startsWith('/') ? normalized.path : '/' + normalized.path
-        normalized.path = API_BASE_URL.replace(/\/$/, '') + pathPart
-      }
-    } catch (err) {
-      logger.warn('[Preview] Error processing file path:', err)
-    }
-
-    // If it's an image or PDF, try fetching it and creating an object URL so
-    // the browser does not need to embed the backend URL in an iframe (which
-    // can be blocked by X-Frame-Options: SAMEORIGIN). This also avoids CORS
-    // framing issues by loading the bytes via fetch and serving them from a
-    // same-origin blob URL.
-    const tryFetchAndPreview = async () => {
-      const path = normalized.path
       
-      // First, try to fetch the file to get its actual content type
-      try {
-        const resp = await fetch(path, { mode: 'cors' })
-        if (!resp.ok) throw new Error(`Failed to fetch file: ${resp.status}`)
-        
-        const blob = await resp.blob()
-        const contentType = blob.type || resp.headers.get('Content-Type') || ''
-        
-        logger.log('[FilePreview] Fetched file, content type:', contentType)
-        
-        const isImage = contentType.includes('image')
-        const isPdf = contentType.includes('pdf')
-        
-        if (isImage || isPdf) {
-          // Ensure blob has correct MIME type
-          const blobWithType = !blob.type ? new Blob([blob], { type: contentType }) : blob
-          const objectUrl = URL.createObjectURL(blobWithType)
-          
-          // Revoke previous if any
-          if (currentBlobUrlRef.current) URL.revokeObjectURL(currentBlobUrlRef.current)
-          currentBlobUrlRef.current = objectUrl
-          
-          // Update normalized with detected type
-          setPreviewFile({ 
-            ...normalized, 
-            path: objectUrl,
-            type: contentType,
-            name: normalized.name || 'document'
-          })
-          setOpenFilePreview(true)
-          return
-        }
-        
-        // Not an image/pdf - still show preview modal with download option
-        const objectUrl = URL.createObjectURL(blob)
-        if (currentBlobUrlRef.current) URL.revokeObjectURL(currentBlobUrlRef.current)
-        currentBlobUrlRef.current = objectUrl
-        
-        setPreviewFile({ 
-          ...normalized, 
-          path: objectUrl,
-          type: contentType,
-          name: normalized.name || 'document'
-        })
-        setOpenFilePreview(true)
-      } catch (err) {
-        logger.warn('[FilePreview] fetch failed:', err)
-        setNotification({ open: true, message: 'Failed to load file preview', type: 'error' })
-      }
-    }
-
-    tryFetchAndPreview()
-  }, [])
-  
-  // Centralized blob URL cleanup function
-  const revokeBlobUrl = useCallback((ref) => {
-    try {
-      if (ref.current) {
-        URL.revokeObjectURL(ref.current)
-        ref.current = null
-      }
+      const blob = await response.blob()
+      const contentType = blob.type || response.headers.get('Content-Type') || ''
+      
+      logger.log('[FilePreview] Fetched file, content type:', contentType)
+      
+      // Ensure blob has correct MIME type
+      const finalBlob = blob.type ? blob : new Blob([blob], { type: contentType })
+      const objectUrl = URL.createObjectURL(finalBlob)
+      
+      // Revoke previous blob URL if exists
+      safeRevokeUrl(currentBlobUrlRef)
+      currentBlobUrlRef.current = objectUrl
+      
+      setPreviewFile({
+        name: normalized.name || 'document',
+        type: contentType,
+        path: objectUrl,
+      })
+      setOpenFilePreview(true)
     } catch (err) {
-      logger.warn('Failed to revoke blob URL:', err)
+      logger.warn('[FilePreview] Fetch failed:', err)
+      setNotification({ open: true, message: 'Failed to load file preview', type: 'error' })
     }
-  }, [])
+  }, [normalizeFileData, convertToHttpUrl, safeRevokeUrl])
 
   const handleCloseFilePreview = useCallback(() => {
-    revokeBlobUrl(currentBlobUrlRef)
+    safeRevokeUrl(currentBlobUrlRef)
     setOpenFilePreview(false)
-  }, [revokeBlobUrl])
+  }, [safeRevokeUrl])
   
   /**
-   * Get appropriate icon for file type (memoized)
+   * Get appropriate icon for file type
+   * @param {string} fileType - MIME type of file
+   * @returns {JSX.Element} Icon component
    */
   const getFileIcon = useCallback((fileType) => {
     if (!fileType) return <InsertDriveFileIcon />
-    
-    if (fileType.includes('image')) {
-      return <ImageIcon />
-    } else if (fileType.includes('pdf')) {
-      return <PictureAsPdfIcon />
-    } else {
-      return <InsertDriveFileIcon />
-    }
+    if (fileType.includes('image')) return <ImageIcon />
+    if (fileType.includes('pdf')) return <PictureAsPdfIcon />
+    return <InsertDriveFileIcon />
   }, [])
   
+  // Form Handlers
+  /** Compression threshold in bytes (300KB) */
+  const COMPRESSION_THRESHOLD = 300 * 1024
+
   /**
-   * Form handlers
+   * Handle form field changes
    */
   const handleFormChange = useCallback((e) => {
     const { name, value } = e.target
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }))
+    setFormData((prev) => ({ ...prev, [name]: value }))
   }, [])
   
+  /**
+   * Revoke blob URL in form data if it exists
+   * @param {Object} prevData - Previous form data
+   * @param {string} fieldName - Field name to check
+   */
+  const revokePreviousBlob = useCallback((prevData, fieldName) => {
+    const path = prevData[fieldName]?.path
+    if (path?.startsWith('blob:')) {
+      try {
+        URL.revokeObjectURL(path)
+      } catch (err) {
+        logger.warn('Failed to revoke previous file blob:', err)
+      }
+    }
+  }, [])
 
+  /**
+   * Create file data object for form state
+   * @param {File} processedFile - Processed file
+   * @param {File} originalFile - Original file
+   * @returns {Object} File data object
+   */
+  const createFileData = useCallback((processedFile, originalFile) => ({
+    name: processedFile.name,
+    type: processedFile.type,
+    path: URL.createObjectURL(processedFile),
+    file: processedFile,
+    originalSize: originalFile.size,
+    compressedSize: processedFile.size,
+  }), [])
+
+  /**
+   * Handle file input changes with validation and compression
+   */
   const handleFileChange = useCallback(async (e) => {
     const { name, files } = e.target
-    if (!files || !files[0]) return
+    const file = files?.[0]
+    if (!file) return
     
-    const file = files[0]
-    
-    // Validate file using shared utility
+    // Validate file
     const validation = validateFile(file)
     if (!validation.success) {
-      setNotification({
-        open: true,
-        message: validation.message,
-        type: 'error'
-      })
-      // Reset the input
+      setNotification({ open: true, message: validation.message, type: 'error' })
       e.target.value = ''
       return
     }
     
-    // Check if file needs compression (larger than 300KB)
-    const willCompress = file.size > 300 * 1024
+    const shouldCompress = file.size > COMPRESSION_THRESHOLD
     
-    // Show loading state if file will be compressed
-    if (willCompress) {
-      setProcessingFiles(prev => ({ ...prev, [name]: true }))
-      setCompressionProgress(prev => ({ ...prev, [name]: 0 }))
+    if (shouldCompress) {
+      setProcessingFiles((prev) => ({ ...prev, [name]: true }))
+      setCompressionProgress((prev) => ({ ...prev, [name]: 0 }))
     }
     
     try {
       let processedFile = file
       
-      if (willCompress) {
-        // Simulate progressive compression steps for better UX
-        setCompressionProgress(prev => ({ ...prev, [name]: 30 }))
-        await new Promise(resolve => setTimeout(resolve, 200))
-        setCompressionProgress(prev => ({ ...prev, [name]: 60 }))
+      if (shouldCompress) {
+        // Progressive compression feedback
+        setCompressionProgress((prev) => ({ ...prev, [name]: 30 }))
+        await new Promise((resolve) => setTimeout(resolve, 200))
+        setCompressionProgress((prev) => ({ ...prev, [name]: 60 }))
         
-        // Compress the file (images and PDFs)
         processedFile = await compressFile(file)
         
-        setCompressionProgress(prev => ({ ...prev, [name]: 100 }))
+        setCompressionProgress((prev) => ({ ...prev, [name]: 100 }))
+        await new Promise((resolve) => setTimeout(resolve, 300))
         
-        // Brief delay to show completion
-        await new Promise(resolve => setTimeout(resolve, 300))
-        
-        // Show compression success message only if file was actually compressed
+        // Show compression result if file was actually compressed
         if (processedFile.size !== file.size) {
-          const originalSize = formatFileSize(file.size)
-          const newSize = formatFileSize(processedFile.size)
           const savings = Math.round((1 - processedFile.size / file.size) * 100)
-          
           setNotification({
             open: true,
-            message: `Compression complete: ${originalSize} → ${newSize} (${savings}% smaller!)`,
-            type: 'success'
+            message: `Compression complete: ${formatFileSize(file.size)} → ${formatFileSize(processedFile.size)} (${savings}% smaller!)`,
+            type: 'success',
           })
         }
       }
       
-      setFormData(prev => {
-        // Revoke previous blob URL if exists
-        if (prev[name]?.path && prev[name].path.startsWith('blob:')) {
-          try {
-            URL.revokeObjectURL(prev[name].path)
-          } catch (err) {
-            logger.warn('Failed to revoke previous file blob:', err)
-          }
-        }
-        
-        // Create object URL for preview
-        const objectURL = URL.createObjectURL(processedFile)
-        return {
-          ...prev,
-          [name]: {
-            name: processedFile.name,
-            type: processedFile.type,
-            path: objectURL,
-            file: processedFile,
-            originalSize: file.size,
-            compressedSize: processedFile.size
-          }
-        }
+      setFormData((prev) => {
+        revokePreviousBlob(prev, name)
+        return { ...prev, [name]: createFileData(processedFile, file) }
       })
     } catch (error) {
       logger.error('[FileCompression] Error:', error)
       setNotification({
         open: true,
         message: 'Compression failed. Using original file.',
-        type: 'warning'
+        type: 'warning',
       })
       
-      // Use original file if compression fails
-      setFormData(prev => {
-        if (prev[name]?.path && prev[name].path.startsWith('blob:')) {
-          try {
-            URL.revokeObjectURL(prev[name].path)
-          } catch (err) {
-            logger.warn('Failed to revoke previous file blob:', err)
-          }
-        }
-        
-        const objectURL = URL.createObjectURL(file)
+      // Fallback to original file
+      setFormData((prev) => {
+        revokePreviousBlob(prev, name)
         return {
           ...prev,
           [name]: {
             name: file.name,
             type: file.type,
-            path: objectURL,
-            file: file
-          }
+            path: URL.createObjectURL(file),
+            file,
+          },
         }
       })
     } finally {
-      setProcessingFiles(prev => ({ ...prev, [name]: false }))
-      setCompressionProgress(prev => ({ ...prev, [name]: 0 }))
+      setProcessingFiles((prev) => ({ ...prev, [name]: false }))
+      setCompressionProgress((prev) => ({ ...prev, [name]: 0 }))
     }
-  }, [])
+  }, [revokePreviousBlob, createFileData])
   
   /**
-   * Cleanup object URLs only when component unmounts
+   * Cleanup blob URLs when component unmounts
    */
   useEffect(() => {
-    const currentFormData = { ...formData }
+    // Capture current form data for cleanup
+    const formDataSnapshot = { ...formData }
+    
     return () => {
-      // Cleanup all object URLs to prevent memory leaks
-      Object.keys(currentFormData).forEach(key => {
-        if (key.startsWith('document') && currentFormData[key]?.path && currentFormData[key]?.path.startsWith('blob:')) {
+      Object.entries(formDataSnapshot).forEach(([key, value]) => {
+        if (key.startsWith('document') && value?.path?.startsWith('blob:')) {
           try {
-            URL.revokeObjectURL(currentFormData[key].path)
+            URL.revokeObjectURL(value.path)
           } catch (e) {
             logger.warn('Failed to revoke blob URL:', e)
           }
@@ -1066,35 +739,77 @@ function FranchiseMgmt() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
-  
+
+  // Form Field Mapping (Frontend -> Backend)
+  /** Maps frontend field names to backend expected names */
+  const FIELD_MAPPING = {
+    // Operator fields
+    name: 'operatorName',
+    contactNumber: 'operatorContactNumber',
+    operatorEmail: 'operatorEmail',
+    address: 'operatorAddress',
+    barangay: 'operatorBarangay',
+    birthPlace: 'operatorBirthPlace',
+    birthDate: 'operatorBirthDate',
+    civilStatus: 'operatorCivilStatus',
+    citizenship: 'operatorCitizenship',
+    // Vehicle fields
+    todaMembership: 'todaMembership',
+    colorSidecar: 'sideCarColor',
+    mvPlate: 'mvPlateNo',
+    motorEngineNumber: 'motorEngineNo',
+    chassisNumber: 'chasisNo',
+    driverName: 'driverName',
+    driverAddress: 'driversAddress',
+    unitModel: 'unitModel',
+    colorMotor: 'colorMotor',
+    // Document fields
+    documentRegistration: 'motorRegistrationObj',
+    documentBarangayClearance: 'barangayClearanceObj',
+    documentCedula: 'cedulaObj',
+    documentDriversLicense: 'driversLicenseObj',
+    documentVotersAffidavit: 'votersAffidavitObj',
+    documentMotorChassisStencil: 'motorChassisStencilObj',
+    documentPicture: 'driverPictureObj',
+    documentOperatorPicture: 'operatorPictureObj',
+    documentOrLTO: 'oRLTOObj',
+    documentCR: 'cRLTOObj',
+    documentOfficialReceipt: 'oRTreasurerOfficeObj',
+  }
+
+  /** Fields to skip during form submission (handled separately) */
+  const SKIP_FIELDS = ['officialReceiptNumber', 'documentOfficialReceipt']
+
   /**
-   * Submit new application (walk-in - admin-submitted)
-   * Uses secure franchiseAPI.create() with FormData for file uploads
-   * 
-   * WALK-IN PROCESS:
-   * 1. Admin enters applicant's information including email/phone
-   * 2. Admin can optionally enter OR number and upload OR document
-   * 3. Application is marked as walk-in (isWalkIn: true)
-   * 4. Backend sends notification to applicant via email or SMS
-   * 5. Application goes through normal BPLO/SB approval process
-   * 6. Franchise number is generated and linked when SB accepts the application
-   * 
-   * Note: The franchise number is NOT assigned at submission time.
-   * It will be generated and linked when the SB admin accepts the application
-   * after final approval (handleSBApproval)
+   * Revoke all document blob URLs in form data
+   */
+  const revokeAllFormBlobs = useCallback(() => {
+    Object.entries(formData).forEach(([key, value]) => {
+      if (key.startsWith('document') && value?.path?.startsWith('blob:')) {
+        try {
+          URL.revokeObjectURL(value.path)
+        } catch (e) {
+          logger.warn('Failed to revoke blob URL on form reset:', e)
+        }
+      }
+    })
+  }, [formData])
+
+  /**
+   * Submit new franchise application
    */
   const handleSubmitApplication = async (e) => {
     e.preventDefault()
     
-    // Validate that at least email OR contact number is provided
-    const hasEmail = formData.operatorEmail && formData.operatorEmail.trim() !== ''
-    const hasContact = formData.contactNumber && formData.contactNumber.trim() !== ''
+    // Validate contact information
+    const hasEmail = formData.operatorEmail?.trim()
+    const hasContact = formData.contactNumber?.trim()
     
     if (!hasEmail && !hasContact) {
       setNotification({
         open: true,
         message: 'Please provide either an Email Address OR Contact Number for notifications',
-        type: 'error'
+        type: 'error',
       })
       return
     }
@@ -1102,162 +817,67 @@ function FranchiseMgmt() {
     setIsLoading(true)
     
     try {
-      // Create FormData for file uploads
       const formDataToSend = new FormData()
       
-      // Map frontend field names to backend expected names
-      const fieldMapping = {
-        name: 'operatorName',
-        contactNumber: 'operatorContactNumber',
-        operatorEmail: 'operatorEmail',
-        address: 'operatorAddress',
-        barangay: 'operatorBarangay',
-        birthPlace: 'operatorBirthPlace',
-        birthDate: 'operatorBirthDate',
-        civilStatus: 'operatorCivilStatus',
-        citizenship: 'operatorCitizenship',
-        todaMembership: 'todaMembership',
-        colorSidecar: 'sideCarColor',
-        mvPlate: 'mvPlateNo',
-        motorEngineNumber: 'motorEngineNo',
-        chassisNumber: 'chasisNo',
-        driverName: 'driverName',
-        driverAddress: 'driversAddress',
-        unitModel: 'unitModel',
-        colorMotor: 'colorMotor',
-        // Document mappings
-        documentRegistration: 'motorRegistrationObj',
-        documentBarangayClearance: 'barangayClearanceObj',
-        documentCedula: 'cedulaObj',
-        documentDriversLicense: 'driversLicenseObj',
-        documentVotersAffidavit: 'votersAffidavitObj',
-        documentMotorChassisStencil: 'motorChassisStencilObj',
-        documentPicture: 'driverPictureObj',
-        documentOperatorPicture: 'operatorPictureObj',
-        documentOrLTO: 'oRLTOObj',
-        documentCR: 'cRLTOObj',
-        documentOfficialReceipt: 'oRTreasurerOfficeObj'
-      }
-      
-      // Add form fields with correct backend names
-      Object.keys(formData).forEach(key => {
-        const backendKey = fieldMapping[key] || key
+      // Add form fields with mapped backend names
+      Object.entries(formData).forEach(([key, value]) => {
+        if (SKIP_FIELDS.includes(key)) return
         
-        // Skip officialReceiptNumber and documentOfficialReceipt - handled separately below
-        if (key === 'officialReceiptNumber' || key === 'documentOfficialReceipt') {
-          return
-        }
+        const backendKey = FIELD_MAPPING[key] || key
         
-        if (key.startsWith('document') && formData[key]?.file) {
-          // Add file uploads with backend field name
-          formDataToSend.append(backendKey, formData[key].file)
-        } else if (formData[key] !== null && formData[key] !== undefined && formData[key] !== '') {
-          // Add regular fields with backend field name
-          formDataToSend.append(backendKey, formData[key])
+        if (key.startsWith('document') && value?.file) {
+          formDataToSend.append(backendKey, value.file)
+        } else if (value != null && value !== '') {
+          formDataToSend.append(backendKey, value)
         }
       })
       
-      // Add application type
+      // Application metadata
       formDataToSend.append('applicationType', 'new')
-      
-      // Mark as walk-in application (admin-submitted)
       formDataToSend.append('isWalkIn', 'true')
       
-      // Add OR number if provided (walk-in)
+      // OR information (walk-in)
       if (formData.officialReceiptNumber?.trim()) {
         formDataToSend.append('officialReceiptNumber', formData.officialReceiptNumber.trim())
         formDataToSend.append('orSubmittedAt', new Date().toISOString())
       }
       
-      // Add OR document if provided (walk-in)
       if (formData.documentOfficialReceipt?.file) {
         formDataToSend.append('oRTreasurerOfficeObj', formData.documentOfficialReceipt.file)
       }
 
-      // Submit to backend using secure API
       const response = await franchiseAPI.create(formDataToSend)
-      
       logger.log('[FranchiseMgmt] Application submitted:', response.data)
 
-      // Refresh pending applications list
       await fetchAllPending()
-      
-      // Close modal
       handleCloseAddModal()
       
-      // Revoke all blob URLs before resetting form
-      Object.keys(formData).forEach(key => {
-        if (key.startsWith('document') && formData[key]?.path && formData[key].path.startsWith('blob:')) {
-          try {
-            URL.revokeObjectURL(formData[key].path)
-          } catch (e) {
-            logger.warn('Failed to revoke blob URL on form reset:', e)
-          }
-        }
-      })
-      
-      // Reset form
-      setFormData({
-        date: new Date().toISOString().slice(0, 10),
-        sidecarPlateNumber: '',
-        name: '',
-        contactNumber: '',
-        operatorEmail: '',
-        address: '',
-        barangay: '',
-        birthPlace: '',
-        birthDate: '',
-        civilStatus: '',
-        citizenship: '',
-        todaMembership: '',
-        unitModel: '',
-        colorMotor: '',
-        colorSidecar: '',
-        mvPlate: '',
-        motorEngineNumber: '',
-        chassisNumber: '',
-        driverName: '',
-        driverAddress: '',
-        documentRegistration: null,
-        documentBarangayClearance: null,
-        documentCedula: null,
-        documentDriversLicense: null,
-        documentVotersAffidavit: null,
-        documentMotorChassisStencil: null,
-        documentPicture: null,
-        documentOperatorPicture: null,
-        documentOrLTO: null,
-        documentCR: null,
-        officialReceiptNumber: '',
-        documentOfficialReceipt: null,
-      })
+      // Cleanup and reset form
+      revokeAllFormBlobs()
+      setFormData(INITIAL_FORM_DATA)
       
       setNotification({
         open: true,
         message: response.data?.message || 'Walk-in application submitted and forwarded to SB for approval. The applicant will be notified via email or phone.',
-        type: 'success'
+        type: 'success',
       })
     } catch (error) {
       logger.error('[FranchiseMgmt] Error submitting application:', error)
       setNotification({
         open: true,
         message: error.response?.data?.error || 'Failed to submit application',
-        type: 'error'
+        type: 'error',
       })
     } finally {
       setIsLoading(false)
     }
   }
-  
-  /**
-   * Approve application (role-based: BPLO or SB)
-   */
+
+  // Application Approval Handlers
+  /** Approve application (role-based: BPLO or SB) */
   const handleApproveApplication = async () => {
-    if (!selectedApplication) return
-    
-    // Prevent double-submission
-    if (isLoading) {
-      logger.log('[FranchiseMgmt] Already processing, ignoring duplicate click')
+    if (!selectedApplication || isLoading) {
+      if (isLoading) logger.log('[FranchiseMgmt] Already processing, ignoring duplicate click')
       return
     }
     
@@ -1273,21 +893,15 @@ function FranchiseMgmt() {
     
     try {
       logger.log('[FranchiseMgmt] BPLO approving application:', selectedApplication.id)
-      
-      // BPLO approve via secure API
       const response = await franchiseAPI.approveBPLO(selectedApplication.id)
-      
       logger.log('[FranchiseMgmt] Application approved by BPLO:', response.data)
 
-      // Refresh pending applications list
       await fetchAllPending()
-
       setNotification({ 
         open: true, 
         message: 'Application approved by BPLO. Applicant will be notified to proceed with inspection and OR submission.', 
-        type: 'success' 
+        type: 'success',
       })
-      
       handleCloseViewModal()
     } catch (error) {
       logger.error('[FranchiseMgmt] Error approving application:', error)
@@ -1297,10 +911,8 @@ function FranchiseMgmt() {
       
       setNotification({
         open: true,
-        message: isConflict 
-          ? `Already approved: ${errorMessage}` 
-          : errorMessage,
-        type: 'error'
+        message: isConflict ? `Already approved: ${errorMessage}` : errorMessage,
+        type: 'error',
       })
       
       if (isConflict) {
@@ -1312,16 +924,15 @@ function FranchiseMgmt() {
     }
   }
   
-  /**
-   * SB Admin final approval with resolution number and optional document
-   * This is the FINAL step - automatically creates franchise record
-   */
+  /** SB Admin final approval with resolution number */
   const handleSBApproval = async () => {
-    if (!selectedApplication || !resolutionNumber.trim()) {
+    const trimmedResolution = resolutionNumber.trim()
+    
+    if (!selectedApplication || !trimmedResolution) {
       setNotification({
         open: true,
         message: 'Resolution number is required',
-        type: 'error'
+        type: 'error',
       })
       return
     }
@@ -1329,63 +940,66 @@ function FranchiseMgmt() {
     setIsLoading(true)
     
     try {
-      logger.log('[FranchiseMgmt] SB final approval - this will create franchise:', selectedApplication.id)
+      logger.log('[FranchiseMgmt] SB final approval - creating franchise:', selectedApplication.id)
       
-      // Create FormData for multipart upload if resolution document is provided
-      const formData = new FormData()
-      formData.append('resolutionNumber', resolutionNumber.trim())
+      // Prepare form data for resolution
+      const sbFormData = new FormData()
+      sbFormData.append('resolutionNumber', trimmedResolution)
       if (resolutionFile) {
-        formData.append('resolutionDocument', resolutionFile)
+        sbFormData.append('resolutionDocument', resolutionFile)
       }
       
       // Step 1: SB Approval with resolution
       logger.log('[FranchiseMgmt] Step 1/2: Approving with resolution number...')
-      const approvalResponse = await franchiseAPI.approveSBWithDocument(selectedApplication.id, formData)
-      logger.log('[FranchiseMgmt] Step 1/2 completed - SB approval done:', approvalResponse.data)
+      const approvalResponse = await franchiseAPI.approveSBWithDocument(selectedApplication.id, sbFormData)
+      logger.log('[FranchiseMgmt] Step 1/2 completed:', approvalResponse.data)
 
-      // Small delay to ensure database consistency
-      await new Promise(resolve => setTimeout(resolve, 500))
+      // Brief delay for database consistency
+      await new Promise((resolve) => setTimeout(resolve, 500))
 
-      // Step 2: Immediately create franchise record (FINAL STEP)
-      logger.log('[FranchiseMgmt] Step 2/2: Creating franchise record in FranchiseList...')
-      const isNew = selectedApplication.applicationType === 'new' || !selectedApplication.applicationType
+      // Step 2: Create franchise record
+      logger.log('[FranchiseMgmt] Step 2/2: Creating franchise record...')
+      const isNewApplication = selectedApplication.applicationType === 'new' || !selectedApplication.applicationType
       
-      let franchiseResponse
+      const acceptFranchise = isNewApplication 
+        ? franchiseAPI.acceptNewFranchise 
+        : franchiseAPI.acceptRenewAmend
+      
       try {
-        franchiseResponse = await (isNew 
-          ? franchiseAPI.acceptNewFranchise(selectedApplication.id, {})
-          : franchiseAPI.acceptRenewAmend(selectedApplication.id, {}))
-        logger.log('[FranchiseMgmt] Step 2/2 completed - Franchise created successfully:', franchiseResponse.data)
+        const franchiseResponse = await acceptFranchise(selectedApplication.id, {})
+        logger.log('[FranchiseMgmt] Step 2/2 completed:', franchiseResponse.data)
       } catch (acceptError) {
-        logger.error('[FranchiseMgmt] Error in Step 2 (franchise creation):', acceptError)
-        throw new Error(`Approval successful but failed to create franchise: ${acceptError.response?.data?.error || acceptError.message}. The application is now in 'sb-approved' status and can be manually accepted from the list.`)
+        logger.error('[FranchiseMgmt] Franchise creation failed:', acceptError)
+        const errorMsg = acceptError.response?.data?.error || acceptError.message
+        throw new Error(
+          `Approval successful but franchise creation failed: ${errorMsg}. ` +
+          "The application is now 'sb-approved' and can be manually accepted."
+        )
       }
 
-      // Refresh list to remove completed application
       await fetchAllPending()
 
       setNotification({ 
         open: true, 
-        message: 'Franchise approved and created successfully! The franchise is now active in the system.', 
-        type: 'success' 
+        message: 'Franchise approved and created successfully! The franchise is now active.', 
+        type: 'success',
       })
       
+      // Reset modal state
       setOpenSBApprovalModal(false)
       setResolutionNumber('')
       setResolutionFile(null)
       handleCloseViewModal()
     } catch (error) {
-      logger.error('[FranchiseMgmt] Error in SB final approval process:', error)
-      
-      const errorMessage = error.response?.data?.error || error.response?.data?.message || error.message || 'Failed to complete franchise approval'
+      logger.error('[FranchiseMgmt] SB approval error:', error)
       
       setNotification({
         open: true,
-        message: errorMessage,
-        type: 'error'
+        message: error.response?.data?.error || error.response?.data?.message || error.message || 'Failed to complete franchise approval',
+        type: 'error',
       })
       
-      // Refresh the list in case the approval succeeded but franchise creation failed
+      // Refresh in case approval succeeded but creation failed
       await fetchAllPending()
     } finally {
       setIsLoading(false)
@@ -1396,11 +1010,13 @@ function FranchiseMgmt() {
    * Submit disapproval/rejection (BPLO only)
    */
   const handleSubmitRejection = async () => {
-    if (!selectedApplication || !rejectionReason.trim()) {
+    const trimmedReason = rejectionReason.trim()
+    
+    if (!selectedApplication || !trimmedReason) {
       setNotification({
         open: true,
         message: 'Please provide a reason for disapproval',
-        type: 'error'
+        type: 'error',
       })
       return
     }
@@ -1408,46 +1024,39 @@ function FranchiseMgmt() {
     setIsLoading(true)
     
     try {
-      logger.log('[FranchiseMgmt] BPLO disapproving application:', selectedApplication.id)
+      logger.log('[FranchiseMgmt] BPLO disapproving:', selectedApplication.id)
+      await franchiseAPI.disapproveBPLO(selectedApplication.id, trimmedReason)
+      logger.log('[FranchiseMgmt] Application disapproved')
       
-      // BPLO disapprove via secure API
-      await franchiseAPI.disapproveBPLO(selectedApplication.id, rejectionReason.trim())
-
-      logger.log('[FranchiseMgmt] Application disapproved by BPLO')
-      
-      // Refresh pending applications list
       await fetchAllPending()
-
+      
       setNotification({ 
         open: true, 
         message: 'Application disapproved. Applicant has been notified.', 
-        type: 'success' 
+        type: 'success',
       })
       
       handleCloseRejectModal()
       setRejectionReason('')
     } catch (error) {
-      logger.error('[FranchiseMgmt] Error disapproving application:', error)
+      logger.error('[FranchiseMgmt] Disapproval error:', error)
       setNotification({
         open: true,
         message: error.response?.data?.error || 'Failed to disapprove application',
-        type: 'error'
+        type: 'error',
       })
     } finally {
       setIsLoading(false)
     }
   }
 
-  /**
-   * Handle notification close
-   */
+  // Notification & PDF Handlers
+  /** Close notification snackbar */
   const handleNotificationClose = useCallback(() => {
     setNotification({ open: false, message: '', type: 'info' })
   }, [])
 
-  /**
-   * Handle PDF Preview
-   */
+  /** Generate PDF preview */
   const handlePdfPreview = async () => {
     if (!selectedApplication) return
     
@@ -1456,88 +1065,127 @@ function FranchiseMgmt() {
       const url = await previewFilledPDF(selectedApplication)
       setPdfPreviewUrl(url)
       setOpenPdfPreview(true)
-      
-      setNotification({
-        open: true,
-        message: 'PDF preview generated successfully',
-        type: 'success'
-      })
+      setNotification({ open: true, message: 'PDF preview generated successfully', type: 'success' })
     } catch (error) {
-      logger.error('[FranchiseMgmt] Error previewing PDF:', error)
-      setNotification({
-        open: true,
-        message: 'Failed to generate PDF preview',
-        type: 'error'
-      })
+      logger.error('[FranchiseMgmt] PDF preview error:', error)
+      setNotification({ open: true, message: 'Failed to generate PDF preview', type: 'error' })
     } finally {
       setIsLoading(false)
     }
   }
 
-  /**
-   * Handle PDF Download
-      */
+  /** Download filled PDF */
   const handlePdfDownload = async () => {
     if (!selectedApplication) return
     
     setIsLoading(true)
     try {
-      const filename = `franchise-application-${selectedApplication.name?.replace(/\s+/g, '-') || selectedApplication.id}.pdf`
-      await downloadFilledPDF(selectedApplication, filename)
-      
-      setNotification({
-        open: true,
-        message: 'PDF downloaded successfully',
-        type: 'success'
-      })
+      const safeName = selectedApplication.name?.replace(/\s+/g, '-') || selectedApplication.id
+      await downloadFilledPDF(selectedApplication, `franchise-application-${safeName}.pdf`)
+      setNotification({ open: true, message: 'PDF downloaded successfully', type: 'success' })
     } catch (error) {
-      logger.error('[FranchiseMgmt] Error downloading PDF:', error)
-      setNotification({
-        open: true,
-        message: 'Failed to download PDF',
-        type: 'error'
-      })
+      logger.error('[FranchiseMgmt] PDF download error:', error)
+      setNotification({ open: true, message: 'Failed to download PDF', type: 'error' })
     } finally {
       setIsLoading(false)
     }
   }
 
-  /**
-   * Close PDF preview modal
-   */
-  const handleClosePdfPreview = () => {
+  /** Close PDF preview and cleanup */
+  const handleClosePdfPreview = useCallback(() => {
     setOpenPdfPreview(false)
     if (pdfPreviewUrl) {
       URL.revokeObjectURL(pdfPreviewUrl)
       setPdfPreviewUrl(null)
     }
-  }
+  }, [pdfPreviewUrl])
+
+  // Status Display
+  /** Status configuration map */
+  const STATUS_CONFIG = useMemo(() => ({
+    pending: { suffix: 'For BPLO Verification', color: '#F59E0B', bgColor: '#FEF3C7' },
+    'bplo-approved-with-or': { suffix: 'Ready for SB Final Approval', color: '#059669', bgColor: '#D1FAE5' },
+    'bplo-approved': { suffix: 'Awaiting Client OR Number', color: '#DC8C09', bgColor: '#FFF4E6' },
+    'awaiting-sb': { suffix: 'Ready for SB Final Approval', color: '#0A356B', bgColor: '#DBEAFE' },
+    'sb-approved': { suffix: 'Completing Franchise Creation...', color: '#059669', bgColor: '#D1FAE5' },
+    'bplo-disapproved': { suffix: 'Disapproved by BPLO', color: '#DC2626', bgColor: '#FEE2E2' },
+    default: { suffix: 'Unknown Status', color: '#6B7280', bgColor: '#F3F4F6' },
+  }), [])
 
   /**
    * Get status display information
+   * @param {string} statusOfBPLO - Current status
+   * @param {boolean} hasOR - Whether OR is submitted
+   * @param {string} applicationType - Type of application
+   * @returns {Object} Status display info with label, color, bgColor
    */
-  const getStatusInfo = (statusOfBPLO, hasOR, applicationType = 'new') => {
+  const getStatusInfo = useCallback((statusOfBPLO, hasOR, applicationType = 'new') => {
     const typeLabel = APPLICATION_TYPE_LABELS[applicationType] || 'Application'
     
-    switch (statusOfBPLO) {
-      case 'pending':
-        return { label: `${typeLabel} - For BPLO Verification`, color: '#F59E0B', bgColor: '#FEF3C7' }
-      case 'bplo-approved':
-        // Check if OR is submitted for more accurate status
-        if (hasOR) {
-          return { label: `${typeLabel} - Ready for SB Final Approval`, color: '#059669', bgColor: '#D1FAE5' }
-        }
-        return { label: `${typeLabel} - Awaiting Client OR Number`, color: '#DC8C09', bgColor: '#FFF4E6' }
-      case 'awaiting-sb':
-        return { label: `${typeLabel} - Ready for SB Final Approval`, color: '#0A356B', bgColor: '#DBEAFE' }
-      case 'sb-approved':
-        return { label: `${typeLabel} - Completing Franchise Creation...`, color: '#059669', bgColor: '#D1FAE5' }
-      case 'bplo-disapproved':
-        return { label: `${typeLabel} - Disapproved by BPLO`, color: '#DC2626', bgColor: '#FEE2E2' }
-      default:
-        return { label: `${typeLabel} - Unknown Status`, color: '#6B7280', bgColor: '#F3F4F6' }
+    // Determine effective status key
+    let statusKey = statusOfBPLO
+    if (statusOfBPLO === 'bplo-approved' && hasOR) {
+      statusKey = 'bplo-approved-with-or'
     }
-  }
+    
+    const config = STATUS_CONFIG[statusKey] || STATUS_CONFIG.default
+    
+    return {
+      label: `${typeLabel} - ${config.suffix}`,
+      color: config.color,
+      bgColor: config.bgColor,
+    }
+  }, [STATUS_CONFIG])
+
+  // Render Helpers
+  /** Render application table row */
+  const renderApplicationRow = useCallback((application) => {
+    const hasOR = Boolean(application.officialReceiptNumber?.trim())
+    const statusInfo = getStatusInfo(application.statusOfBPLO || 'pending', hasOR, application.applicationType)
+    const appTypeLabel = APPLICATION_TYPE_LABELS[application.applicationType] || application.applicationType || 'Unknown'
+    
+    return (
+      <TableRow 
+        key={application.id}
+        className="admin-table-row"
+        onClick={() => handleOpenViewModal(application)}
+        hover
+      >
+        <TableCell className="admin-table-cell">
+          {application.franchiseNumber || 'Pending'}
+        </TableCell>
+        <TableCell className="admin-table-cell col-name" align="left">
+          <Tooltip title={application.name} arrow placement="top" enterDelay={500}>
+            <span className="truncate-text">{application.name}</span>
+          </Tooltip>
+        </TableCell>
+        <TableCell className="admin-table-cell">{application.make}</TableCell>
+        <TableCell className="admin-table-cell">
+          <Tooltip title={appTypeLabel} arrow placement="top" enterDelay={300}>
+            <span>{appTypeLabel}</span>
+          </Tooltip>
+        </TableCell>
+        <TableCell className="admin-table-cell">
+          <Tooltip title={statusInfo.label} arrow placement="top" enterDelay={300}>
+            <span 
+              className="status-badge" 
+              style={{ backgroundColor: statusInfo.bgColor, color: statusInfo.color }}
+            >
+              {statusInfo.label}
+            </span>
+          </Tooltip>
+        </TableCell>
+        <TableCell className="admin-table-cell col-barangay" align="left">
+          <Tooltip title={application.address} arrow placement="top" enterDelay={500}>
+            <span className="truncate-text">{application.address}</span>
+          </Tooltip>
+        </TableCell>
+      </TableRow>
+    )
+  }, [getStatusInfo, handleOpenViewModal])
+
+  /** Empty table row when no applications */
+  const emptyTableMessage = isLoading ? 'Loading...' : 'No pending applications found'
 
   return (
     <div className="franchise-mgmt-container">
@@ -1626,51 +1274,12 @@ function FranchiseMgmt() {
                 </TableHead>
                 <TableBody>
                   {filteredApplications.length > 0 ? (
-                    filteredApplications.map((application, index) => {
-                      const hasOR = !!(application.officialReceiptNumber && application.officialReceiptNumber.trim())
-                      const statusInfo = getStatusInfo(application.statusOfBPLO || 'pending', hasOR, application.applicationType)
-                      return (
-                        <TableRow 
-                          key={application.id}
-                          className="admin-table-row"
-                          onClick={() => handleOpenViewModal(application)}
-                          hover
-                        >
-                          <TableCell className="admin-table-cell">{application.franchiseNumber || 'Pending'}</TableCell>
-                          <TableCell className="admin-table-cell col-name" align="left">{application.name}</TableCell>
-                          <TableCell className="admin-table-cell">{application.make}</TableCell>
-                          <TableCell className="admin-table-cell">
-                            <span className={`status-badge ${
-                              application.applicationType === APPLICATION_TYPES.NEW ? 'status-pending' : 
-                              application.applicationType === APPLICATION_TYPES.RENEWAL ? 'status-active' : 
-                              application.applicationType === APPLICATION_TYPES.CHANGE_UNIT || 
-                              application.applicationType === 'change_unit' || 
-                              application.applicationType === 'amend-change_unit' ? 'status-investigating' :
-                              application.applicationType === APPLICATION_TYPES.UPDATE_OWNERSHIP || 
-                              application.applicationType === 'update_ownership' || 
-                              application.applicationType === 'amend-update_ownership' ? 'status-warning' :
-                              'status-default'
-                            }`}>
-                              {APPLICATION_TYPE_LABELS[application.applicationType] || application.applicationType || 'Unknown'}
-                            </span>
-                          </TableCell>
-                          <TableCell className="admin-table-cell">
-                            <span className="status-badge" style={{
-                              backgroundColor: statusInfo.bgColor,
-                              color: statusInfo.color
-                            }}>
-                              {statusInfo.label}
-                            </span>
-                          </TableCell>
-                          <TableCell className="admin-table-cell col-barangay" align="left">{application.address}</TableCell>
-                        </TableRow>
-                      )
-                    })
+                    filteredApplications.map(renderApplicationRow)
                   ) : (
                     <TableRow>
                       <TableCell colSpan={6} className="admin-table-empty">
                         <Typography className="admin-table-empty-text">
-                          {isLoading ? 'Loading...' : 'No pending applications found'}
+                          {emptyTableMessage}
                         </Typography>
                       </TableCell>
                     </TableRow>
@@ -1688,14 +1297,7 @@ function FranchiseMgmt() {
         open={openAddModal}
         onClose={handleCloseAddModal}
         aria-labelledby="add-franchise-modal"
-        slotProps={{
-          backdrop: {
-            sx: {
-              backgroundColor: 'rgba(0, 0, 0, 0.5)',
-              backdropFilter: 'blur(3px)',
-            },
-          },
-        }}
+        slotProps={{ backdrop: MODAL_BACKDROP_PROPS }}
       >
         <Box className="modal-container" sx={{ 
           maxWidth: '900px', 
@@ -1740,19 +1342,7 @@ function FranchiseMgmt() {
             overflowY: 'auto', 
             p: 3,
             background: '#FAFBFC',
-            '&::-webkit-scrollbar': {
-              width: '8px'
-            },
-            '&::-webkit-scrollbar-track': {
-              background: '#F1F5F9'
-            },
-            '&::-webkit-scrollbar-thumb': {
-              background: '#CBD5E1',
-              borderRadius: '4px',
-              '&:hover': {
-                background: '#94A3B8'
-              }
-            }
+            ...SCROLLBAR_STYLES,
           }}>
             <form onSubmit={handleSubmitApplication} id="franchise-form">
               {/* Walk-in Information Banner */}
@@ -1765,7 +1355,7 @@ function FranchiseMgmt() {
                 boxShadow: '0 2px 8px rgba(59, 130, 246, 0.1)'
               }}>
                 <Typography variant="body1" sx={{ fontWeight: 600, color: '#1E40AF', mb: 1 }}>
-                  👤 Walk-In Application Process
+                  Walk-In Application Process
                 </Typography>
                 <Typography variant="body2" sx={{ color: '#3B82F6', fontSize: '0.9rem' }}>
                   Complete all required information. <strong>Provide either Email OR Phone Number</strong> - applicant will be notified via available contact method.
@@ -1790,15 +1380,7 @@ function FranchiseMgmt() {
               </Box>
 
               {/* Personal Information Section */}
-              <Typography variant="h6" sx={{ 
-                fontWeight: 700, 
-                color: '#0A356B', 
-                mb: 2,
-                pb: 1,
-                borderBottom: '3px solid #0A356B',
-                fontSize: '1.1rem',
-                letterSpacing: '0.5px'
-              }}>
+              <Typography variant="h6" sx={SECTION_HEADER_STYLES}>
                 PERSONAL INFORMATION
               </Typography>
             
@@ -1857,28 +1439,9 @@ function FranchiseMgmt() {
                   onChange={handleFormChange}
                   label="Barangay"
                 >
-                  <MenuItem value="Aggub">Aggub</MenuItem>
-                  <MenuItem value="Bagahabag">Bagahabag</MenuItem>
-                  <MenuItem value="Bangaan">Bangaan</MenuItem>
-                  <MenuItem value="Bangar">Bangar</MenuItem>
-                  <MenuItem value="Bascaran">Bascaran</MenuItem>
-                  <MenuItem value="Communal">Communal</MenuItem>
-                  <MenuItem value="Concepcion">Concepcion</MenuItem>
-                  <MenuItem value="Curifang">Curifang</MenuItem>
-                  <MenuItem value="Dadap">Dadap</MenuItem>
-                  <MenuItem value="Lactawan">Lactawan</MenuItem>
-                  <MenuItem value="Osmeña">Osmeña</MenuItem>
-                  <MenuItem value="Pilar D. Galima">Pilar D. Galima</MenuItem>
-                  <MenuItem value="Poblacion North">Poblacion North</MenuItem>
-                  <MenuItem value="Poblacion South">Poblacion South</MenuItem>
-                  <MenuItem value="Quezon">Quezon</MenuItem>
-                  <MenuItem value="Quirino">Quirino</MenuItem>
-                  <MenuItem value="Roxas">Roxas</MenuItem>
-                  <MenuItem value="San Juan">San Juan</MenuItem>
-                  <MenuItem value="San Luis">San Luis</MenuItem>
-                  <MenuItem value="Tucal">Tucal</MenuItem>
-                  <MenuItem value="Uddiawan">Uddiawan</MenuItem>
-                  <MenuItem value="Wacal">Wacal</MenuItem>
+                  {BARANGAY_LIST.map((barangay) => (
+                    <MenuItem key={barangay} value={barangay}>{barangay}</MenuItem>
+                  ))}
                 </Select>
               </FormControl>
             </Box>
@@ -1915,10 +1478,9 @@ function FranchiseMgmt() {
                   onChange={handleFormChange}
                   label="Civil Status"
                 >
-                  <MenuItem value="Single">Single</MenuItem>
-                  <MenuItem value="Married">Married</MenuItem>
-                  <MenuItem value="Widowed">Widowed</MenuItem>
-                  <MenuItem value="Separated">Separated</MenuItem>
+                  {CIVIL_STATUS_OPTIONS.map((status) => (
+                    <MenuItem key={status} value={status}>{status}</MenuItem>
+                  ))}
                 </Select>
               </FormControl>
               <TextField
@@ -1943,15 +1505,7 @@ function FranchiseMgmt() {
             />
             
             {/* Motorcycle Information Section */}
-            <Typography variant="h6" sx={{ 
-              fontWeight: 700, 
-              color: '#0A356B', 
-              mb: 2,
-              pb: 1,
-              borderBottom: '3px solid #0A356B',
-              fontSize: '1.1rem',
-              letterSpacing: '0.5px'
-            }}>
+            <Typography variant="h6" sx={SECTION_HEADER_STYLES}>
               MOTORCYCLE INFORMATION
             </Typography>
 
@@ -2044,15 +1598,7 @@ function FranchiseMgmt() {
             />
             
             {/* Documentary Requirements Section */}
-            <Typography variant="h6" sx={{ 
-              fontWeight: 700, 
-              color: '#0A356B', 
-              mb: 2,
-              pb: 1,
-              borderBottom: '3px solid #0A356B',
-              fontSize: '1.1rem',
-              letterSpacing: '0.5px'
-            }}>
+            <Typography variant="h6" sx={SECTION_HEADER_STYLES}>
               DOCUMENTARY REQUIREMENTS
             </Typography>
             
@@ -2169,16 +1715,7 @@ function FranchiseMgmt() {
             </Box>
             
             {/* Walk-in OR Section */}
-            <Typography variant="h6" sx={{ 
-              fontWeight: 700, 
-              color: '#0A356B', 
-              mb: 2,
-              mt: 3,
-              pb: 1,
-              borderBottom: '3px solid #0A356B',
-              fontSize: '1.1rem',
-              letterSpacing: '0.5px'
-            }}>
+            <Typography variant="h6" sx={{ ...SECTION_HEADER_STYLES, mt: 3 }}>
               WALK-IN - OFFICIAL RECEIPT (OR) - OPTIONAL
             </Typography>
             
@@ -2269,7 +1806,7 @@ function FranchiseMgmt() {
                 }
               }}
             >
-              {isLoading ? 'Submitting...' : '📝 Submit Walk-in Application'}
+              {isLoading ? 'Submitting...' : 'Submit Walk-in Application'}
             </Button>
           </Box>
         </Box>
@@ -2281,14 +1818,7 @@ function FranchiseMgmt() {
           open={openViewModal}
           onClose={handleCloseViewModal}
           aria-labelledby="view-franchise-modal"
-          slotProps={{
-            backdrop: {
-              sx: {
-                backgroundColor: 'rgba(0, 0, 0, 0.5)',
-                backdropFilter: 'blur(3px)',
-              },
-            },
-          }}
+          slotProps={{ backdrop: MODAL_BACKDROP_PROPS }}
         >
           <Box className="modal-container">
             <div className="modal-header">
@@ -2309,23 +1839,8 @@ function FranchiseMgmt() {
               <div className="info-grid">
                 <Typography variant="subtitle2" className="label">Current Status:</Typography>
                 <Chip 
-                  label={
-                    selectedApplication.statusOfBPLO === 'pending' ? 'Pending Review' :
-                    selectedApplication.statusOfBPLO === 'bplo-approved' ? 'BPLO Approved - Awaiting OR' :
-                    selectedApplication.statusOfBPLO === 'bplo-disapproved' ? 'BPLO Disapproved' :
-                    selectedApplication.statusOfBPLO === 'awaiting-sb' ? 'Awaiting SB Approval' :
-                    selectedApplication.statusOfBPLO === 'sb-approved' ? 'Finally Approved' :
-                    selectedApplication.statusOfBPLO === 'completed' ? 'Completed - Franchise Created' :
-                    selectedApplication.statusOfBPLO
-                  }
-                  color={
-                    selectedApplication.statusOfBPLO === 'completed' ? 'success' :
-                    selectedApplication.statusOfBPLO === 'sb-approved' ? 'success' :
-                    selectedApplication.statusOfBPLO === 'bplo-approved' ? 'info' :
-                    selectedApplication.statusOfBPLO === 'awaiting-sb' ? 'primary' :
-                    selectedApplication.statusOfBPLO === 'bplo-disapproved' ? 'error' :
-                    'default'
-                  }
+                  label={MODAL_STATUS_CONFIG[selectedApplication.statusOfBPLO]?.label ?? selectedApplication.statusOfBPLO}
+                  color={MODAL_STATUS_CONFIG[selectedApplication.statusOfBPLO]?.color ?? 'default'}
                   sx={{ fontWeight: 'bold' }}
                 />
                 
@@ -2335,11 +1850,7 @@ function FranchiseMgmt() {
                     <Typography>{selectedApplication.bploApprovedBy}</Typography>
                     
                     <Typography variant="subtitle2" className="label">BPLO Review Date:</Typography>
-                    <Typography>
-                      {selectedApplication.bploApprovedAt 
-                        ? new Date(selectedApplication.bploApprovedAt).toLocaleString() 
-                        : 'N/A'}
-                    </Typography>
+                    <Typography>{formatDate(selectedApplication.bploApprovedAt)}</Typography>
                   </>
                 )}
                 
@@ -2399,9 +1910,7 @@ function FranchiseMgmt() {
                 {selectedApplication.orSubmittedAt && (
                   <>
                     <Typography variant="subtitle2" className="label">OR Submitted:</Typography>
-                    <Typography>
-                      {new Date(selectedApplication.orSubmittedAt).toLocaleString()}
-                    </Typography>
+                    <Typography>{formatDate(selectedApplication.orSubmittedAt)}</Typography>
                   </>
                 )}
                 
@@ -2411,11 +1920,7 @@ function FranchiseMgmt() {
                     <Typography>{selectedApplication.sbApprovedBy}</Typography>
                     
                     <Typography variant="subtitle2" className="label">SB Approval Date:</Typography>
-                    <Typography>
-                      {selectedApplication.sbApprovedAt 
-                        ? new Date(selectedApplication.sbApprovedAt).toLocaleString() 
-                        : 'N/A'}
-                    </Typography>
+                    <Typography>{formatDate(selectedApplication.sbApprovedAt)}</Typography>
                     
                     <Typography variant="subtitle2" className="label">Resolution Number:</Typography>
                     <Typography sx={{ 
@@ -2542,125 +2047,15 @@ function FranchiseMgmt() {
             </Typography>
             
             <div className="info-grid">
-              <Typography variant="subtitle2" className="label">Registration:</Typography>
-              {selectedApplication.documentRegistration ? (
-                <Link className="document-link" onClick={() => handleOpenFilePreview(selectedApplication.documentRegistration)}>
-                  {getFileIcon(selectedApplication.documentRegistration?.type)}
-                  <span>{selectedApplication.documentRegistration?.name}</span>
-                </Link>
-              ) : (
-                <Typography sx={{ color: 'text.secondary', fontStyle: 'italic' }}>
-                  Not uploaded
-                </Typography>
-              )}
-              
-              <Typography variant="subtitle2" className="label">Barangay Clearance:</Typography>
-              {selectedApplication.documentBarangayClearance ? (
-                <Link className="document-link" onClick={() => handleOpenFilePreview(selectedApplication.documentBarangayClearance)}>
-                  {getFileIcon(selectedApplication.documentBarangayClearance?.type)}
-                  <span>{selectedApplication.documentBarangayClearance?.name}</span>
-                </Link>
-              ) : (
-                <Typography sx={{ color: 'text.secondary', fontStyle: 'italic' }}>
-                  Not uploaded
-                </Typography>
-              )}
-              
-              <Typography variant="subtitle2" className="label">Cedula:</Typography>
-              {selectedApplication.documentCedula ? (
-                <Link className="document-link" onClick={() => handleOpenFilePreview(selectedApplication.documentCedula)}>
-                  {getFileIcon(selectedApplication.documentCedula?.type)}
-                  <span>{selectedApplication.documentCedula?.name}</span>
-                </Link>
-              ) : (
-                <Typography sx={{ color: 'text.secondary', fontStyle: 'italic' }}>
-                  Not uploaded
-                </Typography>
-              )}
-              
-              <Typography variant="subtitle2" className="label">Driver's License:</Typography>
-              {selectedApplication.documentDriversLicense ? (
-                <Link className="document-link" onClick={() => handleOpenFilePreview(selectedApplication.documentDriversLicense)}>
-                  {getFileIcon(selectedApplication.documentDriversLicense?.type)}
-                  <span>{selectedApplication.documentDriversLicense?.name}</span>
-                </Link>
-              ) : (
-                <Typography sx={{ color: 'text.secondary', fontStyle: 'italic' }}>
-                  Not uploaded
-                </Typography>
-              )}
-              
-              <Typography variant="subtitle2" className="label">Voter's Affidavit:</Typography>
-              {selectedApplication.documentVotersAffidavit ? (
-                <Link className="document-link" onClick={() => handleOpenFilePreview(selectedApplication.documentVotersAffidavit)}>
-                  {getFileIcon(selectedApplication.documentVotersAffidavit?.type)}
-                  <span>{selectedApplication.documentVotersAffidavit?.name}</span>
-                </Link>
-              ) : (
-                <Typography sx={{ color: 'text.secondary', fontStyle: 'italic' }}>
-                  Not uploaded
-                </Typography>
-              )}
-              
-              <Typography variant="subtitle2" className="label">Chassis Stencil:</Typography>
-              {selectedApplication.documentChassisStencil ? (
-                <Link className="document-link" onClick={() => handleOpenFilePreview(selectedApplication.documentChassisStencil)}>
-                  {getFileIcon(selectedApplication.documentChassisStencil?.type)}
-                  <span>{selectedApplication.documentChassisStencil?.name}</span>
-                </Link>
-              ) : (
-                <Typography sx={{ color: 'text.secondary', fontStyle: 'italic' }}>
-                  Not uploaded
-                </Typography>
-              )}
-              
-              <Typography variant="subtitle2" className="label">Driver Picture:</Typography>
-              {selectedApplication.documentPicture ? (
-                <Link className="document-link" onClick={() => handleOpenFilePreview(selectedApplication.documentPicture)}>
-                  {getFileIcon(selectedApplication.documentPicture?.type)}
-                  <span>{selectedApplication.documentPicture?.name}</span>
-                </Link>
-              ) : (
-                <Typography sx={{ color: 'text.secondary', fontStyle: 'italic' }}>
-                  Not uploaded
-                </Typography>
-              )}
-              
-              <Typography variant="subtitle2" className="label">Operator Picture:</Typography>
-              {selectedApplication.documentOperatorPicture ? (
-                <Link className="document-link" onClick={() => handleOpenFilePreview(selectedApplication.documentOperatorPicture)}>
-                  {getFileIcon(selectedApplication.documentOperatorPicture?.type)}
-                  <span>{selectedApplication.documentOperatorPicture?.name}</span>
-                </Link>
-              ) : (
-                <Typography sx={{ color: 'text.secondary', fontStyle: 'italic' }}>
-                  Not uploaded
-                </Typography>
-              )}
-              
-              <Typography variant="subtitle2" className="label">OR LTO:</Typography>
-              {selectedApplication.documentORLTO ? (
-                <Link className="document-link" onClick={() => handleOpenFilePreview(selectedApplication.documentORLTO)}>
-                  {getFileIcon(selectedApplication.documentORLTO?.type)}
-                  <span>{selectedApplication.documentORLTO?.name}</span>
-                </Link>
-              ) : (
-                <Typography sx={{ color: 'text.secondary', fontStyle: 'italic' }}>
-                  Not uploaded
-                </Typography>
-              )}
-              
-              <Typography variant="subtitle2" className="label">CR LTO:</Typography>
-              {selectedApplication.documentCRLTO ? (
-                <Link className="document-link" onClick={() => handleOpenFilePreview(selectedApplication.documentCRLTO)}>
-                  {getFileIcon(selectedApplication.documentCRLTO?.type)}
-                  <span>{selectedApplication.documentCRLTO?.name}</span>
-                </Link>
-              ) : (
-                <Typography sx={{ color: 'text.secondary', fontStyle: 'italic' }}>
-                  Not uploaded
-                </Typography>
-              )}
+              {DOCUMENT_FIELDS.map(({ key, label }) => (
+                <DocumentLink
+                  key={key}
+                  label={label}
+                  document={selectedApplication[key]}
+                  onPreview={handleOpenFilePreview}
+                  getFileIcon={getFileIcon}
+                />
+              ))}
             </div>
             
             {/* PDF Preview and Download Section - Available for BPLO */}
@@ -2815,6 +2210,7 @@ function FranchiseMgmt() {
         slotProps={{
           backdrop: {
             sx: {
+              ...MODAL_BACKDROP_PROPS.sx,
               backgroundColor: 'rgba(0, 0, 0, 0.75)',
               backdropFilter: 'blur(4px)',
             },
@@ -2851,9 +2247,9 @@ function FranchiseMgmt() {
             }}
           >
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flex: 1, minWidth: 0 }}>
-              {previewFile.type?.includes('image') || /\.(jpg|jpeg|png|gif|webp)$/i.test(previewFile.name) ? (
+              {isImageFile(previewFile) ? (
                 <ImageIcon sx={{ color: '#2196f3', fontSize: 28 }} />
-              ) : previewFile.type?.includes('pdf') || previewFile.name?.toLowerCase().endsWith('.pdf') ? (
+              ) : isPdfFile(previewFile) ? (
                 <PictureAsPdfIcon sx={{ color: '#d32f2f', fontSize: 28 }} />
               ) : (
                 <InsertDriveFileIcon sx={{ color: '#757575', fontSize: 28 }} />
@@ -2884,14 +2280,7 @@ function FranchiseMgmt() {
                 variant="outlined"
                 size="small"
                 startIcon={<DownloadIcon />}
-                onClick={() => {
-                  const link = document.createElement('a');
-                  link.href = previewFile.path;
-                  link.download = previewFile.name;
-                  document.body.appendChild(link);
-                  link.click();
-                  document.body.removeChild(link);
-                }}
+                onClick={() => triggerFileDownload(previewFile.path, previewFile.name)}
                 sx={{ 
                   borderColor: '#0A356B',
                   color: '#0A356B',
@@ -2925,7 +2314,7 @@ function FranchiseMgmt() {
               bgcolor: '#2b2b2b',
             }}
           >
-            {previewFile.type?.includes('image') || /\.(jpg|jpeg|png|gif|webp)$/i.test(previewFile.name) ? (
+            {isImageFile(previewFile) ? (
               <Box
                 sx={{
                   width: '100%',
@@ -2951,7 +2340,7 @@ function FranchiseMgmt() {
                   }}
                 />
               </Box>
-            ) : previewFile.type?.includes('pdf') || previewFile.name?.toLowerCase().endsWith('.pdf') ? (
+            ) : isPdfFile(previewFile) ? (
               <iframe
                 src={previewFile.path}
                 title={previewFile.name}
@@ -2989,14 +2378,7 @@ function FranchiseMgmt() {
                   variant="contained"
                   size="large"
                   startIcon={<DownloadIcon />}
-                  onClick={() => {
-                    const link = document.createElement('a');
-                    link.href = previewFile.path;
-                    link.download = previewFile.name;
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
-                  }}
+                  onClick={() => triggerFileDownload(previewFile.path, previewFile.name)}
                   sx={{
                     mt: 1,
                     bgcolor: '#0A356B',
@@ -3020,14 +2402,7 @@ function FranchiseMgmt() {
         open={openRejectModal}
         onClose={handleCloseRejectModal}
         aria-labelledby="rejection-modal"
-        slotProps={{
-          backdrop: {
-            sx: {
-              backgroundColor: 'rgba(0, 0, 0, 0.5)',
-              backdropFilter: 'blur(3px)',
-            },
-          },
-        }}
+        slotProps={{ backdrop: MODAL_BACKDROP_PROPS }}
       >
         <Box className="modal-container rejection-modal">
           <div className="modal-header">

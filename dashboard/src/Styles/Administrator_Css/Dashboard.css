@@ -16,8 +16,7 @@
     width: calc(100% - 240px);
     animation: fadeIn 0.3s ease-out;
     min-height: calc(100vh - 64px);
-    overflow-y: scroll;
-    scrollbar-gutter: stable;
+    overflow-y: auto;
 }
 
 @keyframes fadeIn {

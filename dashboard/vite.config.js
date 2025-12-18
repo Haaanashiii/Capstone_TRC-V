@@ -10,8 +10,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'Logos/*.png', 'Logos/*.gif'],
       manifest: {
-        name: 'TRC-V Admin Dashboard',
-        short_name: 'TRC-V Admin',
+        name: 'TRC-V',
+        short_name: 'TRC-V',
         description: 'TRC-V Tricycle Regulatory Commission - Admin Dashboard for managing franchises and operators',
         theme_color: '#0A356B',
         background_color: '#ffffff',

@@ -61,10 +61,10 @@ import SettingsIcon from '@mui/icons-material/Settings';
 // Import backup service
 import * as backupService from '../../services/backupService';
 import { logger } from '../../utils/logger';
-import { getToken } from '../Services/api';
+import { getToken, rolePageAccessAPI, fareMatrixAPI } from '../Services/api';
 
-// API Configuration
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170';
+// API Base URL for image path construction only
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 
 const StyledTab = styled(Tab)(() => ({
   textTransform: 'none',
@@ -283,81 +283,54 @@ function Settings() {
   const fetchAllPageAccess = useCallback(async () => {
     setLoadingPageAccess(true);
     try {
-      const token = getAuthToken();
-      if (!token) {
-        logger.warn('[Settings] No auth token available');
-        setLoadingPageAccess(false);
-        return;
-      }
+      const response = await rolePageAccessAPI.getAll();
 
-      const response = await fetch(`${API_BASE_URL}/api/role-page-access`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (response.ok) {
-        const result = await response.json();
+      if (response.data?.success && Array.isArray(response.data?.data)) {
+        // Transform array to object format and filter invalid page keys
+        const accessMap = {};
+        response.data.data.forEach(item => {
+          if (item.role && item.allowedPages) {
+            // Filter to only include valid page keys
+            accessMap[item.role] = item.allowedPages.filter(
+              pageKey => ALL_PAGE_KEYS.includes(pageKey)
+            );
+          }
+        });
         
-        if (result.success && result.data && Array.isArray(result.data)) {
-          // Transform array to object format and filter invalid page keys
-          const accessMap = {};
-          result.data.forEach(item => {
-            if (item.role && item.allowedPages) {
-              // Filter to only include valid page keys
-              accessMap[item.role] = item.allowedPages.filter(
-                pageKey => ALL_PAGE_KEYS.includes(pageKey)
-              );
-            }
-          });
-          
-          setPageAccess(accessMap);
-        } else {
-          logger.warn('[Settings] Invalid data structure:', result);
-        }
+        setPageAccess(accessMap);
       } else {
-        logger.error('[Settings] Failed to fetch page access, status:', response.status);
+        logger.warn('[Settings] Invalid data structure:', response.data);
       }
     } catch (error) {
-      logger.error('[Settings] Error fetching page access:', error);
+      logger.error('[Settings] Error fetching page access:', error?.message || 'Unknown error');
     } finally {
       setLoadingPageAccess(false);
     }
-  }, [getAuthToken]);
+  }, []);
 
   // Fetch existing fare matrix from backend
   const fetchFareMatrix = useCallback(async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/fare-matrix`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
+      const response = await fareMatrixAPI.get();
+      const result = response.data;
 
-      if (response.ok) {
-        const result = await response.json();
-        if (result.success && result.fareMatrix) {
-          // Prepend API_BASE_URL to imageUrl if it's a relative path
-          let imageUrl = result.fareMatrix.imageUrl;
-          if (imageUrl && imageUrl.startsWith('/api/files/')) {
-            imageUrl = `${API_BASE_URL}${imageUrl}`;
-          }
-          setFareMatrixPreview(imageUrl);
-          setFareMatrixId(result.fareMatrix.fareMatrixId);
-          setCurrentFileName(result.fareMatrix.fileName);
-          setUploadDate(new Date(result.fareMatrix.createdAt).toLocaleString());
+      if (result?.success && result?.fareMatrix) {
+        // Prepend API_BASE_URL to imageUrl if it's a relative path
+        let imageUrl = result.fareMatrix.imageUrl;
+        if (imageUrl && imageUrl.startsWith('/api/files/')) {
+          imageUrl = `${API_BASE_URL}${imageUrl}`;
         }
+        setFareMatrixPreview(imageUrl);
+        setFareMatrixId(result.fareMatrix.fareMatrixId);
+        setCurrentFileName(result.fareMatrix.fileName);
+        setUploadDate(new Date(result.fareMatrix.createdAt).toLocaleString());
       }
     } catch (error) {
-      logger.error('Error fetching fare matrix:', error);
+      logger.error('Error fetching fare matrix:', error?.message || 'Unknown error');
     }
   }, []);
 
-  // ==================== Fare Matrix Handlers ====================
-  
+  // Fare Matrix Handlers
   const handleFareImageChange = useCallback((event) => {
     const file = event.target.files?.[0];
     
@@ -408,27 +381,10 @@ function Settings() {
       const formData = new FormData();
       formData.append('fareMatrixImage', fareMatrixImage);
 
-      const response = await fetch(`${API_BASE_URL}/api/fare-matrix/upload`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-        body: formData,
-      });
+      const response = await fareMatrixAPI.upload(formData);
+      const result = response.data;
 
-      const result = await response.json();
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          throw new Error('Session expired. Please log in again.');
-        }
-        if (response.status === 403) {
-          throw new Error('You do not have permission to upload fare matrix.');
-        }
-        throw new Error(result.error || 'Failed to upload fare matrix');
-      }
-
-      if (result.success && result.fareMatrix) {
+      if (result?.success && result?.fareMatrix) {
         // Prepend API_BASE_URL to imageUrl if it's a relative path
         let imageUrl = result.fareMatrix.imageUrl;
         if (imageUrl && imageUrl.startsWith('/api/files/')) {
@@ -444,12 +400,19 @@ function Settings() {
         throw new Error('Invalid response from server');
       }
     } catch (error) {
-      logger.error('Upload error:', error);
-      showNotification(error.message || 'Failed to upload fare matrix', 'error');
+      const errorMsg = error?.response?.data?.error || error?.message || 'Failed to upload fare matrix';
+      if (error?.response?.status === 401) {
+        showNotification('Session expired. Please log in again.', 'error');
+      } else if (error?.response?.status === 403) {
+        showNotification('You do not have permission to upload fare matrix.', 'error');
+      } else {
+        logger.error('Upload error:', errorMsg);
+        showNotification(errorMsg, 'error');
+      }
     } finally {
       setLoading(false);
     }
-  }, [fareMatrixImage, showNotification, getAuthToken]);
+  }, [fareMatrixImage, showNotification]);
 
   const handleRemoveFareImage = useCallback(() => {
     setFareMatrixImage(null);
@@ -465,38 +428,10 @@ function Settings() {
     setError('');
 
     try {
-      const token = getAuthToken();
-      
-      if (!token) {
-        showNotification('Authentication required. Please log in.', 'error');
-        setLoading(false);
-        return;
-      }
+      const response = await fareMatrixAPI.delete();
+      const result = response.data;
 
-      const response = await fetch(`${API_BASE_URL}/api/fare-matrix`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          throw new Error('Session expired. Please log in again.');
-        }
-        if (response.status === 403) {
-          throw new Error('You do not have permission to delete fare matrix.');
-        }
-        if (response.status === 404) {
-          throw new Error('No active fare matrix to delete.');
-        }
-        throw new Error(result.error || 'Failed to delete fare matrix');
-      }
-
-      if (result.success) {
+      if (result?.success) {
         setFareMatrixImage(null);
         setFareMatrixPreview(null);
         setFareMatrixId(null);
@@ -507,15 +442,23 @@ function Settings() {
         throw new Error('Invalid response from server');
       }
     } catch (error) {
-      logger.error('Delete error:', error);
-      showNotification(error.message || 'Failed to delete fare matrix', 'error');
+      const errorMsg = error?.response?.data?.error || error?.message || 'Failed to delete fare matrix';
+      if (error?.response?.status === 401) {
+        showNotification('Session expired. Please log in again.', 'error');
+      } else if (error?.response?.status === 403) {
+        showNotification('You do not have permission to delete fare matrix.', 'error');
+      } else if (error?.response?.status === 404) {
+        showNotification('No active fare matrix to delete.', 'error');
+      } else {
+        logger.error('Delete error:', errorMsg);
+        showNotification(errorMsg, 'error');
+      }
     } finally {
       setLoading(false);
     }
-  }, [showNotification, getAuthToken]);
+  }, [showNotification]);
 
-  // ==================== Permission Handlers ====================
-  
+  // Permission Handlers
   const handlePageAccessToggle = useCallback((pageKey) => {
     setPageAccess((prev) => {
       const rolePages = prev[selectedRole] || [];
@@ -535,43 +478,15 @@ function Settings() {
     setLoading(true);
     
     try {
-      const token = getAuthToken();
-      
-      if (!token) {
-        showNotification('Authentication required. Please log in.', 'error');
-        setLoading(false);
-        return;
-      }
-
       // Filter to only include valid page keys to prevent validation errors
       const validAllowedPages = (pageAccess[selectedRole] || []).filter(
         pageKey => ALL_PAGE_KEYS.includes(pageKey)
       );
 
-      const response = await fetch(`${API_BASE_URL}/api/role-page-access/${selectedRole}`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          allowedPages: validAllowedPages,
-        }),
-      });
+      const response = await rolePageAccessAPI.update(selectedRole, validAllowedPages);
+      const result = response.data;
 
-      const result = await response.json();
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          throw new Error('Session expired. Please log in again.');
-        }
-        if (response.status === 403) {
-          throw new Error(result.error || 'You do not have permission to modify page access.');
-        }
-        throw new Error(result.error || 'Failed to save page access');
-      }
-
-      if (result.success) {
+      if (result?.success) {
         showNotification('Page access permissions saved successfully');
         setHasPermissionChanges(false);
         
@@ -582,18 +497,24 @@ function Settings() {
           logger.warn('[Settings] Failed to clear cached pages');
         }
         
-        showNotification('Page access permissions saved successfully');
         await fetchAllPageAccess();
       } else {
         throw new Error('Invalid response from server');
       }
     } catch (error) {
-      logger.error('Save error:', error);
-      showNotification(error.message || 'Failed to save permissions', 'error');
+      const errorMsg = error?.response?.data?.error || error?.message || 'Failed to save permissions';
+      if (error?.response?.status === 401) {
+        showNotification('Session expired. Please log in again.', 'error');
+      } else if (error?.response?.status === 403) {
+        showNotification('You do not have permission to modify page access.', 'error');
+      } else {
+        logger.error('Save error:', errorMsg);
+        showNotification(errorMsg, 'error');
+      }
     } finally {
       setLoading(false);
     }
-  }, [selectedRole, pageAccess, showNotification, getAuthToken, fetchAllPageAccess]);
+  }, [selectedRole, pageAccess, showNotification, fetchAllPageAccess]);
 
   const handleResetPermissions = useCallback(async () => {
     if (!window.confirm('Reset page access to default for this role?')) {
@@ -603,35 +524,10 @@ function Settings() {
     setLoading(true);
 
     try {
-      const token = getAuthToken();
-      
-      if (!token) {
-        showNotification('Authentication required. Please log in.', 'error');
-        setLoading(false);
-        return;
-      }
+      const response = await rolePageAccessAPI.reset(selectedRole);
+      const result = response.data;
 
-      const response = await fetch(`${API_BASE_URL}/api/role-page-access/${selectedRole}/reset`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          throw new Error('Session expired. Please log in again.');
-        }
-        if (response.status === 403) {
-          throw new Error('You do not have permission to reset page access.');
-        }
-        throw new Error(result.error || 'Failed to reset page access');
-      }
-
-      if (result.success && result.data) {
+      if (result?.success && result?.data) {
         setPageAccess((prev) => ({
           ...prev,
           [selectedRole]: result.data.allowedPages,
@@ -650,12 +546,19 @@ function Settings() {
         throw new Error('Invalid response from server');
       }
     } catch (error) {
-      logger.error('Reset error:', error);
-      showNotification(error.message || 'Failed to reset page access', 'error');
+      const errorMsg = error?.response?.data?.error || error?.message || 'Failed to reset page access';
+      if (error?.response?.status === 401) {
+        showNotification('Session expired. Please log in again.', 'error');
+      } else if (error?.response?.status === 403) {
+        showNotification('You do not have permission to reset page access.', 'error');
+      } else {
+        logger.error('Reset error:', errorMsg);
+        showNotification(errorMsg, 'error');
+      }
     } finally {
       setLoading(false);
     }
-  }, [selectedRole, showNotification, getAuthToken]);
+  }, [selectedRole, showNotification]);
 
   const hasPageAccess = useCallback((pageKey) => {
     // Super admin always has access to all pages
@@ -666,13 +569,8 @@ function Settings() {
     return Array.isArray(rolePages) && rolePages.includes(pageKey);
   }, [pageAccess, selectedRole]);
 
-  // ==================== Backup & Recovery Handlers ====================
-
-  /**
-   * Find a backup by ID from the backup history
-   * @param {string} backupId - The backup ID to find
-   * @returns {Object|null} The backup object or null if not found
-   */
+  // Backup & Recovery Handlers
+  /** Find a backup by ID from the backup history */
   const findBackupById = useCallback((backupId) => {
     return backupHistory.find((b) => b.backupId === backupId) || null;
   }, [backupHistory]);
@@ -1342,7 +1240,7 @@ function Settings() {
 
         {/* Tab Content */}
         <Box className="tab-content">
-          {/* ==================== Fare Matrix Tab ==================== */}
+          {/* Fare Matrix Tab */}
           {activeTab === 0 && (
             <div className="fare-matrix-tab">
               <Paper className="fare-upload-container" elevation={0}>
@@ -1460,7 +1358,7 @@ function Settings() {
             </div>
           )}
 
-          {/* ==================== Permission Control Tab ==================== */}
+          {/* Permission Control Tab */}
           {activeTab === 1 && (
             <div className="permission-control-tab">
               {loadingPageAccess ? (
@@ -1587,7 +1485,7 @@ function Settings() {
             </div>
           )}
 
-          {/* ==================== Backup & Recovery Tab ==================== */}
+          {/* Backup & Recovery Tab */}
           {activeTab === 2 && (
             <div className="backup-recovery-tab">
               {/* Progress Overlay */}

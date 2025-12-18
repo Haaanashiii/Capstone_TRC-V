@@ -1069,6 +1069,182 @@ export const incidentReportsAPI = {
 export const reportsAPI = incidentReportsAPI;
 
 // ====================================================================
+// AUDIT LOGS API METHODS
+// ====================================================================
+
+export const auditLogsAPI = {
+  /**
+   * Get all audit logs with filtering and pagination
+   * @param {object} params - Query parameters (page, limit, action, role, success, sort, order)
+   * @returns {Promise} Response with audit logs array and pagination
+   */
+  getAll: (params = {}) => api.get('/api/audit-logs', { params }),
+
+  /**
+   * Get audit log by ID
+   * @param {string} id - Audit log ID
+   * @returns {Promise} Response with audit log details
+   */
+  getById: (id) => api.get(`/api/audit-logs/${id}`),
+
+  /**
+   * Get audit logs by user
+   * @param {string} userId - User ID
+   * @param {object} params - Query parameters
+   * @returns {Promise} Response with user's audit logs
+   */
+  getByUser: (userId, params = {}) => api.get(`/api/audit-logs/user/${userId}`, { params }),
+
+  /**
+   * Export audit logs (returns all logs matching filters)
+   * @param {object} params - Filter parameters (action, role, success)
+   * @returns {Promise} Response with all matching audit logs
+   */
+  export: (params = {}) => api.get('/api/audit-logs', { 
+    params: { ...params, limit: 10000, sort: 'createdAt', order: 'desc' } 
+  }),
+};
+
+// ====================================================================
+// ROLE PAGE ACCESS API METHODS
+// ====================================================================
+
+export const rolePageAccessAPI = {
+  /**
+   * Get all role page access configurations
+   * @returns {Promise} Response with all role configurations
+   */
+  getAll: () => api.get('/api/role-page-access'),
+
+  /**
+   * Get page access configuration for a specific role
+   * @param {string} role - Role name (super-admin, sb-admin, bplo-admin)
+   * @returns {Promise} Response with role's allowed pages
+   */
+  getByRole: (role) => api.get(`/api/role-page-access/${role}`),
+
+  /**
+   * Update page access for a role
+   * @param {string} role - Role name
+   * @param {Array<string>} allowedPages - Array of allowed page keys
+   * @returns {Promise} Response with updated configuration
+   */
+  update: (role, allowedPages) => api.put(`/api/role-page-access/${role}`, { allowedPages }),
+
+  /**
+   * Reset role to default permissions
+   * @param {string} role - Role name
+   * @returns {Promise} Response with reset configuration
+   */
+  reset: (role) => api.post(`/api/role-page-access/${role}/reset`),
+};
+
+// ====================================================================
+// FARE MATRIX API METHODS
+// ====================================================================
+
+export const fareMatrixAPI = {
+  /**
+   * Get current fare matrix
+   * @returns {Promise} Response with fare matrix data
+   */
+  get: () => api.get('/api/fare-matrix'),
+
+  /**
+   * Upload new fare matrix image
+   * @param {FormData} formData - FormData with fareMatrixImage file
+   * @returns {Promise} Response with uploaded fare matrix
+   */
+  upload: (formData) => api.post('/api/fare-matrix/upload', formData, {
+    headers: { 'Content-Type': undefined }
+  }),
+
+  /**
+   * Delete current fare matrix
+   * @returns {Promise} Response
+   */
+  delete: () => api.delete('/api/fare-matrix'),
+};
+
+// ====================================================================
+// BACKUP API METHODS
+// ====================================================================
+
+export const backupAPI = {
+  /**
+   * Get backup history and stats
+   * @returns {Promise} Response with backups array and statistics
+   */
+  getHistory: () => api.get('/api/backups'),
+
+  /**
+   * Create a manual backup
+   * @param {object} options - Backup options
+   * @returns {Promise} Response with created backup info
+   */
+  create: (options = {}) => api.post('/api/backups/create', options),
+
+  /**
+   * Restore from a backup
+   * @param {string} backupId - Backup ID to restore
+   * @returns {Promise} Response with restore status
+   */
+  restore: (backupId) => api.post(`/api/backups/restore/${backupId}`),
+
+  /**
+   * Download a backup file
+   * @param {string} backupId - Backup ID to download
+   * @returns {Promise} Response with file blob
+   */
+  download: (backupId) => api.get(`/api/backups/download/${backupId}`, { responseType: 'blob' }),
+
+  /**
+   * Delete a backup
+   * @param {string} backupId - Backup ID to delete
+   * @returns {Promise} Response
+   */
+  delete: (backupId) => api.delete(`/api/backups/${backupId}`),
+
+  /**
+   * Cleanup old backups
+   * @returns {Promise} Response with cleanup status
+   */
+  cleanup: () => api.post('/api/backups/cleanup'),
+
+  /**
+   * Get scheduler status
+   * @returns {Promise} Response with scheduler state
+   */
+  getSchedulerStatus: () => api.get('/api/backups/scheduler-status'),
+
+  /**
+   * Toggle auto backup
+   * @param {boolean} enabled - Enable or disable auto backup
+   * @returns {Promise} Response with updated status
+   */
+  toggleAutoBackup: (enabled) => api.post('/api/backups/toggle-auto', { enabled }),
+};
+
+// ====================================================================
+// CERTIFICATE API METHODS
+// ====================================================================
+
+export const certificateAPI = {
+  /**
+   * Generate a certificate
+   * @param {object} payload - Certificate generation payload
+   * @returns {Promise} Response with generated certificate blob
+   */
+  generate: (payload) => api.post('/api/certificates/generate', payload, { responseType: 'blob' }),
+
+  /**
+   * Get certificate templates
+   * @returns {Promise} Response with available templates
+   */
+  getTemplates: () => api.get('/api/certificates/templates'),
+};
+
+// ====================================================================
 // QR CODE API METHODS
 // ====================================================================
 
