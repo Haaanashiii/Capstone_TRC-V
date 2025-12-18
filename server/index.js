@@ -349,22 +349,26 @@ io.on('connection', (socket) => {
 app.set('trust proxy', 1);
 
 // Content Security Policy
+// Note: imgSrc includes allowed origins for cross-origin image loading (dashboard on port 3000, nginx on port 80)
+const allowedOrigins = (process.env.CORS_ORIGIN || '').split(',').map(s => s.trim()).filter(Boolean);
+const imgSrcOrigins = ["'self'", "data:", "blob:", ...allowedOrigins];
+
 const cspDirectives = process.env.NODE_ENV === 'production'
   ? {
       defaultSrc: ["'self'"],
       scriptSrc: ["'self'"],
-      imgSrc: ["'self'", "data:"],
+      imgSrc: imgSrcOrigins,
       styleSrc: ["'self'", "'unsafe-inline'"],
       fontSrc: ["'self'"],
-      connectSrc: ["'self'"]
+      connectSrc: ["'self'", ...allowedOrigins]
     }
   : {
       defaultSrc: ["'self'"],
       scriptSrc: ["'self'"],
-      imgSrc: ["'self'", "data:"],
+      imgSrc: ["'self'", "data:", "blob:", "http://localhost:*", "http://127.0.0.1:*"],
       styleSrc: ["'self'", "'unsafe-inline'"],
       fontSrc: ["'self'"],
-      connectSrc: ["'self'", "ws://localhost:5170", "ws://localhost:*"]
+      connectSrc: ["'self'", "ws://localhost:5170", "ws://localhost:*", "http://localhost:*"]
     };
 
 app.use(helmet({

@@ -82,8 +82,7 @@ const backupSchema = new mongoose.Schema({
   // Who initiated the backup (for manual backups)
   initiatedBy: {
     adminId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'AdminAccount'
+      type: String  // Can be MongoDB ObjectId or UUID string
     },
     adminName: String,     // Admin's display name (from JWT)
     adminEmail: String,    // Admin's email (legacy, may be null)

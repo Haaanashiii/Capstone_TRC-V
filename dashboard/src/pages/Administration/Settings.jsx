@@ -63,8 +63,9 @@ import * as backupService from '../../services/backupService';
 import { logger } from '../../utils/logger';
 import { getToken, rolePageAccessAPI, fareMatrixAPI } from '../Services/api';
 
-// API Base URL for image path construction only
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
+// API Base URL for image path construction - must have a proper URL for cross-origin image loading
+// In Docker: VITE_API_BASE_URL is typically 'http://localhost' (nginx on port 80)
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || window.location.origin;
 
 const StyledTab = styled(Tab)(() => ({
   textTransform: 'none',
@@ -390,7 +391,9 @@ function Settings() {
         if (imageUrl && imageUrl.startsWith('/api/files/')) {
           imageUrl = `${API_BASE_URL}${imageUrl}`;
         }
-        setFareMatrixPreview(imageUrl);
+        // Add cache-busting query param to force browser to reload the image
+        const cacheBuster = `?t=${Date.now()}`;
+        setFareMatrixPreview(imageUrl + cacheBuster);
         setFareMatrixId(result.fareMatrix.fareMatrixId);
         setCurrentFileName(result.fareMatrix.fileName);
         setUploadDate(new Date(result.fareMatrix.createdAt).toLocaleString());
@@ -589,8 +592,13 @@ function Settings() {
         const backupList = Array.isArray(backups) ? backups : [];
         
         // Filter only completed backups and sort by date (newest first)
+        // Map retention.isProtected to top-level isProtected for frontend compatibility
         const completedBackups = backupList
           .filter(b => b.status === 'completed')
+          .map(b => ({
+            ...b,
+            isProtected: b.retention?.isProtected || b.isProtected || false
+          }))
           .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
         
         setBackupHistory(completedBackups);

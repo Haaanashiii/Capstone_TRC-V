@@ -347,7 +347,8 @@ const generateAccessToken = (user, isAdmin = false) => {
   console.log('Generating access token for user:', logInfo);
   
   // MINIMAL JWT PAYLOAD - Only include non-sensitive, essential data
-  // SECURITY: Email removed from JWT to prevent privacy/security risks
+  // SECURITY: Email removed from JWT to prevent privacy/security risks (PII exposure, XSS vulnerability)
+  // Email is fetched from database in auditLogService when needed
   const payload = { 
     id: isAdmin ? (user.adminId || user._id.toString()) : (user.userId || user._id.toString()),
     _id: user._id.toString(), // Keep _id for backward compatibility

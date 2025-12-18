@@ -49,13 +49,18 @@ exports.createUserAccount = async (req, res, next) => {
     if (password.length < 8) {
       return res.status(400).json({ error: 'Password must be at least 8 characters long' });
     }
-    
+      // Check if email belongs to an admin account - prevent operators from using admin emails
+    const adminAccountRepository = require('../repositories/adminAccountRepository');
+    const existingAdminByEmail = await adminAccountRepository.findAdminByEmail(email, { lean: true }).catch(() => null);
+    if (existingAdminByEmail) {
+      return res.status(409).json({ error: 'This email is already registered as an administrator account' });
+    }
     // Check if user already exists
     const existingUserByEmail = await userAccountRepository.findAccountByEmail(email);
     if (existingUserByEmail) {
       return res.status(409).json({ error: 'Email already exists' });
     }
-    
+
     const existingUserByUsername = await userAccountRepository.findAccountByUsername(username);
     if (existingUserByUsername) {
       return res.status(409).json({ error: 'Username already exists' });

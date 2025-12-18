@@ -35,11 +35,11 @@ services:
     networks:
       - trcv-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      test: ["CMD", "curl", "-f", "http://127.0.0.1/health"]
       interval: 30s
       timeout: 10s
-      retries: 3
-      start_period: 10s
+      retries: 5
+      start_period: 30s
     deploy:
       resources:
         limits:
@@ -76,11 +76,11 @@ services:
     networks:
       - trcv-network
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:5170/health"]
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:5170/health"]
       interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
+      timeout: 15s
+      retries: 5
+      start_period: 60s
     # Resource limits (adjust based on your server)
     deploy:
       resources:
@@ -167,10 +167,11 @@ services:
     networks:
       - trcv-network
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost/health"]
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1/nginx-health"]
       interval: 30s
       timeout: 10s
-      retries: 3
+      retries: 5
+      start_period: 30s
 
 # ===========================================
 # VOLUMES (Persistent Data)
