@@ -610,6 +610,73 @@ function FranchiseMgmt() {
   }, [])
   
   /**
+   * Handle contact number changes - only allow numeric input
+   * Matches FranchiseApplication.jsx validation
+   */
+  const handleContactNumberChange = useCallback((e) => {
+    const value = e.target.value
+    const numbersOnly = /^[0-9]*$/
+    
+    if (value === "" || numbersOnly.test(value)) {
+      setFormData((prev) => ({ ...prev, contactNumber: value }))
+    }
+  }, [])
+  
+  /**
+   * Handle MV Plate changes with Philippine format validation (ABC1234)
+   * Matches FranchiseApplication.jsx validation exactly
+   */
+  const handleMVPlateChange = useCallback((e) => {
+    let inputValue = e.target.value.toUpperCase().trim()
+    let validatedValue = ""
+    let error = ""
+    
+    // Handle empty input
+    if (inputValue === "") {
+      setFormData((prev) => ({ ...prev, mvPlate: "" }))
+      return
+    }
+    
+    // Process character by character to enforce strict rules
+    for (let i = 0; i < inputValue.length; i++) {
+      const char = inputValue[i]
+      
+      // Skip spaces
+      if (char === " ") {
+        continue
+      }
+      
+      // First 3 characters: MUST be letters only
+      if (validatedValue.length < 3) {
+        const charCode = char.charCodeAt(0)
+        if ((charCode >= 65 && charCode <= 90) || (charCode >= 97 && charCode <= 122)) {
+          validatedValue += char.toUpperCase()
+        } else {
+          error = "First 3 characters must be letters (A-Z)"
+          break
+        }
+      }
+      // After 3 letters: MUST be digits only
+      else {
+        if (/[0-9]/.test(char)) {
+          validatedValue += char
+        } else {
+          error = "Characters after position 3 must be numbers (0-9)"
+          break
+        }
+      }
+      
+      // Enforce maximum length (3 letters + 4 numbers = 7 total)
+      if (validatedValue.length >= 7) {
+        break
+      }
+    }
+    
+    // Set the validated value
+    setFormData((prev) => ({ ...prev, mvPlate: validatedValue }))
+  }, [])
+  
+  /**
    * Revoke blob URL in form data if it exists
    * @param {Object} prevData - Previous form data
    * @param {string} fieldName - Field name to check
@@ -1216,7 +1283,8 @@ function FranchiseMgmt() {
             className="add-button"
             onClick={handleOpenAddModal}
           >
-            Add New Franchise
+            Add New Franchise - Walk In
+            
           </Button>
         </div>
         
@@ -1398,11 +1466,11 @@ function FranchiseMgmt() {
                 label="Contact Number"
                 name="contactNumber"
                 value={formData.contactNumber}
-                onChange={handleFormChange}
+                onChange={handleContactNumberChange}
                 fullWidth
                 size="small"
                 placeholder="09123456789"
-                helperText="Required if no email provided"
+                helperText="Required if no email provided - numbers only"
                 inputProps={{ inputMode: 'numeric', pattern: '[0-9]*' }}
               />
             </Box>
@@ -1557,10 +1625,16 @@ function FranchiseMgmt() {
                 label="MV Plate Number"
                 name="mvPlate"
                 value={formData.mvPlate}
-                onChange={handleFormChange}
+                onChange={handleMVPlateChange}
                 fullWidth
                 required
                 size="small"
+                placeholder="ABC1234"
+                helperText="Format: 3 letters + up to 4 numbers (e.g., ABC1234)"
+                inputProps={{
+                  maxLength: 7,
+                  autoComplete: "off"
+                }}
               />
             </Box>
             

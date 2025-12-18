@@ -127,7 +127,7 @@ export const INITIAL_FORM_DATA = Object.freeze({
   todaMembership: '',
   unitModel: '',
   colorMotor: '',
-  colorSidecar: '',
+  colorSidecar: 'Blue and Yellow',
   mvPlate: '',
   motorEngineNumber: '',
   chassisNumber: '',
