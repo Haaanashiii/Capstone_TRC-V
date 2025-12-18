@@ -5,6 +5,8 @@
 - [Prerequisites](#prerequisites)
 - [Quick Start](#quick-start)
 - [Environment Configuration](#environment-configuration)
+- [Docker Network Explained](#docker-network-explained)
+- [PM2 Process Manager Configuration](#pm2-process-manager-configuration)
 - [Network Access (LAN & Remote)](#network-access-lan--remote)
 - [Production Deployment](#production-deployment)
 - [Troubleshooting](#troubleshooting)
@@ -309,6 +311,137 @@ volumes:
 
 ---
 
+### 🔗 Docker Network Explained
+
+**What is `trc-v_trcv-network`?**
+
+Docker Compose automatically creates an internal network for container-to-container communication. This network is **required** even when your frontend is hosted externally (e.g., Vercel).
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│  EXTERNAL (Internet)                                                 │
+│                                                                      │
+│  [Vercel Frontend] ──→ [DDNS: api.yoursite.com]                     │
+│                              │                                       │
+│                              ▼ Port Forward (80/443)                │
+└──────────────────────────────┼──────────────────────────────────────┘
+                               │
+┌──────────────────────────────┼──────────────────────────────────────┐
+│  YOUR SERVER                 │                                       │
+│                              ▼                                       │
+│  ┌─────────────────────────────────────────────────────────────┐    │
+│  │  Docker Network: trc-v_trcv-network (internal)              │    │
+│  │                                                              │    │
+│  │  [Nginx :80/443] ←→ [Backend :5170] ←→ [MongoDB :27017]     │    │
+│  │         ↑                  ↑                   ↑             │    │
+│  │         └──────────────────┴───────────────────┘             │    │
+│  │              All containers talk via internal network        │    │
+│  └─────────────────────────────────────────────────────────────┘    │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+**Key Points:**
+- External traffic enters through Nginx (ports 80/443)
+- Internal container communication uses Docker DNS (e.g., `backend:5170`, `mongo:27017`)
+- The network is isolated - containers can't be accessed directly from outside unless ports are exposed
+- **You don't need to configure this** - Docker Compose handles it automatically
+
+---
+
+### ⚙️ PM2 Process Manager Configuration
+
+**Location**: `CAPSTONE_TRC-V/server/ecosystem.config.js`
+
+**Purpose**: PM2 manages the Node.js process inside the Docker container, providing auto-restart, clustering, and logging.
+
+**Default Configuration:**
+
+```javascript
+module.exports = {
+  apps: [{
+    name: 'trc-v-api',
+    script: 'index.js',
+    
+    // INSTANCES: How many Node.js processes to run
+    // Options:
+    //   1        = Single instance (recommended for low-traffic/development)
+    //   2, 4, 8  = Fixed number of instances
+    //   'max'    = Use all CPU cores (recommended for production)
+    instances: 1,
+    
+    // EXECUTION MODE
+    // 'cluster' = Multiple instances with load balancing
+    // 'fork'    = Single process (use with instances: 1)
+    exec_mode: 'cluster',
+    
+    // MEMORY LIMIT: Restart if process exceeds this
+    // Increase for heavy workloads, decrease for limited RAM
+    max_memory_restart: '500M',  // Options: '256M', '500M', '1G', '2G'
+    
+    // AUTO-RESTART SETTINGS
+    autorestart: true,           // Restart on crash
+    max_restarts: 10,            // Max restarts before giving up
+    min_uptime: '10s',           // Must run 10s to count as "started"
+    restart_delay: 1000,         // Wait 1s between restarts
+    
+    // LOGGING
+    log_file: './logs/combined.log',
+    error_file: './logs/error.log',
+    out_file: './logs/out.log',
+    merge_logs: true,            // Combine logs from all instances
+    
+    // GRACEFUL SHUTDOWN
+    kill_timeout: 5000,          // Wait 5s for graceful shutdown
+    wait_ready: true,            // Wait for 'ready' signal
+    listen_timeout: 10000,       // Max 10s to start listening
+  }]
+};
+```
+
+**Common Customizations:**
+
+| Setting | Low Resource PC | Standard Server | High Traffic Production |
+|---------|-----------------|-----------------|------------------------|
+| `instances` | `1` | `2` | `'max'` or `4+` |
+| `max_memory_restart` | `'256M'` | `'500M'` | `'1G'` |
+| `exec_mode` | `'fork'` | `'cluster'` | `'cluster'` |
+
+**Example: Low Resource Configuration**
+```javascript
+// For development PCs with limited RAM
+instances: 1,
+exec_mode: 'fork',  // Single process mode
+max_memory_restart: '256M',
+```
+
+**Example: Production Server Configuration**
+```javascript
+// For dedicated servers with multiple cores
+instances: 'max',  // Use all CPU cores
+exec_mode: 'cluster',
+max_memory_restart: '1G',
+```
+
+**PM2 Commands (inside container):**
+```bash
+# Enter backend container
+docker-compose exec backend sh
+
+# Check PM2 status
+pm2 status
+
+# View logs
+pm2 logs
+
+# Restart application
+pm2 restart trc-v-api
+
+# Monitor resources
+pm2 monit
+```
+
+---
+
 ## 🌍 Network Access (LAN & Remote)
 
 ### Local Access (Same Machine)
@@ -531,4 +664,4 @@ For issues or questions about this codebase:
 
 ---
 
-**Last Updated**: December 16, 2025
+**Last Updated**: December 18, 2025

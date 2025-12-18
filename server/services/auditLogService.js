@@ -118,18 +118,46 @@ class AuditLogService {
 
       // Extract user information from JWT
       // JWT payload contains: id, _id, role, name, accountType, adminId (for admins)
+      // NOTE: Email is NOT in JWT for security reasons - we fetch it from DB
       const userId = user.id || user.userId || user.adminId || user._id;
       const name = user.name || 'System'; // name is always in JWT
-      const username = user.username || user.email || name; // Fallback to name if no username/email
       const role = user.role || 'unknown';
       const accountType = user.accountType || 'user';
-      const email = user.email || null; // May not be in JWT
 
       // Check if this is an admin account and extract admin info from JWT
       const isAdmin = accountType === 'admin';
       const adminId = isAdmin ? (user.adminId || user.id || user.userId) : null;
-      const department = isAdmin ? user.department : null;
-      const position = isAdmin ? user.position : null;
+      
+      // Fetch email from database (not stored in JWT for security)
+      let email = null;
+      let username = name; // Default to name if we can't find username
+      let department = null;
+      let position = null;
+      
+      try {
+        if (isAdmin && adminId) {
+          // Fetch admin details from database
+          const adminAccountRepository = require('../repositories/adminAccountRepository');
+          const adminAccount = await adminAccountRepository.findAdminById(adminId, { lean: true }).catch(() => null);
+          if (adminAccount) {
+            email = adminAccount.email || null;
+            username = adminAccount.username || adminAccount.email || name;
+            department = adminAccount.department || null;
+            position = adminAccount.position || null;
+          }
+        } else if (userId) {
+          // Fetch user details from database
+          const userAccountRepository = require('../repositories/userAccountRepository');
+          const userAccount = await userAccountRepository.findAccountById(userId, { lean: true }).catch(() => null);
+          if (userAccount) {
+            email = userAccount.email || null;
+            username = userAccount.username || userAccount.email || name;
+          }
+        }
+      } catch (err) {
+        // Don't let email lookup failure break audit logging
+        console.warn('[Audit] Failed to fetch user email:', err.message);
+      }
 
       const success = statusCode < 400;
       

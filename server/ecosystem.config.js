@@ -38,8 +38,7 @@ module.exports = {
       
       // CLUSTER MODE - Multiple Node.js instances
       // "max" = Use all available CPU cores (recommended for production)
-      // Set to 2-4 for development, or 1 for debugging
-      instances: 2, // Limited to 2 workers for development/testing
+      instances: 1, 
       exec_mode: 'cluster',
       
       // Auto-restart settings

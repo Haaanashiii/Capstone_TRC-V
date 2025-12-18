@@ -494,6 +494,12 @@ After logging in successfully:
    - Review nginx rate limits
    - Adjust based on expected traffic
 
+7. **Optimize PM2 for Your Server**
+   - Edit `server/ecosystem.config.js`
+   - For low-resource PCs: `instances: 1`, `max_memory_restart: '256M'`
+   - For production servers: `instances: 'max'`, `max_memory_restart: '1G'`
+   - See [DOCKER_SETUP.md](DOCKER_SETUP.md#pm2-process-manager-configuration) for details
+
 ---
 
 ## Support
@@ -508,5 +514,5 @@ After logging in successfully:
 
 ---
 
-**Last Updated:** December 16, 2025  
+**Last Updated:** December 18, 2025  
 **System Version:** TRC-V 1.0.0

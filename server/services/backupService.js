@@ -105,19 +105,29 @@ class BackupService {
   
   /**
    * Export a single collection to JSON
+   * Note: collection.stats() is deprecated in MongoDB driver 6+, using db.command instead
    */
   async exportCollection(collectionName) {
     const db = mongoose.connection.db;
     const collection = db.collection(collectionName);
     
     const documents = await collection.find({}).toArray();
-    const stats = await collection.stats().catch(() => ({ size: 0 }));
+    
+    // Get collection stats using db.command (compatible with MongoDB driver 6+)
+    let collectionSize = 0;
+    try {
+      const stats = await db.command({ collStats: collectionName });
+      collectionSize = stats.size || 0;
+    } catch (err) {
+      // Fallback: estimate size from document count
+      collectionSize = documents.length * 1024; // rough estimate
+    }
     
     return {
       name: collectionName,
       documents,
       documentCount: documents.length,
-      size: stats.size || 0
+      size: collectionSize
     };
   }
   
@@ -1039,10 +1049,18 @@ class BackupService {
   
   /**
    * Get database storage statistics
+   * Note: collection.stats() is deprecated in MongoDB driver 6+, using db.command instead
    */
   async getDatabaseStats() {
     const db = mongoose.connection.db;
-    const stats = await db.stats();
+    
+    // Get database stats using db.command (compatible with MongoDB driver 6+)
+    let dbStats;
+    try {
+      dbStats = await db.command({ dbStats: 1 });
+    } catch (err) {
+      dbStats = { dataSize: 0, storageSize: 0, indexSize: 0 };
+    }
     
     const collections = await this.getCollections();
     const collectionStats = [];
@@ -1052,17 +1070,24 @@ class BackupService {
       
       try {
         const collection = db.collection(collectionName);
-        const colStats = await collection.stats();
         const count = await collection.countDocuments();
+        
+        // Get collection stats using db.command
+        let colStats;
+        try {
+          colStats = await db.command({ collStats: collectionName });
+        } catch (e) {
+          colStats = { size: count * 1024, totalIndexSize: 0 }; // rough estimate
+        }
         
         collectionStats.push({
           name: collectionName,
           documentCount: count,
-          size: colStats.size,
-          formattedSize: this.formatBytes(colStats.size),
-          avgDocumentSize: count > 0 ? Math.round(colStats.size / count) : 0,
-          indexSize: colStats.totalIndexSize,
-          formattedIndexSize: this.formatBytes(colStats.totalIndexSize)
+          size: colStats.size || 0,
+          formattedSize: this.formatBytes(colStats.size || 0),
+          avgDocumentSize: count > 0 ? Math.round((colStats.size || 0) / count) : 0,
+          indexSize: colStats.totalIndexSize || 0,
+          formattedIndexSize: this.formatBytes(colStats.totalIndexSize || 0)
         });
       } catch (error) {
         collectionStats.push({
@@ -1078,14 +1103,14 @@ class BackupService {
     return {
       database: {
         name: db.databaseName,
-        totalSize: stats.dataSize,
-        formattedSize: this.formatBytes(stats.dataSize),
-        storageSize: stats.storageSize,
-        formattedStorageSize: this.formatBytes(stats.storageSize),
-        indexSize: stats.indexSize,
-        formattedIndexSize: this.formatBytes(stats.indexSize),
-        collections: stats.collections,
-        objects: stats.objects
+        totalSize: dbStats.dataSize || 0,
+        formattedSize: this.formatBytes(dbStats.dataSize || 0),
+        storageSize: dbStats.storageSize || 0,
+        formattedStorageSize: this.formatBytes(dbStats.storageSize || 0),
+        indexSize: dbStats.indexSize || 0,
+        formattedIndexSize: this.formatBytes(dbStats.indexSize || 0),
+        collections: dbStats.collections || collections.length,
+        objects: dbStats.objects || 0
       },
       collections: collectionStats,
       backupDirectory: {
