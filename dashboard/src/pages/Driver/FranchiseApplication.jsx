@@ -385,10 +385,12 @@ export default function FranchiseApplication() {
   const [modalLoading, setModalLoading] = useState(false);
   const [compressionProgress, setCompressionProgress] = useState(0);
   const [compressionNotification, setCompressionNotification] = useState(null);
+  const [isDragging, setIsDragging] = useState(false);
   const modalFileRef = useRef();
+  const dragCounter = useRef(0);
 
-  const handleModalFileChange = async (e) => {
-    const file = e.target.files[0];
+  // Process file (used by both file input and drag-drop)
+  const processFile = async (file) => {
     if (!file) return;
     
     // Validate file
@@ -459,6 +461,54 @@ export default function FranchiseApplication() {
       setCompressionProgress(0);
     }
   };
+
+  const handleModalFileChange = async (e) => {
+    const file = e.target.files[0];
+    await processFile(file);
+  };
+
+  // Drag and drop handlers - works anywhere on the modal
+  const handleDragEnter = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounter.current++;
+    if (!modalLoading && e.dataTransfer.items && e.dataTransfer.items.length > 0) {
+      setIsDragging(true);
+    }
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounter.current--;
+    if (dragCounter.current === 0) {
+      setIsDragging(false);
+    }
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!modalLoading) {
+      e.dataTransfer.dropEffect = 'copy';
+    }
+  };
+
+  const handleDrop = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounter.current = 0;
+    setIsDragging(false);
+    
+    if (modalLoading) return;
+    
+    const files = e.dataTransfer.files;
+    if (files && files.length > 0) {
+      const file = files[0];
+      await processFile(file);
+    }
+  };
+
   const [fields, setFields] = useState({
     date: dayjs(),
     operatorName: "",
@@ -763,19 +813,27 @@ export default function FranchiseApplication() {
         <div className="franchise-app-paper">
        
         {modalDocKey && (
-          <div className="franchise-modal-bg" style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.6)',
-            backdropFilter: 'blur(4px)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 9999
-          }}>
+          <div 
+            className="franchise-modal-bg" 
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: isDragging ? 'rgba(2, 132, 199, 0.15)' : 'rgba(0, 0, 0, 0.6)',
+              backdropFilter: 'blur(4px)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 9999,
+              transition: 'background-color 0.3s ease'
+            }}
+            onDragEnter={handleDragEnter}
+            onDragLeave={handleDragLeave}
+            onDragOver={handleDragOver}
+            onDrop={handleDrop}
+          >
             <div className="franchise-modal" style={{ 
               width: '90%',
               maxWidth: '500px', 
@@ -801,28 +859,41 @@ export default function FranchiseApplication() {
               <div style={{ marginBottom: '32px' }}>
                 <div
                   style={{
-                    background: 'linear-gradient(135deg, #f0f7ff 0%, #e8f1ff 100%)',
-                    border: '2.5px dashed #174D7A',
+                    background: isDragging 
+                      ? 'linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%)' 
+                      : 'linear-gradient(135deg, #f0f7ff 0%, #e8f1ff 100%)',
+                    border: isDragging 
+                      ? '3px dashed #0284c7' 
+                      : '2.5px dashed #174D7A',
                     borderRadius: '20px',
                     padding: '48px 32px',
                     display: 'flex',
                     flexDirection: 'column',
                     alignItems: 'center',
                     marginBottom: '16px',
-                    boxShadow: 'inset 0 2px 8px rgba(23, 77, 122, 0.05)',
-                    cursor: 'pointer',
+                    boxShadow: isDragging 
+                      ? 'inset 0 4px 16px rgba(2, 132, 199, 0.15), 0 8px 24px rgba(2, 132, 199, 0.2)' 
+                      : 'inset 0 2px 8px rgba(23, 77, 122, 0.05)',
+                    cursor: modalLoading ? 'not-allowed' : 'pointer',
                     transition: 'all 0.3s ease',
-                    backgroundColor: 'rgba(240, 247, 255, 0.8)',
+                    backgroundColor: isDragging 
+                      ? 'rgba(186, 230, 253, 0.4)' 
+                      : 'rgba(240, 247, 255, 0.8)',
+                    transform: isDragging ? 'scale(1.02)' : 'scale(1)',
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = 'rgba(224, 242, 255, 0.9)';
-                    e.currentTarget.style.borderColor = '#0A356B';
-                    e.currentTarget.style.boxShadow = 'inset 0 2px 12px rgba(23, 77, 122, 0.1), 0 4px 12px rgba(23, 77, 122, 0.1)';
+                    if (!isDragging && !modalLoading) {
+                      e.currentTarget.style.backgroundColor = 'rgba(224, 242, 255, 0.9)';
+                      e.currentTarget.style.borderColor = '#0A356B';
+                      e.currentTarget.style.boxShadow = 'inset 0 2px 12px rgba(23, 77, 122, 0.1), 0 4px 12px rgba(23, 77, 122, 0.1)';
+                    }
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = 'rgba(240, 247, 255, 0.8)';
-                    e.currentTarget.style.borderColor = '#174D7A';
-                    e.currentTarget.style.boxShadow = 'inset 0 2px 8px rgba(23, 77, 122, 0.05)';
+                    if (!isDragging) {
+                      e.currentTarget.style.backgroundColor = 'rgba(240, 247, 255, 0.8)';
+                      e.currentTarget.style.borderColor = '#174D7A';
+                      e.currentTarget.style.boxShadow = 'inset 0 2px 8px rgba(23, 77, 122, 0.05)';
+                    }
                   }}
                   onClick={() => !modalLoading && modalFileRef.current && modalFileRef.current.click()}
                 >
@@ -843,8 +914,24 @@ export default function FranchiseApplication() {
                       </g>
                     </svg>
                   </div>
-                  <div style={{ color: '#174D7A', fontWeight: 700, fontSize: '18px', marginBottom: '8px', letterSpacing: '0.2px' }}>{t.browseFiles}</div>
-                  <div style={{ color: '#999', fontWeight: 400, fontSize: '13px' }}>or drag and drop</div>
+                  <div style={{ 
+                    color: isDragging ? '#0284c7' : '#174D7A', 
+                    fontWeight: 700, 
+                    fontSize: isDragging ? '20px' : '18px', 
+                    marginBottom: '8px', 
+                    letterSpacing: '0.2px',
+                    transition: 'all 0.3s ease'
+                  }}>
+                    {isDragging ? 'Drop file here' : t.browseFiles}
+                  </div>
+                  <div style={{ 
+                    color: isDragging ? '#0284c7' : '#999', 
+                    fontWeight: isDragging ? 600 : 400, 
+                    fontSize: '13px',
+                    transition: 'all 0.3s ease'
+                  }}>
+                    {isDragging ? 'Release to upload' : 'or drag and drop'}
+                  </div>
                   <input
                     type="file"
                     style={{ display: 'none' }}

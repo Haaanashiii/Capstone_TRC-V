@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Swal from 'sweetalert2';
 import { 
   TextField, 
@@ -175,6 +175,24 @@ export default function RequestAmendment() {
     cRLTO: null
   });
 
+  // Modal state for file upload
+  const [modalDocKey, setModalDocKey] = useState(null);
+  const [modalFile, setModalFile] = useState(null);
+  const [modalLoading, setModalLoading] = useState(false);
+  const [compressionProgress, setCompressionProgress] = useState(0);
+  const [compressionNotification, setCompressionNotification] = useState(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const modalFileRef = useRef();
+
+  // Helper function to truncate filename for display
+  const truncateFilename = (filename, maxLength = 30) => {
+    if (!filename || filename.length <= maxLength) return filename;
+    const extension = filename.split('.').pop();
+    const nameWithoutExt = filename.substring(0, filename.lastIndexOf('.'));
+    const truncatedName = nameWithoutExt.substring(0, maxLength - extension.length - 4);
+    return `${truncatedName}...${extension}`;
+  };
+
   // Privacy agreement checkbox state
   const [agreeToPrivacy, setAgreeToPrivacy] = useState(false);
   // Privacy modal state
@@ -200,6 +218,14 @@ export default function RequestAmendment() {
       submit: 'Submit',
       cancel: 'Cancel',
       submitAmendment: 'Submit Amendment Request',
+      selectFile: 'Select a File',
+      upload: 'Upload',
+      photoRegistration: 'Photocopy of Registration',
+      photoBarangay: 'Photocopy of Barangay Clearance',
+      photoCedula: 'Photocopy of Cedula',
+      photoLicense: "Photocopy of Driver's License",
+      photoAffidavit: "Photocopy of Voter's Affidavit",
+      picture: '1x1 Picture',
       fullName: 'FULL NAME',
       civilStatus: 'CIVIL STATUS',
       coOwner: 'CO-OWNER',
@@ -245,6 +271,14 @@ export default function RequestAmendment() {
       submit: 'Ipasa',
       cancel: 'Kanselahin',
       submitAmendment: 'Ipasa ang Hiling para sa Pag-aayos',
+      selectFile: 'Pumili ng File',
+      upload: 'I-upload',
+      photoRegistration: 'Photocopy ng Rehistrasyon',
+      photoBarangay: 'Photocopy ng Barangay Clearance',
+      photoCedula: 'Photocopy ng Cedula',
+      photoLicense: "Photocopy ng Driver's License",
+      photoAffidavit: "Photocopy ng Voter's Affidavit",
+      picture: '1x1 na Larawan',
       fullName: 'BUONG PANGALAN',
       civilStatus: 'KATAYUANG SIBIL',
       coOwner: 'CO-OWNER',
@@ -287,6 +321,124 @@ export default function RequestAmendment() {
       [name]: ''
     }));
   }, []);
+
+  // Process file (used by both file input and drag-drop)
+  const processFile = async (file) => {
+    if (!file) return;
+    
+    // Validate file
+    const validation = validateFile(file);
+    if (!validation.success) {
+      Swal.fire({
+        ...alertStyle.errorAlert,
+        title: 'Invalid File',
+        text: validation.message
+      });
+      return;
+    }
+    
+    // Check if file needs compression
+    const willCompress = file.size > 300 * 1024;
+    
+    // Show loading state if file will be compressed
+    if (willCompress) {
+      setModalLoading(true);
+      setCompressionProgress(0);
+    }
+    
+    try {
+      // Simulate progressive compression steps
+      if (willCompress) {
+        setCompressionProgress(30);
+        await new Promise(resolve => setTimeout(resolve, 300));
+        setCompressionProgress(60);
+      }
+      
+      // Compress the file (images and PDFs)
+      const processedFile = await compressFile(file);
+      
+      setCompressionProgress(100);
+      
+      // Brief delay to show completion before closing
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      // Show compression success message only if file was compressed
+      if (willCompress) {
+        const originalSize = (file.size / 1024).toFixed(2);
+        const newSize = (processedFile.size / 1024).toFixed(2);
+        const savings = (((file.size - processedFile.size) / file.size) * 100).toFixed(0);
+        
+        setCompressionNotification({
+          originalSize: `${originalSize}KB`,
+          newSize: `${newSize}KB`,
+          savings: savings
+        });
+        
+        // Clear notification after 2 seconds
+        setTimeout(() => {
+          setCompressionNotification(null);
+        }, 2000);
+      }
+      
+      setModalFile(processedFile);
+    } catch (error) {
+      logger.error('[RequestAmendment] File compression error:', error);
+      setModalFile(file);
+    } finally {
+      setModalLoading(false);
+      setCompressionProgress(0);
+    }
+  };
+
+  // Handle modal file selection with compression
+  const handleModalFileChange = async (e) => {
+    const file = e.target.files[0];
+    await processFile(file);
+  };
+
+  // Drag and drop handlers - works anywhere on the modal
+  const dragCounter = useRef(0);
+
+  const handleDragEnter = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounter.current++;
+    if (!modalLoading && e.dataTransfer.items && e.dataTransfer.items.length > 0) {
+      setIsDragging(true);
+    }
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounter.current--;
+    if (dragCounter.current === 0) {
+      setIsDragging(false);
+    }
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!modalLoading) {
+      e.dataTransfer.dropEffect = 'copy';
+    }
+  };
+
+  const handleDrop = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounter.current = 0;
+    setIsDragging(false);
+    
+    if (modalLoading) return;
+    
+    const files = e.dataTransfer.files;
+    if (files && files.length > 0) {
+      const file = files[0];
+      await processFile(file);
+    }
+  };
 
   // Fetch existing franchise data on component mount
   useEffect(() => {
@@ -1168,43 +1320,11 @@ export default function RequestAmendment() {
                     whiteSpace: 'nowrap'
                   }}
                   onClick={() => {
-                    const input = document.createElement('input');
-                    input.type = 'file';
-                    input.accept = 'image/*';
-                    input.onchange = async (e) => {
-                      const file = e.target.files[0];
-                      if (file) {
-                        const validation = validateFile(file);
-                        if (!validation.success) {
-                          Swal.fire({
-                            ...alertStyle.errorAlert,
-                            title: 'Invalid File',
-                            text: validation.message
-                          });
-                          return;
-                        }
-                        try {
-                          const processedFile = await compressFile(file);
-                          setFormData({ ...formData, operatorPicture: processedFile });
-                          Swal.fire({
-                            ...alertStyle.successAlert,
-                            title: 'Success!',
-                            text: 'Picture uploaded successfully'
-                          });
-                        } catch {
-                          setFormData({ ...formData, operatorPicture: file });
-                          Swal.fire({
-                            ...alertStyle.successAlert,
-                            title: 'Success!',
-                            text: 'Picture uploaded'
-                          });
-                        }
-                      }
-                    };
-                    input.click();
+                    setModalDocKey('operatorPicture');
+                    setModalFile(null);
                   }}
                 >
-                  {formData.operatorPicture ? formData.operatorPicture.name : 'No selected File - Click to upload'}
+                  {formData.operatorPicture ? truncateFilename(formData.operatorPicture.name) : t.noFileSelected}
                 </div>
               </div>
 
@@ -1261,45 +1381,12 @@ export default function RequestAmendment() {
                               textOverflow: 'ellipsis',
                               whiteSpace: 'nowrap'
                             }}
-                            onClick={() => document.getElementById(`file-${doc.key}`).click()}
+                            onClick={() => {
+                              setModalDocKey(doc.key);
+                              setModalFile(null);
+                            }}
                           >
-                            {uploads[doc.key] ? uploads[doc.key].name : t.noFileSelected}
-                            <input
-                              id={`file-${doc.key}`}
-                              type="file"
-                              hidden
-                              accept="image/*,.pdf"
-                              onChange={async (e) => {
-                                const file = e.target.files[0];
-                                if (file) {
-                                  const validation = validateFile(file);
-                                  if (!validation.success) {
-                                    Swal.fire({
-                                      ...alertStyle.errorAlert,
-                                      title: 'Invalid File',
-                                      text: validation.message
-                                    });
-                                    return;
-                                  }
-                                  try {
-                                    const processedFile = await compressFile(file);
-                                    setUploads({ ...uploads, [doc.key]: processedFile });
-                                    Swal.fire({
-                                      ...alertStyle.successAlert,
-                                      title: 'Success!',
-                                      text: 'File uploaded successfully'
-                                    });
-                                  } catch {
-                                    setUploads({ ...uploads, [doc.key]: file });
-                                    Swal.fire({
-                                      ...alertStyle.successAlert,
-                                      title: 'Success!',
-                                      text: 'File uploaded'
-                                    });
-                                  }
-                                }
-                              }}
-                            />
+                            {uploads[doc.key] ? truncateFilename(uploads[doc.key].name) : t.noFileSelected}
                           </div>
                         </div>
                       </div>
@@ -1490,6 +1577,309 @@ export default function RequestAmendment() {
           )}
         </div>
       </div>
+
+      {/* File Upload Modal */}
+      {modalDocKey && (
+        <div 
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            background: isDragging ? 'rgba(2, 132, 199, 0.15)' : 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+            transition: 'background 0.3s ease'
+          }}
+          onDragEnter={handleDragEnter}
+          onDragLeave={handleDragLeave}
+          onDragOver={handleDragOver}
+          onDrop={handleDrop}
+        >
+          <div className="franchise-modal" style={{ 
+            width: '90%',
+            maxWidth: '500px', 
+            borderRadius: '24px', 
+            background: '#fff', 
+            boxShadow: '0 20px 60px rgba(23, 77, 122, 0.3)', 
+            padding: '48px', 
+            position: 'relative',
+            margin: '20px',
+            animation: 'slideUp 0.3s ease-out'
+          }}>
+            <div style={{ fontWeight: 900, fontSize: '2rem', marginBottom: 12, letterSpacing: '-0.5px', color: '#0A356B' }}>{t.selectFile || 'Select a File'}</div>
+            <div style={{ fontWeight: 600, fontSize: '16px', marginBottom: '32px', color: '#666', letterSpacing: '0.3px' }}>
+              {t.upload || 'Upload'} {(() => {
+                const docLabels = {
+                  registration: t.photoRegistration || 'Photocopy of Registration',
+                  barangay: t.photoBarangay || 'Photocopy of Barangay Clearance',
+                  cedula: t.photoCedula || 'Photocopy of Cedula',
+                  license: t.photoLicense || "Photocopy of Driver's License",
+                  affidavit: t.photoAffidavit || "Photocopy of Voter's Affidavit",
+                  stencil: 'Photocopy of Motor Chassis Stencil',
+                  oRLTO: 'OR LTO (Official Receipt)',
+                  cRLTO: 'CR (Certificate of Registration)',
+                  picture: t.picture || '1x1 Picture',
+                  operatorPicture: '1x1 Picture of Operator'
+                };
+                return docLabels[modalDocKey] || 'Document';
+              })()}
+            </div>
+            <div style={{ marginBottom: '32px' }}>
+              <div
+                style={{
+                  background: isDragging 
+                    ? 'linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%)' 
+                    : 'linear-gradient(135deg, #f0f7ff 0%, #e8f1ff 100%)',
+                  border: isDragging 
+                    ? '3px dashed #0284c7' 
+                    : '2.5px dashed #174D7A',
+                  borderRadius: '20px',
+                  padding: '48px 32px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  marginBottom: '16px',
+                  boxShadow: isDragging 
+                    ? 'inset 0 4px 16px rgba(2, 132, 199, 0.15), 0 8px 24px rgba(2, 132, 199, 0.2)' 
+                    : 'inset 0 2px 8px rgba(23, 77, 122, 0.05)',
+                  cursor: modalLoading ? 'not-allowed' : 'pointer',
+                  transition: 'all 0.3s ease',
+                  backgroundColor: isDragging 
+                    ? 'rgba(186, 230, 253, 0.4)' 
+                    : 'rgba(240, 247, 255, 0.8)',
+                  transform: isDragging ? 'scale(1.02)' : 'scale(1)',
+                }}
+                onMouseEnter={(e) => {
+                  if (!isDragging && !modalLoading) {
+                    e.currentTarget.style.backgroundColor = 'rgba(224, 242, 255, 0.9)';
+                    e.currentTarget.style.borderColor = '#0A356B';
+                    e.currentTarget.style.boxShadow = 'inset 0 2px 12px rgba(23, 77, 122, 0.1), 0 4px 12px rgba(23, 77, 122, 0.1)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!isDragging) {
+                    e.currentTarget.style.backgroundColor = 'rgba(240, 247, 255, 0.8)';
+                    e.currentTarget.style.borderColor = '#174D7A';
+                    e.currentTarget.style.boxShadow = 'inset 0 2px 8px rgba(23, 77, 122, 0.05)';
+                  }
+                }}
+                onClick={() => !modalLoading && modalFileRef.current && modalFileRef.current.click()}
+              >
+                <div style={{ marginBottom: '16px' }}>
+                  <svg width="72" height="72" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                      <linearGradient id="iconGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                        <stop offset="0%" style={{stopColor: '#174D7A'}} />
+                        <stop offset="100%" style={{stopColor: '#0A356B'}} />
+                      </linearGradient>
+                    </defs>
+                    {/* Cloud shape */}
+                    <path d="M19 13c1.1 0 2-.9 2-2 0-1.05-.84-1.9-1.9-1.95C18.6 5.9 16 3 13 3c-2.5 0-4.6 1.7-5.1 4-.05.02-.1.02-.15.02C5.6 7 4 8.6 4 10.5 4 12.4 5.5 14 7.1 14" stroke="url(#iconGrad)" strokeWidth="2.2" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+                    {/* Upload arrow */}
+                    <g stroke="url(#iconGrad)" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="12" y1="10" x2="12" y2="18" />
+                      <polyline points="9 15 12 18 15 15" />
+                    </g>
+                  </svg>
+                </div>
+                <div style={{ 
+                  color: isDragging ? '#0284c7' : '#174D7A', 
+                  fontWeight: 700, 
+                  fontSize: isDragging ? '20px' : '18px', 
+                  marginBottom: '8px', 
+                  letterSpacing: '0.2px',
+                  transition: 'all 0.3s ease'
+                }}>
+                  {isDragging ? 'Drop file here' : (t.browseFiles || 'Browse Files to upload')}
+                </div>
+                <div style={{ 
+                  color: isDragging ? '#0284c7' : '#999', 
+                  fontWeight: isDragging ? 600 : 400, 
+                  fontSize: '13px',
+                  transition: 'all 0.3s ease'
+                }}>
+                  {isDragging ? 'Release to upload' : 'or drag and drop'}
+                </div>
+                <input
+                  type="file"
+                  style={{ display: 'none' }}
+                  ref={modalFileRef}
+                  accept="image/*,.pdf"
+                  onChange={handleModalFileChange}
+                  disabled={modalLoading}
+                />
+              </div>
+              <div style={{ 
+                background: '#f8f9fa', 
+                borderRadius: '12px', 
+                padding: '14px 16px', 
+                textAlign: 'center', 
+                fontWeight: 500, 
+                color: '#333', 
+                fontSize: '15px', 
+                marginTop: '12px', 
+                overflow: 'hidden', 
+                textOverflow: 'ellipsis', 
+                whiteSpace: 'nowrap',
+                border: '1px solid #e0e0e0',
+                transition: 'all 0.2s ease'
+              }}>
+                {modalFile ? truncateFilename(modalFile.name) : t.noFileSelected}
+              </div>
+              
+              {/* Compression Loading Indicator */}
+              {(modalLoading || compressionProgress > 0) && (
+                <div style={{
+                  marginTop: '20px',
+                  padding: '16px',
+                  background: 'linear-gradient(135deg, #f0f7ff 0%, #e8f1ff 100%)',
+                  borderRadius: '12px',
+                  border: '1px solid #d4e8f5'
+                }}>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px',
+                    marginBottom: '12px'
+                  }}>
+                    <svg width="20" height="20" viewBox="0 0 24 24" style={{
+                      animation: 'spin 1s linear infinite'
+                    }}>
+                      <defs>
+                        <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+                      </defs>
+                      <circle cx="12" cy="12" r="10" fill="none" stroke="#174D7A" strokeWidth="2" opacity="0.2" />
+                      <path d="M12 2A10 10 0 1 0 22 12" fill="none" stroke="#174D7A" strokeWidth="2" strokeLinecap="round" />
+                    </svg>
+                    <span style={{ fontWeight: 600, color: '#174D7A', fontSize: '14px' }}>
+                      Compressing image... {compressionProgress}%
+                    </span>
+                  </div>
+                  <div style={{
+                    width: '100%',
+                    height: '6px',
+                    background: '#e0e0e0',
+                    borderRadius: '3px',
+                    overflow: 'hidden'
+                  }}>
+                    <div style={{
+                      height: '100%',
+                      background: 'linear-gradient(90deg, #00b4d8, #0096c7)',
+                      width: `${compressionProgress}%`,
+                      transition: 'width 0.3s ease',
+                      borderRadius: '3px'
+                    }} />
+                  </div>
+                </div>
+              )}
+              
+              {/* Compression Success Notification */}
+              {compressionNotification && (
+                <div style={{
+                  marginTop: '20px',
+                  padding: '16px',
+                  background: 'linear-gradient(135deg, #f0fdf4 0%, #e8f9f0 100%)',
+                  borderRadius: '12px',
+                  border: '2px solid #10b981',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  animation: 'slideIn 0.3s ease'
+                }}>
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="12" cy="12" r="10" stroke="#10b981" strokeWidth="2" />
+                    <path d="M8 12L11 15L16 9" stroke="#10b981" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                  <div>
+                    <div style={{ fontWeight: 700, color: '#10b981', fontSize: '15px' }}>Compression Complete</div>
+                    <div style={{ color: '#666', fontSize: '14px', marginTop: '4px' }}>
+                      {compressionNotification.originalSize} → {compressionNotification.newSize} ({compressionNotification.savings}% smaller!)
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '32px' }}>
+              <button
+                className="franchise-cancel-btn"
+                style={{ 
+                  background: '#f5f5f5', 
+                  color: '#666', 
+                  fontWeight: 600, 
+                  borderRadius: '12px', 
+                  padding: '12px 28px', 
+                  fontSize: '15px', 
+                  border: '1px solid #e0e0e0',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  opacity: modalLoading ? 0.5 : 1
+                }}
+                onMouseEnter={(e) => {
+                  if (!modalLoading) {
+                    e.currentTarget.style.backgroundColor = '#eeeeee';
+                    e.currentTarget.style.borderColor = '#d0d0d0';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = '#f5f5f5';
+                  e.currentTarget.style.borderColor = '#e0e0e0';
+                }}
+                onClick={() => { setModalDocKey(null); setModalFile(null); }}
+                disabled={modalLoading}
+              >
+                {t.cancel}
+              </button>
+              <button
+                className="franchise-submit-btn"
+                style={{ 
+                  background: '#174D7A', 
+                  color: '#fff', 
+                  fontWeight: 600, 
+                  borderRadius: '12px', 
+                  padding: '12px 28px', 
+                  fontSize: '15px', 
+                  border: 'none', 
+                  boxShadow: '0 4px 12px rgba(23, 77, 122, 0.3)', 
+                  cursor: modalFile && !modalLoading ? 'pointer' : 'not-allowed',
+                  opacity: modalFile && !modalLoading ? 1 : 0.6,
+                  transition: 'all 0.2s ease',
+                }}
+                onMouseEnter={(e) => {
+                  if (modalFile && !modalLoading) {
+                    e.currentTarget.style.backgroundColor = '#0f3a5f';
+                    e.currentTarget.style.boxShadow = '0 6px 16px rgba(23, 77, 122, 0.4)';
+                    e.currentTarget.style.transform = 'translateY(-1px)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = '#174D7A';
+                  e.currentTarget.style.boxShadow = '0 4px 12px rgba(23, 77, 122, 0.3)';
+                  e.currentTarget.style.transform = 'translateY(0)';
+                }}
+                onClick={() => {
+                  if (modalFile && modalDocKey) {
+                    // Handle different types of files
+                    if (modalDocKey === 'operatorPicture') {
+                      setFormData(prev => ({ ...prev, operatorPicture: modalFile }));
+                    } else {
+                      setUploads(u => ({ ...u, [modalDocKey]: modalFile }));
+                    }
+                  }
+                  setModalDocKey(null);
+                  setModalFile(null);
+                }}
+                disabled={!modalFile || modalLoading}
+              >
+                {t.submit}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
