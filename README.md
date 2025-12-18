@@ -166,7 +166,7 @@
 | **Socket.IO 4** | WebSocket Server |
 | **JWT** | Authentication |
 | **Nodemailer** | Email Service |
-| **Twilio** | SMS Service |
+| **IprogSMS** | SMS Service |
 | **Sharp** | Image Processing |
 | **QRCode** | QR Code Generation |
 | **Winston** | Logging |
