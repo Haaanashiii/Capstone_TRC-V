@@ -164,8 +164,21 @@ async function generateQRCode(ssn, franchiseId = null, expiryDate = null) {
   const baseUrl = (process.env.BASE_URL || 'https://trc-v.gov.ph').replace(/\/+$/, '');
   const url = `${baseUrl}/verify?id=${encodeURIComponent(franchiseId)}`;
   
-  // Generate QR code
-  return await QRCode.toDataURL(url);
+  // Generate QR code options with TRC-V branding colors
+  const qrOptions = {
+    errorCorrectionLevel: 'H', // High error correction
+    type: 'image/png',
+    quality: 0.92,
+    margin: 1,
+    color: {
+      dark: '#1B4B75',  // TRC-V blue
+      light: '#FFFFFF'  // White background
+    },
+    width: 300
+  };
+  
+  // Generate QR code with blue color
+  return await QRCode.toDataURL(url, qrOptions);
 }
 
 /**
