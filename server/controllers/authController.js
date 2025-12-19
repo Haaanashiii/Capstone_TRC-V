@@ -12,15 +12,15 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const fetch = require('node-fetch');
 
-async function handleOtpRequest(email, phoneNumber, userId, res, next, message, deliveryMethod = null) {
+async function handleOtpRequest(email, phoneNumber, userId, res, next, message, deliveryMethod = null, purpose = 'login') {
   try {
     if (!email) return res.status(400).json({ error: 'Email is required' });
     
     // Normalize email to lowercase and trim whitespace for consistent storage
     const normalizedEmail = String(email).trim().toLowerCase();
     
-    // Check if too many OTP requests (max 10 per 5 minutes)
-    const rateLimitCheck = checkRateLimit(normalizedEmail);
+    // Check if too many OTP requests (purpose-aware rate limiting)
+    const rateLimitCheck = checkRateLimit(normalizedEmail, purpose);
     if (!rateLimitCheck.allowed) {
       return res.status(429).json({ 
         error: rateLimitCheck.message,
@@ -31,13 +31,13 @@ async function handleOtpRequest(email, phoneNumber, userId, res, next, message, 
     // CLUSTER MODE RACE CONDITION CHECK: Check if OTP was recently generated (within last 30 seconds)
     // This prevents duplicate OTP generation when multiple workers handle the same request
     const { otpStore } = require('../middlewares/otpMiddleware');
-    const existingOtp = await otpStore.get(normalizedEmail);
+    const existingOtp = await otpStore.get(normalizedEmail, purpose);
     if (existingOtp) {
       const timeSinceCreation = Date.now() - existingOtp.createdAt;
       const DUPLICATE_PREVENTION_WINDOW = 30 * 1000; // 30 seconds
       
       if (timeSinceCreation < DUPLICATE_PREVENTION_WINDOW) {
-        console.log(`[OTP] Duplicate OTP request blocked for "${normalizedEmail}" (${Math.round(timeSinceCreation / 1000)}s since last OTP)`);
+        console.log(`[OTP] Duplicate OTP request blocked for "${normalizedEmail}" (purpose: ${purpose}, ${Math.round(timeSinceCreation / 1000)}s since last OTP)`);
         // Return success without generating new OTP
         return res.json({ message });
       }
@@ -52,9 +52,10 @@ async function handleOtpRequest(email, phoneNumber, userId, res, next, message, 
     // Send OTP even if account doesn't exist yet (for signup flows)
     try {
       const otp = generateOTP();
-      await setOTP(normalizedEmail, otp); // OTP expires in 5 minutes - use normalized email
+      await setOTP(normalizedEmail, otp, purpose); // OTP expires in 5 minutes - use normalized email and purpose
       
       // OTP generated and stored (code not logged for security)
+      console.log(`[OTP] Generated OTP for "${normalizedEmail}" with purpose: ${purpose}`);
       
       // Send OTP via SMS or Email (smart routing)
       await sendOTPNotification(
@@ -78,8 +79,11 @@ async function handleOtpRequest(email, phoneNumber, userId, res, next, message, 
 
 // Send OTP for login verification
 exports.requestOtp = async (req, res, next) => {
-  const { email, phoneNumber, deliveryMethod } = req.body;
-  return handleOtpRequest(email, phoneNumber, null, res, next, 'If the email exists, an OTP has been sent.', deliveryMethod);
+  const { email, phoneNumber, deliveryMethod, purpose } = req.body;
+  // Default to 'login' if purpose is not specified, validate allowed purposes
+  const validPurposes = ['signup', 'login', 'password-reset'];
+  const otpPurpose = validPurposes.includes(purpose) ? purpose : 'login';
+  return handleOtpRequest(email, phoneNumber, null, res, next, 'If the email exists, an OTP has been sent.', deliveryMethod, otpPurpose);
 };
 
 // Send OTP for password reset (email only)
@@ -104,8 +108,8 @@ exports.forgotPassword = async (req, res, next) => {
       return res.json({ message: 'If this email is registered, you will receive a password reset OTP.' });
     }
     
-    // Force email-only delivery for password reset
-    return handleOtpRequest(email, null, null, res, next, 'If this email is registered, you will receive a password reset OTP.', 'email');
+    // Force email-only delivery for password reset with password-reset purpose
+    return handleOtpRequest(email, null, null, res, next, 'If this email is registered, you will receive a password reset OTP.', 'email', 'password-reset');
   } catch (err) {
     next(err);
   }
@@ -124,21 +128,25 @@ function constantTimeCompare(a, b) {
 // Verify OTP code from user
 exports.verifyOtp = async (req, res, next) => {
   try {
-    let { email, otp, rememberMe } = req.body;
+    let { email, otp, rememberMe, purpose } = req.body;
     if (!email || !otp) return res.status(400).json({ error: 'Email and OTP are required' });
     
     // Normalize email to match how it was stored (lowercase, trimmed)
     email = String(email).trim().toLowerCase();
     
+    // Validate and default purpose
+    const validPurposes = ['signup', 'login', 'password-reset'];
+    const otpPurpose = validPurposes.includes(purpose) ? purpose : 'login';
+    
     // Use the verifyOTP function from middleware for consistent verification
     const { verifyOTP: verifyOTPFromStore, otpStore } = require('../middlewares/otpMiddleware');
     
     // Debug: Log what we're looking for
-    console.log(`[OTP Verify] Checking OTP for email: "${email}"`);
+    console.log(`[OTP Verify] Checking OTP for email: "${email}" with purpose: "${otpPurpose}"`);
     console.log(`[OTP Verify] Received OTP from client: "${otp}" (length: ${String(otp).length})`);
     
     // Check if OTP entry exists
-    const entry = await otpStore.get(email);
+    const entry = await otpStore.get(email, otpPurpose);
     if (!entry) {
       // OTP not found - don't log details for security
       return res.status(400).json({ error: 'Invalid or expired OTP. Please request a new one.' });
@@ -147,7 +155,7 @@ exports.verifyOtp = async (req, res, next) => {
     // OTP entry found - verify without logging sensitive values;
     
     // Use the middleware's verifyOTP function for consistent verification
-    const valid = await verifyOTPFromStore(email, otp);
+    const valid = await verifyOTPFromStore(email, otp, otpPurpose);
     
     if (!valid) {
       // OTP verification failed - don't log attempt details
@@ -158,8 +166,11 @@ exports.verifyOtp = async (req, res, next) => {
     
     // Re-store the OTP for the reset-password step (since verifyOTP deletes it)
     // We need to allow the user to use the same OTP for password reset
-    const { setOTP } = require('../middlewares/otpMiddleware');
-    await setOTP(email, otp);  // Re-store for password reset step
+    // Only re-store if this is a password-reset verification
+    if (otpPurpose === 'password-reset') {
+      const { setOTP } = require('../middlewares/otpMiddleware');
+      await setOTP(email, otp, 'password-reset');  // Re-store for password reset step
+    }
     
     // If remember device was checked, create a trusted device token
     if (rememberMe) {
@@ -226,8 +237,8 @@ exports.resetPassword = async (req, res, next) => {
     try {
       const { otpStore, verifyOTP: verifyOTPFromStore } = require('../middlewares/otpMiddleware');
       
-      // Use the verifyOTP function for consistent verification
-      valid = await verifyOTPFromStore(email, otp);
+      // Use the verifyOTP function for consistent verification with password-reset purpose
+      valid = await verifyOTPFromStore(email, otp, 'password-reset');
       
       console.log(`[ResetPassword] OTP verification for "${email}": ${valid ? 'SUCCESS' : 'FAILED'}`);
       
@@ -591,7 +602,7 @@ exports.login = async (req, res, next) => {
         // CLUSTER MODE RACE CONDITION CHECK: Check if OTP was recently generated (within last 30 seconds)
         // This prevents duplicate OTP generation when multiple workers handle concurrent login requests
         const { otpStore } = require('../middlewares/otpMiddleware');
-        let existingOtp = await otpStore.get(otpKey);
+        let existingOtp = await otpStore.get(otpKey, 'login');
         let shouldGenerateNewOtp = true;
         
         if (existingOtp) {
@@ -606,11 +617,11 @@ exports.login = async (req, res, next) => {
         
         if (shouldGenerateNewOtp) {
           const otp = generateOTP();
-          await setOTP(otpKey, otp);
+          await setOTP(otpKey, otp, 'login');
           // OTP generated and stored (code not logged for security)
           
           // Verify OTP was stored correctly
-          const storedEntry = await otpStore.get(otpKey);
+          const storedEntry = await otpStore.get(otpKey, 'login');
           if (storedEntry) {
             // OTP storage verified
           } else {

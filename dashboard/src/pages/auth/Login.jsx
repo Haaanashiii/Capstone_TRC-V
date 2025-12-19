@@ -18,9 +18,7 @@ const poppinsTheme = createTheme({
   },
 });
 
-//papi luke pogi sana ma crush back sksksk
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ;
 
 const Login = () => {
   const [showPassword, setShowPassword] = React.useState(false);
@@ -265,6 +263,7 @@ const Login = () => {
           onClose={() => setShowVerificationModal(false)}
           email={form.email}
           rememberMe={rememberMe}
+          purpose="login"
           onVerificationSuccess={handleVerificationSuccess}
         />
         

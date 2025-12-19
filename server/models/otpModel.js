@@ -13,6 +13,12 @@ const otpSchema = new mongoose.Schema({
     trim: true,
     index: true
   },
+  purpose: {
+    type: String,
+    required: true,
+    enum: ['signup', 'login', 'password-reset'],
+    default: 'login'
+  },
   otp: {
     type: String,
     required: true
@@ -34,6 +40,8 @@ const otpSchema = new mongoose.Schema({
   timestamps: false
 });
 
+// Compound index for email + purpose (unique OTP per email per purpose)
+otpSchema.index({ email: 1, purpose: 1 }, { unique: true });
 // Index for faster lookups
 otpSchema.index({ email: 1, expiresAt: 1 });
 

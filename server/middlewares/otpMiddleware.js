@@ -7,14 +7,15 @@ class OTPStore {
     return String(k || '').trim().toLowerCase();
   }
   
-  async set(k, v) {
+  async set(k, v, purpose = 'login') {
     const email = this._key(k);
     try {
-      // Upsert: update if exists, create if not
+      // Upsert: update if exists, create if not (using email + purpose as unique key)
       await OTP.findOneAndUpdate(
-        { email },
+        { email, purpose },
         { 
           email,
+          purpose,
           otp: v.otp,
           expiresAt: new Date(v.expiresAt),
           createdAt: new Date(v.createdAt),
@@ -29,15 +30,15 @@ class OTPStore {
     }
   }
   
-  async get(k) {
+  async get(k, purpose = 'login') {
     const email = this._key(k);
     try {
-      const doc = await OTP.findOne({ email });
+      const doc = await OTP.findOne({ email, purpose });
       if (!doc) return null;
       
       // Check if expired
       if (Date.now() > doc.expiresAt.getTime()) {
-        await this.delete(email);
+        await this.delete(email, purpose);
         return null;
       }
       
@@ -53,10 +54,10 @@ class OTPStore {
     }
   }
   
-  async delete(k) {
+  async delete(k, purpose = 'login') {
     const email = this._key(k);
     try {
-      await OTP.deleteOne({ email });
+      await OTP.deleteOne({ email, purpose });
       return true;
     } catch (error) {
       console.error('[OTP Store] Error deleting OTP:', error.message);
@@ -64,10 +65,10 @@ class OTPStore {
     }
   }
   
-  async has(k) {
+  async has(k, purpose = 'login') {
     const email = this._key(k);
     try {
-      const count = await OTP.countDocuments({ email });
+      const count = await OTP.countDocuments({ email, purpose });
       return count > 0;
     } catch (error) {
       console.error('[OTP Store] Error checking OTP:', error.message);
@@ -82,6 +83,7 @@ class OTPStore {
         doc.email,
         {
           otp: doc.otp,
+          purpose: doc.purpose,
           expiresAt: doc.expiresAt.getTime(),
           createdAt: doc.createdAt.getTime(),
           attempts: doc.attempts || 0
@@ -94,11 +96,11 @@ class OTPStore {
   }
   
   // Update attempts count
-  async incrementAttempts(k) {
+  async incrementAttempts(k, purpose = 'login') {
     const email = this._key(k);
     try {
       await OTP.findOneAndUpdate(
-        { email },
+        { email, purpose },
         { $inc: { attempts: 1 } }
       );
       return true;
@@ -132,13 +134,13 @@ class RateLimitStore {
 
 const rateLimitStore = new RateLimitStore();
 
-// Configuration values
+// Configuration values - optimized for security AND usability
 const DEFAULT_OTP_LENGTH = 6;
 const DEFAULT_EXPIRES_MS = 5 * 60 * 1000; // OTP valid for 5 minutes
-const MAX_VERIFICATION_ATTEMPTS = 5; // Attempts to verify OTP
-const MAX_REQUEST_ATTEMPTS = 10; // Max OTP requests per 5 minutes
-const RATE_LIMIT_WINDOW_MS = 5 * 60 * 1000; // 5 minute time window
-const COOLDOWN_BETWEEN_REQUESTS_MS = 60 * 1000; // Wait 1 minute between requests
+const MAX_VERIFICATION_ATTEMPTS = 5; // Attempts to verify OTP per purpose
+const MAX_REQUEST_ATTEMPTS = 5; // Max OTP requests per purpose per window
+const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000; // 15 minute time window (longer window, stricter per-purpose)
+const COOLDOWN_BETWEEN_REQUESTS_MS = 30 * 1000; // Wait 30 seconds between requests (reduced from 60s for better UX)
 
 function generateOTP(length = DEFAULT_OTP_LENGTH) {
   if (!Number.isInteger(length) || length < 4 || length > 14) {
@@ -149,8 +151,8 @@ function generateOTP(length = DEFAULT_OTP_LENGTH) {
   return crypto.randomInt(0, maxExclusive).toString().padStart(length, '0');
 }
 
-async function setOTP(email, otp, expiresIn = DEFAULT_EXPIRES_MS) {
-  // Save OTP with expiration time
+async function setOTP(email, otp, purpose = 'login', expiresIn = DEFAULT_EXPIRES_MS) {
+  // Save OTP with expiration time and purpose
   const otpExpiresIn = DEFAULT_EXPIRES_MS;
   
   const value = {
@@ -159,24 +161,24 @@ async function setOTP(email, otp, expiresIn = DEFAULT_EXPIRES_MS) {
     createdAt: Date.now(),
     attempts: 0
   };
-  await otpStore.set(email, value);
+  await otpStore.set(email, value, purpose);
   // MongoDB TTL index will auto-delete expired documents
 }
 
-async function verifyOTP(email, otp) {
-  const entry = await otpStore.get(email);
+async function verifyOTP(email, otp, purpose = 'login') {
+  const entry = await otpStore.get(email, purpose);
   if (!entry) return false;
   if (Date.now() > entry.expiresAt) {
-    await otpStore.delete(email);
+    await otpStore.delete(email, purpose);
     return false;
   }
   const submitted = String(otp);
   // Early reject on length mismatch and increment attempt counter
   if (submitted.length !== String(entry.otp).length) {
-    await otpStore.incrementAttempts(email);
-    const updatedEntry = await otpStore.get(email);
+    await otpStore.incrementAttempts(email, purpose);
+    const updatedEntry = await otpStore.get(email, purpose);
     if (updatedEntry && updatedEntry.attempts >= MAX_VERIFICATION_ATTEMPTS) {
-      await otpStore.delete(email);
+      await otpStore.delete(email, purpose);
     }
     return false;
   }
@@ -190,46 +192,49 @@ async function verifyOTP(email, otp) {
     valid = false;
   }
   if (valid) {
-    // One-time use - clear OTP and rate limit data
-    await otpStore.delete(email);
-    rateLimitStore.delete(email);
+    // One-time use - clear OTP and purpose-specific rate limit data
+    await otpStore.delete(email, purpose);
+    clearRateLimit(email, purpose);
     return true;
   }
-  await otpStore.incrementAttempts(email);
-  const updatedEntry = await otpStore.get(email);
+  await otpStore.incrementAttempts(email, purpose);
+  const updatedEntry = await otpStore.get(email, purpose);
   if (updatedEntry && updatedEntry.attempts >= MAX_VERIFICATION_ATTEMPTS) {
-    await otpStore.delete(email);
+    await otpStore.delete(email, purpose);
   }
   return false;
 }
 
-// Check if OTP request should be rate limited
-function checkRateLimit(email) {
+// Check if OTP request should be rate limited (PURPOSE-AWARE)
+// Each purpose (login, signup, password-reset) has its own rate limit bucket
+function checkRateLimit(email, purpose = 'login') {
   const now = Date.now();
-  const rateData = rateLimitStore.get(email);
+  // Use compound key: email + purpose for separate rate limiting per flow
+  const rateLimitKey = `${String(email || '').trim().toLowerCase()}:${purpose}`;
+  const rateData = rateLimitStore.get(rateLimitKey);
   
   if (!rateData) {
-    // First request - initialize rate limit tracking
-    rateLimitStore.set(email, {
+    // First request for this purpose - initialize rate limit tracking
+    rateLimitStore.set(rateLimitKey, {
       attempts: 1,
       firstAttemptAt: now,
       lastAttemptAt: now
     });
-    return { allowed: true };
+    return { allowed: true, attemptsRemaining: MAX_REQUEST_ATTEMPTS - 1 };
   }
   
-  // Check if window has expired (5 minutes)
+  // Check if window has expired
   if (now - rateData.firstAttemptAt > RATE_LIMIT_WINDOW_MS) {
     // Reset the window
-    rateLimitStore.set(email, {
+    rateLimitStore.set(rateLimitKey, {
       attempts: 1,
       firstAttemptAt: now,
       lastAttemptAt: now
     });
-    return { allowed: true };
+    return { allowed: true, attemptsRemaining: MAX_REQUEST_ATTEMPTS - 1 };
   }
   
-  // Check cooldown between requests (1 minute)
+  // Check cooldown between requests (30 seconds for same purpose)
   if (now - rateData.lastAttemptAt < COOLDOWN_BETWEEN_REQUESTS_MS) {
     const waitTime = Math.ceil((COOLDOWN_BETWEEN_REQUESTS_MS - (now - rateData.lastAttemptAt)) / 1000);
     return { 
@@ -240,13 +245,13 @@ function checkRateLimit(email) {
     };
   }
   
-  // Check max attempts within window
+  // Check max attempts within window for this specific purpose
   if (rateData.attempts >= MAX_REQUEST_ATTEMPTS) {
     const windowTimeLeft = Math.ceil((RATE_LIMIT_WINDOW_MS - (now - rateData.firstAttemptAt)) / 60000);
     return { 
       allowed: false, 
       reason: 'max_attempts',
-      message: `Too many OTP requests. Please try again in ${windowTimeLeft} minute${windowTimeLeft !== 1 ? 's' : ''}.`,
+      message: `Too many OTP requests for ${purpose}. Please try again in ${windowTimeLeft} minute${windowTimeLeft !== 1 ? 's' : ''}.`,
       retryAfter: Math.ceil((RATE_LIMIT_WINDOW_MS - (now - rateData.firstAttemptAt)) / 1000)
     };
   }
@@ -254,9 +259,15 @@ function checkRateLimit(email) {
   // Update rate limit data
   rateData.attempts += 1;
   rateData.lastAttemptAt = now;
-  rateLimitStore.set(email, rateData);
+  rateLimitStore.set(rateLimitKey, rateData);
   
-  return { allowed: true };
+  return { allowed: true, attemptsRemaining: MAX_REQUEST_ATTEMPTS - rateData.attempts };
+}
+
+// Clear rate limit for a specific email and purpose (called after successful verification)
+function clearRateLimit(email, purpose = 'login') {
+  const rateLimitKey = `${String(email || '').trim().toLowerCase()}:${purpose}`;
+  rateLimitStore.delete(rateLimitKey);
 }
 
 module.exports = { 
@@ -264,6 +275,7 @@ module.exports = {
   setOTP, 
   verifyOTP, 
   checkRateLimit,
+  clearRateLimit,
   otpStore, 
   rateLimitStore,
   DEFAULT_EXPIRES_MS, 
