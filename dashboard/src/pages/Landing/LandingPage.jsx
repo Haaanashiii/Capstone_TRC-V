@@ -1000,10 +1000,9 @@ const LandingPage = () => {
               {/* Fare Matrix Tab - Image Display */}
               <Box sx={{
                 width: '100%',
-                height: '100%',
                 display: 'flex',
                 flexDirection: 'column',
-                justifyContent: 'center',
+                justifyContent: 'flex-start',
                 alignItems: 'center',
                 overflow: 'auto'
               }}>
@@ -1015,7 +1014,8 @@ const LandingPage = () => {
                     width: '100%',
                     height: 'auto',
                     objectFit: 'contain',
-                    borderRadius: '8px'
+                    borderRadius: '8px',
+                    display: 'block'
                   }}
                 />
                 <Typography 
