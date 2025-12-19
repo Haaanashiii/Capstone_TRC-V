@@ -557,39 +557,91 @@ const OperatorHomePage = () => {
     }
   }, [navigate])
 
-  const handleSubmitFranchiseLink = () => {
+  const handleSubmitFranchiseLink = async () => {
     if (!orNumber || !mtopFile) {
-      alert(t.pleaseProvideWarning);
+      Swal.fire({
+        ...alertStyle.warningAlert,
+        title: t.warning || 'Missing Information',
+        text: t.pleaseProvideWarning || 'Please provide both franchise number and MTOP document'
+      });
       return;
     }
 
-    // API call
-    const franchiseInfo = {
-      orNumber: orNumber,
-      status: "ACTIVE",
-      linkedDate: new Date().toLocaleDateString()
-    };
-
-    setUserFranchiseInfo(franchiseInfo);
-    setFranchiseLinked(true);
-    
-    // Store franchise info in sessionStorage so FranchiseeListOperatorSide can access it
-    try { sessionStorage.setItem('userFranchiseInfo', JSON.stringify(franchiseInfo)) } catch { /* ignore */ }
-    try { sessionStorage.setItem('franchiseLinked', 'true') } catch { /* ignore */ }
-    // persist owner userId so other users won't pick up this data
     try {
-      const token = sessionStorage.getItem('accessToken')
-      if (token) {
-        try { const payload = JSON.parse(atob(token.split('.')[1])); if (payload?.id) sessionStorage.setItem('franchiseOwnerUserId', payload.id) } catch { /* ignore */ }
+      // Call the backend API to link franchise
+      logger.log('[OperatorHomePage] Linking franchise:', orNumber);
+      
+      const response = await franchiseInformationAPI.linkFranchise({
+        franchiseNumber: orNumber.trim(),
+        mtofDocument: mtopFile
+      });
+
+      if (response.data && response.data.success) {
+        const linkedFranchise = response.data.data;
+        
+        logger.log('[OperatorHomePage] Franchise linked successfully:', linkedFranchise);
+        
+        // Update local state
+        const franchiseInfo = {
+          franchiseNumber: linkedFranchise.franchiseNumber,
+          franchiseChainId: linkedFranchise.franchiseChainId,
+          status: linkedFranchise.franchiseStatus,
+          linkedDate: new Date().toLocaleDateString(),
+          operatorName: linkedFranchise.operatorName
+        };
+
+        setUserFranchiseInfo(franchiseInfo);
+        setFranchiseLinked(true);
+        
+        // Store franchise info in sessionStorage
+        try { 
+          sessionStorage.setItem('userFranchiseInfo', JSON.stringify(franchiseInfo));
+          sessionStorage.setItem('franchiseLinked', 'true');
+          
+          // Persist owner userId
+          const token = sessionStorage.getItem('accessToken');
+          if (token) {
+            const payload = JSON.parse(atob(token.split('.')[1]));
+            if (payload?.id) sessionStorage.setItem('franchiseOwnerUserId', payload.id);
+          }
+        } catch (e) {
+          logger.error('[OperatorHomePage] Error storing franchise info:', e);
+        }
+        
+        setShowModal(false);
+        
+        // Reset form
+        setOrNumber("");
+        setMtopFile(null);
+        setOrWarning("");
+        
+        // Show success message
+        Swal.fire({
+          ...alertStyle.successAlert,
+          title: 'Franchise Linked Successfully!',
+          text: `Franchise #${linkedFranchise.franchiseNumber} has been linked to your account.`
+        });
+        
+        // Refresh franchise data
+        fetchUserFranchises();
+        
+      } else {
+        throw new Error(response.data?.message || 'Failed to link franchise');
       }
-    } catch { /* ignore */ }
-    
-    setShowModal(false);
-    
-    // For reset 
-    setOrNumber("");
-    setMtopFile(null);
-    setOrWarning("");
+      
+    } catch (error) {
+      logger.error('[OperatorHomePage] Error linking franchise:', error);
+      
+      const errorMessage = error.response?.data?.message || 
+                          error.message || 
+                          'Failed to link franchise. Please check your franchise number and try again.';
+      
+      Swal.fire({
+        ...alertStyle.errorAlert,
+        title: 'Linking Failed',
+        text: errorMessage
+      });
+    }
   };
 
 

@@ -1449,6 +1449,11 @@ exports.sbAdminAcceptNewFranchise = async (req, res, next) => {
     // When 0001 goes from gabatino-0001 (revoked) to gonzales-0001 (new), QR shows new owner
     invalidateQRCache(franchiseNo);
     
+    // Invalidate franchise list cache so admin side shows new franchise immediately
+    const cacheManager = require('../utils/cache');
+    cacheManager.clearPattern('franchises-');
+    console.log('[sbAdminAcceptNewFranchise] Cleared franchise list cache for immediate refresh');
+    
     // Link franchise chain ID to user account
     if (application.operatorInfo) {
       try {
@@ -1600,11 +1605,23 @@ exports.sbAdminAcceptRenewOrAmendment = async (req, res, next) => {
     const franchiseNo = existingFranchise.franchiseNumber;
     
     // Determine franchiseChainId based on application type:
-    // - Amendment: KEEP same franchise number AND chainId (just update operator info, version increments)
-    // - Renewal: KEEP same franchise number AND chainId (extend expiry, version increments)
-    // - Change_unit: KEEP same franchise number AND chainId (update motor/driver, version increments)
-    const newFranchiseChainId = existingFranchise.franchiseChainId;
-    console.log('[sbAdminAcceptRenewOrAmendment] ' + application.applicationType + ' - keeping same franchiseChainId:', newFranchiseChainId);
+    // - Amendment (no ownership change): KEEP same chainId (just update operator info, version increments)
+    // - Renewal: KEEP same chainId (extend expiry, version increments)
+    // - Change_unit: KEEP same chainId (update motor/driver, version increments)
+    // - Update_ownership / amend-update_ownership: CREATE NEW chainId with new owner's name
+    const isOwnershipChange = application.applicationType === 'update_ownership' || 
+                              application.applicationType === 'amend-update_ownership';
+    
+    let newFranchiseChainId;
+    if (isOwnershipChange && application.operatorName) {
+      // Create NEW chain ID for ownership transfer
+      newFranchiseChainId = `${franchiseNo}-${application.operatorName.toLowerCase().replace(/\s+/g, '-')}`;
+      console.log('[sbAdminAcceptRenewOrAmendment] Ownership change - creating NEW franchiseChainId:', newFranchiseChainId);
+    } else {
+      // Keep existing chain ID for other changes
+      newFranchiseChainId = existingFranchise.franchiseChainId;
+      console.log('[sbAdminAcceptRenewOrAmendment] ' + application.applicationType + ' - keeping same franchiseChainId:', newFranchiseChainId);
+    }
     
     // Handle versioning (no transaction for standalone MongoDB compatibility)
     const { version, previousVersion } = await handleVersionControl(franchiseNo, application.applicationType);
@@ -1686,8 +1703,11 @@ exports.sbAdminAcceptRenewOrAmendment = async (req, res, next) => {
     };
     
     // Update specific sections based on type
-    if (application.applicationType === 'amendment') {
-      // Amendment: Update operator information only, keep franchise number
+    // Handle all amendment subtypes: amendment, amend-update_ownership, update_ownership
+    if (application.applicationType === 'amendment' || 
+        application.applicationType === 'amend-update_ownership' || 
+        application.applicationType === 'update_ownership') {
+      // Amendment/Ownership Update: Update operator information only, keep franchise number
       newVersionData.operatorName = application.operatorName;
       newVersionData.operatorContactNumber = application.operatorContactNumber;
       newVersionData.operatorAddress = application.operatorAddress;
@@ -1700,8 +1720,9 @@ exports.sbAdminAcceptRenewOrAmendment = async (req, res, next) => {
       newVersionData.coOwnerName = application.coOwnerName;
       newVersionData.coOwnerAddress = application.coOwnerAddress;
       // Keep existing motor/driver info and franchise number
-      console.log('[sbAdminAcceptRenewOrAmendment] Amendment - updated operator info, retained franchise number:', franchiseNo);
-    } else if (application.applicationType === 'change_unit') {
+      console.log('[sbAdminAcceptRenewOrAmendment] Amendment/Ownership - updated operator info, retained franchise number:', franchiseNo);
+    } else if (application.applicationType === 'change_unit' || 
+               application.applicationType === 'amend-change_unit') {
       // Change Unit: Update motor/driver info, keep operator
       newVersionData.unitModel = application.unitModel;
       newVersionData.colorMotor = application.colorMotor;
@@ -1718,17 +1739,10 @@ exports.sbAdminAcceptRenewOrAmendment = async (req, res, next) => {
       console.log('[sbAdminAcceptRenewOrAmendment] Renewal - extended expiry date, retained all information and franchise number:', franchiseNo);
     }
     
-    const FranchiseInformationModel = require('../models/franchiseInformationModel');
-    const newFranchise = await FranchiseInformationModel.create([newVersionData]);
-    
-    // Invalidate QR cache - renewal/amendment may update driver/operator info shown in QR scan
-    invalidateQRCache(franchiseNo);
-    
-    // Link franchise chain ID to new owner (for ownership updates)
-    if (application.applicationType === 'update_ownership' && application.operatorInfo) {
+    // Link franchise chain ID to new owner BEFORE creating franchise (for ownership updates)
+    if (isOwnershipChange && application.operatorInfo) {
       try {
         const User = require('../models/userAccountModel');
-        const newFranchiseChainId = `${franchiseNo}-${application.operatorName.toLowerCase().replace(/\s+/g, '-')}`;
         await User.findByIdAndUpdate(
           application.operatorInfo,
           { 
@@ -1743,6 +1757,17 @@ exports.sbAdminAcceptRenewOrAmendment = async (req, res, next) => {
         throw linkError;
       }
     }
+    
+    const FranchiseInformationModel = require('../models/franchiseInformationModel');
+    const newFranchise = await FranchiseInformationModel.create([newVersionData]);
+    
+    // Invalidate QR cache - renewal/amendment may update driver/operator info shown in QR scan
+    invalidateQRCache(franchiseNo);
+    
+    // Invalidate franchise list cache so admin side refreshes immediately
+    const cacheManager = require('../utils/cache');
+    cacheManager.clearPattern('franchises-');
+    console.log('[sbAdminAcceptRenewOrAmendment] Cleared franchise list cache for immediate refresh');
      // Delete application from FranchiseApplication collection (now in FranchiseInformation)
     // This prevents data redundancy and keeps FranchiseApplication for pending applications only
     await franchiseApplicationRepository.deleteFranchiseApplication(id);
