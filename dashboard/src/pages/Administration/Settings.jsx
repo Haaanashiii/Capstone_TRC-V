@@ -321,7 +321,9 @@ function Settings() {
         if (imageUrl && imageUrl.startsWith('/api/files/')) {
           imageUrl = `${API_BASE_URL}${imageUrl}`;
         }
-        setFareMatrixPreview(imageUrl);
+        // Add cache-busting to prevent browser from showing cached old image
+        const cacheBuster = `?t=${Date.now()}`;
+        setFareMatrixPreview(imageUrl + cacheBuster);
         setFareMatrixId(result.fareMatrix.fareMatrixId);
         setCurrentFileName(result.fareMatrix.fileName);
         setUploadDate(new Date(result.fareMatrix.createdAt).toLocaleString());
@@ -386,18 +388,12 @@ function Settings() {
       const result = response.data;
 
       if (result?.success && result?.fareMatrix) {
-        // Prepend API_BASE_URL to imageUrl if it's a relative path
-        let imageUrl = result.fareMatrix.imageUrl;
-        if (imageUrl && imageUrl.startsWith('/api/files/')) {
-          imageUrl = `${API_BASE_URL}${imageUrl}`;
-        }
-        // Add cache-busting query param to force browser to reload the image
-        const cacheBuster = `?t=${Date.now()}`;
-        setFareMatrixPreview(imageUrl + cacheBuster);
-        setFareMatrixId(result.fareMatrix.fareMatrixId);
-        setCurrentFileName(result.fareMatrix.fileName);
-        setUploadDate(new Date(result.fareMatrix.createdAt).toLocaleString());
-        setFareMatrixImage(null); // Clear the selected file
+        // Clear the local file first
+        setFareMatrixImage(null);
+        
+        // Refetch the fare matrix to ensure we have the latest data with proper URLs
+        await fetchFareMatrix();
+        
         showNotification('Fare matrix uploaded successfully');
       } else {
         throw new Error('Invalid response from server');
@@ -415,7 +411,7 @@ function Settings() {
     } finally {
       setLoading(false);
     }
-  }, [fareMatrixImage, showNotification]);
+  }, [fareMatrixImage, showNotification, fetchFareMatrix]);
 
   const handleRemoveFareImage = useCallback(() => {
     setFareMatrixImage(null);
