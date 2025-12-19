@@ -54,7 +54,7 @@ async function handleOtpRequest(email, phoneNumber, userId, res, next, message, 
       const otp = generateOTP();
       await setOTP(normalizedEmail, otp); // OTP expires in 5 minutes - use normalized email
       
-      console.log(`[OTP] Generated OTP for "${normalizedEmail}" - storing with normalized key`);
+      // OTP generated and stored (code not logged for security)
       
       // Send OTP via SMS or Email (smart routing)
       await sendOTPNotification(
@@ -65,7 +65,7 @@ async function handleOtpRequest(email, phoneNumber, userId, res, next, message, 
         deliveryMethod
       );
       
-      console.log(`[OTP] Generated and sent OTP for ${normalizedEmail} - Valid for 5 minutes`);
+      // OTP sent successfully
     } catch (e) {
       // Log error but don't expose to user
       console.error('Failed to generate/send OTP for', normalizedEmail, e && e.message ? e.message : e);
@@ -98,13 +98,14 @@ exports.forgotPassword = async (req, res, next) => {
     }
     
     if (!user) {
-      // Don't reveal if email exists or not (security best practice)
+      // SECURITY: Don't reveal if email exists or not (prevents user enumeration)
       console.log('[Auth] Forgot password attempt for non-existent email:', email);
-      return res.status(400).json({ error: 'Email not found in our system' });
+      // Return success message even for non-existent emails
+      return res.json({ message: 'If this email is registered, you will receive a password reset OTP.' });
     }
     
     // Force email-only delivery for password reset
-    return handleOtpRequest(email, null, null, res, next, 'OTP has been sent to your email for password reset.', 'email');
+    return handleOtpRequest(email, null, null, res, next, 'If this email is registered, you will receive a password reset OTP.', 'email');
   } catch (err) {
     next(err);
   }
@@ -139,34 +140,21 @@ exports.verifyOtp = async (req, res, next) => {
     // Check if OTP entry exists
     const entry = await otpStore.get(email);
     if (!entry) {
-      console.log(`[OTP Verify] No OTP entry found for: "${email}"`);
-      const allEntries = await otpStore.entries();
-      console.log(`[OTP Verify] Available OTP entries:`, allEntries.map(([k, v]) => ({ 
-        email: k, 
-        otp: v.otp, 
-        expiresAt: new Date(v.expiresAt).toISOString(),
-        attempts: v.attempts 
-      })));
+      // OTP not found - don't log details for security
       return res.status(400).json({ error: 'Invalid or expired OTP. Please request a new one.' });
     }
     
-    console.log(`[OTP Verify] Found entry, stored OTP: "${entry.otp}" (length: ${String(entry.otp).length})`);
-    console.log(`[OTP Verify] Expires at: ${new Date(entry.expiresAt).toISOString()}, attempts: ${entry.attempts}`);
-    console.log(`[OTP Verify] OTP comparison: submitted="${otp}" vs stored="${entry.otp}" | Match: ${otp === entry.otp}`);
+    // OTP entry found - verify without logging sensitive values;
     
     // Use the middleware's verifyOTP function for consistent verification
     const valid = await verifyOTPFromStore(email, otp);
     
     if (!valid) {
-      console.log(`[OTP Verify] OTP verification failed for: "${email}"`);
-      const updatedEntry = await otpStore.get(email);
-      if (updatedEntry) {
-        console.log(`[OTP Verify] Remaining attempts: ${MAX_VERIFICATION_ATTEMPTS - (updatedEntry.attempts || 0)}`);
-      }
+      // OTP verification failed - don't log attempt details
       return res.status(400).json({ error: 'Invalid or expired OTP' });
     }
     
-    console.log(`[OTP Verify] OTP verified successfully for: "${email}"`);
+    // OTP verified successfully
     
     // Re-store the OTP for the reset-password step (since verifyOTP deletes it)
     // We need to allow the user to use the same OTP for password reset
@@ -619,15 +607,14 @@ exports.login = async (req, res, next) => {
         if (shouldGenerateNewOtp) {
           const otp = generateOTP();
           await setOTP(otpKey, otp);
-          console.log(`[Login] OTP generated and stored for key: "${otpKey}"`);
-          console.log(`[Login] Generated OTP code: "${otp}" (length: ${String(otp).length}) - DEVELOPMENT ONLY LOG`);
+          // OTP generated and stored (code not logged for security)
           
           // Verify OTP was stored correctly
           const storedEntry = await otpStore.get(otpKey);
           if (storedEntry) {
-            console.log(`[Login] OTP storage verified: OTP="${storedEntry.otp}", expires at ${new Date(storedEntry.expiresAt).toISOString()}`);
+            // OTP storage verified
           } else {
-            console.error(`[Login] WARNING: OTP was not stored correctly for key: "${otpKey}"`);
+            console.error(`[Login] WARNING: OTP storage failed for user`);
           }
           
           // send to the canonical email on file

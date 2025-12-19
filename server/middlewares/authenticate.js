@@ -1,5 +1,11 @@
 const jwt = require('jsonwebtoken');
 
+// SECURITY: Fail early if JWT_SECRET is not configured
+if (!process.env.JWT_SECRET) {
+  console.error('FATAL: JWT_SECRET environment variable is not set. Server cannot start securely.');
+  process.exit(1);
+}
+
 module.exports = function authenticateToken(req, res, next) {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];

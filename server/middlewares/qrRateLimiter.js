@@ -7,8 +7,8 @@
 
 const rateLimit = require('express-rate-limit');
 
-// RATE LIMITER DISABLED FOR DEVELOPMENT
-const RATE_LIMITER_ENABLED = false;
+// SECURITY: Rate limiter enabled to prevent QR code abuse
+const RATE_LIMITER_ENABLED = process.env.NODE_ENV !== 'development';
 
 // In-memory store for per-QR-ID tracking (no Redis dependency needed)
 const qrScanStore = new Map();

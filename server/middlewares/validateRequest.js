@@ -25,7 +25,45 @@ function getPaginationParams(req, maxLimit = 50) {
 
 function sanitizeQuery(query) {
   if (!query || typeof query !== 'string') return '';
-  return query.replace(/[\$\{\}]/g, '').trim().substring(0, 200);
+  // SECURITY: Remove MongoDB operators and special characters to prevent NoSQL injection
+  return query
+    .replace(/[\$\{\}]/g, '')  // Remove $ { }
+    .replace(/\./g, '')         // Remove dots (prevents nested operator access)
+    .trim()
+    .substring(0, 200);
+}
+
+/**
+ * SECURITY: Deep sanitize object to prevent NoSQL injection
+ * Removes MongoDB operators like $gt, $lt, $ne, $in, $or, $and, $where, etc.
+ */
+function sanitizeMongoQuery(obj) {
+  if (obj === null || obj === undefined) return obj;
+  
+  // Reject non-string primitives that should be strings (prevents {"$ne": null} attacks)
+  if (typeof obj !== 'object') {
+    return typeof obj === 'string' ? obj : String(obj);
+  }
+  
+  // Handle arrays
+  if (Array.isArray(obj)) {
+    return obj.map(item => sanitizeMongoQuery(item));
+  }
+  
+  // Handle objects - remove dangerous MongoDB operators
+  const dangerousKeys = /^\$|\$where|\$regex|\$options|\$expr|\$function/i;
+  const sanitized = {};
+  
+  for (const key of Object.keys(obj)) {
+    // Skip keys that look like MongoDB operators
+    if (dangerousKeys.test(key)) {
+      console.warn(`[Security] Blocked potential NoSQL injection attempt: ${key}`);
+      continue;
+    }
+    sanitized[key] = sanitizeMongoQuery(obj[key]);
+  }
+  
+  return sanitized;
 }
 
 const validationSchemas = {
@@ -82,6 +120,7 @@ module.exports = {
   validateRequest,
   validationSchemas,
   sanitizeRequest,
+  sanitizeMongoQuery,
   getPaginationParams,
   sanitizeQuery
 };

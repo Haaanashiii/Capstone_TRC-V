@@ -508,38 +508,55 @@ app.get('/api/admin/cache-stats', (req, res) => {
   }
 });
 
-// Cache management endpoint (admin only)
+// Cache management endpoint (super-admin only with authentication)
 app.post('/api/admin/cache-clear', (req, res) => {
-  const cacheManager = require('./utils/cache');
-  const { pattern } = req.body;
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ success: false, message: 'Authentication required' });
+  }
   
-  // In production, verify admin authentication
-  if (pattern) {
-    const deleted = cacheManager.deletePattern(pattern);
-    res.json({
-      success: true,
-      message: `Cleared ${deleted} cache entries matching pattern: ${pattern}`
-    });
-  } else {
-    cacheManager.clear();
-    res.json({
-      success: true,
-      message: 'All cache entries cleared'
-    });
+  try {
+    const token = authHeader.split(' ')[1];
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    
+    if (decoded.role !== 'super-admin') {
+      return res.status(403).json({ success: false, message: 'Super-admin access required' });
+    }
+    
+    const cacheManager = require('./utils/cache');
+    const { pattern } = req.body;
+    
+    if (pattern) {
+      const deleted = cacheManager.deletePattern(pattern);
+      res.json({
+        success: true,
+        message: `Cleared ${deleted} cache entries matching pattern: ${pattern}`
+      });
+    } else {
+      cacheManager.clear();
+      res.json({
+        success: true,
+        message: 'All cache entries cleared'
+      });
+    }
+  } catch (err) {
+    return res.status(401).json({ success: false, message: 'Invalid or expired token' });
   }
 });
 
-// Debug IP detection
-app.get('/debug/ip', (req, res) => {
-  const { getClientIp } = require('./utils/ipHelper');
-  res.json({
-    ip: getClientIp(req),
-    headers: {
-      'x-forwarded-for': req.headers['x-forwarded-for'] || null,
-      'x-real-ip': req.headers['x-real-ip'] || null
-    }
+// Debug IP detection (development only - disabled in production for security)
+if (process.env.NODE_ENV === 'development') {
+  app.get('/debug/ip', (req, res) => {
+    const { getClientIp } = require('./utils/ipHelper');
+    res.json({
+      ip: getClientIp(req),
+      headers: {
+        'x-forwarded-for': req.headers['x-forwarded-for'] || null,
+        'x-real-ip': req.headers['x-real-ip'] || null
+      }
+    });
   });
-});
+}
 
 // Error handler
 app.use(errorHandler);
