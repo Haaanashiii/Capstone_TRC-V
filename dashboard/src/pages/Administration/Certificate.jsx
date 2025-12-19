@@ -111,7 +111,7 @@ const CERTIFICATE_TYPES = {
     icon: CheckCircleIcon,
     fileType: 'pdf',
     fillable: true,
-    template: '/src/assets/C.001 - CERT APPROVED - FILLABLE.pdf',
+    template: '/C.001 - CERT APPROVED - FILLABLE.pdf',
     color: '#2e7d32'
   },
   CANCELLATION: {
@@ -122,7 +122,7 @@ const CERTIFICATE_TYPES = {
     icon: CancelIcon,
     fileType: 'pdf',
     fillable: true,
-    template: '/src/assets/C.001 - CERT CANCELLED - FILLABLE.pdf',
+    template: '/C.001 - CERT CANCELLED - FILLABLE.pdf',
     color: '#d32f2f'
   },
   EXISTING: {
@@ -133,7 +133,7 @@ const CERTIFICATE_TYPES = {
     icon: AssignmentIcon,
     fileType: 'pdf',
     fillable: true,
-    template: '/src/assets/F.008 - CERT EXISTING - FILLABLE.pdf',
+    template: '/F.008 - CERT EXISTING - FILLABLE.pdf',
     color: '#1976d2'
   },
   MTOF_DATE: {
@@ -144,7 +144,7 @@ const CERTIFICATE_TYPES = {
     icon: DescriptionIcon,
     fileType: 'docx',
     fillable: false,
-    template: '/src/assets/F.008 - MTOF - DATE.docx',
+    template: '/F.008 - MTOF - DATE.docx',
     color: '#ed6c02'
   },
   MTOF_SUMMARY: {
@@ -155,7 +155,7 @@ const CERTIFICATE_TYPES = {
     icon: ArticleIcon,
     fileType: 'docx',
     fillable: false,
-    template: '/src/assets/F.008 - MTOF DATE SUMMARY.docx',
+    template: '/F.008 - MTOF DATE SUMMARY.docx',
     color: '#9c27b0'
   }
 };

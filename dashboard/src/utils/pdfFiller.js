@@ -8,7 +8,8 @@ import logger from './logger';
  */
 export async function getPdfFieldNames() {
   try {
-    const templateUrl = '/src/assets/MTOF - FILLABLE.pdf';
+    // Use public folder path - works in both dev and production
+    const templateUrl = '/MTOF - FILLABLE.pdf';
     const existingPdfBytes = await fetch(templateUrl).then(res => res.arrayBuffer());
     const pdfDoc = await PDFDocument.load(existingPdfBytes);
     const form = pdfDoc.getForm();
@@ -34,8 +35,8 @@ export async function getPdfFieldNames() {
  */
 export async function fillFranchiseApplicationPDF(applicationData) {
   try {
-    // Load the blank PDF template
-    const templateUrl = '/src/assets/MTOF - FILLABLE.pdf';
+    // Load the blank PDF template from public folder (works in both dev and production)
+    const templateUrl = '/MTOF - FILLABLE.pdf';
     const existingPdfBytes = await fetch(templateUrl).then(res => res.arrayBuffer());
     
     // Load PDF with pdf-lib
