@@ -142,17 +142,24 @@ router.get('/:fileId', async (req, res) => {
                           !metadata.mimetype?.includes('compressed');
     
     // Set security and caching headers
+    // Check if running behind nginx proxy
+    const isProxied = process.env.DOCKER_ENV === 'true';
+    
     const headers = {
       'Content-Type': metadata.mimetype || 'application/octet-stream',
       'Content-Disposition': `inline; filename="${encodeURIComponent(metadata.filename || 'file')}"`,
       'Cache-Control': 'public, max-age=31536000, immutable', // 1 year cache
       'ETag': etag,
       'X-Content-Type-Options': 'nosniff',
-      'Access-Control-Allow-Origin': req.headers.origin || '*',
-      'Access-Control-Allow-Credentials': 'true',
       'Cross-Origin-Resource-Policy': 'cross-origin',
       'Vary': 'Accept-Encoding'
     };
+    
+    // Only add CORS headers if NOT behind nginx proxy
+    if (!isProxied) {
+      headers['Access-Control-Allow-Origin'] = req.headers.origin || '*';
+      headers['Access-Control-Allow-Credentials'] = 'true';
+    }
     
     // Compress if applicable
     if (shouldCompress && file.buffer.length > 1024) {
@@ -214,12 +221,21 @@ router.get('/info/:fileId', async (req, res) => {
       setCachedMetadata(fileId, metadata);
     }
     
+    // Check if running behind nginx proxy
+    const isProxied = process.env.DOCKER_ENV === 'true';
+    
     // Set caching headers
-    res.set({
-      'Cache-Control': 'public, max-age=3600', // 1 hour
-      'Access-Control-Allow-Origin': req.headers.origin || '*',
-      'Access-Control-Allow-Credentials': 'true'
-    });
+    const responseHeaders = {
+      'Cache-Control': 'public, max-age=3600' // 1 hour
+    };
+    
+    // Only add CORS headers if NOT behind nginx proxy
+    if (!isProxied) {
+      responseHeaders['Access-Control-Allow-Origin'] = req.headers.origin || '*';
+      responseHeaders['Access-Control-Allow-Credentials'] = 'true';
+    }
+    
+    res.set(responseHeaders);
     
     res.json({
       id: metadata.id,

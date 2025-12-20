@@ -2,36 +2,131 @@
 
 ## Overview
 
-This guide explains how to connect a **hosted frontend** (on a web hosting service) to your **local backend server** running Docker with Nginx and PM2.
+This guide explains how to connect a **hosted frontend** (on a web hosting service like Hostinger, iFast, or cPanel) to your **local backend server** running Docker with Nginx and PM2.
 
 > 📈 **Enterprise Scaling:** For multi-server clusters and high-availability setups, see [ENTERPRISE_SCALING_GUIDE.md](ENTERPRISE_SCALING_GUIDE.md)
 
-### Architecture Diagram
+---
+
+## 🎯 Complete Request Flow
+
+Here's exactly how a user request flows through your system:
 
 ```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                           INTERNET                                       │
-│                                                                          │
-│   ┌──────────────────┐         ┌──────────────────────────────────┐     │
-│   │  Hosted Frontend │         │         Your Domain               │     │
-│   │  (Vercel/Netlify │ ──API──→│  api.yourdomain.com (DDNS)       │     │
-│   │   /cPanel/etc)   │  calls  │         ↓                         │     │
-│   └──────────────────┘         │  Points to your public IP         │     │
-│                                └──────────────────────────────────┘     │
-└─────────────────────────────────────────────────────────────────────────┘
-                                          │
-                                          ▼ (Port forwarding 80/443)
-┌─────────────────────────────────────────────────────────────────────────┐
-│                        YOUR LOCAL NETWORK                                │
-│                                                                          │
-│   ┌─────────────┐         ┌─────────────┐         ┌─────────────────┐   │
-│   │   Router    │ ──────→ │   Nginx     │ ──────→ │  PM2 + Node.js  │   │
-│   │ (port fwd)  │         │ (Docker)    │         │  (Docker)       │   │
-│   └─────────────┘         └─────────────┘         └─────────────────┘   │
-│                                                                          │
-│   Server IP: 192.168.x.x (static recommended)                           │
-└─────────────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                              THE COMPLETE FLOW                                   │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                  │
+│  1. USER visits https://yourdomain.com (hosted on Hostinger/iFast)              │
+│                          │                                                       │
+│                          ▼                                                       │
+│  2. FRONTEND loads from web host, makes API call to api.yourdomain.com          │
+│                          │                                                       │
+│                          ▼                                                       │
+│  3. DNS resolves api.yourdomain.com → CNAME → yourcompany.ddns.net              │
+│                          │                                                       │
+│                          ▼                                                       │
+│  4. DDNS resolves yourcompany.ddns.net → Your Public IP (updated every 5 min)   │
+│                          │                                                       │
+│                          ▼                                                       │
+│  5. ROUTER receives request on port 80/443, forwards to 192.168.x.x:80          │
+│                          │                                                       │
+│                          ▼                                                       │
+│  6. NGINX (Docker) receives request, load balances to backend                   │
+│                          │                                                       │
+│                          ▼                                                       │
+│  7. BACKEND (PM2 cluster) processes request, queries MongoDB/Redis              │
+│                          │                                                       │
+│                          ▼                                                       │
+│  8. RESPONSE travels back: Backend → Nginx → Router → Internet → User           │
+│                                                                                  │
+└─────────────────────────────────────────────────────────────────────────────────┘
 ```
+
+### Visual Architecture
+
+```
+┌───────────────────────────────────────────────────────────────────────────────┐
+│                              INTERNET                                          │
+│                                                                                │
+│  ┌────────────────────────┐              ┌─────────────────────────────────┐  │
+│  │  HOSTED FRONTEND       │              │  YOUR DOMAIN (DNS)              │  │
+│  │  ━━━━━━━━━━━━━━━━━━━   │              │  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  │  │
+│  │  Hostinger / iFast     │   API Call   │  yourdomain.com → Hostinger IP  │  │
+│  │  cPanel / Netlify      │ ───────────→ │  api.yourdomain.com → DDNS      │  │
+│  │  Vercel / etc.         │              │       ↓                          │  │
+│  │                        │              │  yourcompany.ddns.net            │  │
+│  │  Files: HTML/JS/CSS    │              │       ↓                          │  │
+│  │  (Static React build)  │              │  YOUR PUBLIC IP                  │  │
+│  └────────────────────────┘              └─────────────────────────────────┘  │
+│                                                        │                       │
+└────────────────────────────────────────────────────────┼───────────────────────┘
+                                                         │
+                                                         ▼ Port 80/443
+┌────────────────────────────────────────────────────────────────────────────────┐
+│                         YOUR LOCAL NETWORK / SERVER                             │
+│                                                                                 │
+│  ┌─────────────────┐      ┌──────────────────┐      ┌────────────────────┐     │
+│  │     ROUTER      │      │      NGINX       │      │   BACKEND (PM2)    │     │
+│  │  ━━━━━━━━━━━━   │      │  ━━━━━━━━━━━━━   │      │  ━━━━━━━━━━━━━━━   │     │
+│  │  Port Forward:  │─────→│  Load Balancer   │─────→│  Node.js Cluster   │     │
+│  │  80 → Server:80 │      │  SSL Termination │      │  2-16+ workers     │     │
+│  │  443→ Server:443│      │  Rate Limiting   │      │                    │     │
+│  └─────────────────┘      └──────────────────┘      └─────────┬──────────┘     │
+│                                                                │                │
+│        ┌──────────────────────────────────────────────────────┘                │
+│        │                                                                        │
+│        ▼                                                                        │
+│  ┌──────────────────────────────────────────────────────────────────────┐      │
+│  │                        DATA LAYER                                     │      │
+│  │  ┌─────────────────────┐        ┌─────────────────────────┐          │      │
+│  │  │      MongoDB        │        │         Redis           │          │      │
+│  │  │  ━━━━━━━━━━━━━━━━   │        │  ━━━━━━━━━━━━━━━━━━━━   │          │      │
+│  │  │  Database           │        │  Sessions + Socket.IO   │          │      │
+│  │  │  Port: 27017        │        │  Port: 6379             │          │      │
+│  │  └─────────────────────┘        └─────────────────────────┘          │      │
+│  └──────────────────────────────────────────────────────────────────────┘      │
+│                                                                                 │
+│  DDNS Client: Updates IP to DDNS provider every 5 minutes                      │
+│  Server Static IP: 192.168.x.x (configured via router DHCP reservation)        │
+└────────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 📋 Deployment Checklist
+
+Use this checklist to track your progress:
+
+### Phase 1: Local Server Setup
+- [ ] Install Docker on your server PC
+- [ ] Clone the repository
+- [ ] Configure `.env` file with production values
+- [ ] Set static IP for your server (192.168.x.x)
+- [ ] Start Docker containers and verify they work locally
+
+### Phase 2: Network Configuration
+- [ ] Set up DDNS account (No-IP, Duck DNS, or router built-in)
+- [ ] Install DDNS update client (5-minute interval)
+- [ ] Configure router port forwarding (80 and 443)
+- [ ] Open firewall ports on server PC
+- [ ] Test: Can you access your server from outside your network?
+
+### Phase 3: Domain Configuration
+- [ ] Add CNAME record: `api` → `yourcompany.ddns.net`
+- [ ] Wait for DNS propagation (use dnschecker.org)
+- [ ] Test: Does `api.yourdomain.com` resolve correctly?
+
+### Phase 4: SSL/HTTPS Setup
+- [ ] Obtain SSL certificate (Let's Encrypt recommended)
+- [ ] Configure Nginx with SSL
+- [ ] Test: Does `https://api.yourdomain.com` work?
+
+### Phase 5: Frontend Deployment
+- [ ] Build frontend for production: `npm run build`
+- [ ] Upload `dist` folder to Hostinger/iFast
+- [ ] Set environment variable: `VITE_API_BASE_URL=https://api.yourdomain.com`
+- [ ] Test: Does the full login flow work?
 
 ---
 
@@ -239,15 +334,22 @@ sudo ufw reload
 
 ## Step 4: Set Up DDNS (Dynamic DNS)
 
-Since most home/office internet connections have dynamic public IPs, you need DDNS to keep your domain pointing to your current IP.
+Since most home/office internet connections have dynamic public IPs, you need DDNS to keep your domain pointing to your current IP. **The DDNS client will update your IP every 5 minutes** to ensure stable connectivity.
 
-### Option A: Using No-IP (Free)
+### Option A: Using No-IP (Free) - Recommended for Windows
 
 1. Create account at https://www.noip.com
 2. Create a hostname (e.g., `yourcompany.ddns.net`)
 3. Download and install the **No-IP DUC** (Dynamic Update Client) on your server
 4. Configure it with your account credentials
-5. It will automatically update your IP
+5. **Set update interval to 5 minutes** (Settings → Update Interval)
+6. Enable "Run on Windows startup"
+
+**Verify it's working:**
+```powershell
+# Check your DDNS hostname resolves to your public IP
+nslookup yourcompany.ddns.net
+```
 
 ### Option B: Using Duck DNS (Free)
 
@@ -256,20 +358,81 @@ Since most home/office internet connections have dynamic public IPs, you need DD
 3. Create a subdomain (e.g., `yourcompany.duckdns.org`)
 4. Install the update script:
 
-**Linux:**
+**Windows (Task Scheduler - 5 minute updates):**
+
+1. Create a file `C:\duckdns\duck.cmd`:
+```batch
+@echo off
+curl -k "https://www.duckdns.org/update?domains=yourcompany&token=YOUR-TOKEN&ip="
+```
+
+2. Open **Task Scheduler** → **Create Basic Task**
+   - Name: `DuckDNS Update`
+   - Trigger: **Daily**, then edit to repeat every **5 minutes** for **1 day**
+   - Action: **Start a program** → `C:\duckdns\duck.cmd`
+   - Check: **Run whether user is logged in or not**
+
+**Alternative: PowerShell script with Windows Service:**
+```powershell
+# Save as C:\duckdns\update-duckdns.ps1
+$token = "YOUR-DUCKDNS-TOKEN"
+$domain = "yourcompany"
+
+while ($true) {
+    try {
+        Invoke-WebRequest -Uri "https://www.duckdns.org/update?domains=$domain&token=$token&ip=" -UseBasicParsing
+        Write-Host "$(Get-Date): DuckDNS updated successfully"
+    } catch {
+        Write-Host "$(Get-Date): DuckDNS update failed: $_"
+    }
+    Start-Sleep -Seconds 300  # 5 minutes
+}
+```
+
+**Linux (runs every 5 minutes via cron):**
 ```bash
 # Create update script
 mkdir -p ~/duckdns
-echo "url=\"https://www.duckdns.org/update?domains=yourcompany&token=YOUR-TOKEN&ip=\"" > ~/duckdns/duck.sh
+cat > ~/duckdns/duck.sh << 'EOF'
+#!/bin/bash
+echo url="https://www.duckdns.org/update?domains=yourcompany&token=YOUR-TOKEN&ip=" | curl -k -o ~/duckdns/duck.log -K -
+EOF
 chmod 700 ~/duckdns/duck.sh
 
 # Add to crontab (runs every 5 minutes)
 (crontab -l 2>/dev/null; echo "*/5 * * * * ~/duckdns/duck.sh >/dev/null 2>&1") | crontab -
+
+# Verify cron is set
+crontab -l
 ```
 
 ### Option C: Router's Built-in DDNS
 
-Many routers have built-in DDNS support. Check your router settings for DDNS options.
+Many routers have built-in DDNS support (check Settings → DDNS or Dynamic DNS):
+
+| Router Brand | Supported DDNS Providers |
+|--------------|-------------------------|
+| TP-Link | No-IP, DynDNS, TP-Link DDNS |
+| ASUS | ASUS DDNS, No-IP, DynDNS |
+| Netgear | No-IP, DynDNS |
+| Linksys | DynDNS, No-IP |
+
+**Benefits of router-based DDNS:**
+- ✅ Always running (doesn't depend on server being on)
+- ✅ Updates automatically
+- ✅ No software to install
+
+### Verify DDNS is Working
+
+```powershell
+# 1. Get your current public IP
+(Invoke-WebRequest -Uri "https://api.ipify.org").Content
+
+# 2. Check what your DDNS resolves to
+nslookup yourcompany.ddns.net
+
+# 3. They should match!
+```
 
 ---
 
@@ -277,31 +440,79 @@ Many routers have built-in DDNS support. Check your router settings for DDNS opt
 
 ### 5.1 For API Subdomain
 
-In your domain registrar's DNS settings (GoDaddy, Namecheap, Cloudflare, etc.):
+In your domain registrar's DNS settings (GoDaddy, Namecheap, Cloudflare, Hostinger, etc.):
 
-**If using DDNS hostname (recommended):**
+**Point your API subdomain to your DDNS hostname:**
 
 | Type  | Name  | Value                        | TTL  |
 |-------|-------|------------------------------|------|
 | CNAME | api   | yourcompany.ddns.net         | 300  |
 
-**If using static IP (only if you have a static public IP):**
+This means:
+- `api.yourdomain.com` → `yourcompany.ddns.net` → Your Public IP → Your Router → Nginx
+
+**If your registrar doesn't support CNAME for subdomains**, use an A record with your public IP (but you'll need to update it manually if your IP changes):
 
 | Type | Name | Value         | TTL  |
 |------|------|---------------|------|
 | A    | api  | YOUR.PUBLIC.IP| 300  |
 
-### 5.2 Verify DNS Propagation
+### 5.2 Hostinger DNS Setup
+
+1. Log in to Hostinger → **Domains** → Select your domain
+2. Click **DNS / Nameservers**
+3. Scroll to **DNS Records**
+4. Click **Add Record**:
+   - Type: `CNAME`
+   - Name: `api`
+   - Target: `yourcompany.ddns.net`
+   - TTL: `300` (5 minutes)
+5. Click **Add**
+
+### 5.3 iFast / cPanel DNS Setup
+
+1. Log in to cPanel
+2. Go to **Zone Editor** (under Domains)
+3. Click **Manage** next to your domain
+4. Click **Add Record** → **Add CNAME Record**:
+   - Name: `api`
+   - CNAME: `yourcompany.ddns.net`
+   - TTL: `300`
+5. Click **Add Record**
+
+### 5.4 Cloudflare DNS Setup (If using Cloudflare)
+
+1. Log in to Cloudflare → Select your domain
+2. Go to **DNS** → **Records**
+3. Click **Add record**:
+   - Type: `CNAME`
+   - Name: `api`
+   - Target: `yourcompany.ddns.net`
+   - Proxy status: **DNS only** (grey cloud) - Important!
+   - TTL: Auto
+4. Click **Save**
+
+> ⚠️ **Important for Cloudflare:** Set proxy to "DNS only" (grey cloud icon), not "Proxied" (orange cloud). This ensures your DDNS works correctly.
+
+### 5.5 Verify DNS Propagation
 
 After setting DNS, verify it's working:
 
-```bash
-# Check if DNS resolves correctly
+```powershell
+# Windows
 nslookup api.yourdomain.com
 
-# Or use online tools:
-# https://dnschecker.org
+# Expected output should show your DDNS hostname
 ```
+
+```bash
+# Linux/Mac
+dig api.yourdomain.com +short
+```
+
+**Online tools:**
+- https://dnschecker.org - Check propagation worldwide
+- https://mxtoolbox.com/DNSLookup.aspx - Detailed DNS lookup
 
 > ⏰ DNS changes can take 5 minutes to 48 hours to propagate globally.
 
@@ -419,69 +630,329 @@ Expected response:
 
 ---
 
-## Step 8: Configure the Hosted Frontend
+## Step 8: Deploy Frontend to Hosting Service
 
-### 8.1 Update Frontend Environment
+### 8.1 Build Frontend for Production
 
-On your hosted frontend, set these environment variables:
+First, update the API URL in your frontend:
 
-| Variable | Value |
-|----------|-------|
-| `VITE_API_BASE_URL` | `https://api.yourdomain.com` |
-
-**For Vercel:**
-1. Go to Project Settings → Environment Variables
-2. Add `VITE_API_BASE_URL` = `https://api.yourdomain.com`
-3. Redeploy
-
-**For Netlify:**
-1. Go to Site Settings → Build & Deploy → Environment
-2. Add `VITE_API_BASE_URL` = `https://api.yourdomain.com`
-3. Trigger redeploy
-
-**For cPanel/Shared Hosting:**
-Create or edit `.env` file in your frontend directory:
-```env
-VITE_API_BASE_URL=https://api.yourdomain.com
-```
-Then rebuild and upload the `dist` folder.
-
-### 8.2 Build Frontend for Production
-
+**Option A: Edit `.env` before building:**
 ```bash
 cd dashboard
+
+# Create/edit .env file
+echo "VITE_API_BASE_URL=https://api.yourdomain.com" > .env
+
+# Install dependencies and build
 npm install
 npm run build
 ```
 
-Upload the contents of `dashboard/dist` to your web hosting.
+**Option B: Build with inline environment variable:**
+```bash
+cd dashboard
+VITE_API_BASE_URL=https://api.yourdomain.com npm run build
+```
+
+**Windows PowerShell:**
+```powershell
+cd dashboard
+$env:VITE_API_BASE_URL="https://api.yourdomain.com"
+npm run build
+```
+
+This creates a `dist` folder with your production-ready files.
 
 ---
 
-## Step 9: Testing the Connection
+### 8.2 Deploy to Hostinger
 
-### 9.1 Test API Connectivity
+#### Step 1: Access File Manager
+1. Log in to Hostinger → **Hosting** → Select your hosting plan
+2. Click **File Manager**
+
+#### Step 2: Upload Files
+1. Navigate to `public_html` (or your domain folder)
+2. **Delete** existing files (if any) - backup first if needed
+3. Click **Upload Files** (top right)
+4. Upload **all contents** from your `dashboard/dist` folder:
+   ```
+   dist/
+   ├── index.html      ← Upload this
+   ├── assets/         ← Upload this folder
+   ├── favicon.ico     ← Upload this
+   └── ...             ← Upload everything
+   ```
+5. Make sure `index.html` is in the **root** of `public_html`, not inside a subfolder
+
+#### Step 3: Configure .htaccess for SPA Routing
+Create `.htaccess` file in `public_html`:
+```apache
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+  RewriteRule ^index\.html$ - [L]
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteRule . /index.html [L]
+</IfModule>
+
+# Enable GZIP compression
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/plain text/css application/javascript application/json
+</IfModule>
+
+# Cache static assets
+<IfModule mod_expires.c>
+  ExpiresActive On
+  ExpiresByType image/jpg "access plus 1 year"
+  ExpiresByType image/jpeg "access plus 1 year"
+  ExpiresByType image/png "access plus 1 year"
+  ExpiresByType image/gif "access plus 1 year"
+  ExpiresByType image/svg+xml "access plus 1 year"
+  ExpiresByType text/css "access plus 1 month"
+  ExpiresByType application/javascript "access plus 1 month"
+</IfModule>
+```
+
+#### Step 4: Enable SSL
+1. Go to Hostinger → **SSL** → Select your domain
+2. Click **Install SSL** (free with Hostinger)
+3. Wait for SSL to activate (usually instant)
+
+---
+
+### 8.3 Deploy to iFast / cPanel Hosting
+
+#### Step 1: Access File Manager
+1. Log in to cPanel
+2. Click **File Manager**
+3. Navigate to `public_html`
+
+#### Step 2: Upload Files
+1. Click **Upload** in the top toolbar
+2. Drag and drop **all files** from your `dashboard/dist` folder
+3. Or use **Compress** to create a zip, upload, then **Extract**
+
+**Using FTP (Alternative):**
+```bash
+# Connect via FTP client (FileZilla, WinSCP, etc.)
+Host: ftp.yourdomain.com
+Username: (from cPanel FTP Accounts)
+Password: (your FTP password)
+Port: 21
+
+# Upload dist/* to /public_html/
+```
+
+#### Step 3: Create .htaccess
+1. In File Manager, click **+ File** → Name it `.htaccess`
+2. Right-click → **Edit** → Paste the .htaccess content from above
+3. **Save Changes**
+
+#### Step 4: Enable SSL
+1. In cPanel → **SSL/TLS Status**
+2. Click **Run AutoSSL** or **Install SSL**
+
+---
+
+### 8.4 Deploy to Vercel (Alternative - Recommended for Ease)
+
+1. Push your code to GitHub
+2. Go to https://vercel.com → Import your repository
+3. Set environment variable:
+   - `VITE_API_BASE_URL` = `https://api.yourdomain.com`
+4. Deploy
+
+**Vercel provides:**
+- ✅ Automatic SSL
+- ✅ Global CDN
+- ✅ Automatic deployments on git push
+
+---
+
+### 8.5 Deploy to Netlify (Alternative)
+
+1. Drag and drop your `dist` folder to https://app.netlify.com/drop
+2. Go to **Site Settings** → **Environment Variables**
+3. Add `VITE_API_BASE_URL` = `https://api.yourdomain.com`
+4. **Redeploy**
+
+---
+
+### 8.6 Verify Frontend Deployment
+
+1. Visit your domain: `https://yourdomain.com`
+2. Open browser DevTools (F12) → **Console** tab
+3. Check for errors
+4. Go to **Network** tab → Try logging in
+5. Verify API calls go to `https://api.yourdomain.com`
+
+---
+
+## Step 9: Testing the Complete Flow
+
+### 9.1 Test the Full Chain
+
+```
+User → yourdomain.com (Hostinger) → api.yourdomain.com → DDNS → Your Router → Nginx → Backend
+```
+
+**Step-by-step verification:**
+
+```powershell
+# 1. Verify DDNS is working
+nslookup yourcompany.ddns.net
+# Should return your public IP
+
+# 2. Verify subdomain points to DDNS
+nslookup api.yourdomain.com
+# Should return your DDNS hostname or public IP
+
+# 3. Test API directly
+curl https://api.yourdomain.com/health
+# Should return: {"status":"ok",...}
+
+# 4. Test from browser
+# Visit https://yourdomain.com and try logging in
+```
+
+### 9.2 Test API Connectivity
 
 From any browser, visit:
 ```
-https://api.yourdomain.com/api/health
+https://api.yourdomain.com/health
 ```
 
-### 9.2 Test CORS
+Expected response:
+```json
+{"status":"ok","timestamp":"2024-..."}
+```
+
+### 9.3 Test CORS
 
 Open browser developer tools (F12) on your frontend and check:
 1. **Network tab**: API requests should show status 200
 2. **Console tab**: No CORS errors
 
-### 9.3 Test Authentication Flow
+### 9.4 Test Complete Authentication Flow
 
-1. Try registering a new account
-2. Check if OTP email is received
-3. Complete login flow
+1. Visit `https://yourdomain.com`
+2. Click **Login** or **Register**
+3. Enter credentials
+4. Verify OTP email is received
+5. Enter OTP and complete login
+6. Navigate the dashboard - all features should work
 
 ---
 
 ## Troubleshooting
+
+### Hosted Frontend + Local Backend Issues
+
+#### 1. "Network Error" or "Failed to Fetch" from Frontend
+
+**Symptoms:** Frontend loads but API calls fail
+
+**Checklist:**
+- [ ] `VITE_API_BASE_URL` is set correctly (check browser DevTools → Console)
+- [ ] API subdomain resolves correctly: `nslookup api.yourdomain.com`
+- [ ] DDNS is updated with current IP
+- [ ] Port forwarding is working
+- [ ] Backend is running: `docker-compose ps`
+
+**Quick Debug:**
+```powershell
+# 1. Check what URL frontend is using
+# Open browser DevTools → Network tab → look at API request URLs
+
+# 2. Test API directly
+curl https://api.yourdomain.com/health
+
+# 3. If that fails, test locally
+curl http://localhost:5170/health
+```
+
+#### 2. CORS Errors (Most Common)
+
+**Error:** `Access to fetch at 'https://api.yourdomain.com' has been blocked by CORS`
+
+**Cause:** Backend doesn't allow requests from your hosted frontend domain
+
+**Solution:**
+1. Edit your `.env` file on the server:
+```env
+CORS_ORIGIN=https://yourdomain.com,https://www.yourdomain.com
+```
+
+2. Restart:
+```bash
+docker-compose restart backend
+```
+
+**Note:** Include both `www` and non-`www` versions if applicable.
+
+#### 3. "Mixed Content" Error
+
+**Error:** `Mixed Content: The page at 'https://...' was loaded over HTTPS, but requested an insecure resource 'http://...'`
+
+**Cause:** Frontend on HTTPS but API URL uses HTTP
+
+**Solutions:**
+- Ensure `VITE_API_BASE_URL` starts with `https://`
+- Enable SSL on your backend (see SSL Setup section)
+- Rebuild frontend after fixing the URL
+
+#### 4. API Works Locally But Not Remotely
+
+**Symptoms:** `curl localhost:5170/health` works, but `curl api.yourdomain.com/health` fails
+
+**Debug Steps:**
+```powershell
+# 1. Check public IP matches DDNS
+nslookup yourcompany.ddns.net
+# Compare with: https://whatismyip.com
+
+# 2. Check port forwarding from outside
+# Ask a friend to run, or use mobile data:
+curl http://YOUR-PUBLIC-IP/health
+
+# 3. Test if ports are blocked by ISP
+# Use an online port checker: https://portchecker.co
+```
+
+**Common Fixes:**
+- ISP blocks port 80/443 → Call ISP to unblock or use alternative ports
+- Router firewall → Enable "Allow incoming connections" or add firewall rule
+- Double NAT → If you have two routers, port forward through both
+
+#### 5. DDNS Not Updating (IP Mismatch)
+
+**Symptoms:** API worked yesterday but not today
+
+**Cause:** Dynamic IP changed but DDNS didn't update
+
+**Check Windows Task Scheduler:**
+```powershell
+# View task status
+Get-ScheduledTask -TaskName "DDNS Update" | Get-ScheduledTaskInfo
+
+# Run manually
+schtasks /run /tn "DDNS Update"
+```
+
+**Check No-IP DUC:**
+- Open No-IP DUC from system tray
+- Verify it shows "IP up to date" with correct IP
+
+**Force Update Duck DNS:**
+```powershell
+$token = "your-duck-dns-token"
+$domain = "yourcompany"
+Invoke-WebRequest "https://www.duckdns.org/update?domains=$domain&token=$token&ip=" | Select-Object -Expand Content
+```
+
+---
 
 ### Common Issues
 
@@ -500,10 +971,10 @@ Open browser developer tools (F12) on your frontend and check:
 netstat -tulpn | grep -E '80|443|5170'
 
 # Test from another device on same network
-curl http://192.168.1.100/api/health
+curl http://192.168.1.100/health
 
 # Check public accessibility
-curl http://YOUR-PUBLIC-IP/api/health
+curl http://YOUR-PUBLIC-IP/health
 ```
 
 #### 2. CORS Errors
@@ -543,6 +1014,70 @@ If API stops working after router restart:
 - Check DDNS client is running
 - Manually trigger DDNS update
 - Verify public IP matches DDNS record
+
+#### 6. Frontend Page Refreshes Give 404
+
+**Symptoms:** Homepage works, but refreshing on `/dashboard` or `/login` gives 404
+
+**Cause:** Missing `.htaccess` for SPA routing (on Hostinger/cPanel)
+
+**Solution:** Create `.htaccess` as shown in Step 8.2
+
+#### 7. Slow API Response
+
+**Possible causes:**
+- Residential internet upload speed is slow
+- Too many PM2 instances for hardware
+- MongoDB needs indexing
+
+**Solutions:**
+```bash
+# Check backend resources
+docker-compose exec backend pm2 monit
+
+# Reduce PM2 instances if CPU is maxed
+# Edit .env: PM2_INSTANCES=1
+
+# Check MongoDB slow queries
+docker-compose logs mongodb | grep -i "slow"
+```
+
+---
+
+### Quick Diagnostic Commands
+
+Run these commands to diagnose issues:
+
+```powershell
+# === Local Server Checks ===
+# 1. Are containers running?
+docker-compose ps
+
+# 2. Check backend logs
+docker-compose logs --tail=50 backend
+
+# 3. Check nginx logs
+docker-compose logs --tail=50 nginx
+
+# 4. Test local health endpoint
+curl http://localhost/health
+
+# === Network Checks ===
+# 5. Get current public IP
+(Invoke-WebRequest -Uri "https://api.ipify.org").Content
+
+# 6. Check DDNS resolution
+nslookup yourcompany.ddns.net
+
+# 7. Check subdomain resolution
+nslookup api.yourdomain.com
+
+# 8. Test API from internet (use phone on mobile data)
+curl https://api.yourdomain.com/health
+
+# === DNS Propagation Check ===
+# Use online tool: https://www.whatsmydns.net/#A/api.yourdomain.com
+```
 
 ---
 

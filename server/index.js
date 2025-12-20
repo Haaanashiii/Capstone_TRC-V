@@ -393,11 +393,21 @@ app.use(cookieParser());
 app.use(hpp());
 
 // CORS
+// When running behind nginx (Docker), nginx handles CORS - skip backend CORS to avoid duplicate headers
+const isProxied = process.env.DOCKER_ENV === 'true';
 const corsOriginEnv = process.env.CORS_ORIGIN || '';
 let corsOptions;
 const corsMethods = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'];
 const corsAllowedHeaders = ['Content-Type', 'Authorization'];
-if (corsOriginEnv) {
+
+if (isProxied) {
+  // Running behind nginx - disable CORS middleware (nginx handles it)
+  console.log('[CORS] Running behind proxy - CORS handled by nginx');
+  corsOptions = {
+    origin: false,
+    credentials: false
+  };
+} else if (corsOriginEnv) {
   const allowedOrigins = corsOriginEnv.split(',').map(s => s.trim()).filter(Boolean);
   corsOptions = {
     origin: function(origin, callback) {
