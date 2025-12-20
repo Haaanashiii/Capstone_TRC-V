@@ -777,15 +777,17 @@ function Settings() {
     try {
       showNotification('Restoring from backup... Please wait.', 'info');
       
+      console.log('[Settings] Calling restoreBackup with:', backupId);
       const response = await backupService.restoreBackup(backupId, {
         dropExisting: false,
         dryRun: false
       });
       
+      console.log('[Settings] Restore response:', response);
       clearInterval(progressInterval);
       setRestoreProgress(100);
       
-      if (response.success) {
+      if (response && response.success) {
         const restoredDocs = response.data?.totalRestored || response.data?.totalDocuments || 0;
         showNotification(
           `System restored successfully! ${restoredDocs.toLocaleString()} documents restored.`,
@@ -801,7 +803,7 @@ function Settings() {
           }
         }, 2000);
       } else {
-        throw new Error(response.message || 'Failed to restore backup');
+        throw new Error(response?.message || 'Failed to restore backup');
       }
     } catch (error) {
       clearInterval(progressInterval);
@@ -877,20 +879,15 @@ function Settings() {
     try {
       showNotification('Preparing download...', 'info');
       const result = await backupService.downloadBackup(backupId);
-      if (result.success) {
+      if (result && result.success) {
         showNotification(`Backup "${result.filename}" downloaded successfully!`, 'success');
+      } else {
+        showNotification('Backup download completed', 'success');
       }
     } catch (error) {
       logger.error('[Settings] Download backup error:', error);
       const errorMessage = error.message || 'Failed to download backup';
-      showNotification(
-        errorMessage.includes('not found') ?
-          'Backup file not found or has been deleted.' :
-        errorMessage.includes('permission') || errorMessage.includes('authorized') ?
-          'You do not have permission to download backups.' :
-          errorMessage,
-        'error'
-      );
+      showNotification(errorMessage, 'error');
     }
   }, [showNotification]);
 

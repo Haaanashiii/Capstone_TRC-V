@@ -1,7 +1,10 @@
 // Backup Service API
 // Provides backup and recovery operations for the TRC-V system
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170';
+// Use VITE_API_BASE_URL if set, otherwise fall back to window.location.origin
+// This ensures we go through nginx proxy in Docker setup
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || window.location.origin;
+console.log('[BackupService] API_BASE_URL:', API_BASE_URL);
 
 /**
  * Get authorization headers with access token
@@ -157,13 +160,19 @@ export const verifyBackup = async (backupId) => {
  */
 export const restoreBackup = async (backupId, options = {}) => {
   const { collections, dropExisting = false, dryRun = false } = options;
+  
+  console.log('[BackupService] Restoring backup:', { backupId, options, API_BASE_URL });
+  
   const response = await fetch(`${API_BASE_URL}/api/backup/${backupId}/restore`, {
     method: 'POST',
     headers: getAuthHeaders(),
     credentials: 'include',
     body: JSON.stringify({ collections, dropExisting, dryRun })
   });
-  return handleResponse(response);
+  
+  const result = await handleResponse(response);
+  console.log('[BackupService] Restore response:', result);
+  return result;
 };
 
 /**
@@ -195,25 +204,70 @@ export const deleteBackup = async (backupId) => {
  * Download backup file
  */
 export const downloadBackup = async (backupId) => {
-  const token = localStorage.getItem('token');
+  // Use the same auth headers as other working API calls
+  const headers = getAuthHeaders();
+  
+  console.log('[BackupService] Download request:', {
+    backupId,
+    API_BASE_URL,
+    hasAuth: !!headers.Authorization,
+    authPrefix: headers.Authorization?.substring(0, 15)
+  });
+  
+  if (!headers.Authorization || headers.Authorization === 'Bearer ') {
+    throw new Error('Authentication required. Please log in.');
+  }
+
+  // Remove Content-Type for download (not sending JSON body)
+  const downloadHeaders = {
+    'Authorization': headers.Authorization
+  };
+
   const response = await fetch(`${API_BASE_URL}/api/backup/${backupId}/download`, {
     method: 'GET',
-    headers: {
-      'Authorization': `Bearer ${token}`
-    },
+    headers: downloadHeaders,
     credentials: 'include'
   });
   
+  console.log('[BackupService] Download response:', {
+    status: response.status,
+    ok: response.ok,
+    contentType: response.headers.get('content-type')
+  });
+  
   if (!response.ok) {
-    const data = await response.json();
-    throw new Error(data.message || 'Download failed');
+    // Try to parse error message, but handle non-JSON responses
+    let errorMessage = 'Download failed';
+    const contentType = response.headers.get('content-type');
+    
+    try {
+      if (contentType && contentType.includes('application/json')) {
+        const data = await response.json();
+        errorMessage = data.message || data.error || errorMessage;
+      } else {
+        // Non-JSON response
+        if (response.status === 404) {
+          errorMessage = 'Backup file not found or has been deleted.';
+        } else if (response.status === 403) {
+          errorMessage = 'You do not have permission to download backups.';
+        } else if (response.status === 401) {
+          errorMessage = 'Session expired. Please log in again.';
+        } else {
+          errorMessage = `Download failed: ${response.statusText}`;
+        }
+      }
+    } catch (e) {
+      console.error('[BackupService] Error parsing response:', e);
+      errorMessage = `Download failed: ${response.status} ${response.statusText}`;
+    }
+    throw new Error(errorMessage);
   }
   
   // Get filename from Content-Disposition header or use default
   const contentDisposition = response.headers.get('Content-Disposition');
   let filename = `backup-${backupId}.json.gz`;
   if (contentDisposition) {
-    const match = contentDisposition.match(/filename="?(.+)"?/);
+    const match = contentDisposition.match(/filename="?([^"]+)"?/);
     if (match) filename = match[1];
   }
   
@@ -228,6 +282,7 @@ export const downloadBackup = async (backupId) => {
   window.URL.revokeObjectURL(url);
   document.body.removeChild(a);
   
+  console.log('[BackupService] Download completed:', filename);
   return { success: true, filename };
 };
 
@@ -437,6 +492,12 @@ export const downloadFullExport = async (exportId) => {
                 localStorage.getItem('accessToken') || 
                 localStorage.getItem('token');
   
+  if (!token) {
+    throw new Error('Authentication required. Please log in.');
+  }
+
+  console.log('[BackupService] Downloading export:', exportId, 'from', API_BASE_URL);
+  
   const response = await fetch(`${API_BASE_URL}/api/backup/export/${exportId}/download`, {
     method: 'GET',
     headers: {
@@ -446,15 +507,44 @@ export const downloadFullExport = async (exportId) => {
   });
   
   if (!response.ok) {
-    const data = await response.json();
-    throw new Error(data.message || 'Download failed');
+    let errorMessage = 'Download failed';
+    const contentType = response.headers.get('content-type');
+    
+    try {
+      if (contentType && contentType.includes('application/json')) {
+        const data = await response.json();
+        errorMessage = data.message || errorMessage;
+      } else {
+        if (response.status === 404) {
+          errorMessage = 'Export file not found or has been deleted.';
+        } else if (response.status === 403) {
+          errorMessage = 'You do not have permission to download exports.';
+        } else if (response.status === 401) {
+          errorMessage = 'Session expired. Please log in again.';
+        } else {
+          errorMessage = `Download failed: ${response.statusText}`;
+        }
+      }
+    } catch (e) {
+      console.error('[BackupService] Error parsing response:', e);
+      if (response.status === 404) {
+        errorMessage = 'Export file not found or has been deleted.';
+      } else if (response.status === 403) {
+        errorMessage = 'You do not have permission to download exports.';
+      } else if (response.status === 401) {
+        errorMessage = 'Session expired. Please log in again.';
+      } else {
+        errorMessage = `Download failed: ${response.statusText}`;
+      }
+    }
+    throw new Error(errorMessage);
   }
   
   // Get filename from Content-Disposition header or use default
   const contentDisposition = response.headers.get('Content-Disposition');
   let filename = `full-export-${exportId}.json.gz`;
   if (contentDisposition) {
-    const match = contentDisposition.match(/filename="?(.+)"?/);
+    const match = contentDisposition.match(/filename="?([^"]+)"?/);
     if (match) filename = match[1];
   }
   
@@ -469,6 +559,7 @@ export const downloadFullExport = async (exportId) => {
   window.URL.revokeObjectURL(url);
   document.body.removeChild(a);
   
+  console.log('[BackupService] Export download completed:', filename);
   return { success: true, filename };
 };
 

@@ -227,7 +227,13 @@ const LandingPage = () => {
 
   const handleGoToId = () => {
     handleMenuClose();
-    navigate('/operator/franchise');
+    // Navigate to admin dashboard for admin users, otherwise operator franchise
+    const adminRoles = ['sb-admin', 'bplo-admin', 'super-admin'];
+    if (adminRoles.includes(user?.role)) {
+      navigate('/dashboard');
+    } else {
+      navigate('/operator/franchise');
+    }
   };
 
   const handleMobileMenuOpen = () => {
@@ -298,8 +304,8 @@ const LandingPage = () => {
                 </Button>
                 {displayName ? (
                   <>
-                    <Button fullWidth onClick={() => { navigate('/operator/franchise'); handleMobileMenuClose(); }} sx={{ color: '#FFD700', justifyContent: 'flex-start', textTransform: 'none', fontSize: '16px', mt: 2 }}>
-                      {displayName} (Operator ID)
+                    <Button fullWidth onClick={() => { navigate(['sb-admin', 'bplo-admin', 'super-admin'].includes(user?.role) ? '/dashboard' : '/operator/franchise'); handleMobileMenuClose(); }} sx={{ color: '#FFD700', justifyContent: 'flex-start', textTransform: 'none', fontSize: '16px', mt: 2 }}>
+                      {displayName} ({['sb-admin', 'bplo-admin', 'super-admin'].includes(user?.role) ? 'Admin Dashboard' : 'Operator ID'})
                     </Button>
                     <Button fullWidth onClick={handleLogout} sx={{ color: '#fff', justifyContent: 'flex-start', textTransform: 'none', fontSize: '16px' }}>
                       LOGOUT
@@ -335,7 +341,7 @@ const LandingPage = () => {
                     <ListItemIcon sx={{ minWidth: 40 }}>
                       <PermIdentityIcon fontSize="small" />
                     </ListItemIcon>
-                    Operator ID
+                    {['sb-admin', 'bplo-admin', 'super-admin'].includes(user?.role) ? 'Admin Dashboard' : 'Operator ID'}
                   </MenuItem>
                   <MenuItem onClick={handleLogout}>
                     <ListItemIcon sx={{ minWidth: 40 }}>

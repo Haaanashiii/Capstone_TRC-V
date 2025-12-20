@@ -386,6 +386,12 @@ const downloadBackup = async (req, res) => {
   try {
     const { backupId } = req.params;
     
+    console.log('[BACKUP CONTROLLER] Download request:', {
+      backupId,
+      user: req.user?.email || req.user?.id,
+      hasAuth: !!req.headers.authorization
+    });
+    
     const { filePath, fileName, fileSize } = await backupService.getBackupFile(backupId);
     
     // Log download to audit trail

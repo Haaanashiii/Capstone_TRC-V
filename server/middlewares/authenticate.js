@@ -10,6 +10,17 @@ module.exports = function authenticateToken(req, res, next) {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
   
+  // Debug logging for backup routes
+  if (req.path.includes('backup') && req.path.includes('download')) {
+    console.log('[AUTH DEBUG] Download request:', {
+      path: req.path,
+      hasAuthHeader: !!authHeader,
+      authHeaderPrefix: authHeader?.substring(0, 20),
+      hasToken: !!token,
+      tokenLength: token?.length
+    });
+  }
+  
   if (!token) {
     return res.status(401).json({ error: 'Access denied. No token provided.', code: 'NO_TOKEN' });
   }
