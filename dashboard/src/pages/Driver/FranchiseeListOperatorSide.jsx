@@ -2,11 +2,12 @@ import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { getUserId, verifyFranchiseOwnership } from '../../utils/userUtils';
-import { Box, Typography, Button, Paper, Avatar, TextField, Dialog, DialogTitle, DialogContent, DialogActions, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, IconButton, Menu, MenuItem, Chip } from '@mui/material';
+import { Box, Typography, Button, Paper, Avatar, TextField, Dialog, DialogTitle, DialogContent, DialogActions, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, IconButton, Menu, MenuItem, Chip, Alert, AlertTitle } from '@mui/material';
 import PersonIcon from '@mui/icons-material/Person';
 import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
 import EditIcon from '@mui/icons-material/Edit';
 import AutorenewIcon from '@mui/icons-material/Autorenew';
+import EventBusyIcon from '@mui/icons-material/EventBusy';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
@@ -41,6 +42,71 @@ function FranchiseeListOperatorSide() {
   
   // Use memoized translations from hook
   const t = useDriverTranslations(language);
+
+  // Fields state - MUST be declared before useMemo/useCallback that reference it
+  const [fields, setFields] = useState({
+    orNumber: '',
+    franchiseNumber: '',
+    dateApproved: null,
+    expiryDate: null,
+    make: '',
+    sidecarNumber: '',
+    plateNumber: '',
+    chassisNumber: '',
+    motorNumber: ''
+  });
+
+  const [qrBlobUrl, setQrBlobUrl] = useState(null);
+  const qrBlobRef = React.useRef(null);
+
+  // Blob URL for driver's uploaded ID/photo (1x1) preview
+  const [idBlobUrl, setIdBlobUrl] = useState(null);
+  const idBlobRef = React.useRef(null);
+  const [idBlobIsPdf, setIdBlobIsPdf] = useState(false);
+
+  // Helper function to calculate expiry status
+  // PRIORITY: Use backend franchiseStatus field, fallback to date calculation
+  const calculateExpiryStatus = useCallback((expiryDate, franchiseStatus) => {
+    // STEP 1: Check backend franchiseStatus (source of truth)
+    const isExpiredByBackend = franchiseStatus === 'Expired';
+    
+    // STEP 2: Calculate date-based status (for expiring soon detection)
+    let daysUntilExpiry = null;
+    let expiryDateFormatted = null;
+    
+    if (expiryDate) {
+      const today = dayjs();
+      const expiry = dayjs(expiryDate);
+      daysUntilExpiry = expiry.diff(today, 'days');
+      expiryDateFormatted = expiry.format('MMMM D, YYYY');
+    }
+    
+    // STEP 3: Determine final status
+    // Backend status takes precedence, date is secondary
+    const isExpired = isExpiredByBackend || (daysUntilExpiry !== null && daysUntilExpiry < 0);
+    const isExpiringSoon = !isExpired && daysUntilExpiry !== null && daysUntilExpiry <= 90 && daysUntilExpiry >= 0;
+    
+    return {
+      daysUntilExpiry,
+      isExpired,
+      isExpiringSoon,
+      expiryDate: expiryDateFormatted,
+      backendStatus: franchiseStatus, // Include backend status for debugging
+      calculatedFromBackend: isExpiredByBackend // Flag to show if status came from backend
+    };
+  }, []);
+
+  // Calculate expiry status for current franchise
+  const currentExpiryStatus = useMemo(() => {
+    const expiryDate = fields.expiryDate && fields.expiryDate.isValid && fields.expiryDate.isValid()
+      ? fields.expiryDate
+      : (matchedFranchise?.expiryDate ? dayjs(matchedFranchise.expiryDate) : null);
+    
+    // Pass both expiryDate AND franchiseStatus from backend
+    const backendFranchiseStatus = matchedFranchise?.franchiseStatus || franchiseStatus;
+    
+    return calculateExpiryStatus(expiryDate, backendFranchiseStatus);
+  }, [matchedFranchise, fields.expiryDate, franchiseStatus, calculateExpiryStatus]);
 
   // Fetch full user details from the server
   const fetchUserDetails = useCallback(async () => {
@@ -436,26 +502,6 @@ function FranchiseeListOperatorSide() {
     return () => document.removeEventListener('visibilitychange', onVisibility);
   }, [fetchUserDetails]);
 
-  const [fields, setFields] = useState({
-    orNumber: '',
-    franchiseNumber: '',
-    dateApproved: null,
-    expiryDate: null,
-    make: '',
-    sidecarNumber: '',
-    plateNumber: '',
-    chassisNumber: '',
-    motorNumber: ''
-  });
-
-  const [qrBlobUrl, setQrBlobUrl] = useState(null);
-  const qrBlobRef = React.useRef(null);
-
-  // Blob URL for driver's uploaded ID/photo (1x1) preview
-  const [idBlobUrl, setIdBlobUrl] = useState(null);
-  const idBlobRef = React.useRef(null);
-  const [idBlobIsPdf, setIdBlobIsPdf] = useState(false);
-
   const resolveServerUrl = (raw) => {
     if (!raw) return null;
     try {
@@ -746,6 +792,66 @@ function FranchiseeListOperatorSide() {
           {/* ID badge moved below into the card area for precise alignment */}
         </Box>
       </Box>
+
+      {/* Expiry Alerts */}
+      {currentExpiryStatus && (currentExpiryStatus.isExpired || currentExpiryStatus.isExpiringSoon) && (
+        <Box sx={{ maxWidth: '1400px', mx: 'auto', px: { xs: 2, md: 4 }, mt: 2 }}>
+          <Alert 
+            severity={currentExpiryStatus.isExpired ? "error" : "warning"}
+            icon={<EventBusyIcon />}
+            sx={{ 
+              bgcolor: currentExpiryStatus.isExpired ? '#fee' : '#fef3c7',
+              borderLeft: `4px solid ${currentExpiryStatus.isExpired ? '#dc2626' : '#f59e0b'}`,
+              '& .MuiAlert-icon': {
+                color: currentExpiryStatus.isExpired ? '#dc2626' : '#f59e0b'
+              }
+            }}
+            action={
+              <Button
+                size="small"
+                variant="contained"
+                startIcon={<AutorenewIcon />}
+                onClick={() => {
+                  navigate('/operator/franchise/application', {
+                    state: {
+                      applicationType: 'renewal',
+                      franchise: matchedFranchise,
+                      previousFranchiseId: matchedFranchise?._id
+                    }
+                  });
+                }}
+                sx={{
+                  bgcolor: currentExpiryStatus.isExpired ? '#dc2626' : '#f59e0b',
+                  '&:hover': { 
+                    bgcolor: currentExpiryStatus.isExpired ? '#b91c1c' : '#d97706' 
+                  },
+                  textTransform: 'none',
+                  fontWeight: 600
+                }}
+              >
+                {currentExpiryStatus.isExpired ? 'Renew Now' : 'Renew Early'}
+              </Button>
+            }
+          >
+            <AlertTitle sx={{ fontWeight: 700, fontSize: '1.1rem' }}>
+              {currentExpiryStatus.isExpired ? '⚠️ Franchise Expired' : '📅 Franchise Expiring Soon'}
+            </AlertTitle>
+            <Typography sx={{ fontSize: '0.95rem' }}>
+              {currentExpiryStatus.isExpired ? (
+                <>
+                  Your franchise expired {Math.abs(currentExpiryStatus.daysUntilExpiry)} days ago on{' '}
+                  {currentExpiryStatus.expiryDate}. Immediate renewal is required to continue operations.
+                </>
+              ) : (
+                <>
+                  Your franchise will expire in {currentExpiryStatus.daysUntilExpiry} days on{' '}
+                  {currentExpiryStatus.expiryDate}. Please renew before expiry to avoid service interruption.
+                </>
+              )}
+            </Typography>
+          </Alert>
+        </Box>
+      )}
 
       {/* Main Content - redesigned to match provided card layout */}
       <div className="driver-id-wrapper">

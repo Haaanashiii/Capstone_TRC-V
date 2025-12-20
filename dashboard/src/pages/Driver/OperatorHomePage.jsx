@@ -11,6 +11,7 @@ import "../../Styles/Operator's_CSS/OperatorHomePage.css";
 import "../../Styles/Operator's_CSS/TableResponsive.css";
 import { Link2, PlusCircle } from 'lucide-react';
 import websocketService from '../../services/websocket';
+import dayjs from 'dayjs';
 import {
   Table,
   TableBody,
@@ -27,10 +28,14 @@ import {
   Button,
   Dialog,
   DialogContent,
-  TextField
+  TextField,
+  Alert,
+  AlertTitle
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
+import EventBusyIcon from '@mui/icons-material/EventBusy';
+import AutorenewIcon from '@mui/icons-material/Autorenew';
 import { franchiseAPI, franchiseInformationAPI, franchiseLinkRequestAPI } from '../Services/api';
 
 const OperatorHomePage = () => {
@@ -211,6 +216,62 @@ const OperatorHomePage = () => {
   const [loadingFranchises, setLoadingFranchises] = useState(true);
   const [openORConfirmModal, setOpenORConfirmModal] = useState(false);
   const navigate = useNavigate();
+
+  // Helper function to calculate expiry status
+  // PRIORITY: Use backend franchiseStatus field, fallback to date calculation
+  const calculateExpiryStatus = useCallback((franchise) => {
+    if (!franchise) return null;
+    
+    // STEP 1: Check backend franchiseStatus (source of truth)
+    const backendStatus = franchise.franchiseStatus;
+    const isExpiredByBackend = backendStatus === 'Expired';
+    
+    // STEP 2: Calculate date-based status (for expiring soon detection)
+    let daysUntilExpiry = null;
+    let expiryDateFormatted = null;
+    
+    if (franchise.expiryDate) {
+      const today = dayjs();
+      const expiry = dayjs(franchise.expiryDate);
+      daysUntilExpiry = expiry.diff(today, 'days');
+      expiryDateFormatted = expiry.format('MMMM D, YYYY');
+    }
+    
+    // STEP 3: Determine final status
+    // Backend status takes precedence, date is secondary
+    const isExpired = isExpiredByBackend || (daysUntilExpiry !== null && daysUntilExpiry < 0);
+    const isExpiringSoon = !isExpired && daysUntilExpiry !== null && daysUntilExpiry <= 90 && daysUntilExpiry >= 0;
+    
+    return {
+      daysUntilExpiry,
+      isExpired,
+      isExpiringSoon,
+      expiryDate: expiryDateFormatted,
+      backendStatus, // Include backend status for debugging
+      calculatedFromBackend: isExpiredByBackend // Flag to show if status came from backend
+    };
+  }, []);
+
+  // Calculate expiry alerts for all franchises
+  const expiryAlerts = useMemo(() => {
+    if (!activeFranchises.length) return { expired: [], expiringSoon: [] };
+    
+    const expired = [];
+    const expiringSoon = [];
+    
+    activeFranchises.forEach(franchise => {
+      const status = calculateExpiryStatus(franchise);
+      if (status) {
+        if (status.isExpired) {
+          expired.push({ franchise, status });
+        } else if (status.isExpiringSoon) {
+          expiringSoon.push({ franchise, status });
+        }
+      }
+    });
+    
+    return { expired, expiringSoon };
+  }, [activeFranchises, calculateExpiryStatus]);
 
   // Fetch user's active franchises from franchiseInformation collection
   useEffect(() => {
@@ -751,6 +812,112 @@ const OperatorHomePage = () => {
             </Typography>
           </Box>
 
+          {/* Expired Franchise Alerts */}
+          {expiryAlerts.expired.length > 0 && (
+            <Box sx={{ width: '100%', maxWidth: '900px', mb: 3 }}>
+              <Alert 
+                severity="error"
+                icon={<EventBusyIcon />}
+                sx={{ 
+                  bgcolor: '#fee',
+                  borderLeft: '4px solid #dc2626',
+                  '& .MuiAlert-icon': {
+                    color: '#dc2626'
+                  }
+                }}
+                action={
+                  <Button
+                    size="small"
+                    variant="contained"
+                    startIcon={<AutorenewIcon />}
+                    onClick={() => {
+                      const firstExpired = expiryAlerts.expired[0].franchise;
+                      navigate('/operator/franchise/application', {
+                        state: {
+                          applicationType: 'renewal',
+                          franchise: firstExpired,
+                          previousFranchiseId: firstExpired._id
+                        }
+                      });
+                    }}
+                    sx={{
+                      bgcolor: '#dc2626',
+                      '&:hover': { bgcolor: '#b91c1c' },
+                      textTransform: 'none',
+                      fontWeight: 600
+                    }}
+                  >
+                    Renew Now
+                  </Button>
+                }
+              >
+                <AlertTitle sx={{ fontWeight: 700, fontSize: '1.1rem' }}>
+                  ⚠️ Franchise Expired
+                </AlertTitle>
+                <Typography sx={{ fontSize: '0.95rem' }}>
+                  You have {expiryAlerts.expired.length} expired franchise{expiryAlerts.expired.length > 1 ? 's' : ''}. 
+                  Immediate renewal is required to continue operations.
+                  {expiryAlerts.expired.length === 1 && expiryAlerts.expired[0].status && (
+                    <> Expired {Math.abs(expiryAlerts.expired[0].status.daysUntilExpiry)} days ago on {expiryAlerts.expired[0].status.expiryDate}.</>
+                  )}
+                </Typography>
+              </Alert>
+            </Box>
+          )}
+
+          {/* Expiring Soon Alerts */}
+          {expiryAlerts.expiringSoon.length > 0 && (
+            <Box sx={{ width: '100%', maxWidth: '900px', mb: 3 }}>
+              <Alert 
+                severity="warning"
+                icon={<EventBusyIcon />}
+                sx={{ 
+                  bgcolor: '#fef3c7',
+                  borderLeft: '4px solid #f59e0b',
+                  '& .MuiAlert-icon': {
+                    color: '#f59e0b'
+                  }
+                }}
+                action={
+                  <Button
+                    size="small"
+                    variant="contained"
+                    startIcon={<AutorenewIcon />}
+                    onClick={() => {
+                      const firstExpiring = expiryAlerts.expiringSoon[0].franchise;
+                      navigate('/operator/franchise/application', {
+                        state: {
+                          applicationType: 'renewal',
+                          franchise: firstExpiring,
+                          previousFranchiseId: firstExpiring._id
+                        }
+                      });
+                    }}
+                    sx={{
+                      bgcolor: '#f59e0b',
+                      '&:hover': { bgcolor: '#d97706' },
+                      textTransform: 'none',
+                      fontWeight: 600
+                    }}
+                  >
+                    Renew Early
+                  </Button>
+                }
+              >
+                <AlertTitle sx={{ fontWeight: 700, fontSize: '1.1rem' }}>
+                  📅 Franchise Expiring Soon
+                </AlertTitle>
+                <Typography sx={{ fontSize: '0.95rem' }}>
+                  You have {expiryAlerts.expiringSoon.length} franchise{expiryAlerts.expiringSoon.length > 1 ? 's' : ''} expiring within 90 days.
+                  {expiryAlerts.expiringSoon.length === 1 && expiryAlerts.expiringSoon[0].status && (
+                    <> Expires in {expiryAlerts.expiringSoon[0].status.daysUntilExpiry} days on {expiryAlerts.expiringSoon[0].status.expiryDate}.</>
+                  )}
+                  {' '}Consider renewing early to avoid service interruption.
+                </Typography>
+              </Alert>
+            </Box>
+          )}
+
           {/* White Card Section */}
           <Box sx={{ 
             background: '#fff', 
@@ -943,18 +1110,51 @@ const OperatorHomePage = () => {
                       <TableCell>{franchise.unitModel || 'N/A'}</TableCell>
                       <TableCell>{franchise.mvPlateNo || 'N/A'}</TableCell>
                       <TableCell>
-                        <Chip 
-                          label={franchise.franchiseStatus || 'Active'}
-                          size="small"
-                          sx={{
-                            backgroundColor: franchise.franchiseStatus === 'Active' ? '#2ecc71' : '#e74c3c',
-                            color: '#fff',
-                            fontWeight: 600
-                          }}
-                        />
+                        {(() => {
+                          const expiryStatus = calculateExpiryStatus(franchise);
+                          const isExpired = expiryStatus?.isExpired || franchise.franchiseStatus === 'Expired';
+                          const isExpiringSoon = expiryStatus?.isExpiringSoon;
+                          
+                          let statusLabel = franchise.franchiseStatus || 'Active';
+                          let statusColor = '#2ecc71'; // Green for active
+                          
+                          if (isExpired) {
+                            statusLabel = 'Expired';
+                            statusColor = '#e74c3c'; // Red for expired
+                          } else if (isExpiringSoon) {
+                            statusLabel = `Expires in ${expiryStatus.daysUntilExpiry} days`;
+                            statusColor = '#f59e0b'; // Orange for expiring soon
+                          }
+                          
+                          return (
+                            <Chip 
+                              label={statusLabel}
+                              size="small"
+                              icon={isExpired || isExpiringSoon ? <EventBusyIcon /> : undefined}
+                              sx={{
+                                backgroundColor: statusColor,
+                                color: '#fff',
+                                fontWeight: 600
+                              }}
+                            />
+                          );
+                        })()}
                       </TableCell>
                       <TableCell>
-                        {franchise.expiryDate ? new Date(franchise.expiryDate).toLocaleDateString() : 'N/A'}
+                        {(() => {
+                          const expiryStatus = calculateExpiryStatus(franchise);
+                          const isExpired = expiryStatus?.isExpired;
+                          return (
+                            <Typography
+                              sx={{
+                                color: isExpired ? '#e74c3c' : 'inherit',
+                                fontWeight: isExpired ? 700 : 400
+                              }}
+                            >
+                              {franchise.expiryDate ? new Date(franchise.expiryDate).toLocaleDateString() : 'N/A'}
+                            </Typography>
+                          );
+                        })()}
                       </TableCell>
                     </TableRow>
                   ))
@@ -1030,24 +1230,56 @@ const OperatorHomePage = () => {
                     <Typography sx={{ fontSize: 12, color: '#666', mb: 0.5 }}>
                       Status
                     </Typography>
-                    <Chip 
-                      label={franchise.franchiseStatus || 'Active'}
-                      size="small"
-                      sx={{
-                        backgroundColor: franchise.franchiseStatus === 'Active' ? '#2ecc71' : '#e74c3c',
-                        color: '#fff',
-                        fontWeight: 600,
-                        mt: 0.5
-                      }}
-                    />
+                    {(() => {
+                      const expiryStatus = calculateExpiryStatus(franchise);
+                      const isExpired = expiryStatus?.isExpired || franchise.franchiseStatus === 'Expired';
+                      const isExpiringSoon = expiryStatus?.isExpiringSoon;
+                      
+                      let statusLabel = franchise.franchiseStatus || 'Active';
+                      let statusColor = '#2ecc71';
+                      
+                      if (isExpired) {
+                        statusLabel = 'Expired';
+                        statusColor = '#e74c3c';
+                      } else if (isExpiringSoon) {
+                        statusLabel = `Expires in ${expiryStatus.daysUntilExpiry} days`;
+                        statusColor = '#f59e0b';
+                      }
+                      
+                      return (
+                        <Chip 
+                          label={statusLabel}
+                          size="small"
+                          icon={isExpired || isExpiringSoon ? <EventBusyIcon /> : undefined}
+                          sx={{
+                            backgroundColor: statusColor,
+                            color: '#fff',
+                            fontWeight: 600,
+                            mt: 0.5
+                          }}
+                        />
+                      );
+                    })()}
                   </Box>
                   <Box>
                     <Typography sx={{ fontSize: 12, color: '#666', mb: 0.5 }}>
                       Expiry Date
                     </Typography>
-                    <Typography sx={{ fontSize: 14, fontWeight: 600 }}>
-                      {franchise.expiryDate ? new Date(franchise.expiryDate).toLocaleDateString() : 'N/A'}
-                    </Typography>
+                    {(() => {
+                      const expiryStatus = calculateExpiryStatus(franchise);
+                      const isExpired = expiryStatus?.isExpired;
+                      return (
+                        <Typography 
+                          sx={{ 
+                            fontSize: 14, 
+                            fontWeight: isExpired ? 700 : 600,
+                            color: isExpired ? '#e74c3c' : 'inherit'
+                          }}
+                        >
+                          {franchise.expiryDate ? new Date(franchise.expiryDate).toLocaleDateString() : 'N/A'}
+                        </Typography>
+                      );
+                    })()}
                   </Box>
                 </Paper>
               ))
