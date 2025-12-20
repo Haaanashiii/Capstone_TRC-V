@@ -175,21 +175,28 @@ export async function fillFranchiseApplicationPDF(applicationData) {
     
     // === APPLICATION TYPE CHECKBOXES ===
     const appType = (applicationData.applicationType || 'new').toLowerCase();
+    logger.log(`[PDFFiller] Application Type: "${appType}"`);
     
     // Check the appropriate application type checkbox
+    const isNew = appType === 'new';
+    const isRenewal = appType === 'renewal';
+    const isAmendment = appType === 'amendment' || appType === 'update_ownership' || appType === 'change_unit';
+    
+    logger.log(`[PDFFiller] Checkbox states - New: ${isNew}, Renewal: ${isRenewal}, Amendment: ${isAmendment}`);
+    
     setCheckBox(
       ['new', 'New', 'NEW', 'chk_new', 'checkbox_new', 'applicationType_new'], 
-      appType === 'new'
+      isNew
     );
     
     setCheckBox(
       ['renewal', 'Renewal', 'RENEWAL', 'chk_renewal', 'checkbox_renewal', 'applicationType_renewal'], 
-      appType === 'renewal'
+      isRenewal
     );
     
     setCheckBox(
       ['amendment', 'Amendment', 'AMENDMENT', 'chk_amendment', 'checkbox_amendment', 'applicationType_amendment', 'update_ownership', 'change_unit'], 
-      appType === 'amendment' || appType === 'update_ownership' || appType === 'change_unit'
+      isAmendment
     );
     
     // Fill form fields with optimal configurations
