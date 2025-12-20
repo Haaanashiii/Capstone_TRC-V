@@ -12,8 +12,6 @@ class WebSocketService {
   constructor() {
     this.socket = null;
     this.listeners = new Map();
-    this.reconnectAttempts = 0;
-    this.maxReconnectAttempts = 5;
     this.reconnectDelay = 3000;
     this.currentRoom = null; // Track current room
   }
@@ -47,14 +45,13 @@ class WebSocketService {
       },
       reconnection: true,
       reconnectionDelay: this.reconnectDelay,
-      reconnectionAttempts: this.maxReconnectAttempts,
+      reconnectionAttempts: Infinity,
       timeout: 10000
     });
 
     // Connection event handlers
     this.socket.on('connect', () => {
       logger.log('[WebSocket] Connected:', this.socket.id);
-      this.reconnectAttempts = 0;
       
       // Join room if specified
       if (room) {
@@ -73,12 +70,6 @@ class WebSocketService {
         data: error.data,
         type: error.type
       });
-      this.reconnectAttempts++;
-      
-      if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-        logger.error('[WebSocket] Max reconnection attempts reached');
-        this.disconnect();
-      }
     });
 
     this.socket.on('reconnect', (attemptNumber) => {
