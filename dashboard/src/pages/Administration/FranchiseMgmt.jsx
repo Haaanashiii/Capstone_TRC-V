@@ -10,7 +10,7 @@ import PageLoader from '../../components/PageLoader'
 import { FileUploadField, DocumentLink } from './components/FranchiseFormComponents'
 
 // Services & Context
-import { franchiseAPI } from '../Services/api'
+import { franchiseAPI, franchiseInformationAPI } from '../Services/api'
 import websocketService from '../../services/websocket'
 import { useAuth } from '../../contexts/AuthContext'
 
@@ -19,6 +19,7 @@ import { validateFile, formatFileSize } from '../../utils/fileValidation'
 import { compressFile } from '../../utils/compressFile'
 import { previewFilledPDF, downloadFilledPDF } from '../../utils/pdfFiller'
 import { logger } from '../../utils/logger'
+import { debounce } from '../../utils/rateLimiter'
 
 // Franchise-specific constants and utilities
 import {
@@ -74,6 +75,9 @@ import {
   Chip,
   Fade,
   Tooltip,
+  Tabs,
+  Tab,
+  Autocomplete,
 } from '@mui/material'
 
 // MUI Icons
@@ -101,6 +105,15 @@ function FranchiseMgmt() {
   const [openSBApprovalModal, setOpenSBApprovalModal] = useState(false)
   const [openFilePreview, setOpenFilePreview] = useState(false)
   const [openPdfPreview, setOpenPdfPreview] = useState(false)
+  
+  // Walk-in application type tab state
+  const [applicationTypeTab, setApplicationTypeTab] = useState(0) // 0: New, 1: Renewal, 2: Amendment
+  
+  // Franchise search state for Renewal/Amendment
+  const [franchiseSearch, setFranchiseSearch] = useState('')
+  const [allActiveFranchises, setAllActiveFranchises] = useState([])
+  const [selectedFranchise, setSelectedFranchise] = useState(null)
+  const [loadingFranchises, setLoadingFranchises] = useState(false)
   
   // Application state
   const [selectedApplication, setSelectedApplication] = useState(null)
@@ -173,11 +186,21 @@ function FranchiseMgmt() {
       logger.log(`[FranchiseMgmt] Fetched ${userRole === 'sb-admin' ? 'SB approval' : 'pending'} applications:`, Array.isArray(serverApps) ? serverApps.length : 0)
       logger.log('[FranchiseMgmt] Application types breakdown:', 
         serverApps.reduce((acc, app) => {
-          const type = app.applicationType || 'unknown'
+          const type = app.applicationType || app.changeType || 'unknown'
           acc[type] = (acc[type] || 0) + 1
           return acc
         }, {})
       )
+      
+      // Debug first few applications
+      if (serverApps.length > 0) {
+        logger.log('[FranchiseMgmt] Sample application data:', serverApps.slice(0, 2).map(app => ({
+          id: app._id || app.id,
+          franchiseNumber: app.franchiseNumber,
+          applicationType: app.applicationType,
+          changeType: app.changeType
+        })))
+      }
       
       // Map backend fields to frontend format
       const normalizedServerApps = Array.isArray(serverApps) 
@@ -388,9 +411,255 @@ function FranchiseMgmt() {
     })
   }, [pendingApplications, debouncedSearchTerm, statusFilter])
 
+  /**
+   * Revoke all document blob URLs in form data
+   */
+  const revokeAllFormBlobs = useCallback(() => {
+    Object.entries(formData).forEach(([key, value]) => {
+      if (key.startsWith('document') && value?.path?.startsWith('blob:')) {
+        try {
+          URL.revokeObjectURL(value.path)
+        } catch (e) {
+          logger.warn('Failed to revoke blob URL on form reset:', e)
+        }
+      }
+    })
+  }, [formData])
+
   // Modal Handlers
   const handleOpenAddModal = useCallback(() => setOpenAddModal(true), [])
-  const handleCloseAddModal = useCallback(() => setOpenAddModal(false), [])
+  const handleCloseAddModal = useCallback(() => {
+    // Revoke blob URLs before resetting form
+    revokeAllFormBlobs()
+    
+    // Reset all state
+    setOpenAddModal(false)
+    setApplicationTypeTab(0)
+    setFranchiseSearch('')
+    setAllActiveFranchises([])
+    setSelectedFranchise(null)
+    setFormData(INITIAL_FORM_DATA)
+    
+    // Clear any processing states
+    setProcessingFiles({})
+    setCompressionProgress({})
+  }, [revokeAllFormBlobs])
+  
+  /**
+   * Load all franchises for Renewal/Amendment (Active, Expired, Revoked)
+   * Loaded once, filtered client-side
+   */
+  const loadAllActiveFranchises = useCallback(async () => {
+    if (allActiveFranchises.length > 0) return // Already loaded
+    
+    try {
+      setLoadingFranchises(true)
+      logger.log('[FranchiseMgmt] Loading all franchises (Active, Expired, Revoked)...')
+      
+      const response = await franchiseInformationAPI.getAll()
+      
+      logger.log('[FranchiseMgmt] Franchises response:', response.data)
+      
+      // Extract franchises from response (similar to FranchiseeList)
+      let franchises = []
+      if (response.data?.success && response.data?.data) {
+        franchises = response.data.data
+      } else if (response.data && Array.isArray(response.data.franchises)) {
+        franchises = response.data.franchises
+      } else if (Array.isArray(response.data)) {
+        franchises = response.data
+      }
+      
+      // Keep ALL franchises (Active, Expired, Revoked) for proper validation
+      logger.log('[FranchiseMgmt] Loaded all franchises:', franchises.length)
+      setAllActiveFranchises(franchises)
+    } catch (error) {
+      logger.error('[FranchiseMgmt] Error loading franchises:', error)
+      setNotification({ 
+        open: true, 
+        message: error.response?.data?.error || 'Failed to load franchises', 
+        type: 'error' 
+      })
+      setAllActiveFranchises([])
+    } finally {
+      setLoadingFranchises(false)
+    }
+  }, [allActiveFranchises.length])
+  
+  /**
+   * Filter franchises client-side based on search term (like FranchiseeList)
+   */
+  const filteredFranchises = useMemo(() => {
+    if (!franchiseSearch || franchiseSearch.length < 2) {
+      return []
+    }
+    
+    const searchLower = franchiseSearch.toLowerCase()
+    return allActiveFranchises.filter(
+      (franchise) =>
+        franchise.franchiseNumber?.toLowerCase().includes(searchLower) ||
+        franchise.operatorName?.toLowerCase().includes(searchLower) ||
+        franchise.mvPlateNo?.toLowerCase().includes(searchLower) ||
+        franchise.operatorBarangay?.toLowerCase().includes(searchLower)
+    )
+  }, [allActiveFranchises, franchiseSearch])
+  
+  /**
+   * Prefill form data from selected franchise (excluding documents)
+   * @param {Object} franchise - Selected franchise object
+   */
+  const prefillFromFranchise = useCallback((franchise) => {
+    if (!franchise) {
+      logger.warn('[FranchiseMgmt] Attempted to prefill with null franchise')
+      return
+    }
+    
+    logger.log('[FranchiseMgmt] Prefilling form from franchise:', franchise.franchiseNumber)
+    
+    // Validate franchise status
+    const franchiseStatus = franchise.franchiseStatus?.toLowerCase() || 'active'
+    const isRenewal = applicationTypeTab === 1
+    const isAmendment = applicationTypeTab === 2
+    
+    // Check if franchise is revoked
+    if (franchiseStatus === 'revoked') {
+      if (isRenewal || isAmendment) {
+        setNotification({
+          open: true,
+          message: `Franchise #${franchise.franchiseNumber} is REVOKED and cannot be renewed or amended. Please create a NEW application instead.`,
+          type: 'error'
+        })
+        return
+      }
+    }
+    
+    // Check if franchise is expired
+    if (franchiseStatus === 'expired') {
+      if (isAmendment) {
+        // Block amendment for expired franchises
+        setNotification({
+          open: true,
+          message: `Franchise #${franchise.franchiseNumber} is EXPIRED and cannot be amended. Please use RENEWAL to extend the franchise period first.`,
+          type: 'error'
+        })
+        return
+      }
+      // Allow renewal for expired franchises with info message
+      if (isRenewal) {
+        setNotification({
+          open: true,
+          message: `Franchise #${franchise.franchiseNumber} is EXPIRED. Renewal will extend the franchise period.`,
+          type: 'info'
+        })
+      }
+    }
+    
+    // Check if franchise is active and user is trying to renew
+    if (franchiseStatus === 'active' && isRenewal) {
+      setNotification({
+        open: true,
+        message: `Note: Franchise #${franchise.franchiseNumber} is still ACTIVE. Renewal will extend the franchise period after the current expiry date.`,
+        type: 'info'
+      })
+    }
+    
+    setSelectedFranchise(franchise)
+    
+    // Helper function to format date for input field (YYYY-MM-DD)
+    const formatDateForInput = (dateValue) => {
+      if (!dateValue) return ''
+      try {
+        const date = new Date(dateValue)
+        if (isNaN(date.getTime())) return ''
+        // Format as YYYY-MM-DD
+        return date.toISOString().split('T')[0]
+      } catch (error) {
+        logger.warn('[FranchiseMgmt] Error formatting date:', error)
+        return ''
+      }
+    }
+    
+    // Prefill personal information (operator details)
+    setFormData(prev => ({
+      ...prev,
+      // Keep these fields from INITIAL_FORM_DATA
+      date: prev.date,
+      applicationType: applicationTypeTab === 1 ? 'Renewal' : 'Amendment',
+      
+      // Prefill from existing franchise
+      name: franchise.operatorName || '',
+      contactNumber: franchise.operatorContactNumber || '',
+      operatorEmail: franchise.operatorEmail || '',
+      address: franchise.operatorAddress || '',
+      barangay: franchise.operatorBarangay || '',
+      birthPlace: franchise.operatorBirthPlace || '',
+      birthDate: formatDateForInput(franchise.operatorBirthDate),
+      civilStatus: franchise.operatorCivilStatus || '',
+      citizenship: franchise.operatorCitizenship || '',
+      todaMembership: franchise.todaMembership || '',
+      
+      // Motorcycle information (for Amendment, these can be changed)
+      driverName: franchise.driverName || '',
+      driverAddress: franchise.driversAddress || '',
+      unitModel: franchise.unitModel || '',
+      colorMotor: franchise.colorMotor || '',
+      colorSidecar: franchise.sideCarColor || '',
+      mvPlate: franchise.mvPlateNo || '',
+      motorEngineNumber: franchise.motorEngineNo || '',
+      chassisNumber: franchise.chasisNo || '',
+      
+      // Store franchise number and ID for reference
+      existingFranchiseNumber: franchise.franchiseNumber,
+      existingFranchiseId: franchise._id || franchise.id,
+      
+      // Documents remain empty - must be re-uploaded
+      documentRegistration: null,
+      documentBarangayClearance: null,
+      documentCedula: null,
+      documentDriversLicense: null,
+      documentVotersAffidavit: null,
+      documentMotorChassisStencil: null,
+      documentPicture: null,
+      documentOperatorPicture: null,
+      documentOrLTO: null,
+      documentCR: null,
+      officialReceiptNumber: '',
+      documentOfficialReceipt: null,
+    }))
+    
+    setNotification({
+      open: true,
+      message: `Pre-filled data from Franchise #${franchise.franchiseNumber}. Please update information and upload new documents.`,
+      type: 'info'
+    })
+  }, [applicationTypeTab])
+  
+  /**
+   * Handle tab change for application type
+   */
+  const handleApplicationTypeTabChange = useCallback((event, newValue) => {
+    logger.log('[FranchiseMgmt] Changing application type tab to:', newValue)
+    
+    // Revoke blobs before resetting
+    revokeAllFormBlobs()
+    
+    // Update tab
+    setApplicationTypeTab(newValue)
+    
+    // Reset search and selection when changing tabs
+    setFranchiseSearch('')
+    setSelectedFranchise(null)
+    setFormData(INITIAL_FORM_DATA)
+    
+    // Clear processing states
+    setProcessingFiles({})
+    setCompressionProgress({})
+    
+    // Load franchises when switching to Renewal or Amendment tab
+    if (newValue === 1 || newValue === 2) {
+      loadAllActiveFranchises()
+    }
+  }, [revokeAllFormBlobs, loadAllActiveFranchises])
   
   /**
    * Open view modal with selected application data
@@ -848,21 +1117,6 @@ function FranchiseMgmt() {
   const SKIP_FIELDS = ['officialReceiptNumber', 'documentOfficialReceipt']
 
   /**
-   * Revoke all document blob URLs in form data
-   */
-  const revokeAllFormBlobs = useCallback(() => {
-    Object.entries(formData).forEach(([key, value]) => {
-      if (key.startsWith('document') && value?.path?.startsWith('blob:')) {
-        try {
-          URL.revokeObjectURL(value.path)
-        } catch (e) {
-          logger.warn('Failed to revoke blob URL on form reset:', e)
-        }
-      }
-    })
-  }, [formData])
-
-  /**
    * Submit new franchise application
    */
   const handleSubmitApplication = async (e) => {
@@ -881,6 +1135,33 @@ function FranchiseMgmt() {
       return
     }
     
+    // Determine application type based on tab
+    const applicationType = applicationTypeTab === 0 ? 'new' : (applicationTypeTab === 1 ? 'renewal' : 'amendment')
+    
+    // For Renewal/Amendment, ensure a franchise is selected
+    if ((applicationTypeTab === 1 || applicationTypeTab === 2) && !selectedFranchise) {
+      setNotification({
+        open: true,
+        message: 'Please search and select an existing franchise first',
+        type: 'error',
+      })
+      return
+    }
+    
+    // Additional validation for Renewal/Amendment
+    if (applicationTypeTab === 1 || applicationTypeTab === 2) {
+      if (!selectedFranchise.franchiseNumber) {
+        setNotification({
+          open: true,
+          message: 'Invalid franchise selection. Please select again.',
+          type: 'error',
+        })
+        return
+      }
+      
+      logger.log(`[FranchiseMgmt] Submitting ${applicationType} for franchise #${selectedFranchise.franchiseNumber}`)
+    }
+    
     setIsLoading(true)
     
     try {
@@ -889,6 +1170,7 @@ function FranchiseMgmt() {
       // Add form fields with mapped backend names
       Object.entries(formData).forEach(([key, value]) => {
         if (SKIP_FIELDS.includes(key)) return
+        if (key === 'existingFranchiseNumber' || key === 'existingFranchiseId') return // Skip internal fields
         
         const backendKey = FIELD_MAPPING[key] || key
         
@@ -900,8 +1182,44 @@ function FranchiseMgmt() {
       })
       
       // Application metadata
-      formDataToSend.append('applicationType', 'new')
+      formDataToSend.append('applicationType', applicationType)
       formDataToSend.append('isWalkIn', 'true')
+      
+      // Always include changeType (backend uses this to determine application type)
+      let changeType
+      if (applicationType === 'new') {
+        changeType = 'new'
+      } else if (applicationType === 'renewal') {
+        changeType = 'renewal'
+      } else if (applicationType === 'amendment') {
+        changeType = 'amendment'
+      }
+      formDataToSend.append('changeType', changeType)
+      
+      // Debug logging - verify what's being sent
+      logger.log('[FranchiseMgmt] Submitting application with:', {
+        applicationType,
+        changeType,
+        isWalkIn: true,
+        hasSelectedFranchise: !!selectedFranchise,
+        franchiseNumber: selectedFranchise?.franchiseNumber
+      })
+      
+      // For Renewal/Amendment, include existing franchise reference
+      if (selectedFranchise) {
+        formDataToSend.append('existingFranchiseNumber', selectedFranchise.franchiseNumber)
+        formDataToSend.append('existingFranchiseId', selectedFranchise._id || selectedFranchise.id)
+        
+        // For renewals, keep existing pictures by passing their references
+        if (applicationType === 'renewal') {
+          if (selectedFranchise.documents?.driverPictureObj) {
+            formDataToSend.append('existingDriverPicture', selectedFranchise.documents.driverPictureObj)
+          }
+          if (selectedFranchise.documents?.operatorPictureObj) {
+            formDataToSend.append('existingOperatorPicture', selectedFranchise.documents.operatorPictureObj)
+          }
+        }
+      }
       
       // OR information (walk-in)
       if (formData.officialReceiptNumber?.trim()) {
@@ -913,26 +1231,55 @@ function FranchiseMgmt() {
         formDataToSend.append('oRTreasurerOfficeObj', formData.documentOfficialReceipt.file)
       }
 
+      // Use franchiseAPI.create for all walk-in applications (new, renewal, amendment)
+      // The backend will handle it based on applicationType and isWalkIn flags
       const response = await franchiseAPI.create(formDataToSend)
-      logger.log('[FranchiseMgmt] Application submitted:', response.data)
+      
+      logger.log(`[FranchiseMgmt] ${applicationType.toUpperCase()} application submitted successfully:`, response.data)
+      
+      // Debug logging - verify what backend returned
+      if (response.data?.application || response.data?.data) {
+        const returnedApp = response.data?.application || response.data?.data
+        logger.log('[FranchiseMgmt] Backend returned application type:', {
+          applicationType: returnedApp.applicationType,
+          changeType: returnedApp.changeType,
+          id: returnedApp._id || returnedApp.id
+        })
+      }
 
+      // Refresh applications list
       await fetchAllPending()
+      
+      // Close modal (includes cleanup)
       handleCloseAddModal()
       
-      // Cleanup and reset form
-      revokeAllFormBlobs()
-      setFormData(INITIAL_FORM_DATA)
+      const typeLabel = applicationType === 'new' ? 'New' : (applicationType === 'renewal' ? 'Renewal' : 'Amendment')
+      const franchiseRef = selectedFranchise ? ` (Franchise #${selectedFranchise.franchiseNumber})` : ''
       
       setNotification({
         open: true,
-        message: response.data?.message || 'Walk-in application submitted and forwarded to SB for approval. The applicant will be notified via email or phone.',
+        message: response.data?.message || `Walk-in ${typeLabel} application${franchiseRef} submitted successfully. The applicant will be notified via available contact method.`,
         type: 'success',
       })
     } catch (error) {
-      logger.error('[FranchiseMgmt] Error submitting application:', error)
+      logger.error(`[FranchiseMgmt] Error submitting ${applicationType} application:`, error)
+      
+      // Provide specific error messages based on error type
+      let errorMessage = 'Failed to submit application'
+      
+      if (error.response?.data?.error) {
+        errorMessage = error.response.data.error
+      } else if (error.response?.status === 404) {
+        errorMessage = 'Franchise not found. Please search again.'
+      } else if (error.response?.status === 400) {
+        errorMessage = 'Invalid application data. Please check all fields.'
+      } else if (error.message) {
+        errorMessage = error.message
+      }
+      
       setNotification({
         open: true,
-        message: error.response?.data?.error || 'Failed to submit application',
+        message: errorMessage,
         type: 'error',
       })
     } finally {
@@ -1283,7 +1630,7 @@ function FranchiseMgmt() {
             className="add-button"
             onClick={handleOpenAddModal}
           >
-            Add New Franchise - Walk In
+           Walk In Application
             
           </Button>
         </div>
@@ -1379,30 +1726,71 @@ function FranchiseMgmt() {
         }}>
           <Box className="modal-header" sx={{ 
             p: 3, 
-            borderBottom: '2px solid #E5E7EB',
+            borderBottom: '2px solid #0A356B',
+            background: '#FFFFFF !important',
             display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between'
+            flexDirection: 'column',
+            gap: 2
           }}>
-            <Typography variant="h5" component="h2" sx={{ 
-              fontWeight: 700, 
-              color: '#fff',
-              fontSize: '1.5rem',
-              letterSpacing: '0.5px'
+            <Box sx={{ 
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between'
             }}>
-               WALK-IN FRANCHISE APPLICATION
-            </Typography>
-            <IconButton 
-              onClick={handleCloseAddModal} 
-              sx={{ 
-                color: '#fff',
-                '&:hover': {
-                  background: 'rgba(255, 255, 255, 0.1)'
+              <Typography variant="h5" component="h2" sx={{ 
+                fontWeight: 700, 
+                color: '#0A356B',
+                fontSize: '1.5rem',
+                letterSpacing: '0.5px'
+              }}>
+                WALK-IN FRANCHISE APPLICATION
+              </Typography>
+              <IconButton 
+                onClick={handleCloseAddModal} 
+                sx={{ 
+                  color: '#0A356B',
+                  '&:hover': {
+                    background: 'rgba(10, 53, 107, 0.1)'
+                  }
+                }}
+              >
+                <CloseIcon />
+              </IconButton>
+            </Box>
+            
+            {/* Application Type Tabs */}
+            <Tabs 
+              value={applicationTypeTab} 
+              onChange={handleApplicationTypeTabChange}
+              sx={{
+                minHeight: '48px',
+                '& .MuiTab-root': {
+                  color: '#6B7280',
+                  fontWeight: 600,
+                  fontSize: '0.95rem',
+                  minHeight: '48px',
+                  textTransform: 'none',
+                  transition: 'all 0.3s ease',
+                  '&.Mui-selected': {
+                    color: '#0A356B',
+                    fontWeight: 700
+                  },
+                  '&:hover': {
+                    color: '#0A356B',
+                    backgroundColor: 'rgba(10, 53, 107, 0.05)'
+                  }
+                },
+                '& .MuiTabs-indicator': {
+                  backgroundColor: '#0A356B',
+                  height: '3px',
+                  borderRadius: '3px 3px 0 0'
                 }
               }}
             >
-              <CloseIcon />
-            </IconButton>
+              <Tab label="New Application" />
+              <Tab label="Renewal" />
+              <Tab label="Amendment" />
+            </Tabs>
           </Box>
           
           <Box className="modal-body" sx={{ 
@@ -1412,23 +1800,159 @@ function FranchiseMgmt() {
             background: '#FAFBFC',
             ...SCROLLBAR_STYLES,
           }}>
-            <form onSubmit={handleSubmitApplication} id="franchise-form">
-              {/* Walk-in Information Banner */}
+            {/* Franchise Search Section - Only for Renewal/Amendment */}
+            {(applicationTypeTab === 1 || applicationTypeTab === 2) && (
               <Box sx={{ 
                 mb: 3, 
                 p: 2.5, 
-                background: 'linear-gradient(135deg, #EBF4FF 0%, #E0F2FE 100%)',
+                background: 'linear-gradient(135deg, #FFF7ED 0%, #FFEDD5 100%)',
                 borderRadius: 2,
-                border: '2px solid #93C5FD',
-                boxShadow: '0 2px 8px rgba(59, 130, 246, 0.1)'
+                border: '2px solid #FDBA74',
+                boxShadow: '0 2px 8px rgba(249, 115, 22, 0.1)'
               }}>
-                <Typography variant="body1" sx={{ fontWeight: 600, color: '#1E40AF', mb: 1 }}>
-                  Walk-In Application Process
+                <Typography variant="body1" sx={{ fontWeight: 600, color: '#C2410C', mb: 1.5 }}>
+                  {applicationTypeTab === 1 ? 'Renewal Application' : 'Amendment Application'}
                 </Typography>
-                <Typography variant="body2" sx={{ color: '#3B82F6', fontSize: '0.9rem' }}>
-                  Complete all required information. <strong>Provide either Email OR Phone Number</strong> - applicant will be notified via available contact method.
+                <Typography variant="body2" sx={{ color: '#9A3412', fontSize: '0.9rem', mb: 2 }}>
+                  {applicationTypeTab === 1 
+                    ? 'Search and select an existing franchise to renew. The system will prefill operator information.'
+                    : 'Search and select an existing franchise to amend. Update any information that has changed and upload new documents.'}
                 </Typography>
+                
+                {/* Franchise Search Autocomplete */}
+                <Autocomplete
+                  freeSolo
+                  options={filteredFranchises}
+                  inputValue={franchiseSearch}
+                  getOptionLabel={(option) => {
+                    if (typeof option === 'string') return option
+                    return `#${option.franchiseNumber} - ${option.operatorName || 'N/A'}`
+                  }}
+                  loading={loadingFranchises}
+                  value={selectedFranchise}
+                  onChange={(event, newValue) => {
+                    if (newValue && typeof newValue === 'object') {
+                      prefillFromFranchise(newValue)
+                    } else {
+                      setSelectedFranchise(null)
+                    }
+                  }}
+                  onInputChange={(event, newInputValue, reason) => {
+                    if (reason === 'input') {
+                      setFranchiseSearch(newInputValue)
+                    } else if (reason === 'clear') {
+                      setFranchiseSearch('')
+                      setSelectedFranchise(null)
+                    }
+                  }}
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      label="Search Franchise"
+                      placeholder="Enter franchise number or operator name"
+                      fullWidth
+                      size="small"
+                      InputProps={{
+                        ...params.InputProps,
+                        endAdornment: (
+                          <>
+                            {loadingFranchises ? <CircularProgress color="inherit" size={20} /> : null}
+                            {params.InputProps.endAdornment}
+                          </>
+                        ),
+                      }}
+                      helperText="Type at least 2 characters to search all franchises (Active, Expired, Revoked)"
+                    />
+                  )}
+                  renderOption={(props, option) => {
+                    const status = option.franchiseStatus?.toLowerCase() || 'active'
+                    const statusColors = {
+                      active: { bg: '#D1FAE5', text: '#059669', label: 'Active' },
+                      expired: { bg: '#FEE2E2', text: '#DC2626', label: 'Expired' },
+                      revoked: { bg: '#FEE2E2', text: '#DC2626', label: 'Revoked' }
+                    }
+                    const statusStyle = statusColors[status] || statusColors.active
+                    
+                    return (
+                      <Box component="li" {...props} key={option._id || option.id}>
+                        <Box sx={{ display: 'flex', flexDirection: 'column', width: '100%' }}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                              Franchise #{option.franchiseNumber}
+                            </Typography>
+                            <Chip 
+                              label={statusStyle.label}
+                              size="small"
+                              sx={{
+                                height: '20px',
+                                fontSize: '0.7rem',
+                                fontWeight: 600,
+                                bgcolor: statusStyle.bg,
+                                color: statusStyle.text,
+                                '& .MuiChip-label': { px: 1 }
+                              }}
+                            />
+                          </Box>
+                          <Typography variant="caption" sx={{ color: '#6B7280' }}>
+                            {option.operatorName} • {option.operatorBarangay || 'N/A'}
+                          </Typography>
+                        </Box>
+                      </Box>
+                    )
+                  }}
+                  noOptionsText={
+                    franchiseSearch.length < 2 
+                      ? "Type at least 2 characters to search" 
+                      : "No franchises found (searching all statuses: Active, Expired, Revoked)"
+                  }
+                />
+                
+                {/* Selected Franchise Info */}
+                {selectedFranchise && (
+                  <Box sx={{ 
+                    mt: 2, 
+                    p: 2, 
+                    background: '#fff',
+                    borderRadius: 1,
+                    border: '1px solid #E5E7EB'
+                  }}>
+                    <Typography variant="body2" sx={{ fontWeight: 600, color: '#059669', mb: 1 }}>
+                      ✓ Selected Franchise
+                    </Typography>
+                    <Box sx={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: 1, fontSize: '0.85rem' }}>
+                      <Typography variant="caption" sx={{ fontWeight: 600 }}>Number:</Typography>
+                      <Typography variant="caption">#{selectedFranchise.franchiseNumber}</Typography>
+                      
+                      <Typography variant="caption" sx={{ fontWeight: 600 }}>Operator:</Typography>
+                      <Typography variant="caption">{selectedFranchise.operatorName}</Typography>
+                      
+                      <Typography variant="caption" sx={{ fontWeight: 600 }}>Plate:</Typography>
+                      <Typography variant="caption">{selectedFranchise.mvPlateNo || 'N/A'}</Typography>
+                    </Box>
+                  </Box>
+                )}
               </Box>
+            )}
+            
+            <form onSubmit={handleSubmitApplication} id="franchise-form">
+              {/* Walk-in Information Banner - Only for New Applications */}
+              {applicationTypeTab === 0 && (
+                <Box sx={{ 
+                  mb: 3, 
+                  p: 2.5, 
+                  background: 'linear-gradient(135deg, #EBF4FF 0%, #E0F2FE 100%)',
+                  borderRadius: 2,
+                  border: '2px solid #93C5FD',
+                  boxShadow: '0 2px 8px rgba(59, 130, 246, 0.1)'
+                }}>
+                  <Typography variant="body1" sx={{ fontWeight: 600, color: '#1E40AF', mb: 1 }}>
+                    Walk-In Application Process
+                  </Typography>
+                  <Typography variant="body2" sx={{ color: '#3B82F6', fontSize: '0.9rem' }}>
+                    Complete all required information. <strong>Provide either Email OR Phone Number</strong> - applicant will be notified via available contact method.
+                  </Typography>
+                </Box>
+              )}
 
               {/* Date Row */}
               <Box sx={{ mb: 3 }}>
@@ -1450,6 +1974,14 @@ function FranchiseMgmt() {
               {/* Personal Information Section */}
               <Typography variant="h6" sx={SECTION_HEADER_STYLES}>
                 PERSONAL INFORMATION
+                {selectedFranchise && (
+                  <Chip 
+                    label="Pre-filled from existing franchise" 
+                    size="small" 
+                    color="info" 
+                    sx={{ ml: 2, fontSize: '0.75rem' }} 
+                  />
+                )}
               </Typography>
             
             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2, mb: 2 }}>
@@ -1575,6 +2107,14 @@ function FranchiseMgmt() {
             {/* Motorcycle Information Section */}
             <Typography variant="h6" sx={SECTION_HEADER_STYLES}>
               MOTORCYCLE INFORMATION
+              {selectedFranchise && applicationTypeTab === 2 && (
+                <Chip 
+                  label="Update changed information only" 
+                  size="small" 
+                  color="warning" 
+                  sx={{ ml: 2, fontSize: '0.75rem' }} 
+                />
+              )}
             </Typography>
 
             <TextField
@@ -1692,6 +2232,11 @@ function FranchiseMgmt() {
               <Typography variant="body2" sx={{ color: '#9A3412', fontSize: '0.85rem', mt: 0.5 }}>
                 • All documents must be clear and readable • Files will be optimized for quality and size
               </Typography>
+              {(applicationTypeTab === 1 || applicationTypeTab === 2) && (
+                <Typography variant="body2" sx={{ color: '#C2410C', fontSize: '0.85rem', mt: 1, fontWeight: 600 }}>
+                  ⚠ For {applicationTypeTab === 1 ? 'Renewal' : 'Amendment'}: New documents must be uploaded even if information hasn't changed
+                </Typography>
+              )}
             </Box>
             
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
@@ -1767,25 +2312,47 @@ function FranchiseMgmt() {
                 handleFileChange={handleFileChange}
               />
             
-              <FileUploadField
-                name="documentPicture"
-                label="1x1 Picture of Driver"
-                accept="image/jpeg,image/png"
-                formData={formData}
-                processingFiles={processingFiles}
-                compressionProgress={compressionProgress}
-                handleFileChange={handleFileChange}
-              />
-            
-              <FileUploadField
-                name="documentOperatorPicture"
-                label="1x1 Picture of Operator"
-                accept="image/jpeg,image/png"
-                formData={formData}
-                processingFiles={processingFiles}
-                compressionProgress={compressionProgress}
-                handleFileChange={handleFileChange}
-              />
+              {/* Pictures - Hidden for Renewal (retained from existing franchise) */}
+              {applicationTypeTab !== 1 && (
+                <>
+                  <FileUploadField
+                    name="documentPicture"
+                    label="1x1 Picture of Driver"
+                    accept="image/jpeg,image/png"
+                    formData={formData}
+                    processingFiles={processingFiles}
+                    compressionProgress={compressionProgress}
+                    handleFileChange={handleFileChange}
+                  />
+                
+                  <FileUploadField
+                    name="documentOperatorPicture"
+                    label="1x1 Picture of Operator"
+                    accept="image/jpeg,image/png"
+                    formData={formData}
+                    processingFiles={processingFiles}
+                    compressionProgress={compressionProgress}
+                    handleFileChange={handleFileChange}
+                  />
+                </>
+              )}
+              
+              {/* Info banner for Renewal - Pictures are retained */}
+              {applicationTypeTab === 1 && (
+                <Box sx={{ 
+                  p: 2, 
+                  background: '#F0F9FF',
+                  borderRadius: 2,
+                  border: '1px solid #BAE6FD'
+                }}>
+                  <Typography variant="body2" sx={{ fontWeight: 600, color: '#0369A1', mb: 0.5 }}>
+                    📸 Existing Photos Retained
+                  </Typography>
+                  <Typography variant="body2" sx={{ color: '#075985', fontSize: '0.85rem' }}>
+                    For renewal applications, the existing 1x1 pictures of the driver and operator will be automatically retained from the original franchise record. No need to re-upload.
+                  </Typography>
+                </Box>
+              )}
             </Box>
             
             {/* Walk-in OR Section */}
@@ -1860,7 +2427,7 @@ function FranchiseMgmt() {
               type="submit"
               form="franchise-form"
               variant="contained"
-              disabled={isLoading}
+              disabled={isLoading || ((applicationTypeTab === 1 || applicationTypeTab === 2) && !selectedFranchise)}
               startIcon={isLoading && <CircularProgress size={20} sx={{ color: 'white' }} />}
               sx={{ 
                 minWidth: '200px',
@@ -1880,7 +2447,13 @@ function FranchiseMgmt() {
                 }
               }}
             >
-              {isLoading ? 'Submitting...' : 'Submit Walk-in Application'}
+              {isLoading 
+                ? 'Submitting...' 
+                : applicationTypeTab === 0 
+                  ? 'Submit Walk-in Application'
+                  : applicationTypeTab === 1
+                    ? 'Submit Renewal Application'
+                    : 'Submit Amendment Application'}
             </Button>
           </Box>
         </Box>

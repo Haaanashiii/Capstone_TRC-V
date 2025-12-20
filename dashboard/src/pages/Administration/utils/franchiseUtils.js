@@ -109,7 +109,8 @@ export const normalizeApplication = (it) => ({
   name: it.operatorName || it.driverName || '',
   make: it.unitModel || '',
   plateNumber: it.mvPlateNo || it.mvPlate || '',
-  applicationType: it.applicationType || 'new',
+  // Backend might store as either applicationType or changeType
+  applicationType: it.applicationType || it.changeType || 'new',
   address: it.operatorAddress || '',
   barangay: it.operatorBarangay || '',
   contactNumber: it.operatorContactNumber || '',

@@ -90,6 +90,7 @@ const franchiseInformationSchema = new mongoose.Schema({
     enum: [
       'new',              // Initial franchise application approved (first time)
       'renewal',          // Operator submitted renewal application → Admin approved
+      'amendment',        // Walk-in amendment to operator information → Admin approved
       'update_ownership', // Operator submitted ownership transfer → Admin approved
       'change_unit',      // Operator submitted unit change → Admin approved
       'auto_expired',     // System/cron auto-marked as expired after 3 years

@@ -103,6 +103,7 @@ const franchiseApplicationSchema = new mongoose.Schema({
     enum: [
       'new',              // New franchise application (creates initial franchise)
       'renewal',          // Renew existing franchise (same franchise number, new 3-year period)
+      'amendment',        // Amendment to existing franchise (walk-in operator info updates)
       'update_ownership', // Transfer ownership (same franchise number, different operator)
       'change_unit',      // Change motor unit (same franchise number, different vehicle)
       'amend-update_ownership', // Amendment: Transfer ownership

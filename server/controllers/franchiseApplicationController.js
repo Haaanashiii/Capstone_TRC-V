@@ -17,6 +17,376 @@ const invalidateQRCache = (franchiseNumber) => {
   cacheManager.delete(`qr-scan-${hash}`);
 };
 
+// Helper function to handle walk-in renewals and amendments
+const handleWalkInRenewalOrAmendment = async (req, res, next) => {
+  try {
+    const { body, files, user } = req;
+    const userId = user?._id || user?.userId || String(user?.id);
+    const adminUsername = user?.username || user?.email || 'BPLO Admin';
+    
+    const changeType = body.changeType || body.applicationType;
+    const existingFranchiseId = body.existingFranchiseId;
+    const existingFranchiseNumber = body.existingFranchiseNumber;
+    
+    console.log('[handleWalkInRenewalOrAmendment] Processing walk-in', changeType);
+    console.log('[handleWalkInRenewalOrAmendment] Existing Franchise ID:', existingFranchiseId);
+    console.log('[handleWalkInRenewalOrAmendment] Existing Franchise Number:', existingFranchiseNumber);
+    
+    if (!existingFranchiseId) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'existingFranchiseId is required for walk-in renewals/amendments' 
+      });
+    }
+    
+    // Find the existing franchise
+    const existingFranchise = await FranchiseInformation.findOne({
+      _id: existingFranchiseId,
+      isCurrentVersion: true
+    });
+    
+    if (!existingFranchise) {
+      console.error('[handleWalkInRenewalOrAmendment] Franchise not found:', existingFranchiseId);
+      return res.status(404).json({ 
+        success: false, 
+        error: 'Existing franchise not found' 
+      });
+    }
+    
+    console.log('[handleWalkInRenewalOrAmendment] Found existing franchise:', {
+      franchiseNumber: existingFranchise.franchiseNumber,
+      franchiseChainId: existingFranchise.franchiseChainId,
+      franchiseStatus: existingFranchise.franchiseStatus
+    });
+    
+    // Validate franchise status for renewal/amendment
+    if (!validateFranchiseStatus(existingFranchise, changeType)) {
+      return res.status(400).json({ 
+        success: false, 
+        error: `Cannot ${changeType} this franchise (status: ${existingFranchise.franchiseStatus})` 
+      });
+    }
+    
+    let userEmail = user?.email || '';
+    if (!userEmail && userId) {
+      try {
+        const User = require('../models/userAccountModel');
+        const foundUser = await User.findById(userId).select('email');
+        if (foundUser?.email) userEmail = foundUser.email;
+      } catch (emailError) {}
+    }
+    
+    // Determine specific amendment type based on what changed
+    let finalApplicationType = changeType;
+    if (changeType === 'amendment') {
+      // Check which fields have changed
+      const operatorFieldsChanged = 
+        (body.operatorName && body.operatorName !== existingFranchise.operatorName) ||
+        (body.operatorContactNumber && body.operatorContactNumber !== existingFranchise.operatorContactNumber) ||
+        (body.operatorAddress && body.operatorAddress !== existingFranchise.operatorAddress) ||
+        (body.operatorBarangay && body.operatorBarangay !== existingFranchise.operatorBarangay) ||
+        (body.operatorCivilStatus && body.operatorCivilStatus !== existingFranchise.operatorCivilStatus) ||
+        (body.operatorBirthPlace && body.operatorBirthPlace !== existingFranchise.operatorBirthPlace) ||
+        (body.operatorBirthDate && new Date(body.operatorBirthDate).getTime() !== existingFranchise.operatorBirthDate?.getTime()) ||
+        (body.operatorCitizenship && body.operatorCitizenship !== existingFranchise.operatorCitizenship) ||
+        (body.coOwnerName && body.coOwnerName !== existingFranchise.coOwnerName) ||
+        (body.coOwnerAddress && body.coOwnerAddress !== existingFranchise.coOwnerAddress);
+      
+      const motorFieldsChanged = 
+        (body.unitModel && body.unitModel !== existingFranchise.unitModel) ||
+        (body.colorMotor && body.colorMotor !== existingFranchise.colorMotor) ||
+        (body.sideCarColor && body.sideCarColor !== existingFranchise.sideCarColor) ||
+        (body.mvPlateNo && body.mvPlateNo !== existingFranchise.mvPlateNo) ||
+        (body.motorEngineNo && body.motorEngineNo !== existingFranchise.motorEngineNo) ||
+        (body.chasisNo && body.chasisNo !== existingFranchise.chasisNo) ||
+        (body.driverName && body.driverName !== existingFranchise.driverName) ||
+        (body.driversAddress && body.driversAddress !== existingFranchise.driversAddress);
+      
+      // Determine specific amendment type
+      if (operatorFieldsChanged && !motorFieldsChanged) {
+        finalApplicationType = 'update_ownership';
+        console.log('[handleWalkInRenewalOrAmendment] Amendment detected: update_ownership (personal info changed)');
+      } else if (motorFieldsChanged && !operatorFieldsChanged) {
+        finalApplicationType = 'change_unit';
+        console.log('[handleWalkInRenewalOrAmendment] Amendment detected: change_unit (motor info changed)');
+      } else if (operatorFieldsChanged && motorFieldsChanged) {
+        // Both changed - default to update_ownership (ownership is more significant)
+        finalApplicationType = 'update_ownership';
+        console.log('[handleWalkInRenewalOrAmendment] Amendment detected: both changed, using update_ownership');
+      } else {
+        // No changes detected, default to update_ownership
+        finalApplicationType = 'update_ownership';
+        console.log('[handleWalkInRenewalOrAmendment] Amendment: no specific changes detected, defaulting to update_ownership');
+      }
+    }
+    
+    // Build application data based on change type
+    const applicationData = {
+      applicationType: finalApplicationType,
+      relatedFranchise: existingFranchise._id,
+      operatorInfo: userId,
+      statusOfBPLO: 'awaiting-sb', // Walk-in goes directly to SB
+      isWalkIn: true,
+      bploApprovedBy: adminUsername,
+      bploApprovedAt: new Date(),
+      bploInspectionRequired: false,
+      officialReceiptNumber: body.officialReceiptNumber || '',
+      orSubmittedAt: body.orSubmittedAt ? new Date(body.orSubmittedAt) : null
+    };
+    
+    // For amendments, allow updating operator info or motor info based on type
+    if (changeType === 'amendment') {
+      if (finalApplicationType === 'update_ownership') {
+        // Update ownership: Allow operator info changes, keep motor/driver info
+        Object.assign(applicationData, {
+          operatorName: body.operatorName || existingFranchise.operatorName,
+          operatorContactNumber: body.operatorContactNumber || existingFranchise.operatorContactNumber,
+          operatorAddress: body.operatorAddress || existingFranchise.operatorAddress,
+          operatorBarangay: body.operatorBarangay || existingFranchise.operatorBarangay,
+          operatorCivilStatus: body.operatorCivilStatus || existingFranchise.operatorCivilStatus,
+          operatorBirthPlace: body.operatorBirthPlace || existingFranchise.operatorBirthPlace,
+          operatorBirthDate: body.operatorBirthDate ? new Date(body.operatorBirthDate) : existingFranchise.operatorBirthDate,
+          operatorCitizenship: body.operatorCitizenship || existingFranchise.operatorCitizenship,
+          operatorEmail: body.operatorEmail || userEmail || existingFranchise.operatorEmail,
+          coOwnerName: body.coOwnerName || existingFranchise.coOwnerName,
+          coOwnerAddress: body.coOwnerAddress || existingFranchise.coOwnerAddress,
+          // Keep existing motor and driver info
+          driverName: existingFranchise.driverName,
+          driversAddress: existingFranchise.driversAddress,
+          todaMembership: existingFranchise.todaMembership,
+          unitModel: existingFranchise.unitModel,
+          colorMotor: existingFranchise.colorMotor,
+          sideCarColor: existingFranchise.sideCarColor,
+          mvPlateNo: existingFranchise.mvPlateNo,
+          motorEngineNo: existingFranchise.motorEngineNo,
+          chasisNo: existingFranchise.chasisNo
+        });
+      } else if (finalApplicationType === 'change_unit') {
+        // Change unit: Allow motor/driver info changes, keep operator info
+        Object.assign(applicationData, {
+          // Keep existing operator info
+          operatorName: existingFranchise.operatorName,
+          operatorContactNumber: existingFranchise.operatorContactNumber,
+          operatorAddress: existingFranchise.operatorAddress,
+          operatorBarangay: existingFranchise.operatorBarangay,
+          operatorCivilStatus: existingFranchise.operatorCivilStatus,
+          operatorBirthPlace: existingFranchise.operatorBirthPlace,
+          operatorBirthDate: existingFranchise.operatorBirthDate,
+          operatorCitizenship: existingFranchise.operatorCitizenship,
+          operatorEmail: userEmail || existingFranchise.operatorEmail,
+          coOwnerName: existingFranchise.coOwnerName,
+          coOwnerAddress: existingFranchise.coOwnerAddress,
+          // Allow motor and driver info updates
+          driverName: body.driverName || existingFranchise.driverName,
+          driversAddress: body.driversAddress || existingFranchise.driversAddress,
+          todaMembership: body.todaMembership || existingFranchise.todaMembership,
+          unitModel: body.unitModel || existingFranchise.unitModel,
+          colorMotor: body.colorMotor || existingFranchise.colorMotor,
+          sideCarColor: body.sideCarColor || existingFranchise.sideCarColor,
+          mvPlateNo: body.mvPlateNo || existingFranchise.mvPlateNo,
+          motorEngineNo: body.motorEngineNo || existingFranchise.motorEngineNo,
+          chasisNo: body.chasisNo || existingFranchise.chasisNo
+        });
+      }
+    } else {
+      // For renewals, keep everything from existing franchise
+      Object.assign(applicationData, {
+        operatorName: existingFranchise.operatorName,
+        operatorContactNumber: existingFranchise.operatorContactNumber,
+        operatorAddress: existingFranchise.operatorAddress,
+        operatorBarangay: existingFranchise.operatorBarangay,
+        operatorCivilStatus: existingFranchise.operatorCivilStatus,
+        operatorBirthPlace: existingFranchise.operatorBirthPlace,
+        operatorBirthDate: existingFranchise.operatorBirthDate,
+        operatorCitizenship: existingFranchise.operatorCitizenship,
+        operatorEmail: userEmail || existingFranchise.operatorEmail,
+        coOwnerName: existingFranchise.coOwnerName,
+        coOwnerAddress: existingFranchise.coOwnerAddress,
+        driverName: existingFranchise.driverName,
+        driversAddress: existingFranchise.driversAddress,
+        todaMembership: existingFranchise.todaMembership,
+        unitModel: existingFranchise.unitModel,
+        colorMotor: existingFranchise.colorMotor,
+        sideCarColor: existingFranchise.sideCarColor,
+        sideCarPlateNumber: existingFranchise.sideCarPlateNumber,
+        mvPlateNo: existingFranchise.mvPlateNo,
+        motorEngineNo: existingFranchise.motorEngineNo,
+        chasisNo: existingFranchise.chasisNo
+      });
+    }
+    
+    console.log('[handleWalkInRenewalOrAmendment] Creating application with type:', applicationData.applicationType);
+    console.log('[handleWalkInRenewalOrAmendment] Related franchise:', applicationData.relatedFranchise);
+    
+    // Create the application
+    const application = await franchiseApplicationRepository.createFranchiseApplication(applicationData);
+    const appId = String(application._id);
+    
+    console.log('[handleWalkInRenewalOrAmendment] Application created:', appId);
+    
+    // Link application to user
+    if (userId) {
+      try {
+        const User = require('../models/userAccountModel');
+        await User.findByIdAndUpdate(
+          userId,
+          { $addToSet: { franchiseApplications: application._id } },
+          { new: true }
+        );
+        console.log('[handleWalkInRenewalOrAmendment] Application linked to user:', userId);
+      } catch (linkError) {
+        console.error('[handleWalkInRenewalOrAmendment] Failed to link application to user:', linkError);
+      }
+    }
+    
+    // Handle file uploads
+    if (files && Object.keys(files).length > 0) {
+      const uploadAsync = (async () => {
+        try {
+          const documentTypeMap = {
+            'motorRegistrationObj': 'motor-registration',
+            'barangayClearanceObj': 'barangay-clearance',
+            'cedulaObj': 'cedula',
+            'driversLicenseObj': 'drivers-license',
+            'votersAffidavitObj': 'voters-affidavit',
+            'motorChassisStencilObj': 'chassis-stencil',
+            'driverPictureObj': 'driver-photo',
+            'operatorPictureObj': 'operator-photo',
+            'oRLTOObj': 'or-lto',
+            'cRLTOObj': 'cr-lto',
+            'oRTreasurerOfficeObj': 'or-treasurer'
+          };
+          
+          const uploadHelper = async (fieldName, category) => {
+            const fileArray = files[fieldName];
+            if (!fileArray?.[0]) return null;
+            validateFile(fileArray[0]);
+            const documentType = documentTypeMap[fieldName] || fieldName.replace(/Obj$/, '').toLowerCase();
+            const result = await uploadFile(fileArray[0].buffer, fileArray[0].originalname, fileArray[0].mimetype,
+              { baseFolder: 'franchiseApplications', subFolder: userId, applicationId: appId, category, documentType });
+            return result.url;
+          };
+          
+          const [motorReg, barangay, cedula, license, affidavit, stencil, driverPic, operatorPic, orLTO, crLTO, orTreasurer] = await Promise.all([
+            uploadHelper('motorRegistrationObj', 'Documentations'),
+            uploadHelper('barangayClearanceObj', 'Documentations'),
+            uploadHelper('cedulaObj', 'Documentations'),
+            uploadHelper('driversLicenseObj', 'Documentations'),
+            uploadHelper('votersAffidavitObj', 'Documentations'),
+            uploadHelper('motorChassisStencilObj', 'Documentations'),
+            uploadHelper('driverPictureObj', 'ProfilePictures'),
+            uploadHelper('operatorPictureObj', 'ProfilePictures'),
+            uploadHelper('oRLTOObj', 'Documentations'),
+            uploadHelper('cRLTOObj', 'Documentations'),
+            uploadHelper('oRTreasurerOfficeObj', 'Documentations')
+          ]);
+          
+          const updateData = {};
+          if (motorReg) updateData['documents.motorRegistrationObj'] = motorReg;
+          if (barangay) updateData['documents.barangayClearanceObj'] = barangay;
+          if (cedula) updateData['documents.cedulaObj'] = cedula;
+          if (license) updateData['documents.driversLicenseObj'] = license;
+          if (affidavit) updateData['documents.votersAffidavitObj'] = affidavit;
+          if (stencil) updateData['documents.motorChassisStencilObj'] = stencil;
+          if (driverPic) updateData['documents.driverPictureObj'] = driverPic;
+          if (operatorPic) updateData['documents.operatorPictureObj'] = operatorPic;
+          if (orLTO) updateData['documents.oRLTOObj'] = orLTO;
+          if (crLTO) updateData['documents.cRLTOObj'] = crLTO;
+          if (orTreasurer) updateData['documents.oRTreasurerOfficeObj'] = orTreasurer;
+          
+          // For renewals, retain existing pictures if not uploaded
+          if (changeType === 'renewal') {
+            const existingDriverPicture = body.existingDriverPicture;
+            const existingOperatorPicture = body.existingOperatorPicture;
+            
+            if (existingDriverPicture && !driverPic) {
+              updateData['documents.driverPictureObj'] = existingDriverPicture;
+              console.log('[handleWalkInRenewalOrAmendment] Retaining existing driver picture');
+            }
+            if (existingOperatorPicture && !operatorPic) {
+              updateData['documents.operatorPictureObj'] = existingOperatorPicture;
+              console.log('[handleWalkInRenewalOrAmendment] Retaining existing operator picture');
+            }
+          }
+          
+          console.log('[Upload] Walk-in renewal/amendment documents to save:', Object.keys(updateData));
+          
+          if (Object.keys(updateData).length > 0) {
+            await franchiseApplicationRepository.updateFranchiseApplication(appId, updateData);
+            console.log('[Upload] Documents saved to application:', appId);
+          }
+        } catch (uploadError) {
+          console.error('[Upload] FAILED for walk-in renewal/amendment:', appId, uploadError.message);
+        }
+      })();
+      uploadAsync.catch((err) => {
+        console.error('[Upload] Async upload failed:', err.message);
+      });
+    } else if (changeType === 'renewal') {
+      // If no files uploaded for renewal, retain existing pictures
+      const existingDriverPicture = body.existingDriverPicture;
+      const existingOperatorPicture = body.existingOperatorPicture;
+      
+      if (existingDriverPicture || existingOperatorPicture) {
+        const updateData = {};
+        if (existingDriverPicture) {
+          updateData['documents.driverPictureObj'] = existingDriverPicture;
+        }
+        if (existingOperatorPicture) {
+          updateData['documents.operatorPictureObj'] = existingOperatorPicture;
+        }
+        
+        await franchiseApplicationRepository.updateFranchiseApplication(appId, updateData);
+        console.log('[handleWalkInRenewalOrAmendment] Retained existing pictures for renewal');
+      }
+    }
+    
+    // Fetch final application with all updates
+    const finalApplication = await franchiseApplicationRepository.getFranchiseApplicationById(appId);
+    
+    // Audit log
+    if (user) {
+      await auditLogService.logApplicationCreation(finalApplication, user, req).catch(() => {});
+    }
+    
+    // WebSocket notifications
+    try {
+      const io = req.app.get('io');
+      if (io) {
+        // Walk-in renewals/amendments go to SB admins
+        const sbApplications = await FranchiseApplication.find({
+          statusOfBPLO: { $in: ['bplo-approved', 'awaiting-sb', 'sb-approved'] }
+        }).sort({ sbApprovedAt: -1, bploApprovedAt: -1, orSubmittedAt: -1 });
+        io.to('sb-admins').emit('approved-applications', sbApplications);
+        console.log(`[Walk-in ${changeType}] Notified SB admins - Application ${appId}`);
+        
+        io.to('general').emit('application-updated', finalApplication);
+      }
+    } catch (wsError) {
+      console.error('[handleWalkInRenewalOrAmendment] WebSocket error:', wsError);
+    }
+    
+    // Send notification
+    if (finalApplication.isWalkIn) {
+      try {
+        const { sendWalkInApplicationNotification } = require('../services/notificationQueueService');
+        await sendWalkInApplicationNotification(finalApplication).catch(() => {});
+      } catch (notifError) {}
+    }
+    
+    const responseMessage = `Walk-in ${changeType} application submitted and forwarded to SB for approval.`;
+    
+    res.status(201).json({ 
+      success: true, 
+      data: finalApplication, 
+      message: responseMessage 
+    });
+  } catch (error) {
+    console.error('[handleWalkInRenewalOrAmendment] Error:', error);
+    next(error);
+  }
+};
+
 // 1) CREATE NEW APPLICATION
 exports.createNewApplication = async (req, res, next) => {
   try {
@@ -35,6 +405,17 @@ exports.createNewApplication = async (req, res, next) => {
     
     // Determine if this is a walk-in application
     const isWalkIn = body.isWalkIn === 'true' || body.isWalkIn === true;
+    
+    // Check if this is a walk-in renewal or amendment
+    const changeType = body.changeType || body.applicationType || 'new';
+    const isRenewalOrAmendment = changeType === 'renewal' || changeType === 'amendment';
+    
+    console.log('[createNewApplication] Walk-in:', isWalkIn, 'ChangeType:', changeType, 'IsRenewalOrAmendment:', isRenewalOrAmendment);
+    
+    // If it's a walk-in renewal/amendment, handle it differently
+    if (isWalkIn && isRenewalOrAmendment) {
+      return handleWalkInRenewalOrAmendment(req, res, next);
+    }
     
     // Walk-in applications submitted by BPLO Admin go directly to SB
     // OR is optional at submission - SB can also add it during their review
@@ -535,14 +916,58 @@ exports.createRenewOrAmendment = async (req, res, next) => {
       return res.status(400).json({ error: `Cannot ${appType} this franchise (status: ${existingFranchise.franchiseStatus})` });
     }
     
+    // Determine specific amendment type based on what changed
+    let finalApplicationType = appType;
+    if (appType === 'amendment') {
+      // Check which fields have changed
+      const operatorFieldsChanged = 
+        (body.operatorName && body.operatorName !== existingFranchise.operatorName) ||
+        (body.operatorContactNumber && body.operatorContactNumber !== existingFranchise.operatorContactNumber) ||
+        (body.operatorAddress && body.operatorAddress !== existingFranchise.operatorAddress) ||
+        (body.operatorBarangay && body.operatorBarangay !== existingFranchise.operatorBarangay) ||
+        (body.operatorCivilStatus && body.operatorCivilStatus !== existingFranchise.operatorCivilStatus) ||
+        (body.operatorBirthPlace && body.operatorBirthPlace !== existingFranchise.operatorBirthPlace) ||
+        (body.operatorBirthDate && new Date(body.operatorBirthDate).getTime() !== existingFranchise.operatorBirthDate?.getTime()) ||
+        (body.operatorCitizenship && body.operatorCitizenship !== existingFranchise.operatorCitizenship) ||
+        (body.coOwnerName && body.coOwnerName !== existingFranchise.coOwnerName) ||
+        (body.coOwnerAddress && body.coOwnerAddress !== existingFranchise.coOwnerAddress);
+      
+      const motorFieldsChanged = 
+        (body.unitModel && body.unitModel !== existingFranchise.unitModel) ||
+        (body.colorMotor && body.colorMotor !== existingFranchise.colorMotor) ||
+        (body.sideCarColor && body.sideCarColor !== existingFranchise.sideCarColor) ||
+        (body.mvPlateNo && body.mvPlateNo !== existingFranchise.mvPlateNo) ||
+        (body.motorEngineNo && body.motorEngineNo !== existingFranchise.motorEngineNo) ||
+        (body.chasisNo && body.chasisNo !== existingFranchise.chasisNo) ||
+        (body.driverName && body.driverName !== existingFranchise.driverName) ||
+        (body.driversAddress && body.driversAddress !== existingFranchise.driversAddress);
+      
+      // Determine specific amendment type
+      if (operatorFieldsChanged && !motorFieldsChanged) {
+        finalApplicationType = 'update_ownership';
+        console.log('[createRenewOrAmendment] Amendment detected: update_ownership (personal info changed)');
+      } else if (motorFieldsChanged && !operatorFieldsChanged) {
+        finalApplicationType = 'change_unit';
+        console.log('[createRenewOrAmendment] Amendment detected: change_unit (motor info changed)');
+      } else if (operatorFieldsChanged && motorFieldsChanged) {
+        // Both changed - default to update_ownership (ownership is more significant)
+        finalApplicationType = 'update_ownership';
+        console.log('[createRenewOrAmendment] Amendment detected: both changed, using update_ownership');
+      } else {
+        // No changes detected, default to update_ownership
+        finalApplicationType = 'update_ownership';
+        console.log('[createRenewOrAmendment] Amendment: no specific changes detected, defaulting to update_ownership');
+      }
+    }
+    
     // Pre-fill data based on application type
     const applicationData = {
-      applicationType: appType,
+      applicationType: finalApplicationType,
       relatedFranchise: existingFranchise._id,
       operatorInfo: userId,
       statusOfBPLO: 'pending',
-      ...(appType === 'amendment' ? {
-        // Amendment: Update operator information, keep motor + driver
+      ...(appType === 'amendment' ? (finalApplicationType === 'update_ownership' ? {
+        // Amendment - Update ownership: Update operator information, keep motor + driver
         operatorName: body.operatorName || existingFranchise.operatorName,
         operatorContactNumber: body.operatorContactNumber || existingFranchise.operatorContactNumber,
         operatorAddress: body.operatorAddress || existingFranchise.operatorAddress,
@@ -564,7 +989,30 @@ exports.createRenewOrAmendment = async (req, res, next) => {
         mvPlateNo: existingFranchise.mvPlateNo,
         motorEngineNo: existingFranchise.motorEngineNo,
         chasisNo: existingFranchise.chasisNo
-      } : appType === 'change_unit' ? {
+      } : {
+        // Amendment - Change unit: Keep operator, update motor + driver
+        operatorName: existingFranchise.operatorName,
+        operatorContactNumber: existingFranchise.operatorContactNumber,
+        operatorAddress: existingFranchise.operatorAddress,
+        operatorBarangay: existingFranchise.operatorBarangay,
+        operatorCivilStatus: existingFranchise.operatorCivilStatus,
+        operatorBirthPlace: existingFranchise.operatorBirthPlace,
+        operatorBirthDate: existingFranchise.operatorBirthDate,
+        operatorCitizenship: existingFranchise.operatorCitizenship,
+        operatorEmail: userEmail || existingFranchise.operatorEmail,
+        coOwnerName: existingFranchise.coOwnerName,
+        coOwnerAddress: existingFranchise.coOwnerAddress,
+        // Allow updates to motor/driver info
+        driverName: body.driverName || existingFranchise.driverName,
+        driversAddress: body.driversAddress || existingFranchise.driversAddress,
+        todaMembership: body.todaMembership || existingFranchise.todaMembership,
+        unitModel: body.unitModel || existingFranchise.unitModel,
+        colorMotor: body.colorMotor || existingFranchise.colorMotor,
+        sideCarColor: body.sideCarColor || existingFranchise.sideCarColor,
+        mvPlateNo: body.mvPlateNo || existingFranchise.mvPlateNo,
+        motorEngineNo: body.motorEngineNo || existingFranchise.motorEngineNo,
+        chasisNo: body.chasisNo || existingFranchise.chasisNo
+      }) : appType === 'change_unit' ? {
         // Change Unit: Keep operator, update motor + driver
         operatorName: existingFranchise.operatorName,
         operatorContactNumber: existingFranchise.operatorContactNumber,
