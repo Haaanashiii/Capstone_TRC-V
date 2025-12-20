@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import UnifiedNavbar from "../../components/UnifiedNavbar";
 import { useAuth } from "../../contexts/AuthContext";
 import { logger } from '../../utils/logger';
+import { getUserId, verifyFranchiseOwnership } from '../../utils/userUtils';
 import { useAlertStyles, useTokenUser } from '../../hooks/useDriverUtils';
 import "../../Styles/animations.css";
 import "../../Styles/Operator's_CSS/OperatorHomePage.css";
@@ -214,40 +215,33 @@ const OperatorHomePage = () => {
   // Fetch user's active franchises from franchiseInformation collection
   useEffect(() => {
     const fetchUserFranchises = async () => {
-      // Use _id from token (MongoDB ObjectId) since linkedUser in DB stores ObjectId
-      const userId = currentUser?._id || currentUser?.id;
+      // Use standardized user ID extraction
+      const userId = getUserId(currentUser);
+      
       if (!userId) {
-        logger.log('[OperatorHomePage] No user ID found, skipping franchise fetch');
-        logger.log('[OperatorHomePage] currentUser:', currentUser);
+        logger.warn('[OperatorHomePage] No user ID found, skipping franchise fetch');
+        logger.debug('[OperatorHomePage] currentUser:', currentUser);
         setLoadingFranchises(false);
         return;
       }
+      
+      // Verify franchise ownership
+      verifyFranchiseOwnership(currentUser);
+      
+      logger.log('[OperatorHomePage] Fetching franchises for user ID:', userId);
 
       try {
-        logger.log('[OperatorHomePage] ========== FRANCHISE FETCH START ==========');
-        logger.log('[OperatorHomePage] Fetching franchises for user ID:', userId);
-        logger.log('[OperatorHomePage] Current user object:', { 
-          id: currentUser?.id, 
-          _id: currentUser?._id, 
-          userId: currentUser?.userId,
-          name: currentUser?.name,
-          email: currentUser?.email
-        });
         
         const response = await franchiseInformationAPI.getByUser(userId);
         
-        logger.log('[OperatorHomePage] ========== API RESPONSE ==========');
-        logger.log('[OperatorHomePage] Response status:', response?.status);
-        logger.log('[OperatorHomePage] Response data:', response?.data);
-        logger.log('[OperatorHomePage] Franchise count:', response?.data?.count);
-        logger.log('[OperatorHomePage] Franchises array:', response?.data?.data);
+        logger.log('[OperatorHomePage] Franchises fetched:', response?.data?.count || 0);
         
         if (response.data?.success && Array.isArray(response.data.data)) {
           // Filter to show active and expired franchises (exclude only revoked)
           const activeFranchises = response.data.data.filter(f => 
             f.franchiseStatus !== 'Revoked'
           );
-          logger.log('[OperatorHomePage] Total franchises:', response.data.data.length, 'Non-revoked franchises (Active/Expired):', activeFranchises.length);
+          logger.log('[OperatorHomePage] Non-revoked franchises (Active/Expired):', activeFranchises.length);
           setActiveFranchises(activeFranchises);
           
           // If user has active/expired franchises, update the franchise linked state

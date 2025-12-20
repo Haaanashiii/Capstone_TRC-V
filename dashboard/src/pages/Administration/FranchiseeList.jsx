@@ -2289,9 +2289,16 @@ function FranchiseeList() {
     setError('');
     
     try {
+      logger.log('[FranchiseeList] Fetching franchises...');
       const response = await franchiseInformationAPI.getAll();
+      
+      if (!response?.data?.success) {
+        throw new Error('Failed to fetch franchises: Invalid response format');
+      }
+      
       // Backend returns { success, data, count }, axios unwraps to response.data
       const data = response.data?.data || response.data || [];
+      logger.log('[FranchiseeList] Franchises fetched:', data.length);
       
       // Transform the data to match the expected format
       // Data comes from FranchiseInformation model (approved franchises)

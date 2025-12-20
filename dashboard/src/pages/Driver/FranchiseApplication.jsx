@@ -95,7 +95,14 @@ export default function FranchiseApplication() {
           return;
         }
         
+        // Decode token for basic user info
         const userData = TokenManager.decodeToken(token);
+        
+        if (!userData) {
+          logger.error('[FranchiseApplication] Failed to decode token');
+          return;
+        }
+        
         logger.log('[FranchiseApplication] JWT payload (no email for security):', userData);
         
         if (userData) {

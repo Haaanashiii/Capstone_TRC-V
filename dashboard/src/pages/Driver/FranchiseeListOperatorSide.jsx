@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import { getUserId, verifyFranchiseOwnership } from '../../utils/userUtils';
 import { Box, Typography, Button, Paper, Avatar, TextField, Dialog, DialogTitle, DialogContent, DialogActions, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, IconButton, Menu, MenuItem, Chip } from '@mui/material';
 import PersonIcon from '@mui/icons-material/Person';
 import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
@@ -121,14 +122,17 @@ function FranchiseeListOperatorSide() {
         return;
       }
       
-      logger.log('[FranchiseeListOperatorSide] User loaded, fetching franchise data for user:', user.id || user._id);
-      const storedOwnerUserId = sessionStorage.getItem('franchiseOwnerUserId');
-      const userId = user.id;
-      if (!storedOwnerUserId || storedOwnerUserId !== userId) {
-        // clear any stale franchise info for other users
-        sessionStorage.removeItem('userFranchiseInfo');
-        sessionStorage.removeItem('franchiseLinked');
+      logger.log('[FranchiseeListOperatorSide] User loaded, fetching franchise data for user:', getUserId(user));
+      
+      // Use standardized user ID extraction
+      const userId = getUserId(user);
+      if (!userId) {
+        logger.warn('[FranchiseeListOperatorSide] No user ID found');
+        return;
       }
+      
+      // Verify franchise ownership
+      verifyFranchiseOwnership(user);
 
 
       (async () => {

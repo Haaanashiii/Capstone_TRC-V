@@ -5,6 +5,7 @@ import UnifiedNavbar from '../../components/UnifiedNavbar';
 import './DriverID.css';
 import dayjs from 'dayjs';
 import { logger } from '../../utils/logger';
+import { getUserId, verifyFranchiseOwnership } from '../../utils/userUtils';
 import { useTokenUser, useFranchiseStatus, useDriverTranslations, useServerUrl, useBlobUrl } from '../../hooks/useDriverUtils';
 import '../../Styles/animations.css';
 
@@ -85,13 +86,16 @@ function DriverID() {
   useEffect(() => {
     try {
       if (!user) return;
-      const storedOwnerUserId = sessionStorage.getItem('franchiseOwnerUserId');
-      const userId = user.id;
-      if (!storedOwnerUserId || storedOwnerUserId !== userId) {
-        // clear any stale franchise info for other users
-        sessionStorage.removeItem('userFranchiseInfo');
-        sessionStorage.removeItem('franchiseLinked');
+      
+      // Use standardized user ID extraction
+      const userId = getUserId(user);
+      if (!userId) {
+        logger.warn('[DriverID] No user ID found in user object');
+        return;
       }
+      
+      // Verify franchise ownership to prevent data leakage
+      verifyFranchiseOwnership(user);
 
 
       (async () => {

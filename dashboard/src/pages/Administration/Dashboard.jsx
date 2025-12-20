@@ -57,6 +57,7 @@ function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [retryCount, setRetryCount] = useState(0);
+  const maxRetries = 3;
   
   // Default to current year for more comprehensive trend data
   const getYearRange = useCallback(() => {
