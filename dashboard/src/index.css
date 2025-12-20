@@ -115,12 +115,40 @@ button:focus-visible {
   }
 }
 
-/* Modal Backdrop Blur Effect */
+/* Modal Backdrop Blur Effect - Apply ONLY to backdrop, not children */
+.MuiModal-backdrop,
 .MuiBackdrop-root {
-  backdrop-filter: blur(6px) !important;
-  -webkit-backdrop-filter: blur(6px) !important;
   background-color: rgba(0, 0, 0, 0.5) !important;
   transition: all 0.3s ease-in-out !important;
+  /* backdrop-filter removed to prevent child element blur */
+}
+
+/* Completely disable any blur or filter effects on modal content */
+.MuiDialog-root,
+.MuiDialog-container,
+.MuiDialog-paper,
+.MuiDialog-paper *,
+.MuiModal-root .MuiBox-root,
+div[role="dialog"],
+div[role="dialog"] * {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  filter: none !important;
+  -webkit-filter: none !important;
+}
+
+/* Create proper stacking context for modal content */
+.MuiDialog-paper {
+  position: relative;
+  z-index: 1300 !important;
+  background-color: #fff !important;
+  isolation: isolate;
+  transform: translateZ(0);
+  will-change: transform;
+}
+
+.MuiDialog-container {
+  z-index: 1300 !important;
 }
 
 /* Smooth fade-in animation for dialogs */
@@ -144,18 +172,31 @@ button:focus-visible {
   z-index: 1300 !important;
 }
 
-/* SweetAlert2 z-index fix - ensure alerts appear above MUI Dialogs */
+/* Modal backdrop - ensure it's below dialogs but above content */
+.MuiModal-backdrop {
+  z-index: 1299 !important;
+}
+
+/* SweetAlert2 z-index fix - ensure alerts appear above MUI Dialogs and Modals */
 .swal2-container {
-  z-index: 9999 !important;
+  z-index: 10000 !important;
 }
 
 /* Custom SweetAlert container class used in Driver pages */
 .swal-container {
+  z-index: 10000 !important;
+}
+
+/* Ensure SweetAlert backdrop appears correctly but below the alert */
+.swal2-backdrop-show {
   z-index: 9999 !important;
 }
 
-/* Ensure SweetAlert backdrop appears correctly */
-.swal2-backdrop-show {
-  z-index: 9998 !important;
+/* Ensure SweetAlert popup is always on top */
+.swal2-popup {
+  z-index: 10001 !important;
 }
 
+/* Toast notifications should be above everything */
+.Toastify__toast-container {
+  z-index: 10002 !important;}
