@@ -5,6 +5,8 @@ import Sidebar from './Sidebar';
 import AccountVerificationModal from '../Services/AccountVerificationModal';
 import { authAPI, adminAPI } from '../Services/api';
 import websocketService from '../../services/websocket';
+import { useIsMounted } from '../../hooks/useIsMounted';
+import { useDebounce } from '../../hooks/useDebounce';
 import PageLoader, { TableLoader } from '../../components/PageLoader';
 import AnimatedPage, { AnimatedSection } from '../../components/AnimatedPage';
 import {
@@ -83,8 +85,10 @@ const SORT_OPTIONS = {
 };
 
 function AdminManagement() {
+  const isMountedRef = useIsMounted();
   const [users, setUsers] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const debouncedSearchQuery = useDebounce(searchQuery, 500);
   const [openModal, setOpenModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
   const [isEditing, setIsEditing] = useState(false);

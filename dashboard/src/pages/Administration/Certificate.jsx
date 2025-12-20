@@ -26,6 +26,9 @@ import '../../Styles/Administrator_Css/SharedTable.css';
 import Sidebar from './Sidebar';
 import websocketService from '../../services/websocket';
 import { useAuth } from '../../contexts/AuthContext';
+import { useIsMounted } from '../../hooks/useIsMounted';
+import { useDebounce } from '../../hooks/useDebounce';
+import { toast } from 'react-toastify';
 import {
   Typography,
   TextField,
@@ -162,9 +165,11 @@ const CERTIFICATE_TYPES = {
 
 function Certificate() {
   const { user } = useAuth();
+  const isMountedRef = useIsMounted();
   
   // State management
   const [searchTerm, setSearchTerm] = useState('');
+  const debouncedSearchTerm = useDebounce(searchTerm, 500);
   const [selectedFranchise, setSelectedFranchise] = useState(null);
   const [openViewModal, setOpenViewModal] = useState(false);
   const [page, setPage] = useState(0);
@@ -206,7 +211,7 @@ function Certificate() {
       const queryParams = {
         page: page + 1,
         limit: rowsPerPage,
-        search: searchTerm,
+        search: debouncedSearchTerm,
       };
       
       if (startDate) queryParams.startDate = startDate.toISOString();
@@ -235,7 +240,7 @@ function Certificate() {
     } finally {
       setLoading(false);
     }
-  }, [page, rowsPerPage, searchTerm, startDate, endDate, getAuthToken]);
+  }, [page, rowsPerPage, debouncedSearchTerm, startDate, endDate, getAuthToken]);
 
   useEffect(() => {
     loadFranchises();
@@ -244,7 +249,11 @@ function Certificate() {
       websocketService.connect('general');
     }
 
-    const handleFranchiseUpdates = () => loadFranchises();
+    const handleFranchiseUpdates = () => {
+      if (isMountedRef.current) {
+        loadFranchises();
+      }
+    };
     websocketService.on('approved-franchises', handleFranchiseUpdates);
     websocketService.on('franchise-approved', handleFranchiseUpdates);
 
@@ -252,7 +261,7 @@ function Certificate() {
       websocketService.off('approved-franchises', handleFranchiseUpdates);
       websocketService.off('franchise-approved', handleFranchiseUpdates);
     };
-  }, [loadFranchises]);
+  }, [loadFranchises, isMountedRef]);
 
   const filteredFranchises = useMemo(() => {
     if (!searchTerm) return franchises;
@@ -375,8 +384,7 @@ function Certificate() {
     if (certType === CERTIFICATE_TYPES.MTOF_DATE.id || certType === CERTIFICATE_TYPES.MTOF_SUMMARY.id) {
       // Validate that date range is selected for MTOF reports
       if (!startDate || !endDate) {
-        setError('Please select both Start Date and End Date to generate MTOF Summary Reports.');
-        setTimeout(() => setError(''), 5000);
+        toast.error('Please select both Start Date and End Date to generate MTOF Summary Reports.');
         return;
       }
       prepareAndOpenCertModal(certType, filteredFranchises);
@@ -462,7 +470,7 @@ function Certificate() {
       setPdfPreviewUrl(url);
     } catch (err) {
       logger.error('[Certificate] Error generating preview:', err);
-      setError('Failed to generate preview. You can still download the certificate.');
+      toast.error('Failed to generate preview. You can still download the certificate.');
     } finally {
       setLoadingPreview(false);
     }
@@ -545,16 +553,16 @@ function Certificate() {
       setError('');
       setOpenPreviewModal(false);
       // Show success message
-      alert('Certificate downloaded successfully!');
+      toast.success('Certificate downloaded successfully!');
     } catch (err) {
       const errorMsg = err?.response?.data?.error || err?.message || 'Failed to generate certificate. Please try again.';
       logger.error('[Certificate] Error generating:', errorMsg);
       
       // Check if it's a network error
       if (err?.code === 'ERR_NETWORK' || err?.message?.includes('Network Error')) {
-        setError('Cannot connect to server. Please check your connection.');
+        toast.error('Cannot connect to server. Please check your connection.');
       } else {
-        setError(errorMsg);
+        toast.error(errorMsg);
       }
     } finally {
       setGenerating(false);
@@ -643,10 +651,10 @@ function Certificate() {
 
       setError('');
       setOpenPreviewModal(false);
-      alert('Report downloaded successfully!');
+      toast.success('Report downloaded successfully!');
     } catch (err) {
       logger.error('[Certificate] Error generating MTOF report:', err);
-      setError(err.message || 'Failed to generate report. Please try again.');
+      toast.error(err.message || 'Failed to generate report. Please try again.');
     } finally {
       setGenerating(false);
     }

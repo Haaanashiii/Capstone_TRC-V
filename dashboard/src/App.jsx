@@ -1,12 +1,13 @@
-import React from 'react';
+import React, { lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, useNavigate } from 'react-router-dom';
 import ProtectedRoute from './components/ProtectedRoute';
 import PageProtectedRoute from './components/PageProtectedRoute';
 import PWAUpdatePrompt from './components/PWAUpdatePrompt';
 import ErrorBoundary from './components/ErrorBoundary';
+import PageLoader from './components/PageLoader';
 import SignUp from './pages/auth/SignUp';
 import OAuthCallback from './pages/auth/OAuthCallback';
-import './utils/envCheck'; // Check environment variables on app load
+import './utils/envCheck';
 import Sidebar from './pages/Administration/Sidebar';
 import FranchiseeListOperatorSide from './pages/Driver/FranchiseeListOperatorSide';
 import LandingPage from './pages/Landing/LandingPage';
@@ -15,20 +16,22 @@ import OperatorHomePage from './pages/Driver/OperatorHomePage';
 import FranchiseApplication from './pages/Driver/FranchiseApplication';
 import RequestAmendment from './pages/Driver/RequestAmendment';
 import MaintenancePage from './pages/Maintenance/MaintenancePage';
-import AdminManagement from './pages/Administration/AdminManagement';
 import ReportDriver from './pages/Reporting/reportDriver';
-import FranchiseeList from './pages/Administration/FranchiseeList';
-import FranchiseMgmt from './pages/Administration/FranchiseMgmt';
-import Dashboard from './pages/Administration/Dashboard';
-import Certificate from './pages/Administration/Certificate';
-import TricycleIncidentReports from './pages/Administration/TricycleIncidentReports';
-import FranchiseLinking from './pages/Administration/FranchiseLinking';
-import Announcement from './pages/Administration/Announcement';
-import Analytics from './pages/Administration/Analytics';
-import AuditTrail from './pages/Administration/AuditTrail';
-import Settings from './pages/Administration/Settings';
 import QROperatorID from './pages/Driver/QROperatorID';
 import { I18nProvider } from './contexts/I18nContext';
+
+// Lazy load heavy admin components
+const AdminManagement = lazy(() => import('./pages/Administration/AdminManagement'));
+const FranchiseeList = lazy(() => import('./pages/Administration/FranchiseeList'));
+const FranchiseMgmt = lazy(() => import('./pages/Administration/FranchiseMgmt'));
+const Dashboard = lazy(() => import('./pages/Administration/Dashboard'));
+const Certificate = lazy(() => import('./pages/Administration/Certificate'));
+const TricycleIncidentReports = lazy(() => import('./pages/Administration/TricycleIncidentReports'));
+const FranchiseLinking = lazy(() => import('./pages/Administration/FranchiseLinking'));
+const Announcement = lazy(() => import('./pages/Administration/Announcement'));
+const Analytics = lazy(() => import('./pages/Administration/Analytics'));
+const AuditTrail = lazy(() => import('./pages/Administration/AuditTrail'));
+const Settings = lazy(() => import('./pages/Administration/Settings'));
 
 function LandingPageWithNav() {
   const navigate = useNavigate();
@@ -111,89 +114,111 @@ function App() {
         <Route 
           path="/dashboard" 
           element={
-            <PageProtectedRoute pageKey="dashboard">
-              <Dashboard />
-            </PageProtectedRoute>
+            <Suspense fallback={<PageLoader />}>
+              <PageProtectedRoute pageKey="dashboard">
+                <Dashboard />
+              </PageProtectedRoute>
+            </Suspense>
           } 
         />
         <Route 
           path="/franchisee-list" 
           element={
-            <PageProtectedRoute pageKey="franchisee-list">
-              <FranchiseeList />
-            </PageProtectedRoute>
+            <Suspense fallback={<PageLoader />}>
+              <PageProtectedRoute pageKey="franchisee-list">
+                <FranchiseeList />
+              </PageProtectedRoute>
+            </Suspense>
           } 
         />
         <Route 
           path="/franchise-management" 
           element={
-            <PageProtectedRoute pageKey="franchise-management">
-              <FranchiseMgmt />
-            </PageProtectedRoute>
+            <Suspense fallback={<PageLoader />}>
+              <PageProtectedRoute pageKey="franchise-management">
+                <FranchiseMgmt />
+              </PageProtectedRoute>
+            </Suspense>
           } 
         />
         <Route 
           path="/certificate" 
           element={
-            <PageProtectedRoute pageKey="certificate">
-              <Certificate />
-            </PageProtectedRoute>
+            <Suspense fallback={<PageLoader />}>
+              <PageProtectedRoute pageKey="certificate">
+                <Certificate />
+              </PageProtectedRoute>
+            </Suspense>
           } 
         />
         <Route 
           path="/incident-reports" 
           element={
-            <PageProtectedRoute pageKey="incident-reports">
-              <TricycleIncidentReports />
-            </PageProtectedRoute>
+            <Suspense fallback={<PageLoader />}>
+              <PageProtectedRoute pageKey="incident-reports">
+                <TricycleIncidentReports />
+              </PageProtectedRoute>
+            </Suspense>
           } 
         />
         <Route 
           path="/franchise-linking" 
           element={
-            <PageProtectedRoute pageKey="franchise-linking">
-              <FranchiseLinking />
-            </PageProtectedRoute>
+            <Suspense fallback={<PageLoader />}>
+              <PageProtectedRoute pageKey="franchise-linking">
+                <FranchiseLinking />
+              </PageProtectedRoute>
+            </Suspense>
           } 
         />
         <Route 
           path="/admin-management" 
           element={
-            <PageProtectedRoute pageKey="admin-management">
-              <AdminManagement />
-            </PageProtectedRoute>
+            <Suspense fallback={<PageLoader />}>
+              <PageProtectedRoute pageKey="admin-management">
+                <AdminManagement />
+              </PageProtectedRoute>
+            </Suspense>
           } 
         />
         <Route 
           path="/announcements" 
           element={
-            <PageProtectedRoute pageKey="announcements">
-              <Announcement />
-            </PageProtectedRoute>
+            <Suspense fallback={<PageLoader />}>
+              <PageProtectedRoute pageKey="announcements">
+                <Announcement />
+              </PageProtectedRoute>
+            </Suspense>
           } 
         />
         <Route 
           path="/analytics" 
           element={
-            <PageProtectedRoute pageKey="analytics">
-              <Analytics />
-            </PageProtectedRoute>
+            <Suspense fallback={<PageLoader />}>
+              <PageProtectedRoute pageKey="analytics">
+                <Analytics />
+              </PageProtectedRoute>
+            </Suspense>
           } 
         />
         <Route 
           path="/audit-trail" 
           element={
-            <PageProtectedRoute pageKey="audit-trail">
-              <AuditTrail />
-            </PageProtectedRoute>
+            <Suspense fallback={<PageLoader />}>
+              <PageProtectedRoute pageKey="audit-trail">
+                <AuditTrail />
+              </PageProtectedRoute>
+            </Suspense>
           } 
         />
         <Route 
           path="/settings" 
           element={
-            <PageProtectedRoute pageKey="settings">
-              <Settings />
-            </PageProtectedRoute>
+            <Suspense fallback={<PageLoader />}>
+              <PageProtectedRoute pageKey="settings">
+                <Settings />
+              </PageProtectedRoute>
+            </Suspense>
           } 
         />
         

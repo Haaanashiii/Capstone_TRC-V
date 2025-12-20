@@ -4,6 +4,8 @@ import '../../Styles/Administrator_Css/SharedTable.css';
 import Sidebar from './Sidebar';
 import websocketService from '../../services/websocket';
 import { incidentReportsAPI } from '../Services/api';
+import { useIsMounted } from '../../hooks/useIsMounted';
+import { useDebounce } from '../../hooks/useDebounce';
 import PageLoader from '../../components/PageLoader';
 import AnimatedPage, { AnimatedSection } from '../../components/AnimatedPage';
 import { 
@@ -202,8 +204,10 @@ CategorySelect.displayName = 'CategorySelect';
 
 // Main Component
 function TricycleIncidentReports() {
+  const isMountedRef = useIsMounted();
   // Search and filter states
   const [searchTerm, setSearchTerm] = useState('');
+  const debouncedSearchTerm = useDebounce(searchTerm, 500);
   const [statusFilter, setStatusFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [sortBy, setSortBy] = useState('dateReported');

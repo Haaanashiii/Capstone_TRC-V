@@ -3,6 +3,8 @@ import '../../Styles/Administrator_Css/Announcement.css';
 import '../../Styles/Administrator_Css/SharedTable.css';
 import Sidebar from './Sidebar';
 import websocketService from '../../services/websocket';
+import { useIsMounted } from '../../hooks/useIsMounted';
+import { useDebounce } from '../../hooks/useDebounce';
 import announcementService from '../../services/announcementService';
 import PageLoader from '../../components/PageLoader';
 import AnimatedPage, { AnimatedSection } from '../../components/AnimatedPage';
@@ -45,8 +47,10 @@ const INITIAL_ANNOUNCEMENT_STATE = {
 };
 
 function Announcement() {
+  const isMountedRef = useIsMounted();
   const [announcements, setAnnouncements] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const debouncedSearchQuery = useDebounce(searchQuery, 500);
   const [openModal, setOpenModal] = useState(false);
   const [selectedAnnouncement, setSelectedAnnouncement] = useState(null);
   const [isEditing, setIsEditing] = useState(false);

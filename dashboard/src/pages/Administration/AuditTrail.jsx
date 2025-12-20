@@ -4,6 +4,8 @@ import '../../Styles/Administrator_Css/AuditTrail.css';
 import '../../Styles/Administrator_Css/SharedTable.css';
 import Sidebar from './Sidebar';
 import websocketService from '../../services/websocket';
+import { useIsMounted } from '../../hooks/useIsMounted';
+import { useDebounce } from '../../hooks/useDebounce';
 import PageLoader from '../../components/PageLoader';
 import {
   Typography,
@@ -143,8 +145,10 @@ const getStatusColor = (statusCode) => {
 
 function AuditTrail() {
   const navigate = useNavigate();
+  const isMountedRef = useIsMounted();
   const [auditLogs, setAuditLogs] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const debouncedSearchQuery = useDebounce(searchQuery, 500);
   const [filterAction, setFilterAction] = useState('all');
   const [filterRole, setFilterRole] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');

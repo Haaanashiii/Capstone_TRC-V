@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import Sidebar from './Sidebar';
 import '../../Styles/Administrator_Css/Settings.css';
+import { toast } from 'react-toastify';
+import ConfirmDialog from '../../components/ConfirmDialog';
+import { useIsMounted } from '../../hooks/useIsMounted';
 import {
   Box,
   Typography,
@@ -11,7 +14,6 @@ import {
   Tabs,
   Tab,
   Alert,
-  Snackbar,
   Chip,
   Tooltip,
   CircularProgress,
@@ -228,7 +230,6 @@ function Settings() {
   const [activeTab, setActiveTab] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [notification, setNotification] = useState({ open: false, message: '', type: 'success' });
   
   // Fare Matrix State (Photo Upload)
   const [fareMatrixImage, setFareMatrixImage] = useState(null);
@@ -260,14 +261,37 @@ function Settings() {
   const [downloadDialogOpen, setDownloadDialogOpen] = useState(false);
   const [selectedDownloadBackup, setSelectedDownloadBackup] = useState(null);
   const fileInputRef = useRef(null);
+  
+  // Prevent state updates on unmounted component
+  const isMountedRef = useIsMounted();
+
+  // Confirmation dialog state
+  const [confirmDialog, setConfirmDialog] = useState({
+    open: false,
+    title: '',
+    message: '',
+    details: '',
+    onConfirm: null,
+    severity: 'warning',
+    confirmText: 'Confirm',
+  });
 
   // Tab Change Handler
   const handleTabChange = useCallback((event, newValue) => {
     if (hasPermissionChanges) {
-      if (window.confirm('You have unsaved permission changes. Are you sure you want to switch tabs?')) {
-        setActiveTab(newValue);
-        setHasPermissionChanges(false);
-      }
+      setConfirmDialog({
+        open: true,
+        title: 'Unsaved Changes',
+        message: 'You have unsaved permission changes. Are you sure you want to switch tabs?',
+        details: 'Any unsaved changes will be lost.',
+        severity: 'warning',
+        confirmText: 'Switch Tab',
+        onConfirm: () => {
+          setActiveTab(newValue);
+          setHasPermissionChanges(false);
+          setConfirmDialog(prev => ({ ...prev, open: false }));
+        },
+      });
     } else {
       setActiveTab(newValue);
     }
@@ -276,15 +300,6 @@ function Settings() {
   // Get auth token from centralized secure token manager
   const getAuthToken = useCallback(() => {
     return getToken();
-  }, []);
-
-  // Notification Handler
-  const showNotification = useCallback((message, type = 'success') => {
-    setNotification({ open: true, message, type });
-  }, []);
-
-  const closeNotification = useCallback(() => {
-    setNotification(prev => ({ ...prev, open: false }));
   }, []);
 
   // Fetch all page access configurations from backend
@@ -349,14 +364,14 @@ function Settings() {
     // Validate file type
     const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif'];
     if (!validTypes.includes(file.type)) {
-      showNotification('Please upload a valid image file (JPG, PNG, or GIF)', 'error');
+      toast.error('Please upload a valid image file (JPG, PNG, or GIF)');
       return;
     }
 
     // Validate file size (max 5MB)
     const maxSize = 5 * 1024 * 1024; // 5MB in bytes
     if (file.size > maxSize) {
-      showNotification('Image size must be less than 5MB', 'error');
+      toast.error('Image size must be less than 5MB');
       return;
     }
 
@@ -368,11 +383,11 @@ function Settings() {
     reader.readAsDataURL(file);
 
     setFareMatrixImage(file);
-  }, [showNotification]);
+  }, []);
 
   const handleUploadFareMatrix = useCallback(async () => {
     if (!fareMatrixImage) {
-      showNotification('Please select an image first', 'error');
+      toast.error('Please select an image first');
       return;
     }
 
@@ -383,7 +398,7 @@ function Settings() {
       const token = getAuthToken();
       
       if (!token) {
-        showNotification('Authentication required. Please log in.', 'error');
+        toast.error('Authentication required. Please log in.');
         setLoading(false);
         return;
       }
@@ -401,24 +416,24 @@ function Settings() {
         // Refetch the fare matrix to ensure we have the latest data with proper URLs
         await fetchFareMatrix();
         
-        showNotification('Fare matrix uploaded successfully');
+        toast.success('Fare matrix uploaded successfully');
       } else {
         throw new Error('Invalid response from server');
       }
     } catch (error) {
       const errorMsg = error?.response?.data?.error || error?.message || 'Failed to upload fare matrix';
       if (error?.response?.status === 401) {
-        showNotification('Session expired. Please log in again.', 'error');
+        toast.error('Session expired. Please log in again.');
       } else if (error?.response?.status === 403) {
-        showNotification('You do not have permission to upload fare matrix.', 'error');
+        toast.error('You do not have permission to upload fare matrix.');
       } else {
         logger.error('Upload error:', errorMsg);
-        showNotification(errorMsg, 'error');
+        toast.error(errorMsg);
       }
     } finally {
       setLoading(false);
     }
-  }, [fareMatrixImage, showNotification, fetchFareMatrix]);
+  }, [fareMatrixImage, fetchFareMatrix]);
 
   const handleRemoveFareImage = useCallback(() => {
     setFareMatrixImage(null);
@@ -426,12 +441,17 @@ function Settings() {
   }, []);
 
   const handleDeleteFareMatrix = useCallback(async () => {
-    if (!window.confirm('Are you sure you want to delete the current fare matrix? This action cannot be undone.')) {
-      return;
-    }
-
-    setLoading(true);
-    setError('');
+    setConfirmDialog({
+      open: true,
+      title: 'Delete Fare Matrix',
+      message: 'Are you sure you want to delete the current fare matrix?',
+      details: 'This action cannot be undone.',
+      severity: 'error',
+      confirmText: 'Delete',
+      onConfirm: async () => {
+        setConfirmDialog(prev => ({ ...prev, open: false }));
+        setLoading(true);
+        setError('');
 
     try {
       const response = await fareMatrixAPI.delete();
@@ -443,26 +463,28 @@ function Settings() {
         setFareMatrixId(null);
         setCurrentFileName('');
         setUploadDate(null);
-        showNotification('Fare matrix deleted successfully');
+        toast.success('Fare matrix deleted successfully');
       } else {
         throw new Error('Invalid response from server');
       }
     } catch (error) {
       const errorMsg = error?.response?.data?.error || error?.message || 'Failed to delete fare matrix';
       if (error?.response?.status === 401) {
-        showNotification('Session expired. Please log in again.', 'error');
+        toast.error('Session expired. Please log in again.');
       } else if (error?.response?.status === 403) {
-        showNotification('You do not have permission to delete fare matrix.', 'error');
+        toast.error('You do not have permission to delete fare matrix.');
       } else if (error?.response?.status === 404) {
-        showNotification('No active fare matrix to delete.', 'error');
+        toast.error('No active fare matrix to delete.');
       } else {
         logger.error('Delete error:', errorMsg);
-        showNotification(errorMsg, 'error');
+        toast.error(errorMsg);
       }
     } finally {
       setLoading(false);
     }
-  }, [showNotification]);
+      },
+    });
+  }, []);
 
   // Permission Handlers
   const handlePageAccessToggle = useCallback((pageKey) => {
@@ -493,7 +515,7 @@ function Settings() {
       const result = response.data;
 
       if (result?.success) {
-        showNotification('Page access permissions saved successfully');
+        toast.success('Page access permissions saved successfully');
         setHasPermissionChanges(false);
         
         // Clear the Sidebar's cached pages for this role so it fetches fresh data
@@ -510,61 +532,68 @@ function Settings() {
     } catch (error) {
       const errorMsg = error?.response?.data?.error || error?.message || 'Failed to save permissions';
       if (error?.response?.status === 401) {
-        showNotification('Session expired. Please log in again.', 'error');
+        toast.error('Session expired. Please log in again.');
       } else if (error?.response?.status === 403) {
-        showNotification('You do not have permission to modify page access.', 'error');
+        toast.error('You do not have permission to modify page access.');
       } else {
         logger.error('Save error:', errorMsg);
-        showNotification(errorMsg, 'error');
+        toast.error(errorMsg);
       }
     } finally {
       setLoading(false);
     }
-  }, [selectedRole, pageAccess, showNotification, fetchAllPageAccess]);
+  }, [selectedRole, pageAccess, fetchAllPageAccess]);
 
   const handleResetPermissions = useCallback(async () => {
-    if (!window.confirm('Reset page access to default for this role?')) {
-      return;
-    }
+    setConfirmDialog({
+      open: true,
+      title: 'Reset Permissions',
+      message: 'Reset page access to default for this role?',
+      details: 'This will restore the default page access settings for the selected role.',
+      severity: 'warning',
+      confirmText: 'Reset',
+      onConfirm: async () => {
+        setConfirmDialog(prev => ({ ...prev, open: false }));
+        setLoading(true);
 
-    setLoading(true);
-
-    try {
-      const response = await rolePageAccessAPI.reset(selectedRole);
-      const result = response.data;
-
-      if (result?.success && result?.data) {
-        setPageAccess((prev) => ({
-          ...prev,
-          [selectedRole]: result.data.allowedPages,
-        }));
-        
-        // Clear the Sidebar's cached pages for this role so it fetches fresh data
         try {
-          sessionStorage.removeItem(`allowedPages_${selectedRole}`);
-        } catch {
-          logger.warn('[Settings] Failed to clear cached pages');
+          const response = await rolePageAccessAPI.reset(selectedRole);
+          const result = response.data;
+
+          if (result?.success && result?.data) {
+            setPageAccess((prev) => ({
+              ...prev,
+              [selectedRole]: result.data.allowedPages,
+            }));
+            
+            // Clear the Sidebar's cached pages for this role so it fetches fresh data
+            try {
+              sessionStorage.removeItem(`allowedPages_${selectedRole}`);
+            } catch {
+              logger.warn('[Settings] Failed to clear cached pages');
+            }
+            
+            toast.success('Page access reset to default');
+            setHasPermissionChanges(false);
+          } else {
+            throw new Error('Invalid response from server');
+          }
+        } catch (error) {
+          const errorMsg = error?.response?.data?.error || error?.message || 'Failed to reset page access';
+          if (error?.response?.status === 401) {
+            toast.error('Session expired. Please log in again.');
+          } else if (error?.response?.status === 403) {
+            toast.error('You do not have permission to reset page access.');
+          } else {
+            logger.error('Reset error:', errorMsg);
+            toast.error(errorMsg);
+          }
+        } finally {
+          setLoading(false);
         }
-        
-        showNotification('Page access reset to default');
-        setHasPermissionChanges(false);
-      } else {
-        throw new Error('Invalid response from server');
-      }
-    } catch (error) {
-      const errorMsg = error?.response?.data?.error || error?.message || 'Failed to reset page access';
-      if (error?.response?.status === 401) {
-        showNotification('Session expired. Please log in again.', 'error');
-      } else if (error?.response?.status === 403) {
-        showNotification('You do not have permission to reset page access.', 'error');
-      } else {
-        logger.error('Reset error:', errorMsg);
-        showNotification(errorMsg, 'error');
-      }
-    } finally {
-      setLoading(false);
-    }
-  }, [selectedRole, showNotification]);
+      },
+    });
+  }, [selectedRole]);
 
   const hasPageAccess = useCallback((pageKey) => {
     // Super admin always has access to all pages
@@ -618,13 +647,13 @@ function Settings() {
       }
     } catch (error) {
       logger.error('[Settings] Error fetching backup history:', error);
-      showNotification('Failed to load backup history', 'error');
+      toast.error('Failed to load backup history');
       setBackupHistory([]);
       setBackupStats({ totalBackups: 0, totalSize: 0 });
     } finally {
       setLoadingBackups(false);
     }
-  }, [showNotification]);
+  }, []);
 
   /**
    * Fetch information about the last successful backup
@@ -672,7 +701,7 @@ function Settings() {
   const handleCreateBackup = useCallback(async () => {
     // Prevent creating backup while another operation is in progress
     if (isCreatingBackup || isRestoring || isExportingFull) {
-      showNotification('Another backup operation is in progress. Please wait.', 'warning');
+      toast.warning('Another backup operation is in progress. Please wait.');
       return;
     }
 
@@ -681,23 +710,27 @@ function Settings() {
 
     // Simulate progress while waiting for API
     const progressInterval = setInterval(() => {
-      setBackupProgress((prev) => {
-        if (prev >= 90) {
-          return 90; // Cap at 90% until API responds
-        }
-        return prev + Math.random() * 10;
-      });
+      if (isMountedRef.current) {
+        setBackupProgress((prev) => {
+          if (prev >= 90) {
+            return 90; // Cap at 90% until API responds
+          }
+          return prev + Math.random() * 10;
+        });
+      }
     }, 500);
 
     try {
-      showNotification('Creating backup...', 'info');
+      toast.info('Creating backup...');
       const response = await backupService.createManualBackup('Manual backup from Settings page');
       
       clearInterval(progressInterval);
-      setBackupProgress(100);
+      if (isMountedRef.current) {
+        setBackupProgress(100);
+      }
       
       if (response.success) {
-        showNotification('Backup created successfully!', 'success');
+        toast.success('Backup created successfully!');
         // Refresh backup history and last backup info
         await Promise.all([fetchBackupHistory(), fetchLastBackupInfo()]);
       } else {
@@ -707,7 +740,7 @@ function Settings() {
       clearInterval(progressInterval);
       logger.error('[Settings] Create backup error:', error);
       const errorMessage = error.message || 'Failed to create backup';
-      showNotification(
+      toast.success(
         errorMessage.includes('in progress') ?
           'A backup is already in progress. Please wait for it to complete.' :
         errorMessage.includes('permission') || errorMessage.includes('authorized') ?
@@ -717,11 +750,13 @@ function Settings() {
       );
     } finally {
       setTimeout(() => {
-        setIsCreatingBackup(false);
-        setBackupProgress(0);
+        if (isMountedRef.current) {
+          setIsCreatingBackup(false);
+          setBackupProgress(0);
+        }
       }, 500);
     }
-  }, [isCreatingBackup, isRestoring, isExportingFull, showNotification, fetchBackupHistory, fetchLastBackupInfo]);
+  }, [isCreatingBackup, isRestoring, isExportingFull, fetchBackupHistory, fetchLastBackupInfo]);
 
   /**
    * Restore system from an existing backup
@@ -729,19 +764,19 @@ function Settings() {
    */
   const handleRestoreBackup = useCallback(async (backupId) => {
     if (!backupId) {
-      showNotification('Invalid backup selected', 'error');
+      toast.error('Invalid backup selected');
       return;
     }
 
     // Prevent restore while another operation is in progress
     if (isRestoring || isCreatingBackup || isExportingFull) {
-      showNotification('Another operation is in progress. Please wait.', 'warning');
+      toast.warning('Another operation is in progress. Please wait.');
       return;
     }
 
     const backup = findBackupById(backupId);
     if (!backup) {
-      showNotification('Backup not found', 'error');
+      toast.error('Backup not found');
       return;
     }
 
@@ -749,83 +784,91 @@ function Settings() {
     const backupDate = backup.createdAt ? formatBackupDate(backup.createdAt) : 'Unknown date';
     const totalDocs = backup.metadata?.totalDocuments || 'N/A';
     
-    if (!window.confirm(
-      `⚠️ WARNING: Are you sure you want to restore from "${fileName}"?\n\n` +
-      `This will replace current data with the backup data.\n` +
-      `Created: ${backupDate}\n` +
-      `Documents: ${totalDocs}\n\n` +
-      `This action cannot be undone!\n\n` +
-      `It is HIGHLY RECOMMENDED to create a backup of current data before proceeding.\n\n` +
-      `Type 'RESTORE' if you understand the risks.`
-    )) {
-      return;
-    }
-
-    setIsRestoring(true);
-    setRestoreProgress(0);
-
-    // Simulate progress while waiting for API
-    const progressInterval = setInterval(() => {
-      setRestoreProgress((prev) => {
-        if (prev >= 90) {
-          return 90;
-        }
-        return prev + Math.random() * 8;
-      });
-    }, 600);
-
-    try {
-      showNotification('Restoring from backup... Please wait.', 'info');
-      
-      console.log('[Settings] Calling restoreBackup with:', backupId);
-      const response = await backupService.restoreBackup(backupId, {
-        dropExisting: false,
-        dryRun: false
-      });
-      
-      console.log('[Settings] Restore response:', response);
-      clearInterval(progressInterval);
-      setRestoreProgress(100);
-      
-      if (response && response.success) {
-        const restoredDocs = response.data?.totalRestored || response.data?.totalDocuments || 0;
-        showNotification(
-          `System restored successfully! ${restoredDocs.toLocaleString()} documents restored.`,
-          'success'
-        );
-        // Refresh data after restore
-        await Promise.all([fetchBackupHistory(), fetchLastBackupInfo()]);
-        
-        // Suggest page reload to see restored data
-        setTimeout(() => {
-          if (window.confirm('Restore completed successfully. Would you like to refresh the page to see the restored data?')) {
-            window.location.reload();
-          }
-        }, 2000);
-      } else {
-        throw new Error(response?.message || 'Failed to restore backup');
-      }
-    } catch (error) {
-      clearInterval(progressInterval);
-      logger.error('[Settings] Restore backup error:', error);
-      const errorMessage = error.message || 'Failed to restore from backup';
-      showNotification(
-        errorMessage.includes('permission') || errorMessage.includes('authorized') ?
-          'You do not have permission to restore backups.' :
-        errorMessage.includes('not found') ?
-          'Backup file not found or has been deleted.' :
-        errorMessage.includes('corrupted') || errorMessage.includes('invalid') ?
-          'Backup file is corrupted or invalid. Please try another backup.' :
-          errorMessage,
-        'error'
-      );
-    } finally {
-      setTimeout(() => {
-        setIsRestoring(false);
+    setConfirmDialog({
+      open: true,
+      title: '⚠️ Restore Backup',
+      message: `Are you sure you want to restore from "${fileName}"?`,
+      details: `This will replace current data with the backup data.\n\nCreated: ${backupDate}\nDocuments: ${totalDocs}\n\nThis action cannot be undone!\n\nIt is HIGHLY RECOMMENDED to create a backup of current data before proceeding.`,
+      severity: 'error',
+      confirmText: 'Restore',
+      onConfirm: async () => {
+        setConfirmDialog(prev => ({ ...prev, open: false }));
+        setIsRestoring(true);
         setRestoreProgress(0);
-      }, 500);
-    }
-  }, [isRestoring, isCreatingBackup, isExportingFull, findBackupById, showNotification, fetchBackupHistory, fetchLastBackupInfo]);
+
+        // Simulate progress while waiting for API
+        const progressInterval = setInterval(() => {
+          if (isMountedRef.current) {
+            setRestoreProgress((prev) => {
+              if (prev >= 90) {
+                return 90;
+              }
+              return prev + Math.random() * 8;
+            });
+          }
+        }, 600);
+
+        try {
+          toast.info('Restoring from backup... Please wait.');
+          
+          console.log('[Settings] Calling restoreBackup with:', backupId);
+          const response = await backupService.restoreBackup(backupId, {
+            dropExisting: false,
+            dryRun: false
+          });
+          
+          console.log('[Settings] Restore response:', response);
+          clearInterval(progressInterval);
+          if (isMountedRef.current) {
+            setRestoreProgress(100);
+          }
+          
+          if (response && response.success) {
+            const restoredDocs = response.data?.totalRestored || response.data?.totalDocuments || 0;
+            toast.success(
+              `System restored successfully! ${restoredDocs.toLocaleString()} documents restored.`
+            );
+            // Refresh data after restore
+            await Promise.all([fetchBackupHistory(), fetchLastBackupInfo()]);
+            
+            // Suggest page reload to see restored data
+            setTimeout(() => {
+              setConfirmDialog({
+                open: true,
+                title: 'Restore Completed',
+                message: 'Restore completed successfully. Would you like to refresh the page to see the restored data?',
+                severity: 'info',
+                confirmText: 'Refresh Page',
+                onConfirm: () => {
+                  window.location.reload();
+                },
+              });
+            }, 2000);
+          } else {
+            throw new Error(response?.message || 'Failed to restore backup');
+          }
+        } catch (error) {
+          clearInterval(progressInterval);
+          logger.error('[Settings] Restore backup error:', error);
+          const errorMessage = error.message || 'Failed to restore from backup';
+          toast.error(
+            errorMessage.includes('permission') || errorMessage.includes('authorized') ?
+              'You do not have permission to restore backups.' :
+            errorMessage.includes('not found') ?
+              'Backup file not found or has been deleted.' :
+            errorMessage.includes('corrupted') || errorMessage.includes('invalid') ?
+              'Backup file is corrupted or invalid. Please try another backup.' :
+              errorMessage
+          );
+        } finally {
+          setTimeout(() => {
+            setIsRestoring(false);
+            setRestoreProgress(0);
+          }, 500);
+        }
+      },
+    });
+  }, [isRestoring, isCreatingBackup, isExportingFull, findBackupById, fetchBackupHistory, fetchLastBackupInfo]);
 
   /**
    * Delete a backup file
@@ -835,36 +878,43 @@ function Settings() {
   const handleDeleteBackup = useCallback(async (backupId) => {
     const backup = findBackupById(backupId);
     if (!backup) {
-      showNotification('Backup not found', 'error');
+      toast.error('Backup not found');
       return;
     }
 
     // Check if backup is protected
     if (backup.isProtected) {
-      showNotification('Cannot delete a protected backup. Remove protection first.', 'error');
+      toast.error('Cannot delete a protected backup. Remove protection first.');
       return;
     }
 
     const fileName = backup.filePath?.split(/[/\\]/).pop() || backup.backupId;
     
-    if (!window.confirm(`Are you sure you want to delete "${fileName}"? This action cannot be undone.`)) {
-      return;
-    }
-
-    try {
-      const response = await backupService.deleteBackup(backupId);
-      
-      if (response.success) {
-        showNotification('Backup deleted successfully', 'success');
-        await fetchBackupHistory();
-      } else {
-        throw new Error(response.message || 'Failed to delete backup');
-      }
-    } catch (error) {
-      logger.error('[Settings] Delete backup error:', error);
-      showNotification(error.message || 'Failed to delete backup', 'error');
-    }
-  }, [findBackupById, showNotification, fetchBackupHistory]);
+    setConfirmDialog({
+      open: true,
+      title: 'Delete Backup',
+      message: `Are you sure you want to delete "${fileName}"?`,
+      details: 'This action cannot be undone.',
+      severity: 'error',
+      confirmText: 'Delete',
+      onConfirm: async () => {
+        setConfirmDialog(prev => ({ ...prev, open: false }));
+        try {
+          const response = await backupService.deleteBackup(backupId);
+          
+          if (response.success) {
+            toast.success('Backup deleted successfully');
+            await fetchBackupHistory();
+          } else {
+            throw new Error(response.message || 'Failed to delete backup');
+          }
+        } catch (error) {
+          logger.error('[Settings] Delete backup error:', error);
+          toast.error(error.message || 'Failed to delete backup');
+        }
+      },
+    });
+  }, [findBackupById, fetchBackupHistory]);
 
   /**
    * Download a backup file to local machine
@@ -872,24 +922,24 @@ function Settings() {
    */
   const handleDownloadBackup = useCallback(async (backupId) => {
     if (!backupId) {
-      showNotification('Invalid backup selected', 'error');
+      toast.error('Invalid backup selected');
       return;
     }
 
     try {
-      showNotification('Preparing download...', 'info');
+      toast.info('Preparing download...');
       const result = await backupService.downloadBackup(backupId);
       if (result && result.success) {
-        showNotification(`Backup "${result.filename}" downloaded successfully!`, 'success');
+        toast.success(`Backup "${result.filename}" downloaded successfully!`);
       } else {
-        showNotification('Backup download completed', 'success');
+        toast.success('Backup download completed');
       }
     } catch (error) {
       logger.error('[Settings] Download backup error:', error);
       const errorMessage = error.message || 'Failed to download backup';
-      showNotification(errorMessage, 'error');
+      toast.error(errorMessage);
     }
-  }, [showNotification]);
+  }, []);
 
   /**
    * Toggle backup protection status
@@ -902,7 +952,7 @@ function Settings() {
       const response = await backupService.toggleBackupProtection(backupId, !currentlyProtected);
       
       if (response.success) {
-        showNotification(
+        toast.success(
           currentlyProtected ? 'Backup protection removed' : 'Backup is now protected',
           'success'
         );
@@ -912,9 +962,9 @@ function Settings() {
       }
     } catch (error) {
       logger.error('[Settings] Toggle protection error:', error);
-      showNotification(error.message || 'Failed to toggle protection', 'error');
+      toast.error(error.message || 'Failed to toggle protection');
     }
-  }, [showNotification, fetchBackupHistory]);
+  }, [fetchBackupHistory]);
 
   /**
    * Verify backup file integrity via checksum validation
@@ -922,12 +972,12 @@ function Settings() {
    */
   const handleVerifyBackup = useCallback(async (backupId) => {
     if (!backupId) {
-      showNotification('Invalid backup selected', 'error');
+      toast.error('Invalid backup selected');
       return;
     }
 
     try {
-      showNotification('Verifying backup integrity...', 'info');
+      toast.info('Verifying backup integrity...');
       const response = await backupService.verifyBackup(backupId);
       
       if (response.success) {
@@ -937,10 +987,10 @@ function Settings() {
         const checksumMatch = verifyData?.checksumMatch ?? true;
         
         if (isValid && checksumMatch) {
-          showNotification('✓ Backup verified successfully - integrity confirmed!', 'success');
+          toast.success('✓ Backup verified successfully - integrity confirmed!');
         } else {
           const errorMsg = verifyData?.error || verifyData?.message || 'Checksum mismatch';
-          showNotification(`⚠ Backup verification failed: ${errorMsg}`, 'warning');
+          toast.warning(`⚠ Backup verification failed: ${errorMsg}`);
         }
         // Refresh backup history to update verification status
         await fetchBackupHistory();
@@ -950,7 +1000,7 @@ function Settings() {
     } catch (error) {
       logger.error('[Settings] Verify backup error:', error);
       const errorMessage = error.message || 'Failed to verify backup';
-      showNotification(
+      toast.success(
         errorMessage.includes('not found') ?
           'Backup file not found or has been deleted.' :
         errorMessage.includes('permission') || errorMessage.includes('authorized') ?
@@ -959,7 +1009,7 @@ function Settings() {
         'error'
       );
     }
-  }, [showNotification, fetchBackupHistory]);
+  }, [fetchBackupHistory]);
 
   /**
    * Handle file selection for backup import
@@ -975,7 +1025,7 @@ function Settings() {
     const isValid = validExtensions.some(ext => file.name.toLowerCase().endsWith(ext));
     
     if (!isValid) {
-      showNotification('Please upload a valid backup file (.json.gz or .gz)', 'error');
+      toast.error('Please upload a valid backup file (.json.gz or .gz)');
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
@@ -985,7 +1035,7 @@ function Settings() {
     // Validate file size (max 500MB)
     const maxSize = 500 * 1024 * 1024;
     if (file.size > maxSize) {
-      showNotification('Backup file must be less than 500MB', 'error');
+      toast.error('Backup file must be less than 500MB');
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
@@ -993,8 +1043,8 @@ function Settings() {
     }
 
     setSelectedBackupFile(file);
-    showNotification(`Selected: ${file.name} (${formatFileSize(file.size)})`, 'info');
-  }, [showNotification]);
+    toast.info(`Selected: ${file.name} (${formatFileSize(file.size)})`);
+  }, []);
 
   /**
    * Import and restore from an uploaded backup file
@@ -1002,93 +1052,103 @@ function Settings() {
    */
   const handleImportBackup = useCallback(async () => {
     if (!selectedBackupFile) {
-      showNotification('Please select a backup file first', 'error');
+      toast.error('Please select a backup file first');
       return;
     }
 
     // Validate file size
     const maxSize = 500 * 1024 * 1024; // 500MB
     if (selectedBackupFile.size > maxSize) {
-      showNotification('File too large. Maximum size is 500MB', 'error');
+      toast.error('File too large. Maximum size is 500MB');
       return;
     }
 
-    if (!window.confirm(
-      '⚠️ WARNING: Are you sure you want to restore from this uploaded backup?\n\n' +
-      `File: ${selectedBackupFile.name}\n` +
-      `Size: ${formatFileSize(selectedBackupFile.size)}\n\n` +
-      'This will import data from the backup file.\n' +
-      'Existing data will be merged with the backup data.\n\n' +
-      'This operation may take several minutes for large backups.\n\n' +
-      'PROCEED WITH CAUTION!'
-    )) {
-      return;
-    }
-
-    setIsRestoring(true);
-    setRestoreProgress(0);
-
-    // Simulate progress while waiting for API
-    const progressInterval = setInterval(() => {
-      setRestoreProgress((prev) => {
-        if (prev >= 90) return 90;
-        return prev + Math.random() * 5;
-      });
-    }, 800);
-
-    try {
-      showNotification('Importing backup file... This may take a while.', 'info');
-      
-      const response = await backupService.importFromFile(selectedBackupFile, {
-        dropExisting: false
-      });
-      
-      clearInterval(progressInterval);
-      setRestoreProgress(100);
-
-      if (response.success) {
-        const totalDocs = response.data?.totalDocuments || 0;
-        const collectionsCount = response.data?.collectionsRestored?.length || 0;
-        showNotification(
-          `Import completed! ${totalDocs.toLocaleString()} documents restored across ${collectionsCount} collections.`,
-          'success'
-        );
-        // Clear selected file and reset input
-        setSelectedBackupFile(null);
-        if (fileInputRef.current) {
-          fileInputRef.current.value = '';
-        }
-        // Refresh backup history and last backup info
-        await Promise.all([fetchBackupHistory(), fetchLastBackupInfo()]);
-        
-        // Suggest page refresh to see updated data
-        setTimeout(() => {
-          if (window.confirm('Data has been imported successfully. Would you like to refresh the page to see the latest data?')) {
-            window.location.reload();
-          }
-        }, 2000);
-      } else {
-        throw new Error(response.message || 'Import failed');
-      }
-    } catch (error) {
-      clearInterval(progressInterval);
-      logger.error('[Settings] Import backup error:', error);
-      const errorMessage = error.message || 'Failed to import backup';
-      showNotification(
-        errorMessage.includes('permission') || errorMessage.includes('authorized') ?
-          'You do not have permission to perform this action.' :
-        errorMessage.includes('file') || errorMessage.includes('parse') ?
-          'Invalid backup file format. Please ensure the file is a valid backup.' :
-          errorMessage,
-        'error'
-      );
-    } finally {
-      setTimeout(() => {
-        setIsRestoring(false);
+    setConfirmDialog({
+      open: true,
+      title: '⚠️ Restore Uploaded Backup',
+      message: 'Are you sure you want to restore from this uploaded backup?',
+      details: `File: ${selectedBackupFile.name}\nSize: ${formatFileSize(selectedBackupFile.size)}\n\nThis will import data from the backup file.\nExisting data will be merged with the backup data.\n\nThis operation may take several minutes for large backups.\n\nPROCEED WITH CAUTION!`,
+      severity: 'error',
+      confirmText: 'Restore',
+      onConfirm: async () => {
+        setConfirmDialog(prev => ({ ...prev, open: false }));
+        setIsRestoring(true);
         setRestoreProgress(0);
-      }, 500);
-    }
-  }, [selectedBackupFile, showNotification, fetchBackupHistory, fetchLastBackupInfo]);
+
+        // Simulate progress while waiting for API
+        const progressInterval = setInterval(() => {
+          if (isMountedRef.current) {
+            setRestoreProgress((prev) => {
+              if (prev >= 90) return 90;
+              return prev + Math.random() * 5;
+            });
+          }
+        }, 800);
+
+        try {
+          toast.info('Importing backup file... This may take a while.');
+          
+          const response = await backupService.importFromFile(selectedBackupFile, {
+            dropExisting: false
+          });
+          
+          clearInterval(progressInterval);
+          if (isMountedRef.current) {
+            setRestoreProgress(100);
+          }
+
+          if (response.success) {
+            const totalDocs = response.data?.totalDocuments || 0;
+            const collectionsCount = response.data?.collectionsRestored?.length || 0;
+            toast.success(
+              `Import completed! ${totalDocs.toLocaleString()} documents restored across ${collectionsCount} collections.`
+            );
+            // Clear selected file and reset input
+            setSelectedBackupFile(null);
+            if (fileInputRef.current) {
+              fileInputRef.current.value = '';
+            }
+            // Refresh backup history and last backup info
+            await Promise.all([fetchBackupHistory(), fetchLastBackupInfo()]);
+            
+            // Suggest page refresh to see updated data
+            setTimeout(() => {
+              setConfirmDialog({
+                open: true,
+                title: 'Import Completed',
+                message: 'Data has been imported successfully. Would you like to refresh the page to see the latest data?',
+                severity: 'info',
+                confirmText: 'Refresh Page',
+                onConfirm: () => {
+                  window.location.reload();
+                },
+              });
+            }, 2000);
+          } else {
+            throw new Error(response.message || 'Import failed');
+          }
+        } catch (error) {
+          clearInterval(progressInterval);
+          logger.error('[Settings] Import backup error:', error);
+          const errorMessage = error.message || 'Failed to import backup';
+          toast.error(
+            errorMessage.includes('permission') || errorMessage.includes('authorized') ?
+              'You do not have permission to perform this action.' :
+            errorMessage.includes('file') || errorMessage.includes('parse') ?
+              'Invalid backup file format. Please ensure the file is a valid backup.' :
+              errorMessage
+          );
+        } finally {
+          setTimeout(() => {
+            if (isMountedRef.current) {
+              setIsRestoring(false);
+              setRestoreProgress(0);
+            }
+          }, 500);
+        }
+      },
+    });
+  }, [selectedBackupFile, fetchBackupHistory, fetchLastBackupInfo]);
 
   /**
    * Toggle automatic backup scheduling
@@ -1102,7 +1162,7 @@ function Settings() {
       
       if (response.success) {
         setAutoBackupEnabled(enabled);
-        showNotification(
+        toast.success(
           enabled ? 'Automatic backups enabled' : 'Automatic backups disabled',
           'success'
         );
@@ -1111,27 +1171,25 @@ function Settings() {
       }
     } catch (error) {
       logger.error('[Settings] Toggle auto backup error:', error);
-      showNotification(error.message || 'Failed to update backup settings', 'error');
+      toast.error(error.message || 'Failed to update backup settings');
       setAutoBackupEnabled(!enabled);
     }
-  }, [showNotification]);
+  }, []);
 
   /**
    * Reset backup configuration to defaults
    */
   const handleResetBackupConfig = useCallback(async () => {
-    if (!window.confirm(
-      '⚠️ Reset Backup Configuration?\n\n' +
-      'This will:\n' +
-      '• Reset backup settings to defaults\n' +
-      '• Enable auto backup (daily at 2:00 AM)\n' +
-      '• Set retention to 30 days\n\n' +
-      'Existing backup files will NOT be deleted.'
-    )) {
-      return;
-    }
-
-    setIsResettingConfig(true);
+    setConfirmDialog({
+      open: true,
+      title: 'Reset Backup Configuration',
+      message: 'Are you sure you want to reset the backup configuration?',
+      details: 'This will:\n• Reset backup settings to defaults\n• Enable auto backup (daily at 2:00 AM)\n• Set retention to 30 days\n\nExisting backup files will NOT be deleted.',
+      severity: 'warning',
+      confirmText: 'Reset',
+      onConfirm: async () => {
+        setConfirmDialog(prev => ({ ...prev, open: false }));
+        setIsResettingConfig(true);
     try {
       const response = await backupService.updateBackupConfig({
         autoBackupEnabled: true,
@@ -1143,168 +1201,173 @@ function Settings() {
       if (response.success) {
         setAutoBackupEnabled(true);
         await Promise.all([fetchBackupHistory(), fetchLastBackupInfo(), fetchBackupConfig()]);
-        showNotification('Backup configuration reset successfully', 'success');
+        toast.success('Backup configuration reset successfully');
       } else {
         throw new Error(response.message || 'Failed to reset configuration');
       }
     } catch (error) {
       logger.error('[Settings] Reset backup config error:', error);
-      showNotification(error.message || 'Failed to reset backup configuration', 'error');
+      toast.error(error.message || 'Failed to reset backup configuration');
     } finally {
       setIsResettingConfig(false);
     }
-  }, [showNotification, fetchBackupHistory, fetchLastBackupInfo, fetchBackupConfig]);
+      },
+    });
+  }, [fetchBackupHistory, fetchLastBackupInfo, fetchBackupConfig]);
 
   /**
    * Cleanup old backups based on retention policy
    */
   const handleCleanupBackups = useCallback(async () => {
-    if (!window.confirm(
-      '🧹 Cleanup Old Backups?\n\n' +
-      'This will remove:\n' +
-      '• Backups older than retention period\n' +
-      '• Failed/corrupted backup files\n\n' +
-      'Protected backups will NOT be deleted.\n\n' +
-      'Continue?'
-    )) {
-      return;
-    }
-
-    setIsCleaningUp(true);
-    try {
-      showNotification('Cleaning up old backups...', 'info');
-      const response = await backupService.triggerCleanup();
-      
-      if (response.success) {
-        const deletedCount = response.data?.deletedCount || 0;
-        const freedSpace = response.data?.freedSpace || 0;
-        
-        if (deletedCount === 0) {
-          showNotification('No old backups found to clean up.', 'info');
-        } else {
-          showNotification(
-            `Cleanup complete! Removed ${deletedCount} backup(s), freed ${formatFileSize(freedSpace)}`,
-            'success'
+    setConfirmDialog({
+      open: true,
+      title: '🧹 Cleanup Old Backups',
+      message: 'Are you sure you want to cleanup old backups?',
+      details: 'This will remove:\n• Backups older than retention period\n• Failed/corrupted backup files\n\nProtected backups will NOT be deleted.',
+      severity: 'warning',
+      confirmText: 'Cleanup',
+      onConfirm: async () => {
+        setConfirmDialog(prev => ({ ...prev, open: false }));
+        setIsCleaningUp(true);
+        try {
+          toast.info('Cleaning up old backups...');
+          const response = await backupService.triggerCleanup();
+          
+          if (response.success) {
+            const deletedCount = response.data?.deletedCount || 0;
+            const freedSpace = response.data?.freedSpace || 0;
+            
+            if (deletedCount === 0) {
+              toast.info('No old backups found to clean up.');
+            } else {
+              toast.success(
+                `Cleanup complete! Removed ${deletedCount} backup(s), freed ${formatFileSize(freedSpace)}`
+              );
+            }
+            await fetchBackupHistory();
+          } else {
+            throw new Error(response.message || 'Cleanup failed');
+          }
+        } catch (error) {
+          logger.error('[Settings] Cleanup backups error:', error);
+          const errorMessage = error.message || 'Failed to cleanup backups';
+          toast.error(
+            errorMessage.includes('permission') || errorMessage.includes('authorized') ?
+              'You do not have permission to perform this action.' :
+              errorMessage
           );
+        } finally {
+          setIsCleaningUp(false);
         }
-        await fetchBackupHistory();
-      } else {
-        throw new Error(response.message || 'Cleanup failed');
-      }
-    } catch (error) {
-      logger.error('[Settings] Cleanup backups error:', error);
-      const errorMessage = error.message || 'Failed to cleanup backups';
-      showNotification(
-        errorMessage.includes('permission') || errorMessage.includes('authorized') ?
-          'You do not have permission to perform this action.' :
-          errorMessage,
-        'error'
-      );
-    } finally {
-      setIsCleaningUp(false);
-    }
-  }, [showNotification, fetchBackupHistory]);
+      },
+    });
+  }, [fetchBackupHistory]);
 
   /**
    * Create a full database export for local/external storage (HDD)
    */
   const handleExportFullBackup = useCallback(async () => {
-    if (!window.confirm(
-      '💾 Create Full Database Export?\n\n' +
-      'This will create a complete backup including:\n' +
-      '• All database collections\n' +
-      '• All uploaded files (photos, documents)\n\n' +
-      'The file will be downloaded for external storage (USB/HDD).\n' +
-      'This process may take several minutes for large databases.'
-    )) {
-      return;
-    }
-
-    setIsExportingFull(true);
-    setBackupProgress(0);
-
-    const progressInterval = setInterval(() => {
-      setBackupProgress((prev) => (prev >= 90 ? 90 : prev + Math.random() * 8));
-    }, 600);
-
-    try {
-      showNotification('Creating full database export...', 'info');
-      
-      const response = await backupService.exportFullDatabase({
-        includeGridFSFiles: true,
-        notes: 'Full export for external storage'
-      });
-      
-      clearInterval(progressInterval);
-      setBackupProgress(100);
-
-      if (response.success && response.data?.exportId) {
-        showNotification('Export created! Starting download...', 'info');
-        
-        try {
-          await backupService.downloadFullExport(response.data.exportId);
-          const size = response.data.formattedSize || response.data.fileSize ? 
-            `${(response.data.fileSize / (1024 * 1024)).toFixed(2)} MB` : 'N/A';
-          showNotification(`Full backup exported and downloaded successfully! (${size})`, 'success');
-          await fetchBackupHistory();
-        } catch (downloadError) {
-          logger.error('[Settings] Download error:', downloadError);
-          showNotification('Export created but download failed. Please try downloading from backup history.', 'warning');
-        }
-      } else {
-        throw new Error(response.message || 'Export failed');
-      }
-    } catch (error) {
-      clearInterval(progressInterval);
-      logger.error('[Settings] Full export error:', error);
-      const errorMessage = error.message || 'Failed to create full export';
-      showNotification(
-        errorMessage.includes('permission') || errorMessage.includes('authorized') ?
-          'You do not have permission to perform this action.' :
-          errorMessage,
-        'error'
-      );
-    } finally {
-      setTimeout(() => {
-        setIsExportingFull(false);
+    setConfirmDialog({
+      open: true,
+      title: '💾 Create Full Database Export',
+      message: 'Are you sure you want to create a full database export?',
+      details: 'This will create a complete backup including:\n• All database collections\n• All uploaded files (photos, documents)\n\nThe file will be downloaded for external storage (USB/HDD).\nThis process may take several minutes for large databases.',
+      severity: 'info',
+      confirmText: 'Export',
+      onConfirm: async () => {
+        setConfirmDialog(prev => ({ ...prev, open: false }));
+        setIsExportingFull(true);
         setBackupProgress(0);
-      }, 500);
-    }
-  }, [showNotification, fetchBackupHistory]);
+
+        const progressInterval = setInterval(() => {
+          if (isMountedRef.current) {
+            setBackupProgress((prev) => (prev >= 90 ? 90 : prev + Math.random() * 8));
+          }
+        }, 600);
+
+        try {
+          toast.info('Creating full database export...');
+          
+          const response = await backupService.exportFullDatabase({
+            includeGridFSFiles: true,
+            notes: 'Full export for external storage'
+          });
+          
+          clearInterval(progressInterval);
+          if (isMountedRef.current) {
+            setBackupProgress(100);
+          }
+
+          if (response.success && response.data?.exportId) {
+            toast.info('Export created! Starting download...');
+            
+            try {
+              await backupService.downloadFullExport(response.data.exportId);
+              const size = response.data.formattedSize || response.data.fileSize ? 
+                `${(response.data.fileSize / (1024 * 1024)).toFixed(2)} MB` : 'N/A';
+              toast.success(`Full backup exported and downloaded successfully! (${size})`);
+              await fetchBackupHistory();
+            } catch (downloadError) {
+              logger.error('[Settings] Download error:', downloadError);
+              toast.warning('Export created but download failed. Please try downloading from backup history.');
+            }
+          } else {
+            throw new Error(response.message || 'Export failed');
+          }
+        } catch (error) {
+          clearInterval(progressInterval);
+          logger.error('[Settings] Full export error:', error);
+          const errorMessage = error.message || 'Failed to create full export';
+          toast.error(
+            errorMessage.includes('permission') || errorMessage.includes('authorized') ?
+              'You do not have permission to perform this action.' :
+              errorMessage
+          );
+        } finally {
+          setTimeout(() => {
+            if (isMountedRef.current) {
+              setIsExportingFull(false);
+              setBackupProgress(0);
+            }
+          }, 500);
+        }
+      },
+    });
+  }, [fetchBackupHistory]);
 
   /**
    * Open download selection dialog
    */
   const handleOpenDownloadDialog = useCallback(() => {
     if (backupHistory.length === 0) {
-      showNotification('No backups available to download', 'warning');
+      toast.warning('No backups available to download');
       return;
     }
     setSelectedDownloadBackup(backupHistory[0]?.backupId || null);
     setDownloadDialogOpen(true);
-  }, [backupHistory, showNotification]);
+  }, [backupHistory]);
 
   /**
    * Handle download from dialog selection
    */
   const handleConfirmDownload = useCallback(async () => {
     if (!selectedDownloadBackup) {
-      showNotification('Please select a backup to download', 'error');
+      toast.error('Please select a backup to download');
       return;
     }
     
     setDownloadDialogOpen(false);
     try {
-      showNotification('Preparing download...', 'info');
+      toast.info('Preparing download...');
       const result = await backupService.downloadBackup(selectedDownloadBackup);
       if (result.success) {
-        showNotification(`Backup "${result.filename}" downloaded successfully!`, 'success');
+        toast.success(`Backup "${result.filename}" downloaded successfully!`);
       }
     } catch (error) {
       logger.error('[Settings] Download backup error:', error);
-      showNotification(error.message || 'Failed to download backup', 'error');
+      toast.error(error.message || 'Failed to download backup');
     }
-  }, [selectedDownloadBackup, showNotification]);
+  }, [selectedDownloadBackup]);
 
   // Load existing fare matrix on mount
   useEffect(() => {
@@ -2230,19 +2293,20 @@ function Settings() {
         </DialogActions>
       </Dialog>
 
-      {/* Notification Snackbar */}
-      <Snackbar
-        open={notification.open}
-        autoHideDuration={4000}
-        onClose={closeNotification}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-      >
-        <Alert onClose={closeNotification} severity={notification.type} sx={{ width: '100%' }}>
-          {notification.message}
-        </Alert>
-      </Snackbar>
+      {/* Confirmation Dialog */}
+      <ConfirmDialog
+        open={confirmDialog.open}
+        title={confirmDialog.title}
+        message={confirmDialog.message}
+        details={confirmDialog.details}
+        severity={confirmDialog.severity}
+        confirmText={confirmDialog.confirmText}
+        onConfirm={confirmDialog.onConfirm}
+        onCancel={() => setConfirmDialog(prev => ({ ...prev, open: false }))}
+      />
     </div>
   );
 }
 
 export default Settings;
+

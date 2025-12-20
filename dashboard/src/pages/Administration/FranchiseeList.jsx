@@ -3,6 +3,8 @@ import Sidebar from './Sidebar';
 import { franchiseInformationAPI, API_BASE_URL, getToken } from '../Services/api';
 import websocketService from '../../services/websocket';
 import { useAuth } from '../../contexts/AuthContext';
+import { useIsMounted } from '../../hooks/useIsMounted';
+import { useDebounce } from '../../hooks/useDebounce';
 import {
   Box,
   Typography,
@@ -2214,7 +2216,9 @@ const ExportOptionsDialog = ({ open, onClose, onExport, franchisees, barangays }
 
 function FranchiseeList() {
   const { user } = useAuth();
+  const isMountedRef = useIsMounted();
   const [searchTerm, setSearchTerm] = useState('');
+  const debouncedSearchTerm = useDebounce(searchTerm, 500);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [isEditing, setIsEditing] = useState(false);

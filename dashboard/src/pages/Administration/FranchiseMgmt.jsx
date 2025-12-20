@@ -13,6 +13,8 @@ import { FileUploadField, DocumentLink } from './components/FranchiseFormCompone
 import { franchiseAPI, franchiseInformationAPI } from '../Services/api'
 import websocketService from '../../services/websocket'
 import { useAuth } from '../../contexts/AuthContext'
+import { useIsMounted } from '../../hooks/useIsMounted'
+import { useDebounce } from '../../hooks/useDebounce'
 
 // Utilities
 import { validateFile, formatFileSize } from '../../utils/fileValidation'
@@ -95,7 +97,7 @@ function FranchiseMgmt() {
   
   // Search and filter state
   const [searchTerm, setSearchTerm] = useState('')
-  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('')
+  const debouncedSearchTerm = useDebounce(searchTerm, 500)
   const [statusFilter, setStatusFilter] = useState('all')
   
   // Modal states
@@ -141,6 +143,7 @@ function FranchiseMgmt() {
   const qrBlobUrlRef = useRef(null)
   const isUpdatingRef = useRef(false)
   const isFetchingRef = useRef(false)
+  const isMountedRef = useIsMounted()
 
   // Polling disabled by default (WebSocket handles real-time updates)
   const POLL_INTERVAL_MS = 0
@@ -299,8 +302,10 @@ function FranchiseMgmt() {
       // Deduplicate applications before setting state
       const deduplicatedApps = deduplicateApplications(normalizedApps)
       
-      setPendingApplications(deduplicatedApps)
-      logger.log('[FranchiseMgmt] State updated with', deduplicatedApps.length, 'applications', normalizedApps.length !== deduplicatedApps.length ? `(removed ${normalizedApps.length - deduplicatedApps.length} duplicates)` : '')
+      if (isMountedRef.current) {
+        setPendingApplications(deduplicatedApps)
+        logger.log('[FranchiseMgmt] State updated with', deduplicatedApps.length, 'applications', normalizedApps.length !== deduplicatedApps.length ? `(removed ${normalizedApps.length - deduplicatedApps.length} duplicates)` : '')
+      }
       
       // Reset the updating flag after state update
       // Using setTimeout to ensure state has been committed

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import { useIsMounted } from '../../hooks/useIsMounted';
 import websocketService from '../../services/websocket';
 import { showWarning } from '../../utils/sweetAlert';
 import { logger } from '../../utils/logger';
@@ -84,6 +85,7 @@ function Sidebar() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout, loading } = useAuth();
+  const isMountedRef = useIsMounted();
   const [currentTime, setCurrentTime] = useState(new Date());
   const [showLogout, setShowLogout] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);

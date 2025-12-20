@@ -4,6 +4,8 @@ import '../../Styles/Administrator_Css/SharedTable.css';
 import Sidebar from './Sidebar';
 import websocketService from '../../services/websocket';
 import { franchiseLinkRequestAPI, API_BASE_URL } from '../Services/api';
+import { useIsMounted } from '../../hooks/useIsMounted';
+import { useDebounce } from '../../hooks/useDebounce';
 import PageLoader from '../../components/PageLoader';
 import { 
   Typography, 
@@ -188,6 +190,7 @@ StatCard.displayName = 'StatCard';
 // ============================================================================
 
 function FranchiseLinking() {
+  const isMountedRef = useIsMounted();
   // State management
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -200,6 +203,7 @@ function FranchiseLinking() {
   
   // Filters
   const [searchTerm, setSearchTerm] = useState('');
+  const debouncedSearchTerm = useDebounce(searchTerm, 500);
   const [statusFilter, setStatusFilter] = useState('');
   const [sortBy, setSortBy] = useState('createdAt');
   const [sortOrder, setSortOrder] = useState('desc');
