@@ -101,7 +101,7 @@ const ForgotPasswordModal = ({ open, onClose }) => {
 
     try {
       // Just verify the OTP, don't reset password yet
-      const response = await api.post('/auth/verify-otp', { email, otp });
+      const response = await api.post('/auth/verify-otp', { email, otp, purpose: 'password-reset' });
       setSuccess('OTP verified successfully!');
       setTimeout(() => {
         setSuccess('');

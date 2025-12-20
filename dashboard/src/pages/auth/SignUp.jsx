@@ -133,7 +133,7 @@ const SignUp = () => {
       const otpResponse = await fetch(`${API_BASE_URL}/auth/request-otp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: form.email })
+        body: JSON.stringify({ email: form.email, purpose: 'signup' })
       });
       const otpData = await otpResponse.json().catch(() => ({}));
       if (!otpResponse.ok) {
@@ -381,6 +381,7 @@ const SignUp = () => {
           open={showVerificationModal}
           onClose={() => setShowVerificationModal(false)}
           email={form.email}
+          purpose="signup"
           onVerificationSuccess={handleVerificationSuccess}
         />
 

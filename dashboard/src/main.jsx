@@ -19,15 +19,13 @@ if ('serviceWorker' in navigator) {
           registration.update();
         }, 60 * 60 * 1000);
         
-        // Listen for service worker updates
+        // Listen for service worker updates - new version will activate on next page load
         registration.addEventListener('updatefound', () => {
           const newWorker = registration.installing;
           newWorker.addEventListener('statechange', () => {
             if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-              // New version available - notify user (confirm dialog is user-facing, keep it)
-              if (confirm('A new version of TRC-V Admin is available. Reload to update?')) {
-                window.location.reload();
-              }
+              // New version ready - will activate on next refresh (no interruption)
+              if (isDev) console.log('[PWA] New version available, will activate on next reload');
             }
           });
         });

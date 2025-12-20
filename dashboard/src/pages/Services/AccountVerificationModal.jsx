@@ -22,7 +22,7 @@ const poppinsTheme = createTheme({
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170';
 
-const AccountVerificationModal = ({ open, onClose, email, rememberMe = false, onVerificationSuccess, buttonText = 'Sign in to your account', userType = 'user' }) => {
+const AccountVerificationModal = ({ open, onClose, email, rememberMe = false, onVerificationSuccess, buttonText = 'Sign in to your account', userType = 'user', purpose = 'login' }) => {
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [timeLeft, setTimeLeft] = useState(300);
   const [error, setError] = useState('');
@@ -186,6 +186,7 @@ const AccountVerificationModal = ({ open, onClose, email, rememberMe = false, on
         email: email,
         otp: otpCode,
         rememberMe: rememberMe, // Pass rememberMe flag to create trusted device token
+        purpose: purpose, // Pass purpose to verify the correct OTP
       });
       const data = response.data;
       if (data) {
@@ -208,6 +209,7 @@ const AccountVerificationModal = ({ open, onClose, email, rememberMe = false, on
         email: email,
         phoneNumber: deliveryMethod === 'phone' ? userPhoneNumber : undefined,
         deliveryMethod: deliveryMethod,
+        purpose: purpose, // Pass purpose to generate the correct OTP type
       });
       if (response.data) {
         setTimeLeft(300); // Reset timer to 5 minutes
@@ -246,6 +248,7 @@ const AccountVerificationModal = ({ open, onClose, email, rememberMe = false, on
         email: email,
         phoneNumber: newMethod === 'phone' ? userPhoneNumber : undefined,
         deliveryMethod: newMethod,
+        purpose: purpose, // Pass purpose to generate the correct OTP type
       });
       
       if (response.data) {
