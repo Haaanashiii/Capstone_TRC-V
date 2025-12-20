@@ -832,11 +832,43 @@ const OperatorHomePage = () => {
                     startIcon={<AutorenewIcon />}
                     onClick={() => {
                       const firstExpired = expiryAlerts.expired[0].franchise;
+                      // Pre-fill all franchise data for renewal (similar to amendment workflow)
                       navigate('/operator/franchise/application', {
                         state: {
                           applicationType: 'renewal',
                           franchise: firstExpired,
-                          previousFranchiseId: firstExpired._id
+                          previousFranchiseId: firstExpired._id,
+                          franchiseChainId: firstExpired.franchiseChainId,
+                          // Operator information
+                          operatorName: firstExpired.operatorName || '',
+                          operatorContactNumber: firstExpired.operatorContactNumber || '',
+                          operatorAddress: firstExpired.operatorAddress || '',
+                          operatorBarangay: firstExpired.operatorBarangay || '',
+                          operatorCivilStatus: firstExpired.operatorCivilStatus || '',
+                          operatorBirthPlace: firstExpired.operatorBirthPlace || '',
+                          operatorBirthDate: firstExpired.operatorBirthDate || '',
+                          operatorCitizenship: firstExpired.operatorCitizenship || '',
+                          operatorEmail: firstExpired.operatorEmail || '',
+                          // Co-owner information
+                          coOwnerName: firstExpired.coOwnerName || '',
+                          coOwnerAddress: firstExpired.coOwnerAddress || '',
+                          coOwnerRelationship: firstExpired.coOwnerRelationship || '',
+                          // Driver information
+                          driverName: firstExpired.driverName || '',
+                          driversAddress: firstExpired.driversAddress || '',
+                          // TODA membership
+                          todaMembership: firstExpired.todaMembership || '',
+                          // Motorcycle information
+                          unitModel: firstExpired.unitModel || '',
+                          colorMotor: firstExpired.colorMotor || '',
+                          sideCarColor: firstExpired.sideCarColor || '',
+                          sideCarPlateNumber: firstExpired.sideCarPlateNumber || '',
+                          mvPlateNo: firstExpired.mvPlateNo || '',
+                          motorEngineNo: firstExpired.motorEngineNo || '',
+                          chasisNo: firstExpired.chasisNo || '',
+                          // Franchise details (for reference)
+                          franchiseNumber: firstExpired.franchiseNumber || ''
+                          // Note: Documents are NOT pre-filled - user must upload new ones
                         }
                       });
                     }}
@@ -885,11 +917,43 @@ const OperatorHomePage = () => {
                     startIcon={<AutorenewIcon />}
                     onClick={() => {
                       const firstExpiring = expiryAlerts.expiringSoon[0].franchise;
+                      // Pre-fill all franchise data for renewal (similar to amendment workflow)
                       navigate('/operator/franchise/application', {
                         state: {
                           applicationType: 'renewal',
                           franchise: firstExpiring,
-                          previousFranchiseId: firstExpiring._id
+                          previousFranchiseId: firstExpiring._id,
+                          franchiseChainId: firstExpiring.franchiseChainId,
+                          // Operator information
+                          operatorName: firstExpiring.operatorName || '',
+                          operatorContactNumber: firstExpiring.operatorContactNumber || '',
+                          operatorAddress: firstExpiring.operatorAddress || '',
+                          operatorBarangay: firstExpiring.operatorBarangay || '',
+                          operatorCivilStatus: firstExpiring.operatorCivilStatus || '',
+                          operatorBirthPlace: firstExpiring.operatorBirthPlace || '',
+                          operatorBirthDate: firstExpiring.operatorBirthDate || '',
+                          operatorCitizenship: firstExpiring.operatorCitizenship || '',
+                          operatorEmail: firstExpiring.operatorEmail || '',
+                          // Co-owner information
+                          coOwnerName: firstExpiring.coOwnerName || '',
+                          coOwnerAddress: firstExpiring.coOwnerAddress || '',
+                          coOwnerRelationship: firstExpiring.coOwnerRelationship || '',
+                          // Driver information
+                          driverName: firstExpiring.driverName || '',
+                          driversAddress: firstExpiring.driversAddress || '',
+                          // TODA membership
+                          todaMembership: firstExpiring.todaMembership || '',
+                          // Motorcycle information
+                          unitModel: firstExpiring.unitModel || '',
+                          colorMotor: firstExpiring.colorMotor || '',
+                          sideCarColor: firstExpiring.sideCarColor || '',
+                          sideCarPlateNumber: firstExpiring.sideCarPlateNumber || '',
+                          mvPlateNo: firstExpiring.mvPlateNo || '',
+                          motorEngineNo: firstExpiring.motorEngineNo || '',
+                          chasisNo: firstExpiring.chasisNo || '',
+                          // Franchise details (for reference)
+                          franchiseNumber: firstExpiring.franchiseNumber || ''
+                          // Note: Documents are NOT pre-filled - user must upload new ones
                         }
                       });
                     }}

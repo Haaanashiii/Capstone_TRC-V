@@ -812,11 +812,45 @@ function FranchiseeListOperatorSide() {
                 variant="contained"
                 startIcon={<AutorenewIcon />}
                 onClick={() => {
+                  // Pre-fill all franchise data for renewal (similar to amendment workflow)
                   navigate('/operator/franchise/application', {
                     state: {
                       applicationType: 'renewal',
                       franchise: matchedFranchise,
-                      previousFranchiseId: matchedFranchise?._id
+                      previousFranchiseId: matchedFranchise?._id,
+                      franchiseChainId: matchedFranchise?.franchiseChainId,
+                      // Operator information
+                      operatorName: matchedFranchise?.operatorName || user?.name || '',
+                      operatorContactNumber: matchedFranchise?.operatorContactNumber || user?.phoneNumber || '',
+                      operatorAddress: matchedFranchise?.operatorAddress || '',
+                      operatorBarangay: matchedFranchise?.operatorBarangay || '',
+                      operatorCivilStatus: matchedFranchise?.operatorCivilStatus || '',
+                      operatorBirthPlace: matchedFranchise?.operatorBirthPlace || '',
+                      operatorBirthDate: matchedFranchise?.operatorBirthDate || '',
+                      operatorCitizenship: matchedFranchise?.operatorCitizenship || '',
+                      operatorEmail: matchedFranchise?.operatorEmail || user?.email || '',
+                      // Co-owner information
+                      coOwnerName: matchedFranchise?.coOwnerName || '',
+                      coOwnerAddress: matchedFranchise?.coOwnerAddress || '',
+                      coOwnerRelationship: matchedFranchise?.coOwnerRelationship || '',
+                      // Driver information
+                      driverName: matchedFranchise?.driverName || '',
+                      driversAddress: matchedFranchise?.driversAddress || '',
+                      // TODA membership
+                      todaMembership: matchedFranchise?.todaMembership || '',
+                      // Motorcycle information
+                      unitModel: matchedFranchise?.unitModel || fields.make || '',
+                      colorMotor: matchedFranchise?.colorMotor || '',
+                      sideCarColor: matchedFranchise?.sideCarColor || '',
+                      sideCarPlateNumber: matchedFranchise?.sideCarPlateNumber || fields.sidecarNumber || '',
+                      mvPlateNo: matchedFranchise?.mvPlateNo || fields.plateNumber || '',
+                      motorEngineNo: matchedFranchise?.motorEngineNo || fields.motorNumber || '',
+                      chasisNo: matchedFranchise?.chasisNo || fields.chassisNumber || '',
+                      // Franchise details (for reference, but system generates new dates)
+                      franchiseNumber: matchedFranchise?.franchiseNumber || fields.franchiseNumber || '',
+                      dateApproved: fields.dateApproved,
+                      expiryDate: fields.expiryDate
+                      // Note: Documents are NOT pre-filled - user must upload new ones
                     }
                   });
                 }}
@@ -884,12 +918,14 @@ function FranchiseeListOperatorSide() {
                         variant="contained"
                         startIcon={<AutorenewIcon />}
                         onClick={() => {
-                          // Navigate to franchise application with all franchise data pre-filled (except documents)
+                          // Pre-fill all franchise data for renewal (similar to amendment workflow)
                           navigate('/operator/franchise/application', {
                             state: {
                               applicationType: 'renewal',
                               franchise: matchedFranchise,
-                              // Pre-fill all operator and motorcycle information
+                              previousFranchiseId: matchedFranchise?._id,
+                              franchiseChainId: matchedFranchise?.franchiseChainId,
+                              // Operator information
                               operatorName: matchedFranchise?.operatorName || user?.name || '',
                               operatorContactNumber: matchedFranchise?.operatorContactNumber || user?.phoneNumber || '',
                               operatorAddress: matchedFranchise?.operatorAddress || '',
@@ -899,11 +935,16 @@ function FranchiseeListOperatorSide() {
                               operatorBirthDate: matchedFranchise?.operatorBirthDate || '',
                               operatorCitizenship: matchedFranchise?.operatorCitizenship || '',
                               operatorEmail: matchedFranchise?.operatorEmail || user?.email || '',
+                              // Co-owner information
                               coOwnerName: matchedFranchise?.coOwnerName || '',
                               coOwnerAddress: matchedFranchise?.coOwnerAddress || '',
+                              coOwnerRelationship: matchedFranchise?.coOwnerRelationship || '',
+                              // Driver information
                               driverName: matchedFranchise?.driverName || '',
                               driversAddress: matchedFranchise?.driversAddress || '',
+                              // TODA membership
                               todaMembership: matchedFranchise?.todaMembership || '',
+                              // Motorcycle information
                               unitModel: matchedFranchise?.unitModel || fields.make || '',
                               colorMotor: matchedFranchise?.colorMotor || '',
                               sideCarColor: matchedFranchise?.sideCarColor || '',
@@ -911,11 +952,11 @@ function FranchiseeListOperatorSide() {
                               mvPlateNo: matchedFranchise?.mvPlateNo || fields.plateNumber || '',
                               motorEngineNo: matchedFranchise?.motorEngineNo || fields.motorNumber || '',
                               chasisNo: matchedFranchise?.chasisNo || fields.chassisNumber || '',
+                              // Franchise details (for reference, but system generates new dates)
                               franchiseNumber: matchedFranchise?.franchiseNumber || fields.franchiseNumber || '',
-                              franchiseChainId: matchedFranchise?.franchiseChainId || '',
-                              previousFranchiseId: matchedFranchise?._id,
                               dateApproved: fields.dateApproved,
                               expiryDate: fields.expiryDate
+                              // Note: Documents are NOT pre-filled - user must upload new ones
                             }
                           });
                         }}
