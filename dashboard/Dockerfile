@@ -27,11 +27,13 @@ COPY . .
 # These get baked into the build at build-time
 ARG VITE_API_BASE_URL=http://localhost:5170
 ARG VITE_CLIENT_REDIRECT=http://localhost:3000
+ARG VITE_DOCKER_ENV=true
 ARG NODE_ENV=production
 
 # Set environment variables for Vite build
 ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
 ENV VITE_CLIENT_REDIRECT=$VITE_CLIENT_REDIRECT
+ENV VITE_DOCKER_ENV=$VITE_DOCKER_ENV
 ENV NODE_ENV=$NODE_ENV
 
 # Build the application
@@ -76,15 +78,22 @@ server {
     location / {
         try_files \$uri \$uri/ /index.html;
         
-        # Cache static assets
+        # Cache static assets (shorter cache for development)
         location ~* \.(js|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot)$ {
-            expires 1y;
-            add_header Cache-Control "public, immutable";
+            expires 1h;  # Changed from 1y to 1h for faster updates
+            add_header Cache-Control "public, max-age=3600";
         }
     }
     
     # PWA Service Worker - must not be cached
     location = /sw.js {
+        add_header Cache-Control "no-cache, no-store, must-revalidate, max-age=0";
+        add_header Pragma "no-cache";
+        add_header Expires "0";
+    }
+    
+    # Also prevent caching of workbox files
+    location ~* /workbox-.+\.js$ {
         add_header Cache-Control "no-cache, no-store, must-revalidate";
         add_header Pragma "no-cache";
         add_header Expires "0";

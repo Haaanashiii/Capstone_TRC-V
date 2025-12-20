@@ -45,6 +45,8 @@ export default defineConfig(({ mode }) => ({
         cleanupOutdatedCaches: true,
         clientsClaim: true,
         skipWaiting: true,
+        // Force immediate activation of new service worker
+        inlineWorkboxRuntime: true,
         maximumFileSizeToCacheInBytes: 15 * 1024 * 1024, // 15 MB to accommodate large assets
         navigateFallback: '/index.html',
         navigateFallbackDenylist: [/^\/api\//], // Never cache API routes offline
@@ -118,12 +120,14 @@ export default defineConfig(({ mode }) => ({
             }
           },
           
-          // 4. JS/CSS bundles - StaleWhileRevalidate (fast load, update in background)
+          // 4. JS/CSS bundles - NetworkFirst (always check for updates first)
+          // Changed from StaleWhileRevalidate to ensure updates are fetched immediately
           {
             urlPattern: /\.(?:js|css)$/,
-            handler: 'StaleWhileRevalidate',
+            handler: 'NetworkFirst',
             options: {
               cacheName: 'static-resources-cache',
+              networkTimeoutSeconds: 3, // Fast timeout - fallback to cache if network slow
               expiration: {
                 maxEntries: 20,
                 maxAgeSeconds: 60 * 60 * 24 * 7 // 7 days

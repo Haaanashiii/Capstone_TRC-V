@@ -36,6 +36,15 @@ export function isDevelopment() {
 }
 
 /**
+ * Check if running in Docker environment
+ * @returns {boolean} True if in Docker
+ */
+export function isDockerEnvironment() {
+  return import.meta.env.VITE_DOCKER_ENV === 'true' ||
+         import.meta.env.DOCKER_ENV === 'true';
+}
+
+/**
  * Enforce HTTPS connection in production
  * Redirects HTTP to HTTPS automatically
  * @param {object} options - Configuration options
@@ -90,6 +99,12 @@ export function ensureHttpsUrl(url) {
   
   // Skip in development
   if (isDevelopment()) return url;
+  
+  // Skip in Docker environment (nginx handles HTTPS termination)
+  if (isDockerEnvironment()) {
+    logger.log('[Security] Docker environment detected, skipping HTTPS enforcement for API URL');
+    return url;
+  }
   
   // Force HTTPS for production API calls
   if (url.startsWith('http://')) {

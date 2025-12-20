@@ -1,4 +1,4 @@
-const { rateLimit } = require('express-rate-limit');
+const { rateLimit, ipKeyGenerator } = require('express-rate-limit');
 
 const RATE_LIMITER_ENABLED = true;
 
@@ -50,8 +50,9 @@ const accountLimiter = createRateLimiter({
   max: 5, // Strict per-account
   skipSuccessfulRequests: true,
   keyGenerator: (req) => {
-    // Use the identifier (email/username) if provided, fallback to IP
-    return req.body?.identifier || req.body?.email || req.ip;
+    // Use the identifier (email/username) if provided, fallback to IP with IPv6 support
+    const identifier = req.body?.identifier || req.body?.email;
+    return identifier || ipKeyGenerator(req);
   },
   message: { error: 'Too many login attempts for this account, please try again after 15 minutes', code: 'ACCOUNT_RATE_LIMIT_EXCEEDED' }
 });

@@ -907,8 +907,8 @@ export default function RequestAmendment() {
           
           {/* Logo Section */}
           <div className="franchise-app-logo">
-            <img src="/public/Logos/SBLogo.png" alt="Seal" />
-            <img src="/public/Logos/TRC-vLogo.png" alt="TRC-V Logo" />
+            <img src="/Logos/SBLogos.png" alt="Seal" />
+            <img src="/Logos/TRC-vLogo.png" alt="TRC-V Logo" />
           </div>
 
          

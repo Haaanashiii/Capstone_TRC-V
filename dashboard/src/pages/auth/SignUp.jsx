@@ -187,7 +187,7 @@ const SignUp = () => {
       <Box className="signup-root">
         <Paper elevation={0} className="signup-left">
           <Box style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '16px', marginBottom: '16px' }}>
-            <img src="/Logos/SBLogo.png" alt="SBLogo" className="signup-logo" />
+            <img src="/Logos/SBLogos.png" alt="SBLogo" className="signup-logo" />
             <img src="/Logos/TRC-vLogo.png" alt="QR" className="signup-qr" />
           </Box>
           <Typography variant="h4" className="signup-title" style={{ textAlign: 'center' }}>Create your Account</Typography>

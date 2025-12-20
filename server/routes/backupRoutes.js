@@ -21,7 +21,9 @@ const backupUpload = multer({
       cb(null, `import-${uniqueSuffix}${path.extname(file.originalname)}`);
     }
   }),
-  limits: { fileSize: 500 * 1024 * 1024 }, // 500MB max
+  limits: { 
+    fileSize: 10 * 1024 * 1024 * 1024 // 10GB max for production backups (5000+ users)
+  },
   fileFilter: (req, file, cb) => {
     // Accept .gz, .json.gz, .json files
     const allowedExts = ['.gz', '.json'];

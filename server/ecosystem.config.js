@@ -1,34 +1,59 @@
 /**
- * PM2 Ecosystem Configuration
- * =============================
+ * PM2 Ecosystem Configuration - Enterprise Scale
+ * ================================================
  * 
  * WHAT IS PM2?
  * PM2 is a process manager for Node.js that:
  *   - Keeps your server running 24/7 (auto-restarts on crash)
  *   - Runs multiple Node.js instances for better performance
  *   - Distributes incoming requests between instances
- *   - Saves logs to files
+ *   - Provides zero-downtime reloads
+ *   - Collects metrics and logs
  * 
- * WHEN TO USE:
- *   - Windows (your PC):     DON'T use PM2, just run: node index.js
- *   - Ubuntu (production):   USE PM2 with this config
+ * SCALING GUIDE:
+ * ┌─────────────────────────────────────────────────────────────────┐
+ * │ Scale Level    │ PM2_INSTANCES │ Docker Containers │ Total     │
+ * ├─────────────────────────────────────────────────────────────────┤
+ * │ Single Office  │ 2             │ 1                  │ 2 workers │
+ * │ City-wide      │ 4             │ 2                  │ 8 workers │
+ * │ Province       │ max           │ 4+                 │ 16+ workers│
+ * │ Enterprise     │ max           │ Docker Swarm/K8s   │ Auto-scale│
+ * └─────────────────────────────────────────────────────────────────┘
  * 
- * USAGE (on Ubuntu server):
- *   pm2 start ecosystem.config.js --env production    # Start all instances
- *   pm2 reload ecosystem.config.js --env production   # Restart without downtime
- *   pm2 stop all                                      # Stop everything
- *   pm2 logs                                          # View logs
- *   pm2 monit                                         # Live monitoring dashboard
- *   pm2 status                                        # Check status
+ * USAGE:
+ *   # Development (single instance)
+ *   node index.js
+ *   
+ *   # Production (cluster mode)
+ *   pm2 start ecosystem.config.js --env production
+ *   
+ *   # Override instances at runtime
+ *   PM2_INSTANCES=4 pm2 start ecosystem.config.js --env production
+ *   
+ *   # Zero-downtime reload
+ *   pm2 reload ecosystem.config.js --env production
+ *   
+ *   # View metrics and status
+ *   pm2 monit         # Live dashboard
+ *   pm2 plus          # PM2 Plus monitoring (optional)
+ *   pm2 status        # Quick status check
  * 
- * CLUSTER MODE:
- *   - "max" = use all CPU cores (e.g., 4 cores = 4 Node.js instances)
- *   - Or set a number: instances: 4
- * 
- * LOAD BALANCING:
- *   - PM2 cluster uses round-robin by default
- *   - For "least connections" behavior, use Nginx upstream (see nginx-production.conf)
+ * ENVIRONMENT VARIABLES:
+ *   PM2_INSTANCES     - Number of workers (default: 2, use "max" for all CPUs)
+ *   PM2_EXEC_MODE     - "cluster" or "fork" (default: cluster)
+ *   PM2_MAX_MEMORY    - Memory limit per worker (default: 512M)
  */
+
+// Determine instance count from environment or default
+const getInstanceCount = () => {
+  const envInstances = process.env.PM2_INSTANCES;
+  if (envInstances === 'max') return 0; // PM2 interprets 0 as "max"
+  if (envInstances && !isNaN(parseInt(envInstances))) {
+    return parseInt(envInstances);
+  }
+  // Default: 2 instances (good balance for most deployments)
+  return 2;
+};
 
 module.exports = {
   apps: [
@@ -36,66 +61,125 @@ module.exports = {
       name: 'trc-v-api',
       script: 'index.js',
       
-      // CLUSTER MODE - Multiple Node.js instances
-      // "max" = Use all available CPU cores (recommended for production)
-      instances: 1, 
-      exec_mode: 'cluster',
+      // ═══════════════════════════════════════════════════════════════
+      // CLUSTER MODE CONFIGURATION
+      // ═══════════════════════════════════════════════════════════════
+      // PM2_INSTANCES=max for all CPUs, or set specific number
+      instances: getInstanceCount(),
+      exec_mode: process.env.PM2_EXEC_MODE || 'cluster',
       
-      // Auto-restart settings
-      watch: false,  // Don't watch files in production
-      max_memory_restart: '500M',  // Restart if using > 500MB RAM
+      // ═══════════════════════════════════════════════════════════════
+      // MEMORY MANAGEMENT
+      // ═══════════════════════════════════════════════════════════════
+      max_memory_restart: process.env.PM2_MAX_MEMORY || '512M',
+      node_args: [
+        '--max-old-space-size=512',    // V8 heap limit (match max_memory_restart)
+        '--optimize-for-size',          // Optimize memory over speed
+        '--gc-interval=100'              // More frequent garbage collection
+      ],
       
-      // Environment variables for production
+      // ═══════════════════════════════════════════════════════════════
+      // ENVIRONMENT VARIABLES
+      // ═══════════════════════════════════════════════════════════════
       env_production: {
         NODE_ENV: 'production',
-        PORT: 5170
+        PORT: 5170,
+        UV_THREADPOOL_SIZE: 16,         // Increase thread pool for I/O
+        NODE_OPTIONS: '--enable-source-maps'
       },
       
-      // Environment variables for development
       env_development: {
         NODE_ENV: 'development',
-        PORT: 5170
+        PORT: 5170,
+        DEBUG: 'true'
       },
       
-      // Logging
+      // ═══════════════════════════════════════════════════════════════
+      // GRACEFUL SHUTDOWN (Critical for zero-downtime deployments)
+      // ═══════════════════════════════════════════════════════════════
+      kill_timeout: 10000,              // 10s to close connections
+      wait_ready: true,                 // Wait for process.send('ready')
+      listen_timeout: 15000,            // 15s to start listening
+      shutdown_with_message: true,      // Send SIGINT message
+      
+      // ═══════════════════════════════════════════════════════════════
+      // AUTO-RESTART CONFIGURATION
+      // ═══════════════════════════════════════════════════════════════
+      autorestart: true,
+      max_restarts: 15,                 // Allow more restarts before giving up
+      min_uptime: '10s',
+      restart_delay: 1000,
+      exp_backoff_restart_delay: 100,   // Exponential backoff: 100ms, 200ms, 400ms...
+      
+      // ═══════════════════════════════════════════════════════════════
+      // LOGGING (Enterprise-ready)
+      // ═══════════════════════════════════════════════════════════════
       log_file: './logs/combined.log',
       error_file: './logs/error.log',
       out_file: './logs/out.log',
-      log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss.SSS Z',
       merge_logs: true,
       
-      // Graceful shutdown
-      kill_timeout: 5000,
-      wait_ready: true,
-      listen_timeout: 10000,
+      // Rotate logs (prevents disk fill)
+      // Requires: pm2 install pm2-logrotate
+      // Configure with: pm2 set pm2-logrotate:max_size 50M
       
-      // Auto-restart on crash
-      autorestart: true,
-      max_restarts: 10,
-      min_uptime: '10s',
-      restart_delay: 1000,
+      // ═══════════════════════════════════════════════════════════════
+      // WATCH MODE (Development only)
+      // ═══════════════════════════════════════════════════════════════
+      watch: false,
+      ignore_watch: ['node_modules', 'logs', 'uploads', 'backups', '*.log'],
       
-      // Exponential backoff for restarts (prevents crash loops)
-      exp_backoff_restart_delay: 100
+      // ═══════════════════════════════════════════════════════════════
+      // CRON RESTART (Optional - restart daily at 4 AM for memory cleanup)
+      // ═══════════════════════════════════════════════════════════════
+      // cron_restart: '0 4 * * *',
+      
+      // ═══════════════════════════════════════════════════════════════
+      // SOURCE MAPS (Better error stack traces)
+      // ═══════════════════════════════════════════════════════════════
+      source_map_support: true
     }
   ],
 
-  // Deployment configuration (optional - for git pull + restart)
+  // ═══════════════════════════════════════════════════════════════════
+  // DEPLOYMENT CONFIGURATION
+  // ═══════════════════════════════════════════════════════════════════
+  // Usage: pm2 deploy production setup && pm2 deploy production
   deploy: {
     production: {
-      // SSH user and host
-      user: 'ubuntu',  // Change to your username
-      host: 'YOUR_SERVER_IP',  // Change to your server IP
-      
-      // Repository
+      user: process.env.DEPLOY_USER || 'ubuntu',
+      host: process.env.DEPLOY_HOST || 'YOUR_SERVER_IP',
       ref: 'origin/main',
       repo: 'git@github.com:ray-Gabs/CAPSTONE_TRC-V.git',
       path: '/var/www/trc-v',
       
-      // Commands to run after git pull
+      // Pre-deploy: Pull and install
       'pre-deploy-local': '',
-      'post-deploy': 'cd server && npm install && pm2 reload ecosystem.config.js --env production',
-      'pre-setup': ''
+      'post-deploy': [
+        'cd server',
+        'npm ci --only=production',
+        'pm2 reload ecosystem.config.js --env production --update-env'
+      ].join(' && '),
+      'pre-setup': 'apt-get update && apt-get install -y git',
+      
+      // Environment variables for deployment
+      env: {
+        NODE_ENV: 'production'
+      }
+    },
+    
+    // Staging environment (optional)
+    staging: {
+      user: process.env.STAGING_USER || 'ubuntu',
+      host: process.env.STAGING_HOST || 'YOUR_STAGING_IP',
+      ref: 'origin/develop',
+      repo: 'git@github.com:ray-Gabs/CAPSTONE_TRC-V.git',
+      path: '/var/www/trc-v-staging',
+      'post-deploy': 'cd server && npm ci && pm2 reload ecosystem.config.js --env staging',
+      env: {
+        NODE_ENV: 'staging'
+      }
     }
   }
 };

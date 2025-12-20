@@ -1124,8 +1124,8 @@ export default function FranchiseApplication() {
 
 
           <div className="franchise-app-logo">
-            <img src="/public/Logos/SBLogo.png" alt="Seal" />
-            <img src="/public/Logos/TRC-vLogo.png" alt="TRC-V Logo" />
+            <img src="/Logos/SBLogos.png" alt="Seal" />
+            <img src="/Logos/TRC-vLogo.png" alt="TRC-V Logo" />
           </div>
           <div className="franchise-app-title">{applicationType === 'renewal' ? t.renewalTitle : t.title}</div>
           <div className="franchise-app-date-row">

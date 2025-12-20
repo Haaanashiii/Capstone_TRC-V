@@ -139,7 +139,7 @@ export default function ReportDriver() {
             </Box>
             <Box sx={{ display: 'flex', alignItems: 'center' }}>
               <img 
-                src="/Logos/SBLogo.png" 
+                src="/Logos/SBLogos.png" 
                 alt="Solano Logo" 
                 style={{ 
                   width: '48px', 

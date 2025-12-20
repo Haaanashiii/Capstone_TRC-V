@@ -177,7 +177,7 @@ const Login = () => {
       <Box className="login-root">
         <Paper elevation={0} className="login-left">
           <Box className="login-header">
-            <img src="/Logos/SBLogo.png" alt="SBLogo" className="login-logo" />
+            <img src="/Logos/SBLogos.png" alt="SBLogo" className="login-logo" />
             <img src="/Logos/TRC-vLogo.png" alt="QR" className="login-qr" />
           </Box>
           <Typography variant="h4" className="login-title">Sign in</Typography>
