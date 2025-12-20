@@ -266,7 +266,7 @@ function TricycleIncidentReports() {
       const response = await incidentReportsAPI.getAll({
         page: page + 1,
         limit: rowsPerPage,
-        search: searchTerm,
+        search: debouncedSearchTerm,
         status: statusFilter,
         category: categoryFilter,
         sortBy,
@@ -286,7 +286,7 @@ function TricycleIncidentReports() {
     } finally {
       setLoading(false);
     }
-  }, [page, rowsPerPage, searchTerm, statusFilter, categoryFilter, sortBy, sortOrder]);
+  }, [page, rowsPerPage, debouncedSearchTerm, statusFilter, categoryFilter, sortBy, sortOrder]);
 
   // Load reports and setup WebSocket
   useEffect(() => {

@@ -235,11 +235,11 @@ function AuditTrail() {
 
   // Apply client-side search filter (for loaded data)
   const filteredLogs = useMemo(() => {
-    if (!searchQuery.trim()) {
+    if (!debouncedSearchQuery.trim()) {
       return auditLogs;
     }
 
-    const query = searchQuery.toLowerCase();
+    const query = debouncedSearchQuery.toLowerCase();
     return auditLogs.filter(log => 
       log.username?.toLowerCase().includes(query) ||
       log.email?.toLowerCase().includes(query) ||
@@ -248,7 +248,7 @@ function AuditTrail() {
       log.ipAddress?.includes(query) ||
       log.resourceType?.toLowerCase().includes(query)
     );
-  }, [auditLogs, searchQuery]);
+  }, [auditLogs, debouncedSearchQuery]);
 
   // Reset page when filters change
   useEffect(() => {

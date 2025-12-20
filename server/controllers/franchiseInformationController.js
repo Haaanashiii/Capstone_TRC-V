@@ -48,9 +48,13 @@ exports.getAllFranchiseInformation = async (req, res, next) => {
     if (status) query.franchiseStatus = status;
     if (barangay) query.operatorBarangay = barangay;
     if (search) {
+      // Search across multiple fields for better user experience
+      // Users can search by franchise number, owner name, plate number, or barangay
       query.$or = [
         { franchiseNumber: { $regex: search, $options: 'i' } },
-        { operatorName: { $regex: search, $options: 'i' } }
+        { operatorName: { $regex: search, $options: 'i' } },
+        { mvPlateNo: { $regex: search, $options: 'i' } },
+        { operatorBarangay: { $regex: search, $options: 'i' } }
       ];
     }
     

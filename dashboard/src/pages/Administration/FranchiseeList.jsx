@@ -2221,6 +2221,7 @@ function FranchiseeList() {
   const debouncedSearchTerm = useDebounce(searchTerm, 500);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [totalFranchises, setTotalFranchises] = useState(0);
   const [isEditing, setIsEditing] = useState(false);
   const [selectedFranchisee, setSelectedFranchisee] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
@@ -2288,21 +2289,44 @@ function FranchiseeList() {
   };
 
   // Fetch franchisees from API (from franchise information, not applications)
+  // Now uses server-side pagination and search for scalability with 2000+ records
   const fetchFranchisees = useCallback(async () => {
     setLoading(true);
     setError('');
     
     try {
-      logger.log('[FranchiseeList] Fetching franchises...');
-      const response = await franchiseInformationAPI.getAll();
+      logger.log('[FranchiseeList] Fetching franchises with server-side search...');
+      
+      // Build query params for server-side filtering
+      const params = {
+        page: page + 1, // Backend uses 1-indexed pages
+        limit: rowsPerPage,
+      };
+      
+      // Add search term if present (server will search franchiseNumber and operatorName)
+      if (debouncedSearchTerm.trim()) {
+        params.search = debouncedSearchTerm.trim();
+      }
+      
+      // Add barangay filter if selected
+      if (selectedBarangay !== 'all') {
+        params.barangay = selectedBarangay;
+      }
+      
+      const response = await franchiseInformationAPI.getAll(params);
       
       if (!response?.data?.success) {
         throw new Error('Failed to fetch franchises: Invalid response format');
       }
       
-      // Backend returns { success, data, count }, axios unwraps to response.data
-      const data = response.data?.data || response.data || [];
-      logger.log('[FranchiseeList] Franchises fetched:', data.length);
+      // Backend returns { success, data, count, total, page, pages }
+      const data = response.data?.data || [];
+      const serverTotal = response.data?.total || response.data?.count || data.length;
+      
+      logger.log('[FranchiseeList] Server returned:', data.length, 'of', serverTotal, 'total franchises');
+      
+      // Set total for pagination (from server)
+      setTotalFranchises(serverTotal);
       
       // Transform the data to match the expected format
       // Data comes from FranchiseInformation model (approved franchises)
@@ -2426,10 +2450,16 @@ function FranchiseeList() {
       logger.error('Error fetching franchisees:', err);
       setError('Failed to load franchisees. Please try again.');
       setFranchisees([]);
+      setTotalFranchises(0);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [page, rowsPerPage, debouncedSearchTerm, selectedBarangay]);
+
+  // Reset to first page when search term changes
+  useEffect(() => {
+    setPage(0);
+  }, [debouncedSearchTerm, selectedBarangay]);
 
   // Load franchisees on component mount
   useEffect(() => {
@@ -2465,38 +2495,19 @@ function FranchiseeList() {
     return uniqueBarangays.sort();
   }, [franchisees]);
 
-  // Filtered franchisees based on search term and barangay
+  // Filtered franchisees - server already handles filtering, just pass through
+  // Client-side filtering kept for additional local refinement if needed
   const filteredFranchisees = useMemo(() => {
-    let filtered = franchisees;
-    
-    // Filter by barangay
-    if (selectedBarangay !== 'all') {
-      filtered = filtered.filter(f => f.barangay === selectedBarangay);
-    }
-    
-    // Filter by search term
-    if (searchTerm.trim()) {
-      const searchLower = searchTerm.toLowerCase();
-      filtered = filtered.filter(
-        (franchisee) =>
-          franchisee.franchiseeName.toLowerCase().includes(searchLower) ||
-          franchisee.franchiseNumber.includes(searchLower) ||
-          franchisee.plateNumber.toLowerCase().includes(searchLower) ||
-          franchisee.recordNumber.includes(searchLower) ||
-          franchisee.applicationType.toLowerCase().includes(searchLower)
-      );
-    }
-    
-    return filtered;
-  }, [franchisees, searchTerm, selectedBarangay]);
+    // Server handles search and barangay filtering now
+    // Just return the server-fetched data
+    return franchisees;
+  }, [franchisees]);
 
-  // Paginated data
+  // Paginated data - server already returns paginated data
   const paginatedFranchisees = useMemo(() => {
-    return filteredFranchisees.slice(
-      page * rowsPerPage,
-      page * rowsPerPage + rowsPerPage
-    );
-  }, [filteredFranchisees, page, rowsPerPage]);
+    // Server handles pagination, just return the data as-is
+    return filteredFranchisees;
+  }, [filteredFranchisees]);
 
   const handleChangePage = useCallback((event, newPage) => {
     setPage(newPage);
@@ -3308,7 +3319,7 @@ function FranchiseeList() {
         {(searchTerm || selectedBarangay !== 'all') && (
           <Typography variant="body2" sx={{ mb: 2, color: '#666' }}>
             {selectedBarangay !== 'all' && `Barangay: ${selectedBarangay} - `}
-            Found {filteredFranchisees.length} result{filteredFranchisees.length !== 1 ? 's' : ''}
+            Found {totalFranchises} result{totalFranchises !== 1 ? 's' : ''}
           </Typography>
         )}
 
@@ -3423,7 +3434,7 @@ function FranchiseeList() {
             <TablePagination
               rowsPerPageOptions={[10, 15, 25, 50]}
               component="div"
-              count={filteredFranchisees.length}
+              count={totalFranchises}
               rowsPerPage={rowsPerPage}
               page={page}
               onPageChange={handleChangePage}

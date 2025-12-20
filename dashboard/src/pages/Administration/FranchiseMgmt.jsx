@@ -113,6 +113,7 @@ function FranchiseMgmt() {
   
   // Franchise search state for Renewal/Amendment
   const [franchiseSearch, setFranchiseSearch] = useState('')
+  const debouncedFranchiseSearch = useDebounce(franchiseSearch, 300)
   const [allActiveFranchises, setAllActiveFranchises] = useState([])
   const [selectedFranchise, setSelectedFranchise] = useState(null)
   const [loadingFranchises, setLoadingFranchises] = useState(false)
@@ -384,15 +385,6 @@ function FranchiseMgmt() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAnyModalOpen, userRole, deduplicateApplications]) // Removed fetchAllPending from dependencies to prevent refetch loops
 
-  // Debounce search term
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearchTerm(searchTerm)
-    }, 300)
-    
-    return () => clearTimeout(timer)
-  }, [searchTerm])
-
   /** Filter applications based on search term and status */
   const filteredApplications = useMemo(() => {
     const searchLower = debouncedSearchTerm.toLowerCase()
@@ -451,21 +443,26 @@ function FranchiseMgmt() {
   }, [revokeAllFormBlobs])
   
   /**
-   * Load all franchises for Renewal/Amendment (Active, Expired, Revoked)
-   * Loaded once, filtered client-side
+   * Search franchises using server-side API (efficient for 2000+ records)
+   * Only fetches matching results instead of loading entire database
    */
-  const loadAllActiveFranchises = useCallback(async () => {
-    if (allActiveFranchises.length > 0) return // Already loaded
+  const searchFranchises = useCallback(async (searchTerm) => {
+    if (!searchTerm || searchTerm.length < 2) {
+      setAllActiveFranchises([])
+      return
+    }
     
     try {
       setLoadingFranchises(true)
-      logger.log('[FranchiseMgmt] Loading all franchises (Active, Expired, Revoked)...')
+      logger.log('[FranchiseMgmt] Searching franchises for:', searchTerm)
       
-      const response = await franchiseInformationAPI.getAll()
+      // Use server-side search with limit for autocomplete efficiency
+      const response = await franchiseInformationAPI.getAll({
+        search: searchTerm,
+        limit: 20 // Only return top 20 matches for autocomplete
+      })
       
-      logger.log('[FranchiseMgmt] Franchises response:', response.data)
-      
-      // Extract franchises from response (similar to FranchiseeList)
+      // Extract franchises from response
       let franchises = []
       if (response.data?.success && response.data?.data) {
         franchises = response.data.data
@@ -475,39 +472,36 @@ function FranchiseMgmt() {
         franchises = response.data
       }
       
-      // Keep ALL franchises (Active, Expired, Revoked) for proper validation
-      logger.log('[FranchiseMgmt] Loaded all franchises:', franchises.length)
+      logger.log('[FranchiseMgmt] Server returned', franchises.length, 'matching franchises')
       setAllActiveFranchises(franchises)
     } catch (error) {
-      logger.error('[FranchiseMgmt] Error loading franchises:', error)
+      logger.error('[FranchiseMgmt] Error searching franchises:', error)
       setNotification({ 
         open: true, 
-        message: error.response?.data?.error || 'Failed to load franchises', 
+        message: error.response?.data?.error || 'Failed to search franchises', 
         type: 'error' 
       })
       setAllActiveFranchises([])
     } finally {
       setLoadingFranchises(false)
     }
-  }, [allActiveFranchises.length])
+  }, [])
+  
+  // Trigger server-side search when debounced franchise search changes
+  useEffect(() => {
+    if (applicationTypeTab === 1 || applicationTypeTab === 2) {
+      searchFranchises(debouncedFranchiseSearch)
+    }
+  }, [debouncedFranchiseSearch, applicationTypeTab, searchFranchises])
   
   /**
-   * Filter franchises client-side based on search term (like FranchiseeList)
+   * Filtered franchises - server already handles search filtering
+   * Just return server results (already filtered and limited)
    */
   const filteredFranchises = useMemo(() => {
-    if (!franchiseSearch || franchiseSearch.length < 2) {
-      return []
-    }
-    
-    const searchLower = franchiseSearch.toLowerCase()
-    return allActiveFranchises.filter(
-      (franchise) =>
-        franchise.franchiseNumber?.toLowerCase().includes(searchLower) ||
-        franchise.operatorName?.toLowerCase().includes(searchLower) ||
-        franchise.mvPlateNo?.toLowerCase().includes(searchLower) ||
-        franchise.operatorBarangay?.toLowerCase().includes(searchLower)
-    )
-  }, [allActiveFranchises, franchiseSearch])
+    // Server returns filtered results, just return them
+    return allActiveFranchises
+  }, [allActiveFranchises])
   
   /**
    * Prefill form data from selected franchise (excluding documents)
@@ -655,16 +649,15 @@ function FranchiseMgmt() {
     setFranchiseSearch('')
     setSelectedFranchise(null)
     setFormData(INITIAL_FORM_DATA)
+    setAllActiveFranchises([]) // Clear previous search results
     
     // Clear processing states
     setProcessingFiles({})
     setCompressionProgress({})
     
-    // Load franchises when switching to Renewal or Amendment tab
-    if (newValue === 1 || newValue === 2) {
-      loadAllActiveFranchises()
-    }
-  }, [revokeAllFormBlobs, loadAllActiveFranchises])
+    // For Renewal/Amendment tabs, user will type to search (server-side)
+    // No need to pre-load all franchises anymore
+  }, [revokeAllFormBlobs])
   
   /**
    * Open view modal with selected application data

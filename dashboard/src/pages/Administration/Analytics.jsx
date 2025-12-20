@@ -3,6 +3,7 @@ import Sidebar from './Sidebar';
 import KpiCard from '../../components/KpiCard';
 import PageLoader, { CardLoader } from '../../components/PageLoader';
 import AnimatedPage, { AnimatedSection } from '../../components/AnimatedPage';
+import { useDebounce } from '../../hooks/useDebounce';
 import '../../Styles/Administrator_Css/Analytics.css';
 import '../../Styles/Administrator_Css/SharedTable.css';
 import {
@@ -86,6 +87,7 @@ function Analytics() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const debouncedSearchQuery = useDebounce(searchQuery, 300);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(15);
   
@@ -287,13 +289,13 @@ function Analytics() {
 
   // Filter data for table only (search applies only here)
   const filteredTableData = useMemo(() => {
-    if (!searchQuery.trim()) return analyticsData.barangayData;
+    if (!debouncedSearchQuery.trim()) return analyticsData.barangayData;
     
-    const query = searchQuery.toLowerCase();
+    const query = debouncedSearchQuery.toLowerCase();
     return analyticsData.barangayData.filter(item => 
       item.barangay.toLowerCase().includes(query)
     );
-  }, [analyticsData.barangayData, searchQuery]);
+  }, [analyticsData.barangayData, debouncedSearchQuery]);
   
   // Sort table data based on selected filter
   const sortedTableData = useMemo(() => {

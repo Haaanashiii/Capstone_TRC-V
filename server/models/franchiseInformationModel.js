@@ -149,12 +149,16 @@ franchiseInformationSchema.index({
   operatorName: 'text',
   franchiseNumber: 'text',
   operatorAddress: 'text',
-  driverName: 'text'
+  driverName: 'text',
+  mvPlateNo: 'text',
+  operatorBarangay: 'text'
 }, {
   weights: {
     franchiseNumber: 10,
     operatorName: 5,
+    mvPlateNo: 5,
     driverName: 3,
+    operatorBarangay: 2,
     operatorAddress: 1
   },
   name: 'franchise_text_search'

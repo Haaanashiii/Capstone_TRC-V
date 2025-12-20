@@ -257,7 +257,7 @@ function FranchiseLinking() {
       const response = await franchiseLinkRequestAPI.getAll({
         page: page + 1,
         limit: rowsPerPage,
-        search: searchTerm,
+        search: debouncedSearchTerm,
         status: statusFilter,
         sortBy,
         sortOrder
@@ -278,7 +278,7 @@ function FranchiseLinking() {
     } finally {
       setLoading(false);
     }
-  }, [page, rowsPerPage, searchTerm, statusFilter, sortBy, sortOrder]);
+  }, [page, rowsPerPage, debouncedSearchTerm, statusFilter, sortBy, sortOrder]);
 
   const fetchStatistics = useCallback(async () => {
     try {

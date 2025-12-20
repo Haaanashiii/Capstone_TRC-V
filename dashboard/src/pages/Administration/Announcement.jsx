@@ -117,19 +117,19 @@ function Announcement() {
 
   // Memoized filtered announcements
   const filteredAnnouncements = useMemo(() => {
-    if (!searchQuery.trim()) return announcements;
+    if (!debouncedSearchQuery.trim()) return announcements;
 
-    const query = searchQuery.toLowerCase();
+    const query = debouncedSearchQuery.toLowerCase();
     return announcements.filter(announcement =>
       announcement.title?.toLowerCase().includes(query) ||
       announcement.description?.toLowerCase().includes(query)
     );
-  }, [searchQuery, announcements]);
+  }, [debouncedSearchQuery, announcements]);
 
   // Reset page when search changes
   useEffect(() => {
     setPage(0);
-  }, [searchQuery]);
+  }, [debouncedSearchQuery]);
 
   // Memoized paginated announcements
   const paginatedAnnouncements = useMemo(() => {

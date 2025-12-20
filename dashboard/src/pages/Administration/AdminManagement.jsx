@@ -173,9 +173,9 @@ function AdminManagement() {
   const filteredUsers = useMemo(() => {
     let result = [...users];
     
-    // Apply search filter
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
+    // Apply search filter (using debounced value for performance)
+    if (debouncedSearchQuery.trim()) {
+      const query = debouncedSearchQuery.toLowerCase();
       result = result.filter(user => 
         user.name?.toLowerCase().includes(query) ||
         user.username?.toLowerCase().includes(query) ||
@@ -216,12 +216,12 @@ function AdminManagement() {
     });
     
     return result;
-  }, [searchQuery, users, statusFilter, roleFilter, sortBy]);
+  }, [debouncedSearchQuery, users, statusFilter, roleFilter, sortBy]);
 
   // Reset page when search changes
   useEffect(() => {
     setPage(0);
-  }, [searchQuery]);
+  }, [debouncedSearchQuery]);
 
   // Memoized paginated users
   const paginatedUsers = useMemo(() => {
