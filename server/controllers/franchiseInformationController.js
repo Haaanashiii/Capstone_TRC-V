@@ -619,8 +619,10 @@ exports.getFranchisesByUser = async (req, res, next) => {
     }
     
     console.log('[getFranchisesByUser] Found user with _id:', user._id);
+    console.log('[getFranchisesByUser] User franchiseChainIds:', user.franchiseChainIds);
     
     // Fetch all current franchises for this user using their MongoDB _id
+    console.log('[getFranchisesByUser] Querying with linkedUser:', user._id);
     const franchises = await FranchiseInformation.find({
       linkedUser: user._id,
       isCurrentVersion: true

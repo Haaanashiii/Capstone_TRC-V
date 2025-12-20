@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { Box, Typography, Button, Paper, Avatar, TextField, Dialog, DialogTitle, DialogContent, DialogActions, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, IconButton, Menu, MenuItem, Chip } from '@mui/material';
@@ -15,16 +15,19 @@ import dayjs from 'dayjs';
 import { franchiseInformationAPI } from '../Services/api';
 import { logger } from '../../utils/logger';
 import websocketService from '../../services/websocket';
+import { useTokenUser, useFranchiseStatus, useDriverTranslations } from '../../hooks/useDriverUtils';
+import '../../Styles/animations.css';
 
 function FranchiseeListOperatorSide() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user: authUser } = useAuth(); // Get authenticated user from context
-  const user = authUser; // Alias for backward compatibility with existing code
-  const franchiseFromState = location.state?.franchise; // Get franchise from navigation state
+  const { user: authUser } = useAuth();
+  const user = authUser; // Alias for backward compatibility
+  const tokenUser = useTokenUser();
+  const { franchiseStatus, setFranchiseStatus } = useFranchiseStatus();
+  const franchiseFromState = location.state?.franchise;
   
-  const [language, setLanguage] = useState('en'); // Language state
-  const [franchiseStatus, setFranchiseStatus] = useState(null); // Franchise status state
+  const [language, setLanguage] = useState('en');
   const [matchedFranchise, setMatchedFranchise] = useState(franchiseFromState || null);
   
   // Modal states
@@ -32,71 +35,20 @@ function FranchiseeListOperatorSide() {
   const [amendmentModalOpen, setAmendmentModalOpen] = useState(false);
   
   // User's franchises list (fetched from API)
-  const [allUserFranchises, setAllUserFranchises] = useState([]); // Store ALL franchises for this user
-  const [loadingFranchises, setLoadingFranchises] = useState(false); // Loading state for franchises
+  const [allUserFranchises, setAllUserFranchises] = useState([]);
+  const [loadingFranchises, setLoadingFranchises] = useState(false);
   
-  // Translation object
-  const translations = {
-    en: {
-      activeFranchise: "ACTIVE FRANCHISE",
-      expiredFranchise: "EXPIRED FRANCHISE",
-      noFranchise: "NO FRANCHISE",
-      addressNotProvided: "Address not provided",
-      singleNoCoOwner: "SINGLE | NO CO-OWNER",
-      toggleLanguage: "Tagalog"
-    },
-    tl: {
-      activeFranchise: "AKTIBONG PRANGKISA",
-      expiredFranchise: "NATAPOS NA ANG PRANGKISA",
-      noFranchise: "WALANG PRANGKISA",
-      addressNotProvided: "Walang nakalagay na address",
-      singleNoCoOwner: "NAG-IISA | WALANG KASAMA",
-      toggleLanguage: "English"
-    }
-  };
-  
-  const t = translations[language];
-  
-  // Check franchise status from sessionStorage or API
-  const checkFranchiseStatus = () => {
-    // Check if user has linked franchise (stored in sessionStorage - cleared on tab close)
-    const franchiseData = sessionStorage.getItem('userFranchiseInfo');
-    if (franchiseData) {
-      try {
-        const parsedData = JSON.parse(franchiseData);
-        setFranchiseStatus(parsedData.status || 'ACTIVE');
-      } catch (error) {
-        logger.error('Error parsing franchise data:', error);
-        setFranchiseStatus(null);
-      }
-    } else {
-      setFranchiseStatus(null);
-    }
-  };
-  
-  // Get user info from token
-  const getUserInfo = () => {
-    // Token is stored in sessionStorage (secure, cleared on tab close)
-    const token = sessionStorage.getItem('accessToken');
-    if (!token) return null;
-    
-    try {
-      const payload = JSON.parse(atob(token.split('.')[1]));
-      return payload;
-    } catch {
-      return null;
-    }
-  };
+  // Use memoized translations from hook
+  const t = useDriverTranslations(language);
 
   // Fetch full user details from the server
-  const fetchUserDetails = React.useCallback(async () => {
+  const fetchUserDetails = useCallback(async () => {
     try {
-      // Token is stored in sessionStorage
       const token = sessionStorage.getItem('accessToken');
       if (!token) return;
 
       const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170';
-      logger.log('[FranchiseeListOperatorSide] Fetching user details from:', `${API_BASE_URL}/auth/me`);
+      logger.log('[FranchiseeListOperatorSide] Fetching user details');
       
       const response = await fetch(`${API_BASE_URL}/auth/me`, {
         headers: {
@@ -105,15 +57,13 @@ function FranchiseeListOperatorSide() {
         }
       });
 
-      logger.log('FranchiseeListOperatorSide: Response status:', response.status);
-
       if (response.ok) {
-        logger.log('FranchiseeListOperatorSide: User details received');
+        logger.log('[FranchiseeListOperatorSide] User details received');
       } else {
-        logger.log('FranchiseeListOperatorSide: /auth/me returned non-ok. Using context user.');
+        logger.log('[FranchiseeListOperatorSide] /auth/me returned non-ok');
       }
     } catch (error) {
-      logger.error('FranchiseeListOperatorSide: Error fetching user details:', error);
+      logger.error('[FranchiseeListOperatorSide] Error fetching user details:', error);
     }
   }, []);
 
@@ -296,8 +246,7 @@ function FranchiseeListOperatorSide() {
            
             sessionStorage.setItem('userFranchiseInfo', JSON.stringify(franchiseInfo));
             sessionStorage.setItem('franchiseLinked', 'true');
-            const tokenUserId = getUserInfo()?.id;
-            if (tokenUserId) sessionStorage.setItem('franchiseOwnerUserId', tokenUserId);
+            if (tokenUser?.id) sessionStorage.setItem('franchiseOwnerUserId', tokenUser.id);
 
             setMatchedFranchise(matched);
     

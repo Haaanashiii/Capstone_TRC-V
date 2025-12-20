@@ -144,3 +144,18 @@ button:focus-visible {
   z-index: 1300 !important;
 }
 
+/* SweetAlert2 z-index fix - ensure alerts appear above MUI Dialogs */
+.swal2-container {
+  z-index: 9999 !important;
+}
+
+/* Custom SweetAlert container class used in Driver pages */
+.swal-container {
+  z-index: 9999 !important;
+}
+
+/* Ensure SweetAlert backdrop appears correctly */
+.swal2-backdrop-show {
+  z-index: 9998 !important;
+}
+

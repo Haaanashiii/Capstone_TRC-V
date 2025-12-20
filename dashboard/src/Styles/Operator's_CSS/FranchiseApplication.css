@@ -262,6 +262,28 @@ html, body {
   .franchise-app-section-line {
     display: none;
   }
+  
+  /* Critical: Prevent text field shrinking on mobile */
+  .franchise-app-upload-filename,
+  .franchise-app-input,
+  .franchise-app-field,
+  .MuiTextField-root,
+  .MuiFormControl-root,
+  .MuiInputBase-root,
+  .MuiOutlinedInput-root {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    min-height: 48px !important; /* Touch-friendly size */
+    box-sizing: border-box !important;
+  }
+  
+  .MuiInputBase-input,
+  .MuiOutlinedInput-input {
+    font-size: 16px !important; /* Prevents zoom on iOS */
+    padding: 14px !important;
+  }
+  
   .franchise-app-upload-filename,
   .franchise-app-input,
   .franchise-app-field {
@@ -307,13 +329,17 @@ html, body {
   input[type="text"],
   input[type="email"],
   input[type="tel"],
+  input[type="number"],
+  input[type="date"],
   textarea,
   select,
   .MuiTextField-root,
   .MuiFormControl-root {
     width: 100% !important;
     max-width: 100% !important;
-    box-sizing: border-box;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
+    font-size: 16px !important; /* Prevents iOS zoom */
   }
 }
 

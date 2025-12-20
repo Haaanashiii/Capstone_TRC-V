@@ -104,6 +104,13 @@ const PAGE_ACCESS_CONFIG = [
         icon: '🏢'
       },
       { 
+        key: 'franchise-linking', 
+        label: 'Franchise Linking', 
+        path: '/franchise-linking',
+        description: 'Review and approve franchise linking requests',
+        icon: '🔗'
+      },
+      { 
         key: 'certificate', 
         label: 'Certificate', 
         path: '/certificate',
@@ -663,6 +670,12 @@ function Settings() {
    * Shows progress indicator and refreshes backup list on completion
    */
   const handleCreateBackup = useCallback(async () => {
+    // Prevent creating backup while another operation is in progress
+    if (isCreatingBackup || isRestoring || isExportingFull) {
+      showNotification('Another backup operation is in progress. Please wait.', 'warning');
+      return;
+    }
+
     setIsCreatingBackup(true);
     setBackupProgress(0);
 
@@ -677,6 +690,7 @@ function Settings() {
     }, 500);
 
     try {
+      showNotification('Creating backup...', 'info');
       const response = await backupService.createManualBackup('Manual backup from Settings page');
       
       clearInterval(progressInterval);
@@ -692,20 +706,39 @@ function Settings() {
     } catch (error) {
       clearInterval(progressInterval);
       logger.error('[Settings] Create backup error:', error);
-      showNotification(error.message || 'Failed to create backup', 'error');
+      const errorMessage = error.message || 'Failed to create backup';
+      showNotification(
+        errorMessage.includes('in progress') ?
+          'A backup is already in progress. Please wait for it to complete.' :
+        errorMessage.includes('permission') || errorMessage.includes('authorized') ?
+          'You do not have permission to create backups.' :
+          errorMessage,
+        'error'
+      );
     } finally {
       setTimeout(() => {
         setIsCreatingBackup(false);
         setBackupProgress(0);
       }, 500);
     }
-  }, [showNotification, fetchBackupHistory, fetchLastBackupInfo]);
+  }, [isCreatingBackup, isRestoring, isExportingFull, showNotification, fetchBackupHistory, fetchLastBackupInfo]);
 
   /**
    * Restore system from an existing backup
    * @param {string} backupId - The ID of the backup to restore from
    */
   const handleRestoreBackup = useCallback(async (backupId) => {
+    if (!backupId) {
+      showNotification('Invalid backup selected', 'error');
+      return;
+    }
+
+    // Prevent restore while another operation is in progress
+    if (isRestoring || isCreatingBackup || isExportingFull) {
+      showNotification('Another operation is in progress. Please wait.', 'warning');
+      return;
+    }
+
     const backup = findBackupById(backupId);
     if (!backup) {
       showNotification('Backup not found', 'error');
@@ -713,13 +746,17 @@ function Settings() {
     }
 
     const fileName = backup.filePath?.split(/[/\\]/).pop() || backup.backupId;
+    const backupDate = backup.createdAt ? formatBackupDate(backup.createdAt) : 'Unknown date';
+    const totalDocs = backup.metadata?.totalDocuments || 'N/A';
     
     if (!window.confirm(
       `⚠️ WARNING: Are you sure you want to restore from "${fileName}"?\n\n` +
       `This will replace current data with the backup data.\n` +
-      `Created: ${formatBackupDate(backup.createdAt)}\n` +
-      `Documents: ${backup.metadata?.totalDocuments || 'N/A'}\n\n` +
-      `This action cannot be undone!`
+      `Created: ${backupDate}\n` +
+      `Documents: ${totalDocs}\n\n` +
+      `This action cannot be undone!\n\n` +
+      `It is HIGHLY RECOMMENDED to create a backup of current data before proceeding.\n\n` +
+      `Type 'RESTORE' if you understand the risks.`
     )) {
       return;
     }
@@ -738,6 +775,8 @@ function Settings() {
     }, 600);
 
     try {
+      showNotification('Restoring from backup... Please wait.', 'info');
+      
       const response = await backupService.restoreBackup(backupId, {
         dropExisting: false,
         dryRun: false
@@ -747,23 +786,44 @@ function Settings() {
       setRestoreProgress(100);
       
       if (response.success) {
-        showNotification('System restored successfully from backup!', 'success');
+        const restoredDocs = response.data?.totalRestored || response.data?.totalDocuments || 0;
+        showNotification(
+          `System restored successfully! ${restoredDocs.toLocaleString()} documents restored.`,
+          'success'
+        );
         // Refresh data after restore
         await Promise.all([fetchBackupHistory(), fetchLastBackupInfo()]);
+        
+        // Suggest page reload to see restored data
+        setTimeout(() => {
+          if (window.confirm('Restore completed successfully. Would you like to refresh the page to see the restored data?')) {
+            window.location.reload();
+          }
+        }, 2000);
       } else {
         throw new Error(response.message || 'Failed to restore backup');
       }
     } catch (error) {
       clearInterval(progressInterval);
       logger.error('[Settings] Restore backup error:', error);
-      showNotification(error.message || 'Failed to restore from backup', 'error');
+      const errorMessage = error.message || 'Failed to restore from backup';
+      showNotification(
+        errorMessage.includes('permission') || errorMessage.includes('authorized') ?
+          'You do not have permission to restore backups.' :
+        errorMessage.includes('not found') ?
+          'Backup file not found or has been deleted.' :
+        errorMessage.includes('corrupted') || errorMessage.includes('invalid') ?
+          'Backup file is corrupted or invalid. Please try another backup.' :
+          errorMessage,
+        'error'
+      );
     } finally {
       setTimeout(() => {
         setIsRestoring(false);
         setRestoreProgress(0);
       }, 500);
     }
-  }, [findBackupById, showNotification, fetchBackupHistory, fetchLastBackupInfo]);
+  }, [isRestoring, isCreatingBackup, isExportingFull, findBackupById, showNotification, fetchBackupHistory, fetchLastBackupInfo]);
 
   /**
    * Delete a backup file
@@ -809,15 +869,28 @@ function Settings() {
    * @param {string} backupId - The ID of the backup to download
    */
   const handleDownloadBackup = useCallback(async (backupId) => {
+    if (!backupId) {
+      showNotification('Invalid backup selected', 'error');
+      return;
+    }
+
     try {
       showNotification('Preparing download...', 'info');
       const result = await backupService.downloadBackup(backupId);
       if (result.success) {
-        showNotification(`Backup file "${result.filename}" downloaded successfully!`, 'success');
+        showNotification(`Backup "${result.filename}" downloaded successfully!`, 'success');
       }
     } catch (error) {
       logger.error('[Settings] Download backup error:', error);
-      showNotification(error.message || 'Failed to download backup', 'error');
+      const errorMessage = error.message || 'Failed to download backup';
+      showNotification(
+        errorMessage.includes('not found') ?
+          'Backup file not found or has been deleted.' :
+        errorMessage.includes('permission') || errorMessage.includes('authorized') ?
+          'You do not have permission to download backups.' :
+          errorMessage,
+        'error'
+      );
     }
   }, [showNotification]);
 
@@ -851,6 +924,11 @@ function Settings() {
    * @param {string} backupId - The ID of the backup to verify
    */
   const handleVerifyBackup = useCallback(async (backupId) => {
+    if (!backupId) {
+      showNotification('Invalid backup selected', 'error');
+      return;
+    }
+
     try {
       showNotification('Verifying backup integrity...', 'info');
       const response = await backupService.verifyBackup(backupId);
@@ -862,10 +940,10 @@ function Settings() {
         const checksumMatch = verifyData?.checksumMatch ?? true;
         
         if (isValid && checksumMatch) {
-          showNotification('✓ Backup verified successfully - integrity confirmed', 'success');
+          showNotification('✓ Backup verified successfully - integrity confirmed!', 'success');
         } else {
           const errorMsg = verifyData?.error || verifyData?.message || 'Checksum mismatch';
-          showNotification(`⚠ Backup verification failed: ${errorMsg}`, 'error');
+          showNotification(`⚠ Backup verification failed: ${errorMsg}`, 'warning');
         }
         // Refresh backup history to update verification status
         await fetchBackupHistory();
@@ -874,7 +952,15 @@ function Settings() {
       }
     } catch (error) {
       logger.error('[Settings] Verify backup error:', error);
-      showNotification(error.message || 'Failed to verify backup', 'error');
+      const errorMessage = error.message || 'Failed to verify backup';
+      showNotification(
+        errorMessage.includes('not found') ?
+          'Backup file not found or has been deleted.' :
+        errorMessage.includes('permission') || errorMessage.includes('authorized') ?
+          'You do not have permission to verify backups.' :
+          errorMessage,
+        'error'
+      );
     }
   }, [showNotification, fetchBackupHistory]);
 
@@ -923,11 +1009,21 @@ function Settings() {
       return;
     }
 
+    // Validate file size
+    const maxSize = 500 * 1024 * 1024; // 500MB
+    if (selectedBackupFile.size > maxSize) {
+      showNotification('File too large. Maximum size is 500MB', 'error');
+      return;
+    }
+
     if (!window.confirm(
       '⚠️ WARNING: Are you sure you want to restore from this uploaded backup?\n\n' +
+      `File: ${selectedBackupFile.name}\n` +
+      `Size: ${formatFileSize(selectedBackupFile.size)}\n\n` +
       'This will import data from the backup file.\n' +
       'Existing data will be merged with the backup data.\n\n' +
-      'This operation may take several minutes for large backups.'
+      'This operation may take several minutes for large backups.\n\n' +
+      'PROCEED WITH CAUTION!'
     )) {
       return;
     }
@@ -944,6 +1040,8 @@ function Settings() {
     }, 800);
 
     try {
+      showNotification('Importing backup file... This may take a while.', 'info');
+      
       const response = await backupService.importFromFile(selectedBackupFile, {
         dropExisting: false
       });
@@ -953,8 +1051,9 @@ function Settings() {
 
       if (response.success) {
         const totalDocs = response.data?.totalDocuments || 0;
+        const collectionsCount = response.data?.collectionsRestored?.length || 0;
         showNotification(
-          `Import completed! ${totalDocs.toLocaleString()} documents restored.`,
+          `Import completed! ${totalDocs.toLocaleString()} documents restored across ${collectionsCount} collections.`,
           'success'
         );
         // Clear selected file and reset input
@@ -964,13 +1063,28 @@ function Settings() {
         }
         // Refresh backup history and last backup info
         await Promise.all([fetchBackupHistory(), fetchLastBackupInfo()]);
+        
+        // Suggest page refresh to see updated data
+        setTimeout(() => {
+          if (window.confirm('Data has been imported successfully. Would you like to refresh the page to see the latest data?')) {
+            window.location.reload();
+          }
+        }, 2000);
       } else {
         throw new Error(response.message || 'Import failed');
       }
     } catch (error) {
       clearInterval(progressInterval);
       logger.error('[Settings] Import backup error:', error);
-      showNotification(error.message || 'Failed to import backup', 'error');
+      const errorMessage = error.message || 'Failed to import backup';
+      showNotification(
+        errorMessage.includes('permission') || errorMessage.includes('authorized') ?
+          'You do not have permission to perform this action.' :
+        errorMessage.includes('file') || errorMessage.includes('parse') ?
+          'Invalid backup file format. Please ensure the file is a valid backup.' :
+          errorMessage,
+        'error'
+      );
     } finally {
       setTimeout(() => {
         setIsRestoring(false);
@@ -1053,29 +1167,42 @@ function Settings() {
       'This will remove:\n' +
       '• Backups older than retention period\n' +
       '• Failed/corrupted backup files\n\n' +
-      'Protected backups will NOT be deleted.'
+      'Protected backups will NOT be deleted.\n\n' +
+      'Continue?'
     )) {
       return;
     }
 
     setIsCleaningUp(true);
     try {
+      showNotification('Cleaning up old backups...', 'info');
       const response = await backupService.triggerCleanup();
       
       if (response.success) {
         const deletedCount = response.data?.deletedCount || 0;
         const freedSpace = response.data?.freedSpace || 0;
-        showNotification(
-          `Cleanup complete! Removed ${deletedCount} backup(s), freed ${formatFileSize(freedSpace)}`,
-          'success'
-        );
+        
+        if (deletedCount === 0) {
+          showNotification('No old backups found to clean up.', 'info');
+        } else {
+          showNotification(
+            `Cleanup complete! Removed ${deletedCount} backup(s), freed ${formatFileSize(freedSpace)}`,
+            'success'
+          );
+        }
         await fetchBackupHistory();
       } else {
         throw new Error(response.message || 'Cleanup failed');
       }
     } catch (error) {
       logger.error('[Settings] Cleanup backups error:', error);
-      showNotification(error.message || 'Failed to cleanup backups', 'error');
+      const errorMessage = error.message || 'Failed to cleanup backups';
+      showNotification(
+        errorMessage.includes('permission') || errorMessage.includes('authorized') ?
+          'You do not have permission to perform this action.' :
+          errorMessage,
+        'error'
+      );
     } finally {
       setIsCleaningUp(false);
     }
@@ -1090,7 +1217,8 @@ function Settings() {
       'This will create a complete backup including:\n' +
       '• All database collections\n' +
       '• All uploaded files (photos, documents)\n\n' +
-      'The file will be downloaded for external storage (USB/HDD).'
+      'The file will be downloaded for external storage (USB/HDD).\n' +
+      'This process may take several minutes for large databases.'
     )) {
       return;
     }
@@ -1103,6 +1231,8 @@ function Settings() {
     }, 600);
 
     try {
+      showNotification('Creating full database export...', 'info');
+      
       const response = await backupService.exportFullDatabase({
         includeGridFSFiles: true,
         notes: 'Full export for external storage'
@@ -1113,16 +1243,30 @@ function Settings() {
 
       if (response.success && response.data?.exportId) {
         showNotification('Export created! Starting download...', 'info');
-        await backupService.downloadFullExport(response.data.exportId);
-        showNotification(`Full backup exported successfully! (${response.data.formattedSize || 'N/A'})`, 'success');
-        await fetchBackupHistory();
+        
+        try {
+          await backupService.downloadFullExport(response.data.exportId);
+          const size = response.data.formattedSize || response.data.fileSize ? 
+            `${(response.data.fileSize / (1024 * 1024)).toFixed(2)} MB` : 'N/A';
+          showNotification(`Full backup exported and downloaded successfully! (${size})`, 'success');
+          await fetchBackupHistory();
+        } catch (downloadError) {
+          logger.error('[Settings] Download error:', downloadError);
+          showNotification('Export created but download failed. Please try downloading from backup history.', 'warning');
+        }
       } else {
         throw new Error(response.message || 'Export failed');
       }
     } catch (error) {
       clearInterval(progressInterval);
       logger.error('[Settings] Full export error:', error);
-      showNotification(error.message || 'Failed to create full export', 'error');
+      const errorMessage = error.message || 'Failed to create full export';
+      showNotification(
+        errorMessage.includes('permission') || errorMessage.includes('authorized') ?
+          'You do not have permission to perform this action.' :
+          errorMessage,
+        'error'
+      );
     } finally {
       setTimeout(() => {
         setIsExportingFull(false);

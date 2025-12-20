@@ -1199,6 +1199,254 @@ async function sendBPLOApprovalNotification(application) {
   }
 }
 
+/**
+ * Send franchise link request approval email
+ * @param {Object} params - Email parameters
+ * @param {string} params.to - Recipient email
+ * @param {string} params.userName - User's name
+ * @param {string} params.franchiseNumber - Franchise number
+ * @param {string} params.operatorName - Franchise operator name
+ */
+async function sendFranchiseLinkApprovalEmail({ to, userName, franchiseNumber, operatorName }) {
+  const email = String(to || '').trim();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    throw new Error('Invalid recipient email address');
+  }
+  
+  const fromName = process.env.EMAIL_FROM_NAME || 'TRC-V';
+  const fromAddress = process.env.EMAIL_FROM || process.env.EMAIL_USER;
+  
+  const mailOptions = {
+    from: `${fromName} <${fromAddress}>`,
+    to: email,
+    subject: `Franchise Linking Approved - ${franchiseNumber}`,
+    text: `Dear ${userName},\n\nYour request to link franchise #${franchiseNumber} (${operatorName}) has been APPROVED.\n\nYou can now access your franchise information and generate QR codes from your operator dashboard.\n\nThank you for using TRC-V.\n\nBest regards,\nTRC-V Team`,
+    html: `
+      <!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Franchise Link Approved</title>
+        <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+      </head>
+      <body style="margin: 0; padding: 0; font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f5f5f5;">
+        <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f5f5f5;">
+          <tr>
+            <td style="padding: 40px 20px;">
+              <table role="presentation" style="max-width: 600px; width: 100%; margin: 0 auto; background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.07); overflow: hidden;">
+                
+                <!-- Header -->
+                <tr>
+                  <td style="background: linear-gradient(135deg, #059669 0%, #10b981 100%); padding: 35px 40px;">
+                    <table role="presentation" style="width: 100%;">
+                      <tr>
+                        <td style="width: 80px; vertical-align: middle;">
+                          <img src="cid:logo" alt="TRC-V Logo" style="width: 70px; height: 70px; display: block;" />
+                        </td>
+                        <td style="vertical-align: middle; padding-left: 20px;">
+                          <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: 700;">Request Approved!</h1>
+                          <p style="color: #d1fae5; margin: 5px 0 0 0; font-size: 14px;">Franchise Linking</p>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+                
+                <!-- Content -->
+                <tr>
+                  <td style="padding: 45px 40px;">
+                    <p style="color: #1e293b; font-size: 16px; margin: 0 0 20px 0;">Dear <strong>${userName}</strong>,</p>
+                    
+                    <p style="color: #64748b; font-size: 16px; line-height: 1.6; margin: 0 0 25px 0;">
+                      Great news! Your request to link franchise has been <strong style="color: #059669;">approved</strong>.
+                    </p>
+                    
+                    <!-- Franchise Info Box -->
+                    <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 25px; margin: 25px 0;">
+                      <table style="width: 100%;">
+                        <tr>
+                          <td style="padding: 8px 0;">
+                            <span style="color: #64748b; font-size: 14px;">Franchise Number:</span>
+                          </td>
+                          <td style="padding: 8px 0; text-align: right;">
+                            <strong style="color: #059669; font-size: 18px;">${franchiseNumber}</strong>
+                          </td>
+                        </tr>
+                        <tr>
+                          <td style="padding: 8px 0;">
+                            <span style="color: #64748b; font-size: 14px;">Operator Name:</span>
+                          </td>
+                          <td style="padding: 8px 0; text-align: right;">
+                            <strong style="color: #1e293b;">${operatorName || 'N/A'}</strong>
+                          </td>
+                        </tr>
+                      </table>
+                    </div>
+                    
+                    <p style="color: #64748b; font-size: 15px; line-height: 1.6; margin: 25px 0;">
+                      You can now access your franchise information and generate QR codes from your operator dashboard.
+                    </p>
+                    
+                    <div style="text-align: center; margin: 30px 0;">
+                      <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/operator/franchise" 
+                         style="background: linear-gradient(135deg, #059669 0%, #10b981 100%); color: #ffffff; text-decoration: none; padding: 14px 35px; border-radius: 8px; font-weight: 600; display: inline-block;">
+                        Go to Dashboard
+                      </a>
+                    </div>
+                  </td>
+                </tr>
+                
+                <!-- Footer -->
+                <tr>
+                  <td style="background-color: #f8fafc; padding: 25px 40px; text-align: center;">
+                    <p style="color: #94a3b8; font-size: 13px; margin: 0;">
+                      This is an automated message from TRC-V. Please do not reply.
+                    </p>
+                  </td>
+                </tr>
+                
+              </table>
+            </td>
+          </tr>
+        </table>
+      </body>
+      </html>
+    `,
+    attachments: [{
+      filename: 'TRC-vLogo.png',
+      path: path.join(__dirname, '..', 'assets', 'TRC-vLogo.png'),
+      cid: 'logo'
+    }]
+  };
+  
+  try {
+    await sendEmail(mailOptions);
+    console.log('[emailService] Franchise link approval email sent to:', email);
+    return { success: true, email };
+  } catch (err) {
+    console.error('[emailService] Failed to send franchise link approval email:', err.message);
+    throw err;
+  }
+}
+
+/**
+ * Send franchise link request rejection email
+ * @param {Object} params - Email parameters
+ * @param {string} params.to - Recipient email
+ * @param {string} params.userName - User's name
+ * @param {string} params.franchiseNumber - Franchise number
+ * @param {string} params.rejectionReason - Reason for rejection
+ */
+async function sendFranchiseLinkRejectionEmail({ to, userName, franchiseNumber, rejectionReason }) {
+  const email = String(to || '').trim();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    throw new Error('Invalid recipient email address');
+  }
+  
+  const fromName = process.env.EMAIL_FROM_NAME || 'TRC-V';
+  const fromAddress = process.env.EMAIL_FROM || process.env.EMAIL_USER;
+  
+  const mailOptions = {
+    from: `${fromName} <${fromAddress}>`,
+    to: email,
+    subject: `Franchise Linking Request Rejected - ${franchiseNumber}`,
+    text: `Dear ${userName},\n\nWe regret to inform you that your request to link franchise #${franchiseNumber} has been REJECTED.\n\nReason: ${rejectionReason}\n\nIf you believe this is an error or have questions, please contact the administrator.\n\nBest regards,\nTRC-V Team`,
+    html: `
+      <!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Franchise Link Request Rejected</title>
+        <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+      </head>
+      <body style="margin: 0; padding: 0; font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f5f5f5;">
+        <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f5f5f5;">
+          <tr>
+            <td style="padding: 40px 20px;">
+              <table role="presentation" style="max-width: 600px; width: 100%; margin: 0 auto; background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.07); overflow: hidden;">
+                
+                <!-- Header -->
+                <tr>
+                  <td style="background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%); padding: 35px 40px;">
+                    <table role="presentation" style="width: 100%;">
+                      <tr>
+                        <td style="width: 80px; vertical-align: middle;">
+                          <img src="cid:logo" alt="TRC-V Logo" style="width: 70px; height: 70px; display: block;" />
+                        </td>
+                        <td style="vertical-align: middle; padding-left: 20px;">
+                          <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: 700;">Request Rejected</h1>
+                          <p style="color: #fecaca; margin: 5px 0 0 0; font-size: 14px;">Franchise Linking</p>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+                
+                <!-- Content -->
+                <tr>
+                  <td style="padding: 45px 40px;">
+                    <p style="color: #1e293b; font-size: 16px; margin: 0 0 20px 0;">Dear <strong>${userName}</strong>,</p>
+                    
+                    <p style="color: #64748b; font-size: 16px; line-height: 1.6; margin: 0 0 25px 0;">
+                      We regret to inform you that your request to link franchise <strong>#${franchiseNumber}</strong> has been <strong style="color: #dc2626;">rejected</strong>.
+                    </p>
+                    
+                    <!-- Reason Box -->
+                    <div style="background: #fef2f2; border-left: 4px solid #dc2626; border-radius: 6px; padding: 20px; margin: 25px 0;">
+                      <p style="color: #7f1d1d; font-size: 14px; font-weight: 600; margin: 0 0 10px 0;">Reason for Rejection:</p>
+                      <p style="color: #991b1b; font-size: 15px; margin: 0; line-height: 1.6;">${rejectionReason}</p>
+                    </div>
+                    
+                    <p style="color: #64748b; font-size: 15px; line-height: 1.6; margin: 25px 0;">
+                      If you believe this is an error or have questions regarding this decision, please contact the administrator or visit the municipal office for assistance.
+                    </p>
+                    
+                    <div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 16px 20px; margin-top: 30px; border-radius: 6px;">
+                      <p style="color: #92400e; font-size: 13px; margin: 0; line-height: 1.6;">
+                        <strong>What you can do:</strong><br/>
+                        • Review the rejection reason and ensure you have the correct documents<br/>
+                        • Contact the administrator for clarification<br/>
+                        • Submit a new request with correct information
+                      </p>
+                    </div>
+                  </td>
+                </tr>
+                
+                <!-- Footer -->
+                <tr>
+                  <td style="background-color: #f8fafc; padding: 25px 40px; text-align: center;">
+                    <p style="color: #94a3b8; font-size: 13px; margin: 0;">
+                      This is an automated message from TRC-V. Please do not reply.
+                    </p>
+                  </td>
+                </tr>
+                
+              </table>
+            </td>
+          </tr>
+        </table>
+      </body>
+      </html>
+    `,
+    attachments: [{
+      filename: 'TRC-vLogo.png',
+      path: path.join(__dirname, '..', 'assets', 'TRC-vLogo.png'),
+      cid: 'logo'
+    }]
+  };
+  
+  try {
+    await sendEmail(mailOptions);
+    console.log('[emailService] Franchise link rejection email sent to:', email);
+    return { success: true, email };
+  } catch (err) {
+    console.error('[emailService] Failed to send franchise link rejection email:', err.message);
+    throw err;
+  }
+}
+
 module.exports = { 
   sendOTPEmail, 
   sendFranchiseExpiryEmail, 
@@ -1206,9 +1454,12 @@ module.exports = {
   sendFranchiseUpdatedEmail,
   sendFranchiseDisapprovalEmail,
   sendBPLOApprovalNotification,
+  sendFranchiseLinkApprovalEmail,
+  sendFranchiseLinkRejectionEmail,
   sendEmail,
   sendViaSmtp,
   sendViaGmailApi,
   getEmailConfigStatus,
   detectEmailMethod
 };
+

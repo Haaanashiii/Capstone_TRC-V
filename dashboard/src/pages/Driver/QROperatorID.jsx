@@ -63,7 +63,10 @@ function QROperatorID() {
 
   // Fetch franchise info by hashed MTOP (operatorId)
   useEffect(() => {
-    if (!operatorId) return;
+    if (!operatorId) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170';
     fetch(`${API_BASE_URL}/api/franchise-information/qr/hash/${operatorId}`)
@@ -280,7 +283,7 @@ function QROperatorID() {
 
     // Check for file extension OR /api/files/ path (GridFS files don't have extensions)
     const hasExtension = /\.(png|jpe?g|webp|gif|bmp|svg|pdf)$/i.test(path);
-    const isApiFilesPath = /\/api\/files\/[a-f0-9]+/i.test(path);
+    const isApiFilesPath = /\/api\/files\//i.test(path); // Match any /api/files/ path including /api/files/uploads/
     const hasTypeHint = String(matchedFranchise?.type || user?.type || '').includes('image') || 
                         String(matchedFranchise?.type || user?.type || '').includes('pdf');
 
@@ -293,8 +296,12 @@ function QROperatorID() {
 
     (async () => {
       try {
+        logger.log('[QROperatorID] Fetching profile photo from:', path);
         const resp = await fetch(path, { mode: 'cors' });
-        if (!resp.ok) throw new Error('Failed fetching profile photo: ' + resp.status);
+        if (!resp.ok) {
+          logger.error('[QROperatorID] Failed to fetch profile photo:', resp.status, resp.statusText);
+          throw new Error('Failed fetching profile photo: ' + resp.status);
+        }
         const blob = await resp.blob();
         const obj = URL.createObjectURL(blob);
         profilePhotoBlobRef.current = obj;
@@ -302,6 +309,7 @@ function QROperatorID() {
         // Detect if PDF from response content-type
         const contentType = resp.headers.get('Content-Type') || blob.type || '';
         setProfilePhotoIsPdf(contentType.includes('pdf') || /\.pdf$/i.test(rawPath || ''));
+        logger.log('[QROperatorID] Profile photo loaded successfully, type:', contentType);
       } catch (err) {
         logger.warn('[QROperatorID] Failed to fetch profile photo:', err);
         setProfilePhotoBlobUrl(null);
@@ -376,7 +384,7 @@ function QROperatorID() {
           >
             <Box 
               component="img" 
-              src="/Logos/SBLogo.png" 
+              src="/Logos/SBLogos.png"
               alt="Solano Logo"
               sx={{ 
                 width: { xs: 35, sm: 40 }, 

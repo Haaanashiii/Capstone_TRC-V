@@ -13,6 +13,7 @@ const rolePageAccessSchema = new mongoose.Schema({
       'dashboard',
       'franchisee-list',
       'franchise-management',
+      'franchise-linking',
       'certificate',
       'incident-reports',
       'analytics',

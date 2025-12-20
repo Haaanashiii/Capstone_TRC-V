@@ -18,10 +18,10 @@ export const useTranslation = () => {
     throw new Error('useTranslation must be used within an I18nProvider');
   }
   
-  // Debug logging
-  logger.log('[useTranslation] Current language:', context.language);
-  logger.log('[useTranslation] Translations loaded:', Object.keys(context.translations || {}).length > 0);
-  logger.log('[useTranslation] Loading state:', context.loading);
+  // Debug logging removed to prevent console spam
+  // logger.log('[useTranslation] Current language:', context.language);
+  // logger.log('[useTranslation] Translations loaded:', Object.keys(context.translations || {}).length > 0);
+  // logger.log('[useTranslation] Loading state:', context.loading);
   
   return context;
 };

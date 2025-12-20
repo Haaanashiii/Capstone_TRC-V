@@ -1,9 +1,11 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import Swal from 'sweetalert2';
 import { useNavigate } from "react-router-dom";
 import UnifiedNavbar from "../../components/UnifiedNavbar";
 import { useAuth } from "../../contexts/AuthContext";
 import { logger } from '../../utils/logger';
+import { useAlertStyles, useTokenUser } from '../../hooks/useDriverUtils';
+import "../../Styles/animations.css";
 import "../../Styles/Operator's_CSS/OperatorHomePage.css";
 import "../../Styles/Operator's_CSS/TableResponsive.css";
 import { Link2, PlusCircle } from 'lucide-react';
@@ -28,92 +30,16 @@ import {
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
-import { franchiseAPI, franchiseInformationAPI } from '../Services/api';
-
-// SweetAlert styling utility
-const alertStyle = {
-  successAlert: {
-    icon: 'success',
-    iconColor: '#10b981',
-    confirmButtonColor: '#174D7A',
-    customClass: {
-      container: 'swal-container',
-      popup: 'swal-popup',
-      title: 'swal-title',
-      htmlContainer: 'swal-text',
-      confirmButton: 'swal-confirm-btn'
-    },
-    showConfirmButton: true,
-    confirmButtonText: 'OK',
-    didOpen: (modal) => {
-      modal.style.borderRadius = '12px';
-      modal.style.boxShadow = '0 10px 40px rgba(0, 0, 0, 0.15)';
-    }
-  },
-  errorAlert: {
-    icon: 'error',
-    iconColor: '#ef4444',
-    confirmButtonColor: '#174D7A',
-    customClass: {
-      container: 'swal-container',
-      popup: 'swal-popup',
-      title: 'swal-title',
-      htmlContainer: 'swal-text',
-      confirmButton: 'swal-confirm-btn'
-    },
-    showConfirmButton: true,
-    confirmButtonText: 'OK',
-    didOpen: (modal) => {
-      modal.style.borderRadius = '12px';
-      modal.style.boxShadow = '0 10px 40px rgba(0, 0, 0, 0.15)';
-    }
-  },
-  warningAlert: {
-    icon: 'warning',
-    iconColor: '#f59e0b',
-    confirmButtonColor: '#174D7A',
-    customClass: {
-      container: 'swal-container',
-      popup: 'swal-popup',
-      title: 'swal-title',
-      htmlContainer: 'swal-text',
-      confirmButton: 'swal-confirm-btn'
-    },
-    showConfirmButton: true,
-    confirmButtonText: 'OK',
-    didOpen: (modal) => {
-      modal.style.borderRadius = '12px';
-      modal.style.boxShadow = '0 10px 40px rgba(0, 0, 0, 0.15)';
-    }
-  }
-};
+import { franchiseAPI, franchiseInformationAPI, franchiseLinkRequestAPI } from '../Services/api';
 
 const OperatorHomePage = () => {
-  // Use AuthContext for user data (consistent with UnifiedSidebar)
   const { user: authUser } = useAuth();
-  
-  // Track if component is mounted to prevent animation flicker on updates
+  const tokenUser = useTokenUser();
+  const alertStyle = useAlertStyles(); // Use memoized alert styles
   const isInitialMountRef = React.useRef(true);
   
-  // Get user data from AuthContext or fallback to direct token decode
-  const getUser = () => {
-    if (authUser) return authUser;
-    
-    // Fallback: decode token directly (same approach as Admin Sidebar)
-    try {
-      const token = sessionStorage.getItem('accessToken');
-      if (token) {
-        const decoded = JSON.parse(atob(token.split('.')[1]));
-        return decoded;
-      }
-    } catch (error) {
-      logger.error('[OperatorHomePage] Error decoding token:', error);
-    }
-    
-    return null;
-  };
-  
-  const currentUser = getUser();
+  // Get current user (prefer AuthContext, fallback to token)
+  const currentUser = authUser || tokenUser;
   
   // Mark component as mounted after initial render
   useEffect(() => {
@@ -562,51 +488,22 @@ const OperatorHomePage = () => {
       Swal.fire({
         ...alertStyle.warningAlert,
         title: t.warning || 'Missing Information',
-        text: t.pleaseProvideWarning || 'Please provide both franchise number and MTOP document'
+        text: t.pleaseProvideWarning || 'Please provide both franchise number and supporting document'
       });
       return;
     }
 
     try {
-      // Call the backend API to link franchise
-      logger.log('[OperatorHomePage] Linking franchise:', orNumber);
+      // Call the backend API to create a franchise link request
+      logger.log('[OperatorHomePage] Submitting franchise link request:', orNumber);
       
-      const response = await franchiseInformationAPI.linkFranchise({
+      const response = await franchiseLinkRequestAPI.create({
         franchiseNumber: orNumber.trim(),
-        mtofDocument: mtopFile
+        supportingDocument: mtopFile
       });
 
       if (response.data && response.data.success) {
-        const linkedFranchise = response.data.data;
-        
-        logger.log('[OperatorHomePage] Franchise linked successfully:', linkedFranchise);
-        
-        // Update local state
-        const franchiseInfo = {
-          franchiseNumber: linkedFranchise.franchiseNumber,
-          franchiseChainId: linkedFranchise.franchiseChainId,
-          status: linkedFranchise.franchiseStatus,
-          linkedDate: new Date().toLocaleDateString(),
-          operatorName: linkedFranchise.operatorName
-        };
-
-        setUserFranchiseInfo(franchiseInfo);
-        setFranchiseLinked(true);
-        
-        // Store franchise info in sessionStorage
-        try { 
-          sessionStorage.setItem('userFranchiseInfo', JSON.stringify(franchiseInfo));
-          sessionStorage.setItem('franchiseLinked', 'true');
-          
-          // Persist owner userId
-          const token = sessionStorage.getItem('accessToken');
-          if (token) {
-            const payload = JSON.parse(atob(token.split('.')[1]));
-            if (payload?.id) sessionStorage.setItem('franchiseOwnerUserId', payload.id);
-          }
-        } catch (e) {
-          logger.error('[OperatorHomePage] Error storing franchise info:', e);
-        }
+        logger.log('[OperatorHomePage] Franchise link request submitted successfully');
         
         setShowModal(false);
         
@@ -615,30 +512,39 @@ const OperatorHomePage = () => {
         setMtopFile(null);
         setOrWarning("");
         
-        // Show success message
+        // Show success message with pending status info
         Swal.fire({
           ...alertStyle.successAlert,
-          title: 'Franchise Linked Successfully!',
-          text: `Franchise #${linkedFranchise.franchiseNumber} has been linked to your account.`
+          title: t.requestSubmitted || 'Link Request Submitted!',
+          html: `
+            <p>${t.linkRequestPendingMessage || 'Your request to link franchise'} <strong>#${orNumber.trim()}</strong> ${t.hasBeenSubmittedForReview || 'has been submitted for review.'}</p>
+            <p style="margin-top: 10px; font-size: 14px; color: #666;">${t.adminReviewMessage || 'An administrator will review your request and you will be notified via email once it is approved or rejected.'}</p>
+          `
         });
         
-        // Refresh franchise data
-        fetchUserFranchises();
-        
       } else {
-        throw new Error(response.data?.message || 'Failed to link franchise');
+        throw new Error(response.data?.message || 'Failed to submit link request');
       }
       
     } catch (error) {
-      logger.error('[OperatorHomePage] Error linking franchise:', error);
+      logger.error('[OperatorHomePage] Error submitting franchise link request:', error);
       
-      const errorMessage = error.response?.data?.message || 
+      let errorMessage = error.response?.data?.message || 
                           error.message || 
-                          'Failed to link franchise. Please check your franchise number and try again.';
+                          'Failed to submit link request. Please try again.';
+      
+      // Handle specific error cases
+      if (errorMessage.includes('already linked')) {
+        errorMessage = t.franchiseAlreadyLinked || 'This franchise is already linked to another account.';
+      } else if (errorMessage.includes('pending request')) {
+        errorMessage = t.pendingRequestExists || 'You already have a pending link request for this franchise. Please wait for admin review.';
+      } else if (errorMessage.includes('not found')) {
+        errorMessage = t.franchiseNotFound || 'Franchise number not found in the system. Please check the number and try again.';
+      }
       
       Swal.fire({
         ...alertStyle.errorAlert,
-        title: 'Linking Failed',
+        title: t.submissionFailed || 'Submission Failed',
         text: errorMessage
       });
     }

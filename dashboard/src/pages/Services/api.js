@@ -929,6 +929,83 @@ export const franchiseInformationAPI = {
 };
 
 // ====================================================================
+// FRANCHISE LINK REQUEST API METHODS
+// ====================================================================
+
+export const franchiseLinkRequestAPI = {
+  /**
+   * Create a new franchise link request (Operator)
+   * @param {object} data - { franchiseNumber, supportingDocument (File) }
+   * @returns {Promise} Response with created request
+   */
+  create: (data) => {
+    const formData = new FormData();
+    formData.append('franchiseNumber', data.franchiseNumber);
+    if (data.supportingDocument instanceof File) {
+      formData.append('supportingDocument', data.supportingDocument);
+    }
+    return api.post('/api/franchise-link-requests', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+  },
+
+  /**
+   * Get operator's own link requests
+   * @returns {Promise} Response with user's requests
+   */
+  getMyRequests: () => api.get('/api/franchise-link-requests/my-requests'),
+
+  /**
+   * Get all link requests with filters (Admin)
+   * @param {object} params - { page, limit, status, search, sortBy, sortOrder }
+   * @returns {Promise} Response with requests array and pagination
+   */
+  getAll: (params = {}) => api.get('/api/franchise-link-requests', { params }),
+
+  /**
+   * Get pending link requests (Admin)
+   * @param {object} params - { page, limit }
+   * @returns {Promise} Response with pending requests
+   */
+  getPending: (params = {}) => api.get('/api/franchise-link-requests/pending', { params }),
+
+  /**
+   * Get pending count for badge (Admin)
+   * @returns {Promise} Response with count
+   */
+  getPendingCount: () => api.get('/api/franchise-link-requests/pending-count'),
+
+  /**
+   * Get link request statistics (Admin)
+   * @returns {Promise} Response with statistics
+   */
+  getStatistics: () => api.get('/api/franchise-link-requests/statistics'),
+
+  /**
+   * Get single link request by ID (Admin)
+   * @param {string} id - Request ID
+   * @returns {Promise} Response with request details
+   */
+  getById: (id) => api.get(`/api/franchise-link-requests/${id}`),
+
+  /**
+   * Approve a link request (Admin)
+   * @param {string} id - Request ID
+   * @param {object} data - { adminNotes? }
+   * @returns {Promise} Response with updated request
+   */
+  approve: (id, data = {}) => api.post(`/api/franchise-link-requests/${id}/approve`, data),
+
+  /**
+   * Reject a link request (Admin)
+   * @param {string} id - Request ID
+   * @param {object} data - { rejectionReason, adminNotes? }
+   * @returns {Promise} Response with updated request
+   */
+  reject: (id, data) => api.post(`/api/franchise-link-requests/${id}/reject`, data)
+};
+
+// ====================================================================
 // ANNOUNCEMENT API METHODS
 // ====================================================================
 

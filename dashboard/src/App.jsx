@@ -22,6 +22,7 @@ import FranchiseMgmt from './pages/Administration/FranchiseMgmt';
 import Dashboard from './pages/Administration/Dashboard';
 import Certificate from './pages/Administration/Certificate';
 import TricycleIncidentReports from './pages/Administration/TricycleIncidentReports';
+import FranchiseLinking from './pages/Administration/FranchiseLinking';
 import Announcement from './pages/Administration/Announcement';
 import Analytics from './pages/Administration/Analytics';
 import AuditTrail from './pages/Administration/AuditTrail';
@@ -144,6 +145,14 @@ function App() {
           element={
             <PageProtectedRoute pageKey="incident-reports">
               <TricycleIncidentReports />
+            </PageProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/franchise-linking" 
+          element={
+            <PageProtectedRoute pageKey="franchise-linking">
+              <FranchiseLinking />
             </PageProtectedRoute>
           } 
         />

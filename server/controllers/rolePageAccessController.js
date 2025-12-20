@@ -74,6 +74,31 @@ exports.getPageAccessByRole = async (req, res, next) => {
       });
     }
     
+    // Super admin always has access to all pages
+    if (role === 'super-admin') {
+      const allPages = [
+        'dashboard',
+        'franchisee-list',
+        'franchise-management',
+        'franchise-linking',
+        'certificate',
+        'incident-reports',
+        'analytics',
+        'announcements',
+        'audit-trail',
+        'admin-management',
+        'settings'
+      ];
+      
+      return res.status(200).json({
+        success: true,
+        data: {
+          role: 'super-admin',
+          allowedPages: allPages
+        }
+      });
+    }
+    
     const access = await rolePageAccessRepository.getPageAccessByRole(role);
     
     res.status(200).json({

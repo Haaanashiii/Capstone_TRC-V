@@ -1,83 +1,42 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from 'react-router-dom';
-import { Box, Typography, Button, Paper, Avatar, TextField } from '@mui/material';
-import PersonIcon from '@mui/icons-material/Person';
-import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
-import { DatePicker } from '@mui/x-date-pickers/DatePicker';
-import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
+import { Box, Typography, Button, Avatar } from '@mui/material';
 import UnifiedNavbar from '../../components/UnifiedNavbar';
 import './DriverID.css';
 import dayjs from 'dayjs';
 import { logger } from '../../utils/logger';
+import { useTokenUser, useFranchiseStatus, useDriverTranslations, useServerUrl, useBlobUrl } from '../../hooks/useDriverUtils';
+import '../../Styles/animations.css';
 
 function DriverID() {
-  const navigate = useNavigate(); // Must be declared at the top before any useEffect that uses it
+  const navigate = useNavigate();
+  const tokenUser = useTokenUser();
+  const { franchiseStatus, checkFranchiseStatus, setFranchiseStatus } = useFranchiseStatus();
+  const resolveServerUrl = useServerUrl();
   
   const [user, setUser] = useState(null);
-  const [language, setLanguage] = useState('en'); // Language state
-  const [franchiseStatus, setFranchiseStatus] = useState(null); // Franchise status state
+  const [language, setLanguage] = useState('en');
   const [matchedFranchise, setMatchedFranchise] = useState(null);
   
-  // Translation object
-  const translations = {
-    en: {
-      activeFranchise: "ACTIVE FRANCHISE",
-      noFranchise: "NO FRANCHISE",
-      addressNotProvided: "Address not provided",
-      singleNoCoOwner: "SINGLE | NO CO-OWNER",
-      toggleLanguage: "Tagalog"
-    },
-    tl: {
-      activeFranchise: "AKTIBONG PRANGKISA",
-      noFranchise: "WALANG PRANGKISA",
-      addressNotProvided: "Walang nakalagay na address",
-      singleNoCoOwner: "NAG-IISA | WALANG KASAMA",
-      toggleLanguage: "English"
-    }
-  };
-  
-  const t = translations[language];
-  
-  // Check franchise status from sessionStorage or API
-  const checkFranchiseStatus = () => {
-    // Check if user has linked franchise (stored in sessionStorage - cleared on tab close)
-    const franchiseData = sessionStorage.getItem('userFranchiseInfo');
-    if (franchiseData) {
-      try {
-        const parsedData = JSON.parse(franchiseData);
-        setFranchiseStatus(parsedData.status || 'ACTIVE');
-      } catch (error) {
-        logger.error('Error parsing franchise data:', error);
-        setFranchiseStatus(null);
-      }
-    } else {
-      setFranchiseStatus(null);
-    }
-  };
-  
-  // Get user info from token
-  const getUserInfo = () => {
-    // Token is stored in sessionStorage (secure, cleared on tab close)
-    const token = sessionStorage.getItem('accessToken');
-    if (!token) return null;
-    
-    try {
-      const payload = JSON.parse(atob(token.split('.')[1]));
-      return payload;
-    } catch {
-      return null;
-    }
-  };
+  // Use memoized translations from hook
+  const t = useDriverTranslations(language);
+
+  // Memoized function to clear franchise storage
+  const clearFranchiseStorage = useCallback(() => {
+    sessionStorage.removeItem('userFranchiseInfo');
+    sessionStorage.removeItem('franchiseLinked');
+    sessionStorage.removeItem('franchiseMenuReplaced');
+    sessionStorage.removeItem('franchiseOwnerUserId');
+    setFranchiseStatus(null);
+  }, [setFranchiseStatus]);
 
   // Fetch full user details from the server
-  const fetchUserDetails = React.useCallback(async () => {
+  const fetchUserDetails = useCallback(async () => {
     try {
-      // Token is stored in sessionStorage
       const token = sessionStorage.getItem('accessToken');
       if (!token) return;
 
       const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170';
-      logger.log('[DriverID] Fetching user details from:', `${API_BASE_URL}/auth/me`);
       
       const response = await fetch(`${API_BASE_URL}/auth/me`, {
         headers: {
@@ -86,67 +45,41 @@ function DriverID() {
         }
       });
 
-      logger.log('DriverID: Response status:', response.status);
-
       if (response.ok) {
         const data = await response.json();
-        logger.log('DriverID: User details received:', data);
-        logger.log('DriverID: QR Code from user.franchise:', data.user?.franchise?.qrCode);
-        logger.log('DriverID: Profile photo from user.franchise:', data.user?.franchise?.profilePhoto);
+        logger.log('[DriverID] User details received');
         setUser(data.user);
       } else {
-        logger.log('DriverID: /auth/me returned non-ok. Clearing any stored franchise info to avoid stale data.');
-        // If server says the user is not available (e.g., deleted), clear any stored franchise
-        sessionStorage.removeItem('userFranchiseInfo');
-        sessionStorage.removeItem('franchiseLinked');
-        sessionStorage.removeItem('franchiseMenuReplaced');
-        sessionStorage.removeItem('franchiseOwnerUserId');
-        setFranchiseStatus(null);
-        // Do not blindly trust token fallback when server indicates user missing. Use token data only as display fallback.
-        const tokenUser = getUserInfo();
+        logger.log('[DriverID] /auth/me returned non-ok.');
+        clearFranchiseStorage();
         setUser(tokenUser || null);
       }
     } catch (error) {
-      logger.error('DriverID: Error fetching user details:', error);
-     
-      sessionStorage.removeItem('userFranchiseInfo');
-      sessionStorage.removeItem('franchiseLinked');
-      sessionStorage.removeItem('franchiseOwnerUserId');
-      setFranchiseStatus(null);
-      const tokenUser = getUserInfo();
+      logger.error('[DriverID] Error fetching user details:', error);
+      clearFranchiseStorage();
       setUser(tokenUser || null);
     }
-  }, []);
+  }, [tokenUser, clearFranchiseStorage]);
 
   // Fetch user details on component mount
   useEffect(() => {
-    // Token is only in sessionStorage (secure storage)
-    const token = sessionStorage.getItem('accessToken');
-    if (token) {
-      logger.log('[DriverID] Token found, initializing user data...');
-      const tokenUser = getUserInfo();
-      if (tokenUser) {
-        logger.log('[DriverID] User from token:', tokenUser);
-        
-        // GATE-KEEPING: Check if user has franchise
-        if (!tokenUser.hasFranchise) {
-          logger.warn('[DriverID] User does not have franchise yet, redirecting to Franchise page');
-          navigate('/operator/franchise');
-          return;
-        }
-        
-        setUser(tokenUser);
-      }
-    
-      fetchUserDetails();
-    } else {
-      logger.warn('[DriverID] No token found in sessionStorage');
+    if (!tokenUser) {
+      logger.warn('[DriverID] No token found');
       navigate('/login');
+      return;
     }
-    // Check franchise status
-    checkFranchiseStatus();
-   
-  }, [fetchUserDetails, navigate]);
+
+    // GATE-KEEPING: Check if user has franchise
+    if (!tokenUser.hasFranchise) {
+      logger.warn('[DriverID] User does not have franchise yet');
+      navigate('/operator/franchise');
+      return;
+    }
+
+    logger.log('[DriverID] Initializing user data...');
+    setUser(tokenUser);
+    fetchUserDetails();
+  }, [tokenUser, navigate, fetchUserDetails]);
 
   
   useEffect(() => {
@@ -303,8 +236,7 @@ function DriverID() {
            
             sessionStorage.setItem('userFranchiseInfo', JSON.stringify(franchiseInfo));
             sessionStorage.setItem('franchiseLinked', 'true');
-            const tokenUserId = getUserInfo()?.id;
-            if (tokenUserId) sessionStorage.setItem('franchiseOwnerUserId', tokenUserId);
+            if (tokenUser?.id) sessionStorage.setItem('franchiseOwnerUserId', tokenUser.id);
 
             setMatchedFranchise(matched);
     
@@ -385,84 +317,22 @@ function DriverID() {
     } catch {
       // ignore
     }
-  }, [user])
+  }, [user, tokenUser]);
 
-  // When the authenticated user changes, load QR from user.franchise.qrCode (do not regenerate)
-  useEffect(() => {
-    let cancelled = false;
-    // revoke previous
-    try {
-      if (qrBlobRef.current) {
-        URL.revokeObjectURL(qrBlobRef.current);
-        qrBlobRef.current = null;
-      }
-    } catch (e) {
-      logger.warn('Failed to revoke previous driver qr blob', e);
-    }
+  // Use custom hook for QR blob URL management
+  const qrCodePath = user?.franchise?.qrCode;
+  const { blobUrl: qrBlobUrl } = useBlobUrl(qrCodePath, [qrCodePath]);
 
-    const fetchQr = async () => {
-      const raw = user?.franchise?.qrCode;
-      if (!raw) {
-        // No qr on user's franchise info; clear any existing blob
-        setQrBlobUrl(null);
-        return;
-      }
-
-      try {
-        const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170').replace(/\/$/, '');
-
-        let fetchUrl = raw;
-        // Handle GridFS URLs: gridfs://fileId -> /api/files/fileId
-        if (raw.startsWith('gridfs://')) {
-          const fileId = raw.substring(9);
-          fetchUrl = API_BASE_URL + '/api/files/' + fileId;
-        } else if (!/^https?:\/\//i.test(raw)) {
-          // Treat as server-relative path and prefix API base
-          fetchUrl = API_BASE_URL + (raw.startsWith('/') ? raw : '/' + raw);
-        }
-
-        const resp = await fetch(fetchUrl, { mode: 'cors' });
-        if (!resp.ok) throw new Error('Failed fetching driver QR image: ' + resp.status);
-        const blob = await resp.blob();
-        if (cancelled) return;
-        const obj = URL.createObjectURL(blob);
-        qrBlobRef.current = obj;
-        setQrBlobUrl(obj);
-      } catch (err) {
-        logger.warn('DriverID: failed to fetch qr blob from user.franchise.qrCode', err);
-        setQrBlobUrl(null);
-      }
-    };
-
-    fetchQr();
-
-    return () => {
-      cancelled = true;
-      try {
-        if (qrBlobRef.current) {
-          URL.revokeObjectURL(qrBlobRef.current);
-          qrBlobRef.current = null;
-        }
-      } catch (e) {
-        logger.warn('Failed to revoke driver qr blob on cleanup', e);
-      }
-      setQrBlobUrl(null);
-    };
-  }, [user?.franchise?.qrCode]);
-
-  
+  // Refresh user details when page becomes visible
   useEffect(() => {
     const onVisibility = () => {
       if (document.visibilityState === 'visible') {
-       
         fetchUserDetails().catch(() => {});
       }
     };
     document.addEventListener('visibilitychange', onVisibility);
     return () => document.removeEventListener('visibilitychange', onVisibility);
   }, [fetchUserDetails]);
-  
-
 
   const [fields, setFields] = useState({
     orNumber: '',
@@ -476,167 +346,46 @@ function DriverID() {
     motorNumber: ''
   });
 
-  const [qrBlobUrl, setQrBlobUrl] = useState(null);
-  const qrBlobRef = React.useRef(null);
+  // Select the best candidate for profile photo
+  const profilePhotoPath = useMemo(() => {
+    const mf = matchedFranchise || null;
+    const u = user || null;
 
-  // Blob URL for driver's uploaded ID/photo (1x1) preview
-  const [idBlobUrl, setIdBlobUrl] = useState(null);
-  const idBlobRef = React.useRef(null);
-  const [idBlobIsPdf, setIdBlobIsPdf] = useState(false);
+    // PRIORITY 1: FranchiseInformation profilePhoto
+    // PRIORITY 2: FranchiseApplication documents.picture
+    // PRIORITY 3: User-level photos
+    const candidates = [
+      u?.franchise?.profilePhoto,
+      mf?.profilePhoto,
+      mf?.documents?.picture,
+      mf?.documents?.picture?.path,
+      mf?.documents?.picture?.url,
+      mf?.documents?.photo,
+      mf?.documents?.photo?.path,
+      mf?.documentPicture,
+      mf?.documentPicture?.path,
+      u?.profilePicture,
+      u?.profile_picture,
+      u?.photoUrl,
+      u?.photo_url,
+      u?.avatar,
+      u?.image,
+      u?.picture,
+    ];
 
-  const resolveServerUrl = (raw) => {
-    if (!raw) return null;
-    try {
-      // Do not route public client assets through API server. Keep them as-is so Vite serves them.
-      if (raw.startsWith('/public/')) return raw;
-      
-      const base = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170').replace(/\/$/, '');
-      
-      // Handle GridFS URLs: gridfs://fileId -> /api/files/fileId
-      if (raw.startsWith('gridfs://')) {
-        const fileId = raw.substring(9); // Remove 'gridfs://' prefix
-        return base + '/api/files/' + fileId;
+    for (const c of candidates) {
+      if (!c) continue;
+      if (typeof c === 'string') return c;
+      if (typeof c === 'object') {
+        const path = c.path || c.pathname || c.url;
+        if (path) return path;
       }
-      
-      // Handle full HTTP URLs
-      if (/^https?:\/\//i.test(raw)) return raw;
-      
-      // If path already absolute on the backend (starts with '/'), prefix with API base
-      if (raw.startsWith('/')) return base + raw;
-      return base + '/' + raw;
-    } catch {
-      return raw;
     }
-  }
-
-  // Fetch driver's uploaded ID/photo (image or PDF) and create object URL for same-origin preview
-  useEffect(() => {
-    let cancelled = false;
-
-    // revoke previous id blob
-    try {
-      if (idBlobRef.current) {
-        URL.revokeObjectURL(idBlobRef.current);
-        idBlobRef.current = null;
-      }
-    } catch (e) {
-      logger.warn('Failed to revoke previous id blob', e);
-    }
-
-    const pickCandidate = () => {
-      // Prefer matchedFranchise documents (normalized by backend in FranchiseMgmt)
-      // Use matchedFranchise when available — matching logic earlier already
-      // attempts to find the correct franchise for this user.
-      const mf = matchedFranchise || null;
-      const u = user || null;
-
-      if (import.meta.env && import.meta.env.DEV) {
-        logger.debug('[DriverID] matchedFranchise sample ->', mf);
-        logger.debug('[DriverID] user sample ->', u);
-      }
-
-      // PRIORITY 1: Use profilePhoto from FranchiseInformation (via /mine or /auth/me)
-      // PRIORITY 2: Use documents.picture from FranchiseApplication
-      // PRIORITY 3: Fallback to user-level photos
-      const candidates = [
-        // Highest priority: FranchiseInformation profilePhoto
-        u?.franchise?.profilePhoto,
-        mf?.profilePhoto,
-        // FranchiseApplication documents.picture
-        mf?.documents?.picture,
-        // Other nested document variations
-        mf?.documents?.picture?.path,
-        mf?.documents?.picture?.url,
-        mf?.documents?.photo,
-        mf?.documents?.photo?.path,
-        mf?.documentPicture,
-        mf?.documentPicture?.path,
-        // User-level fallbacks
-        u?.profilePicture,
-        u?.profile_picture,
-        u?.photoUrl,
-        u?.photo_url,
-        u?.avatar,
-        u?.image,
-        u?.picture,
-      ];
-
-      for (const c of candidates) {
-        if (!c) continue;
-        if (typeof c === 'string') {
-          logger.debug('[DriverID] pickCandidate selected string path from', c && c.substring(0, 80));
-          return c;
-        }
-        if (typeof c === 'object') {
-          const path = c.path || c.pathname || c.url;
-          if (path) {
-            logger.debug('[DriverID] pickCandidate selected object path from', path && path.substring(0, 80));
-            return path;
-          }
-        }
-      }
-      return null;
-    }
-
-    const rawPath = pickCandidate();
-    const path = resolveServerUrl(rawPath);
-    logger.debug('[DriverID] candidate rawPath ->', rawPath, 'resolved ->', path);
-    if (!path) {
-      setIdBlobUrl(null);
-      return () => {};
-    }
-
-    const isImage = /\.(png|jpe?g|webp|gif|bmp|svg)$/i.test(path) || String((matchedFranchise?.type || user?.type) || '').includes('image');
-    const isPdf = /\.pdf$/i.test(path) || String((matchedFranchise?.type || user?.type) || '').includes('pdf');
-
-    if (!isImage && !isPdf) {
-      // Not an image/pdf — don't fetch; let Avatar use resolved URL fallback
-      setIdBlobUrl(null);
-      return () => {};
-    }
-
-    (async () => {
-      try {
-        const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5170')
-        let fetchUrl = path;
-
-        // Handle GridFS URLs: gridfs://fileId -> /api/files/fileId
-        if (rawPath && rawPath.startsWith('gridfs://')) {
-          const fileId = rawPath.substring(9);
-          fetchUrl = API_BASE_URL.replace(/\/$/, '') + '/api/files/' + fileId;
-          logger.debug('[DriverID] GridFS URL detected, converted to ->', fetchUrl);
-        }
-
-        const resp = await fetch(fetchUrl, { mode: 'cors' });
-        if (!resp.ok) throw new Error('Failed fetching id file: ' + resp.status);
-        const blob = await resp.blob();
-        if (cancelled) return;
-        const obj = URL.createObjectURL(blob);
-        idBlobRef.current = obj;
-        setIdBlobUrl(obj);
-        // detect if PDF
-        const mime = blob.type || '';
-        setIdBlobIsPdf(mime.includes('pdf') || /\.pdf$/i.test(rawPath || ''));
-      } catch (err) {
-        logger.warn('DriverID: failed to fetch id blob, using direct path fallback', err);
-        setIdBlobUrl(null);
-        setIdBlobIsPdf(false);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-      try {
-        if (idBlobRef.current) {
-          URL.revokeObjectURL(idBlobRef.current);
-          idBlobRef.current = null;
-        }
-      } catch (e) {
-        logger.warn('Failed to revoke id blob on cleanup', e);
-      }
-      setIdBlobUrl(null);
-    };
+    return null;
   }, [user, matchedFranchise]);
+
+  // Use custom hook for profile photo blob management
+  const { blobUrl: idBlobUrl, isPdf: idBlobIsPdf } = useBlobUrl(profilePhotoPath, [profilePhotoPath]);
 
 
   const handleOpenFranchisePage = () => {

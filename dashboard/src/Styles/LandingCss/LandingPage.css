@@ -133,6 +133,9 @@
   background: #083d77;
   /* For landing main content */
   padding: 20px 60px 20px 40px;
+  margin: 0;
+  width: 100%;
+  box-sizing: border-box;
 }
 .logo-title {
   display: flex;
@@ -207,6 +210,24 @@
   color: #143c6e;
   border-color: #ffe066;
 }
+.nav-user {
+  font-size: 1.1rem;
+  color: #fff;
+  background: #143c6e;
+  border-radius: 20px;
+  padding: 8px 22px;
+  text-decoration: none;
+  font-weight: 600;
+  border: none;
+  box-shadow: 0 2px 8px rgba(20,60,110,0.18);
+  transition: background 0.2s, color 0.2s;
+  cursor: pointer;
+  font-family: 'Poppins', sans-serif;
+}
+.nav-user:hover {
+  background: #0f2d52;
+  color: #fff;
+}
 .landing-main {
   display: flex;
   /* anchor content to the top of the main area so it sits closer under the header */
@@ -223,16 +244,23 @@
 
 /* --- Added for tablet/mobile responsiveness */
 @media (max-width: 960px) {
+  .landing-header {
+    padding: 20px 30px;
+  }
+
   .landing-main {
     flex-direction: column;
-    padding: 20px 30px;
+    padding: 0 30px 20px;
+    margin-top: 0;
     align-items: flex-start;
     text-align: left;
+    gap: 30px;
   }
   
   .main-content {
     max-width: 100%;
     text-align: left;
+    margin-top: 40px;
   }
   
   .main-content h1 {
@@ -264,6 +292,38 @@
   .main-image img {
     margin-right: 0 !important;
     max-width: 100%;
+    margin-left: 0 !important;
+  }
+}
+
+/* Tablet-specific adjustments (768px-960px) */
+@media (min-width: 768px) and (max-width: 960px) {
+  .landing-header {
+    padding: 20px 40px;
+  }
+
+  .landing-main {
+    padding: 0 40px 20px;
+    gap: 40px;
+  }
+
+  .main-content {
+    margin-top: 50px;
+  }
+
+  .main-content h1 {
+    font-size: 2.6rem;
+  }
+
+  .landing-nav {
+    gap: 16px;
+    padding: 8px 16px;
+    margin-left: 20px;
+  }
+
+  .nav-link {
+    font-size: 0.95rem;
+    padding: 6px 16px;
   }
 }
 
@@ -595,13 +655,13 @@
   }
   
   .min-h-screen.bg-\[#F4D77E\] > div > div > div > div {
-    width: 140px !important;
-    height: 140px !important;
+    width: 120px !important;
+    height: 120px !important;
   }
   
   .min-h-screen.bg-\[#F4D77E\] > div > div > div > div > img {
-    width: 120px !important;
-    height: 120px !important;
+    width: 100px !important;
+    height: 100px !important;
   }
   
   .min-h-screen.bg-\[#F4D77E\] > div > div > div > h3 {

@@ -429,6 +429,8 @@ const FranchiseeDetailsModal = ({
   const [loadingHistoryItem, setLoadingHistoryItem] = useState(false);
   const [historyItemQrBlobUrl, setHistoryItemQrBlobUrl] = useState(null);
   const historyItemQrBlobUrlRef = useRef(null);
+  const [ownerPhotoBlobUrl, setOwnerPhotoBlobUrl] = useState(null);
+  const ownerPhotoBlobUrlRef = useRef(null);
 
   // Initialize edit data when entering edit mode
   useEffect(() => {
@@ -463,6 +465,87 @@ const FranchiseeDetailsModal = ({
       });
     }
   }, [isEditing, franchisee]);
+
+  // Fetch owner photo when franchisee changes
+  useEffect(() => {
+    // Always cleanup previous blob URL when franchisee changes or modal closes
+    if (ownerPhotoBlobUrlRef.current) {
+      URL.revokeObjectURL(ownerPhotoBlobUrlRef.current);
+      ownerPhotoBlobUrlRef.current = null;
+    }
+    setOwnerPhotoBlobUrl(null);
+
+    // Only fetch photo if modal is open and franchisee has a photo
+    if (!open || !franchisee?.documentOperatorPicture) {
+      return;
+    }
+
+    const fetchOwnerPhoto = async () => {
+      try {
+        let photoPath = franchisee.documentOperatorPicture.path || franchisee.documentOperatorPicture;
+        if (typeof photoPath !== 'string') {
+          logger.warn('[FranchiseeList] Invalid photo path type:', typeof photoPath);
+          return;
+        }
+
+        // Normalize photo URL (same approach as QROperatorID)
+        const API_BASE = API_BASE_URL.replace(/\/$/, '');
+        let photoUrl;
+        
+        // Handle GridFS URLs: gridfs://uploads/... -> /api/files/uploads/...
+        if (photoPath.startsWith('gridfs://')) {
+          const fileId = photoPath.substring(9); // Remove 'gridfs://'
+          photoUrl = `${API_BASE}/api/files/${fileId}`;
+        } 
+        // Handle full HTTP URLs
+        else if (/^https?:\/\//i.test(photoPath)) {
+          photoUrl = photoPath;
+        }
+        // Handle relative paths starting with /
+        else if (photoPath.startsWith('/')) {
+          photoUrl = `${API_BASE}${photoPath}`;
+        }
+        // Handle other relative paths
+        else {
+          photoUrl = `${API_BASE}/${photoPath}`;
+        }
+
+        logger.log('[FranchiseeList] Fetching owner photo for franchise:', franchisee.franchiseNumber, 'from:', photoUrl);
+
+        const response = await fetch(photoUrl, { 
+          mode: 'cors',
+          cache: 'no-cache' // Prevent browser caching issues
+        });
+
+        if (!response.ok) {
+          logger.error('[FranchiseeList] Failed to fetch owner photo:', response.status, response.statusText);
+          throw new Error('Failed to fetch owner photo: ' + response.status);
+        }
+
+        const blob = await response.blob();
+        const blobUrl = URL.createObjectURL(blob);
+        ownerPhotoBlobUrlRef.current = blobUrl;
+        setOwnerPhotoBlobUrl(blobUrl);
+        logger.log('[FranchiseeList] Owner photo loaded successfully for franchise:', franchisee.franchiseNumber);
+      } catch (error) {
+        logger.error('[FranchiseeList] Error fetching owner photo:', error);
+        setOwnerPhotoBlobUrl(null);
+      }
+    };
+
+    // Small delay to ensure cleanup is complete before fetching new photo
+    const timeoutId = setTimeout(() => {
+      fetchOwnerPhoto();
+    }, 50);
+
+    return () => {
+      clearTimeout(timeoutId);
+      if (ownerPhotoBlobUrlRef.current) {
+        URL.revokeObjectURL(ownerPhotoBlobUrlRef.current);
+        ownerPhotoBlobUrlRef.current = null;
+      }
+    };
+  }, [franchisee?.franchiseNumber, open]);
 
   const handleFieldChange = (field, value) => {
     setEditData(prev => ({ ...prev, [field]: value }));
@@ -655,6 +738,9 @@ const FranchiseeDetailsModal = ({
       if (historyItemQrBlobUrlRef.current) {
         URL.revokeObjectURL(historyItemQrBlobUrlRef.current);
       }
+      if (ownerPhotoBlobUrlRef.current) {
+        URL.revokeObjectURL(ownerPhotoBlobUrlRef.current);
+      }
     };
   }, []);
 
@@ -735,6 +821,91 @@ const FranchiseeDetailsModal = ({
               <Alert severity="info" sx={{ mb: 2 }}>
                 You are now editing franchisee information. Click the save icon to save changes or cancel to discard.
               </Alert>
+            )}
+            
+            {/* Owner Photo Display */}
+            {franchisee.documentOperatorPicture && (
+              <Box sx={{ 
+                display: 'flex', 
+                justifyContent: 'center', 
+                mb: 3, 
+                mt: 2,
+                p: 2,
+                bgcolor: '#f8f9fa',
+                borderRadius: 2,
+                border: '1px solid #e0e0e0'
+              }}>
+                <Box sx={{ textAlign: 'center' }}>
+                  <Typography variant="subtitle2" sx={{ mb: 1.5, fontWeight: 600, color: '#0A356B' }}>
+                    Franchise Owner Photo
+                  </Typography>
+                  {ownerPhotoBlobUrl ? (
+                    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1.5 }}>
+                      <Box
+                        sx={{
+                          width: 180,
+                          height: 180,
+                          border: '3px solid #0A356B',
+                          borderRadius: 2,
+                          overflow: 'hidden',
+                          cursor: 'pointer',
+                          transition: 'transform 0.2s, box-shadow 0.2s',
+                          '&:hover': {
+                            transform: 'scale(1.02)',
+                            boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+                          }
+                        }}
+                        onClick={() => onFilePreview(franchisee.documentOperatorPicture)}
+                      >
+                        <img
+                          src={ownerPhotoBlobUrl}
+                          alt="Franchise Owner"
+                          style={{
+                            width: '100%',
+                            height: '100%',
+                            objectFit: 'cover'
+                          }}
+                          onError={(e) => {
+                            e.target.style.display = 'none';
+                            e.target.parentElement.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#999;font-size:14px;">Photo unavailable</div>';
+                          }}
+                        />
+                      </Box>
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        startIcon={<VisibilityIcon />}
+                        onClick={() => onFilePreview(franchisee.documentOperatorPicture)}
+                        sx={{ 
+                          textTransform: 'none',
+                          borderColor: '#0A356B',
+                          color: '#0A356B',
+                          '&:hover': {
+                            borderColor: '#082548',
+                            bgcolor: 'rgba(10, 53, 107, 0.04)'
+                          }
+                        }}
+                      >
+                        View Full Size
+                      </Button>
+                    </Box>
+                  ) : (
+                    <Box sx={{ 
+                      width: 180, 
+                      height: 180, 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      justifyContent: 'center',
+                      border: '2px dashed #ccc',
+                      borderRadius: 2,
+                      bgcolor: '#fafafa',
+                      mx: 'auto'
+                    }}>
+                      <CircularProgress size={24} />
+                    </Box>
+                  )}
+                </Box>
+              </Box>
             )}
             
             <Typography variant="h6" className="section-header">
@@ -1245,6 +1416,79 @@ const FranchiseeDetailsModal = ({
                           This is a historical snapshot of franchise #{selectedHistoryItem.franchiseNumber} (Version {selectedHistoryItem.version}).
                           {selectedHistoryItem.franchiseStatus === 'Revoked' && ' This record represents a previous owner.'}
                         </Alert>
+
+                        {/* Historical Owner Photo Display */}
+                        {selectedHistoryItem.documentOperatorPicture && (
+                          <Box sx={{ 
+                            display: 'flex', 
+                            justifyContent: 'center', 
+                            mb: 3,
+                            p: 2,
+                            bgcolor: '#f8f9fa',
+                            borderRadius: 2,
+                            border: '1px solid #e0e0e0'
+                          }}>
+                            <Box sx={{ textAlign: 'center' }}>
+                              <Typography variant="subtitle2" sx={{ mb: 1.5, fontWeight: 600, color: '#0A356B' }}>
+                                Owner Photo (Historical)
+                              </Typography>
+                              <Box
+                                sx={{
+                                  width: 150,
+                                  height: 150,
+                                  border: '3px solid #0A356B',
+                                  borderRadius: 2,
+                                  overflow: 'hidden',
+                                  cursor: 'pointer',
+                                  mx: 'auto',
+                                  transition: 'transform 0.2s, box-shadow 0.2s',
+                                  '&:hover': {
+                                    transform: 'scale(1.02)',
+                                    boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+                                  }
+                                }}
+                                onClick={() => onFilePreview(selectedHistoryItem.documentOperatorPicture)}
+                              >
+                                <img
+                                  src={selectedHistoryItem.documentOperatorPicture.path?.startsWith('gridfs://') 
+                                    ? `${API_BASE_URL}/api/files/${selectedHistoryItem.documentOperatorPicture.path.substring(9)}`
+                                    : selectedHistoryItem.documentOperatorPicture.path?.startsWith('/') 
+                                    ? `${API_BASE_URL}${selectedHistoryItem.documentOperatorPicture.path}`
+                                    : selectedHistoryItem.documentOperatorPicture.path}
+                                  alt="Historical Owner"
+                                  style={{
+                                    width: '100%',
+                                    height: '100%',
+                                    objectFit: 'cover'
+                                  }}
+                                  onError={(e) => {
+                                    e.target.style.display = 'none';
+                                    e.target.parentElement.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#999;font-size:12px;">Photo unavailable</div>';
+                                  }}
+                                />
+                              </Box>
+                              <Button
+                                size="small"
+                                variant="outlined"
+                                startIcon={<VisibilityIcon />}
+                                onClick={() => onFilePreview(selectedHistoryItem.documentOperatorPicture)}
+                                sx={{ 
+                                  mt: 1.5,
+                                  textTransform: 'none',
+                                  borderColor: '#0A356B',
+                                  color: '#0A356B',
+                                  fontSize: '0.8rem',
+                                  '&:hover': {
+                                    borderColor: '#082548',
+                                    bgcolor: 'rgba(10, 53, 107, 0.04)'
+                                  }
+                                }}
+                              >
+                                View Full Size
+                              </Button>
+                            </Box>
+                          </Box>
+                        )}
 
                         <Typography variant="h6" className="section-header">
                           PERSONAL INFORMATION

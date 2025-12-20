@@ -9,7 +9,13 @@ const defaultStyles = {
   cancelButtonColor: '#6c757d',
   background: '#fff',
   color: '#333',
-  fontFamily: 'Poppins, sans-serif'
+  fontFamily: 'Poppins, sans-serif',
+  customClass: {
+    container: 'swal-container'
+  },
+  didOpen: (modal) => {
+    modal.style.zIndex = '9999';
+  }
 };
 
 export const showSuccess = (message, title = 'Success!') => {
@@ -80,7 +86,11 @@ export const showToast = (message, icon = 'success') => {
     showConfirmButton: false,
     timer: 3000,
     timerProgressBar: true,
+    customClass: {
+      container: 'swal-container'
+    },
     didOpen: (toast) => {
+      toast.style.zIndex = '9999';
       toast.addEventListener('mouseenter', Swal.stopTimer);
       toast.addEventListener('mouseleave', Swal.resumeTimer);
     }

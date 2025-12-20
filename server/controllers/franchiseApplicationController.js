@@ -1430,7 +1430,8 @@ exports.sbAdminAcceptNewFranchise = async (req, res, next) => {
       previousVersion,
       changeType: 'new',
       changedBy: req.user?.username || 'SB Admin',
-      linkedUser: application.operatorInfo,
+      // Walk-in franchises should NOT be auto-linked - operator must link via Franchise Linking feature
+      linkedUser: application.isWalkIn ? null : application.operatorInfo,
       relatedApplicationId: application._id
     };
     
@@ -1451,7 +1452,7 @@ exports.sbAdminAcceptNewFranchise = async (req, res, next) => {
     
     // Invalidate franchise list cache so admin side shows new franchise immediately
     const cacheManager = require('../utils/cache');
-    cacheManager.clearPattern('franchises-');
+    cacheManager.deletePattern('franchises-*');
     console.log('[sbAdminAcceptNewFranchise] Cleared franchise list cache for immediate refresh');
     
     // Link franchise chain ID to user account
@@ -1766,7 +1767,7 @@ exports.sbAdminAcceptRenewOrAmendment = async (req, res, next) => {
     
     // Invalidate franchise list cache so admin side refreshes immediately
     const cacheManager = require('../utils/cache');
-    cacheManager.clearPattern('franchises-');
+    cacheManager.deletePattern('franchises-*');
     console.log('[sbAdminAcceptRenewOrAmendment] Cleared franchise list cache for immediate refresh');
      // Delete application from FranchiseApplication collection (now in FranchiseInformation)
     // This prevents data redundancy and keeps FranchiseApplication for pending applications only

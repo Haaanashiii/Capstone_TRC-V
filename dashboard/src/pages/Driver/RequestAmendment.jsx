@@ -42,6 +42,7 @@ const alertStyle = {
     didOpen: (modal) => {
       modal.style.borderRadius = '12px';
       modal.style.boxShadow = '0 10px 40px rgba(0, 0, 0, 0.15)';
+      modal.style.zIndex = '9999';
     }
   },
   errorAlert: {
@@ -60,6 +61,7 @@ const alertStyle = {
     didOpen: (modal) => {
       modal.style.borderRadius = '12px';
       modal.style.boxShadow = '0 10px 40px rgba(0, 0, 0, 0.15)';
+      modal.style.zIndex = '9999';
     }
   },
   warningAlert: {
@@ -78,6 +80,7 @@ const alertStyle = {
     didOpen: (modal) => {
       modal.style.borderRadius = '12px';
       modal.style.boxShadow = '0 10px 40px rgba(0, 0, 0, 0.15)';
+      modal.style.zIndex = '9999';
     }
   }
 };

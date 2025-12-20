@@ -99,6 +99,15 @@ const uploadOperatorDocuments = multer({
   { name: 'resolutionDocument', maxCount: 1 }
 ]);
 
+// Single document upload (for supporting documents, etc.)
+const uploadSingleDocument = multer({
+  storage: memoryStorage,
+  fileFilter: documentFileFilter,
+  limits: {
+    fileSize: 10 * 1024 * 1024, // Max 10MB (compressed to 300KB before saving)
+  }
+});
+
 // Combined upload for operator creation (profile + documents)
 const uploadOperatorComplete = multer({
   storage: memoryStorage,
@@ -175,6 +184,7 @@ module.exports = {
   uploadProfilePhoto,
   uploadOperatorDocuments,
   uploadOperatorComplete,
+  uploadSingleDocument,
   handleMulterError,
   uploadDirs
 };

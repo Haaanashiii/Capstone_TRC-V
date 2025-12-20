@@ -5,6 +5,7 @@ import { useTranslation } from '../../hooks/useTranslation';
 import websocketService from '../../services/websocket';
 import announcementService from '../../services/announcementService';
 import UnifiedNavbar from '../../components/UnifiedNavbar';
+import AnimatedPage from '../../components/AnimatedPage';
 import { logger } from '../../utils/logger';
 import { Button, Typography, Box, useMediaQuery, useTheme, MobileStepper, Accordion, AccordionSummary, AccordionDetails, Dialog, DialogContent, IconButton, Menu, MenuItem, ListItemIcon, Drawer } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
@@ -28,6 +29,8 @@ const LandingPage = () => {
   const [announcements, setAnnouncements] = useState([]);
   const [loadingAnnouncements, setLoadingAnnouncements] = useState(true);
   const [openFareModal, setOpenFareModal] = useState(false);
+  const [openAnnouncementModal, setOpenAnnouncementModal] = useState(false);
+  const [selectedAnnouncement, setSelectedAnnouncement] = useState(null);
   const [activeTab, setActiveTab] = useState('documents');
   const [fareMatrixImage, setFareMatrixImage] = useState(SBFareImage); // Default to imported image
   const [fareMatrixDate, setFareMatrixDate] = useState('November 4, 2025');
@@ -224,7 +227,7 @@ const LandingPage = () => {
 
   const handleGoToId = () => {
     handleMenuClose();
-    navigate('/operator-id');
+    navigate('/operator/franchise');
   };
 
   const handleMobileMenuOpen = () => {
@@ -239,6 +242,16 @@ const LandingPage = () => {
     navigate(path);
     handleMobileMenuClose();
   };
+
+  const handleAnnouncementClick = (announcement) => {
+    setSelectedAnnouncement(announcement);
+    setOpenAnnouncementModal(true);
+  };
+
+  const handleCloseAnnouncementModal = () => {
+    setOpenAnnouncementModal(false);
+    setTimeout(() => setSelectedAnnouncement(null), 300);
+  };
   
   // Don't render content until translations are loaded to prevent showing raw translation keys
   if (translationsLoading) {
@@ -251,9 +264,7 @@ const LandingPage = () => {
 
   
   return (
-    /* Adjust nyo nalang kung ayaw ko design hehe */ 
-
-
+    <AnimatedPage animation="fadeInUp" duration={400}>
     <div className="landing-root">
       <header className="landing-header">
         <div className="logo-title">
@@ -287,7 +298,7 @@ const LandingPage = () => {
                 </Button>
                 {displayName ? (
                   <>
-                    <Button fullWidth onClick={() => { navigate('/operator-id'); handleMobileMenuClose(); }} sx={{ color: '#FFD700', justifyContent: 'flex-start', textTransform: 'none', fontSize: '16px', mt: 2 }}>
+                    <Button fullWidth onClick={() => { navigate('/operator/franchise'); handleMobileMenuClose(); }} sx={{ color: '#FFD700', justifyContent: 'flex-start', textTransform: 'none', fontSize: '16px', mt: 2 }}>
                       {displayName} (Operator ID)
                     </Button>
                     <Button fullWidth onClick={handleLogout} sx={{ color: '#fff', justifyContent: 'flex-start', textTransform: 'none', fontSize: '16px' }}>
@@ -311,10 +322,13 @@ const LandingPage = () => {
             {/* If user is logged in show name and menu, otherwise show Login button */}
             {displayName ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                
-                <div style={{ background: 'rgba(255,255,255,0.12)', padding: '6px 10px', borderRadius: 28, display: 'flex', alignItems: 'center' }}>
-                 
-                  <div onClick={handleMenuOpen} style={{ background: '#143c6e', color: '#fff', padding: '6px 16px', borderRadius: 20, fontWeight: 700, cursor: 'pointer', boxShadow: '0 4px 12px rgba(0,0,0,0.12)' }}>{displayName}</div>
+                <div style={{ background: 'rgba(255,255,255,0.12)', padding: '4px 8px', borderRadius: 24, display: 'flex', alignItems: 'center' }}>
+                  <button 
+                    onClick={handleMenuOpen} 
+                    className="nav-user"
+                  >
+                    {displayName}
+                  </button>
                 </div>
                 <Menu anchorEl={anchorEl} open={menuOpen} onClose={handleMenuClose} anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }} transformOrigin={{ vertical: 'top', horizontal: 'right' }} PaperProps={{ sx: { borderRadius: 2, minWidth: 200 } }}>
                   <MenuItem onClick={handleGoToId}>
@@ -478,6 +492,7 @@ const LandingPage = () => {
                   {announcementSlides[currentAnnouncementIndex].map((announcement) => (
                     <div
                       key={announcement._id}
+                      onClick={() => handleAnnouncementClick(announcement)}
                       style={{
                         backgroundColor: '#fff',
                         borderRadius: '8px',
@@ -570,19 +585,19 @@ const LandingPage = () => {
                   </button>
 
                   {/* Dots Navigation */}
-                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
                     {announcementSlides.map((_, idx) => (
                       <button
                         key={idx}
                         onClick={() => goToAnnouncementSlide(idx)}
                         style={{
-                          height: '10px',
+                          height: '6px',
                           borderRadius: '50%',
                           border: 'none',
                           cursor: 'pointer',
                           transition: 'all 0.3s ease',
                           backgroundColor: idx === currentAnnouncementIndex ? '#083D77' : '#ddd',
-                          width: idx === currentAnnouncementIndex ? '32px' : '10px'
+                          width: idx === currentAnnouncementIndex ? '20px' : '6px'
                         }}
                         aria-label={`Go to slide ${idx + 1}`}
                       />
@@ -653,24 +668,24 @@ const LandingPage = () => {
           <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'center', alignItems: 'center', gap: isMobile ? '30px' : '60px', maxWidth: '1100px', margin: '0 auto', padding: isMobile ? '0 20px' : '0' }}>
           
             <div style={{ textAlign: 'center', width: isMobile ? '100%' : '300px', maxWidth: '280px' }}>
-              <div style={{ background: '#1B4B75', borderRadius: '50%', width: isMobile ? '140px' : '170px', height: isMobile ? '140px' : '170px', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <img src="/Logos/2.png" alt="Tricycle Verification" style={{ width: isMobile ? '120px' : '150px', height: isMobile ? '120px' : '150px' }} />
+              <div style={{ background: '#1B4B75', borderRadius: '50%', width: isMobile ? '120px' : '150px', height: isMobile ? '120px' : '150px', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <img src="/Logos/2.png" alt="Tricycle Verification" style={{ width: isMobile ? '100px' : '130px', height: isMobile ? '100px' : '130px' }} />
               </div>
               <h3 style={{ fontWeight: 'bold', marginTop: '20px', color: '#111', fontFamily: 'Poppins, sans-serif', fontSize: isMobile ? '14px' : '16px' }}>TRICYCLE VERIFICATION</h3>
               <p style={{ fontSize: isMobile ? '13px' : '15px', marginTop: '10px', color: '#111', fontFamily: 'Poppins, sans-serif' }}>Instantly check if a tricycle is registered and franchised by scanning its QR code.</p>
             </div>
            
             <div style={{ textAlign: 'center', width: isMobile ? '100%' : '300px', maxWidth: '280px' }}>
-              <div style={{ background: '#1B4B75', borderRadius: '50%', width: isMobile ? '140px' : '170px', height: isMobile ? '140px' : '170px', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <img src="/Logos/4.png" alt="Franchise Application" style={{ width: isMobile ? '120px' : '150px', height: isMobile ? '120px' : '150px' }} />
+              <div style={{ background: '#1B4B75', borderRadius: '50%', width: isMobile ? '120px' : '150px', height: isMobile ? '120px' : '150px', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <img src="/Logos/4.png" alt="Franchise Application" style={{ width: isMobile ? '100px' : '130px', height: isMobile ? '100px' : '130px' }} />
               </div>
               <h3 style={{ fontWeight: 'bold', marginTop: '20px', color: '#111', fontFamily: 'Poppins, sans-serif', fontSize: isMobile ? '14px' : '16px' }}>FRANCHISE APPLICATION AND RENEWAL</h3>
               <p style={{ fontSize: isMobile ? '13px' : '15px', marginTop: '10px', color: '#111', fontFamily: 'Poppins, sans-serif' }}>Submit new franchise applications or renew your existing one online with ease.</p>
             </div>
            
             <div style={{ textAlign: 'center', width: isMobile ? '100%' : '300px', maxWidth: '280px' }}>
-              <div style={{ background: '#1B4B75', borderRadius: '50%', width: isMobile ? '140px' : '170px', height: isMobile ? '140px' : '170px', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <img src="/Logos/6.png" alt="Reporting Function" style={{ width: isMobile ? '120px' : '150px', height: isMobile ? '120px' : '150px' }} />
+              <div style={{ background: '#1B4B75', borderRadius: '50%', width: isMobile ? '120px' : '150px', height: isMobile ? '120px' : '150px', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <img src="/Logos/6.png" alt="Reporting Function" style={{ width: isMobile ? '100px' : '130px', height: isMobile ? '100px' : '130px' }} />
               </div>
               <h3 style={{ fontWeight: 'bold', marginTop: '20px', color: '#111', fontFamily: 'Poppins, sans-serif', fontSize: isMobile ? '14px' : '16px' }}>REPORTING FUNCTION</h3>
               <p style={{ fontSize: isMobile ? '13px' : '15px', marginTop: '10px', color: '#111', fontFamily: 'Poppins, sans-serif' }}>Report instances of overpricing or fare disputes, ensuring passengers are charged fairly.</p>
@@ -717,18 +732,12 @@ const LandingPage = () => {
       }}
     >
       <img
-        src="/Logos/SBLogo.png"
-        
-        alt="SB Logo"
-        style={{ width: "100px", height: "100px", objectFit: "contain" }}
-      />
-      <img
         src="/Logos/TRC-vLogo.png"
         alt="Vice Mayor Logo"
         style={{ width: "100px", height: "100px", objectFit: "contain" }}
       />
       <img
-        src="/Logos/vm.png"
+        src="/Logos/SBLogos.png"
         alt="Municipality Logo"
         style={{ width: "100px", height: "100px", objectFit: "contain" }}
       />
@@ -1058,7 +1067,209 @@ const LandingPage = () => {
       </Box>
     </Dialog>
 
+    {/* Announcement Details Modal */}
+    <Dialog
+      open={openAnnouncementModal}
+      onClose={handleCloseAnnouncementModal}
+      maxWidth="md"
+      fullWidth
+      PaperProps={{
+        sx: {
+          borderRadius: '16px',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
+          maxHeight: '90vh'
+        }
+      }}
+      slotProps={{
+        backdrop: {
+          sx: {
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            backdropFilter: 'blur(3px)'
+          }
+        }
+      }}
+    >
+      {/* Modal Header */}
+      <Box sx={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        p: 3,
+        borderBottom: '2px solid #E5E7EB',
+        background: 'linear-gradient(135deg, #083d77 0%, #0a3970 100%)'
+      }}>
+        <Typography 
+          variant="h5" 
+          component="h2" 
+          sx={{ 
+            fontWeight: 700, 
+            color: '#fff',
+            fontFamily: 'Poppins, sans-serif',
+            fontSize: { xs: '1.25rem', sm: '1.5rem' },
+            letterSpacing: '0.5px'
+          }}
+        >
+          ANNOUNCEMENT DETAILS
+        </Typography>
+        <IconButton 
+          onClick={handleCloseAnnouncementModal}
+          sx={{ 
+            color: '#fff',
+            '&:hover': {
+              background: 'rgba(255, 255, 255, 0.1)'
+            }
+          }}
+        >
+          <CloseIcon />
+        </IconButton>
+      </Box>
+
+      {/* Modal Content */}
+      <DialogContent sx={{ p: 0 }}>
+        {selectedAnnouncement && (
+          <Box sx={{ p: 4 }}>
+            {/* Title Section */}
+            <Box sx={{ mb: 3 }}>
+              <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2, mb: 2 }}>
+                <Typography 
+                  variant="h4" 
+                  sx={{ 
+                    fontWeight: 700, 
+                    color: '#1a1a1a',
+                    fontFamily: 'Poppins, sans-serif',
+                    fontSize: { xs: '1.5rem', sm: '2rem' },
+                    lineHeight: 1.3,
+                    flex: 1
+                  }}
+                >
+                  {selectedAnnouncement.title}
+                </Typography>
+                <Box
+                  sx={{
+                    display: 'inline-block',
+                    backgroundColor: '#083D77',
+                    color: '#FFEB62',
+                    fontSize: '13px',
+                    fontWeight: 700,
+                    padding: '6px 14px',
+                    borderRadius: '6px',
+                    whiteSpace: 'nowrap',
+                    flexShrink: 0
+                  }}
+                >
+                  NEW
+                </Box>
+              </Box>
+              
+              {/* Date Badge */}
+              <Box
+                sx={{
+                  display: 'inline-block',
+                  backgroundColor: '#f5f5f5',
+                  border: '1px solid #e0e0e0',
+                  borderRadius: '6px',
+                  padding: '6px 12px'
+                }}
+              >
+                <Typography 
+                  sx={{ 
+                    fontSize: '14px', 
+                    color: '#666',
+                    fontWeight: 600,
+                    fontFamily: 'Poppins, sans-serif'
+                  }}
+                >
+                  {formatDate(selectedAnnouncement.date)}
+                </Typography>
+              </Box>
+            </Box>
+
+            {/* Divider */}
+            <Box sx={{ 
+              height: '2px', 
+              background: 'linear-gradient(to right, #083d77, transparent)',
+              mb: 3 
+            }} />
+
+            {/* Description Section */}
+            <Box sx={{ mb: 3 }}>
+              <Typography
+                variant="body1"
+                sx={{
+                  fontSize: '16px',
+                  color: '#333',
+                  lineHeight: 1.8,
+                  fontFamily: 'Poppins, sans-serif',
+                  whiteSpace: 'pre-line',
+                  wordBreak: 'break-word'
+                }}
+              >
+                {selectedAnnouncement.description}
+              </Typography>
+            </Box>
+
+            {/* Additional Info if present */}
+            {selectedAnnouncement.additionalInfo && (
+              <Box
+                sx={{
+                  backgroundColor: '#f8f9fa',
+                  borderLeft: '4px solid #083d77',
+                  borderRadius: '4px',
+                  p: 2.5,
+                  mt: 3
+                }}
+              >
+                <Typography
+                  variant="body2"
+                  sx={{
+                    fontSize: '14px',
+                    color: '#555',
+                    lineHeight: 1.6,
+                    fontFamily: 'Poppins, sans-serif',
+                    fontStyle: 'italic'
+                  }}
+                >
+                  {selectedAnnouncement.additionalInfo}
+                </Typography>
+              </Box>
+            )}
+          </Box>
+        )}
+      </DialogContent>
+
+      {/* Modal Footer */}
+      <Box sx={{
+        display: 'flex',
+        justifyContent: 'flex-end',
+        gap: 2,
+        p: 3,
+        backgroundColor: '#f8f9fa',
+        borderTop: '1px solid #e0e0e0'
+      }}>
+        <Button 
+          onClick={handleCloseAnnouncementModal}
+          variant="contained"
+          sx={{
+            backgroundColor: '#083d77',
+            color: '#fff',
+            fontFamily: 'Poppins, sans-serif',
+            fontWeight: 600,
+            textTransform: 'none',
+            fontSize: '14px',
+            px: 4,
+            py: 1,
+            '&:hover': {
+              backgroundColor: '#0a3970'
+            }
+          }}
+        >
+          Close
+        </Button>
+      </Box>
+    </Dialog>
+
     </div>
+    </AnimatedPage>
   );
 };
 

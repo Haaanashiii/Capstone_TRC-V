@@ -48,6 +48,11 @@
   -webkit-overflow-scrolling: touch;
 }
 
+/* Consistent page entry animation */
+.page-enter {
+  animation: fadeInUp 0.5s ease-out;
+}
+
 /* Disable animations on page updates to prevent flicker */
 .franchise-bg.no-animate,
 .franchise-bg.no-animate .operator-home-container,
@@ -361,7 +366,7 @@
   background-color: #0d3a5f;
 }
 
-/* Mobile Responsiveness */
+/* Mobile Responsiveness - Enhanced */
 @media (max-width: 768px) {
   .options-container {
     flex-direction: column;
@@ -374,11 +379,41 @@
   }
   
   .modal-content {
-    width: 95%;
+    width: calc(100% - 32px);
     max-height: 90vh;
+    margin: 0 16px;
   }
   
   .notice-details {
     flex-direction: column;
+  }
+  
+  /* Prevent text field shrinking */
+  .MuiTextField-root,
+  .MuiFormControl-root,
+  .MuiInputBase-root,
+  .MuiOutlinedInput-root {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
+  }
+  
+  .MuiInputBase-input,
+  .MuiOutlinedInput-input {
+    font-size: 16px !important; /* Prevents iOS zoom */
+    padding: 12px 14px !important;
+  }
+  
+  /* All input types */
+  input[type="text"],
+  input[type="email"],
+  input[type="tel"],
+  input[type="number"],
+  textarea {
+    width: 100% !important;
+    max-width: 100% !important;
+    font-size: 16px !important;
+    box-sizing: border-box !important;
   }
 }

@@ -20,12 +20,14 @@ import HistoryIcon from '@mui/icons-material/History';
 import SettingsIcon from '@mui/icons-material/Settings';
 import MoreHorizIcon from '@mui/icons-material/MoreHoriz';
 import CloseIcon from '@mui/icons-material/Close';
+import LinkIcon from '@mui/icons-material/Link';
 
 // Map page keys to menu items
 const pageKeyToMenuItem = {
   'dashboard': { name: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
   'franchisee-list': { name: 'Franchisee List', icon: <ListAltIcon />, path: '/franchisee-list' },
   'franchise-management': { name: 'Franchise Management', icon: <BusinessIcon />, path: '/franchise-management' },
+  'franchise-linking': { name: 'Franchise Linking', icon: <LinkIcon />, path: '/franchise-linking' },
   'certificate': { name: 'Certificate', icon: <AssessmentIcon />, path: '/certificate' },
   'incident-reports': { name: 'Incident Reporting', icon: <AssessmentIcon />, path: '/incident-reports' },
   'analytics': { name: 'Analytics', icon: <AnalyticsIcon />, path: '/analytics' },
@@ -71,8 +73,8 @@ const setCachedPages = (role, pages) => {
 // Default fallback pages if API is not available (moved outside component for use in useState initializer)
 const getDefaultPages = (role) => {
   const defaults = {
-    'super-admin': ['dashboard', 'franchisee-list', 'franchise-management', 'certificate', 'incident-reports', 'analytics', 'announcements', 'audit-trail', 'admin-management', 'settings'],
-    'sb-admin': ['dashboard', 'franchisee-list', 'franchise-management', 'certificate', 'incident-reports'],
+    'super-admin': ['dashboard', 'franchisee-list', 'franchise-management', 'franchise-linking', 'certificate', 'incident-reports', 'analytics', 'announcements', 'audit-trail', 'admin-management', 'settings'],
+    'sb-admin': ['dashboard', 'franchisee-list', 'franchise-management', 'franchise-linking', 'certificate', 'incident-reports'],
     'bplo-admin': ['dashboard', 'franchisee-list', 'franchise-management', 'certificate', 'incident-reports']
   };
   return defaults[role] || [];

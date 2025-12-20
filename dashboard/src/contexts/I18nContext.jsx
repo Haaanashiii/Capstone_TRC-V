@@ -87,17 +87,17 @@ export const I18nProvider = ({ children }) => {
         value = value[k];
       } else {
         // Return key as fallback if translation not found
-        logger.warn(`[I18n] Translation not found for key: ${key} in language: ${language}`);
+        // logger.warn(`[I18n] Translation not found for key: ${key} in language: ${language}`);
         return defaultValue || key;
       }
     }
     
     const result = typeof value === 'string' ? value : defaultValue || key;
     
-    // Debug logging for specific keys (only in development)
-    if (key.includes('franchiseApplication')) {
-      logger.log(`[I18n] t("${key}") in ${language}:`, result);
-    }
+    // Debug logging removed to prevent console spam
+    // if (key.includes('franchiseApplication')) {
+    //   logger.log(`[I18n] t("${key}") in ${language}:`, result);
+    // }
     
     return result;
   };
