@@ -71,7 +71,20 @@ async function generateQRCodeBuffer(hashedFranchiseNo) {
   // Scanner will use /api/qr/scan/{hashedFranchiseNo} endpoint
   // Backend will unhash and find current owner
   const verifyUrl = `${baseUrl}/verify/franchise/${hashedFranchiseNo}`;
-  return await QRCode.toBuffer(verifyUrl, { type: 'image/png', width: 400 });
+  
+  // QR code options with TRC-V blue branding
+  const qrOptions = {
+    type: 'image/png',
+    width: 400,
+    errorCorrectionLevel: 'H',
+    margin: 1,
+    color: {
+      dark: '#1B4B75',  // TRC-V blue
+      light: '#FFFFFF'  // White background
+    }
+  };
+  
+  return await QRCode.toBuffer(verifyUrl, qrOptions);
 }
 
 // Handle franchise version control - mark previous as non-current, calculate next version
