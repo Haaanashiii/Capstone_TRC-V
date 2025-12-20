@@ -4,6 +4,8 @@
 
 This guide explains how to connect a **hosted frontend** (on a web hosting service) to your **local backend server** running Docker with Nginx and PM2.
 
+> 📈 **Enterprise Scaling:** For multi-server clusters and high-availability setups, see [ENTERPRISE_SCALING_GUIDE.md](ENTERPRISE_SCALING_GUIDE.md)
+
 ### Architecture Diagram
 
 ```
@@ -36,9 +38,16 @@ This guide explains how to connect a **hosted frontend** (on a web hosting servi
 ## Prerequisites
 
 ### Hardware Requirements
+
+| Scale Level | RAM | CPU Cores | Upload Speed | Concurrent Users |
+|-------------|-----|-----------|--------------|------------------|
+| Small Office | 4GB | 2 | 10 Mbps | ~500 |
+| City-wide | 8GB | 4 | 50 Mbps | ~2,000 |
+| Province | 16GB | 8 | 100 Mbps | ~8,000 |
+| Enterprise | 32GB+ | 16+ | 1 Gbps | 50,000+ |
+
 - A dedicated computer/server that will run 24/7
-- Minimum 4GB RAM, 2 CPU cores recommended
-- Stable internet connection with upload speed of at least 10 Mbps
+- Stable internet connection
 
 ### Software Requirements
 - **Operating System**: Windows 10/11 Pro, Windows Server, or Linux (Ubuntu 20.04+ recommended)
@@ -99,14 +108,15 @@ cd CAPSTONE_TRC-V
    cp server/.env.example server/.env
    ```
 
-2. Edit `server/.env` with your settings:
+2. Edit `.env` in the project root with your settings:
    ```env
    # Database
-   MONGODB_URI=mongodb://mongo:27017/trcv_db
+   MONGO_URI=mongodb://mongo:27017/trcv
    
    # Security - CHANGE THESE!
    JWT_SECRET=your-super-secret-key-change-this-to-something-random
-   SESSION_SECRET=another-random-secret-key
+   JWT_REFRESH_SECRET=another-random-secret-key
+   SESSION_SECRET=yet-another-random-secret-key
    
    # Your API domain (the subdomain pointing to your local server)
    API_DOMAIN=api.yourdomain.com
@@ -116,16 +126,21 @@ cd CAPSTONE_TRC-V
    
    # Environment
    NODE_ENV=production
+   DOCKER_ENV=true
    
    # Email settings (for OTP)
-   SMTP_HOST=smtp.gmail.com
-   SMTP_PORT=587
-   SMTP_USER=your-email@gmail.com
-   SMTP_PASS=your-app-password
+   EMAIL_USER=your-email@gmail.com
+   EMAIL_PASSWORD=your-app-password
+   EMAIL_FROM=TRC-V System <your-email@gmail.com>
    
-   # Optional: Redis for session clustering
+   # Redis for Socket.IO clustering (required for scaling)
    REDIS_HOST=redis
    REDIS_PORT=6379
+   REDIS_PASSWORD=your-redis-password
+   
+   # Scaling Configuration
+   PM2_INSTANCES=2              # Workers per container (1, 2, 4, or "max")
+   PM2_MAX_MEMORY=512M          # Memory limit per worker
    ```
 
 > ⚠️ **IMPORTANT**: Generate secure random strings for `JWT_SECRET` and `SESSION_SECRET`. You can use this command:
@@ -371,8 +386,14 @@ If your domain registrar offers SSL certificates, follow their instructions and 
 ```bash
 cd CAPSTONE_TRC-V
 
-# Build and start all services
+# Development/Small Office (single container, 2 PM2 workers)
 docker-compose up -d --build
+
+# Production (use production overrides)
+docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+
+# Scale for higher traffic (2 containers × 2 PM2 workers = 4 workers)
+docker-compose up -d --scale backend=2
 
 # Check if containers are running
 docker-compose ps
@@ -530,16 +551,20 @@ If API stops working after router restart:
 ### Daily Automatic Tasks
 - DDNS updates IP automatically
 - Docker restarts containers if they crash
+- PM2 auto-restarts workers on crash
+- Log rotation (configured in docker-compose)
 
 ### Weekly Checks
-- [ ] Check Docker logs for errors
+- [ ] Check Docker logs for errors: `docker-compose logs --tail=100`
 - [ ] Verify backups are running
-- [ ] Monitor disk space
+- [ ] Monitor disk space: `docker system df`
+- [ ] Check PM2 status: `docker-compose exec backend pm2 status`
 
 ### Monthly Tasks
 - [ ] Update Docker images: `docker-compose pull && docker-compose up -d`
-- [ ] Review and clean old logs
+- [ ] Review and clean old logs: `docker-compose exec backend pm2 flush`
 - [ ] Check SSL certificate expiry
+- [ ] Prune unused Docker resources: `docker system prune -f`
 
 ### Backup Commands
 
@@ -579,11 +604,20 @@ Before going live, ensure:
 # Start all services
 docker-compose up -d
 
+# Production mode with overrides
+docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+# Scale backend containers
+docker-compose up -d --scale backend=2
+
 # Stop all services
 docker-compose down
 
 # View logs
 docker-compose logs -f
+
+# Zero-downtime reload (no dropped connections)
+docker-compose exec backend pm2 reload ecosystem.config.js
 
 # Restart after config change
 docker-compose restart
@@ -594,6 +628,9 @@ docker-compose up -d --build
 
 # Check container status
 docker-compose ps
+
+# Monitor PM2 processes
+docker-compose exec backend pm2 monit
 ```
 
 ### Important Files
@@ -601,9 +638,21 @@ docker-compose ps
 | File | Purpose |
 |------|---------|
 | `docker-compose.yml` | Main Docker configuration |
-| `server/.env` | Backend environment variables |
-| `nginx/nginx.conf` | Nginx reverse proxy config |
+| `docker-compose.prod.yml` | Production overrides (scaling, security) |
+| `.env` | Environment variables (project root) |
+| `nginx/nginx.conf` | Nginx reverse proxy & load balancer |
+| `server/ecosystem.config.js` | PM2 cluster configuration |
 | `server/backups/` | Database backups |
+
+### Scaling Reference
+
+| Scale Level | Command |
+|-------------|---------|
+| Development | `docker-compose up -d` |
+| Small Office | `PM2_INSTANCES=2 docker-compose up -d` |
+| City-wide | `docker-compose up -d --scale backend=2` |
+| Province | `docker-compose up -d --scale backend=4` |
+| Enterprise | See [ENTERPRISE_SCALING_GUIDE.md](ENTERPRISE_SCALING_GUIDE.md) |
 
 ### Support Contacts
 
@@ -657,5 +706,15 @@ INTERNET
 
 ---
 
-*Last updated: December 2024*
-*TRC-V Version: 1.0*
+---
+
+## Additional Resources
+
+- **Quick Start:** [QUICKSTART.md](QUICKSTART.md) - Get running in 5 minutes
+- **Enterprise Scaling:** [ENTERPRISE_SCALING_GUIDE.md](ENTERPRISE_SCALING_GUIDE.md) - Cluster deployments
+- **Docker Setup:** [DOCKER_SETUP.md](DOCKER_SETUP.md) - Detailed configuration
+
+---
+
+*Last updated: December 2025*  
+*TRC-V Version: 1.0 (Enterprise Ready)*

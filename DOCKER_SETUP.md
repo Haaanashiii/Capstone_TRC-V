@@ -4,12 +4,15 @@
 - [System Architecture](#system-architecture)
 - [Prerequisites](#prerequisites)
 - [Quick Start](#quick-start)
+- [Scaling Commands](#scaling-commands)
 - [Environment Configuration](#environment-configuration)
 - [Docker Network Explained](#docker-network-explained)
 - [PM2 Process Manager Configuration](#pm2-process-manager-configuration)
 - [Network Access (LAN & Remote)](#network-access-lan--remote)
 - [Production Deployment](#production-deployment)
 - [Troubleshooting](#troubleshooting)
+
+> 📈 **Enterprise Scaling:** For multi-server clusters and Kubernetes deployments, see [ENTERPRISE_SCALING_GUIDE.md](ENTERPRISE_SCALING_GUIDE.md)
 
 ---
 
@@ -24,24 +27,26 @@
                       │
                       ▼
 ┌─────────────────────────────────────────────────────────────┐
-│  Nginx Reverse Proxy                                         │
+│  Nginx Reverse Proxy + Load Balancer                         │
 │  Container: trc-v-nginx                                      │
 │  Ports: 80 (HTTP), 443 (HTTPS)                              │
 └─────────────────────┬───────────────────────────────────────┘
-                      │
-                      ▼
+                      │ (load balances to backend instances)
+          ┌──────────┼──────────┐
+          ▼          ▼          ▼
 ┌─────────────────────────────────────────────────────────────┐
-│  Backend API (Node.js/Express)                               │
-│  Container: trc-v-backend                                    │
-│  Port: 5170                                                  │
-└─────────────────────┬───────────────────────────────────────┘
-                      │
-                      ▼
-┌─────────────────────────────────────────────────────────────┐
-│  MongoDB Database                                            │
-│  Container: trc-v-mongodb                                    │
-│  Port: 27017                                                 │
-└─────────────────────────────────────────────────────────────┘
+│  Backend API (Node.js/Express + PM2 Cluster)                 │
+│  Container: trc-v-backend-1, backend-2, ...                  │
+│  Port: 5170 (each container)                                 │
+│  PM2 Workers: 2-max per container                            │
+└─────────────────────┬───────────────────┬───────────────────┘
+                      │                   │
+                      ▼                   ▼
+┌───────────────────────────┐   ┌───────────────────────────┐
+│  MongoDB Database           │   │  Redis (Sessions/Socket)   │
+│  Container: trc-v-mongodb   │   │  Container: trc-v-redis    │
+│  Port: 27017                │   │  Port: 6379                │
+└───────────────────────────┘   └───────────────────────────┘
 ```
 
 ---
@@ -50,8 +55,8 @@
 
 - **Docker Desktop** (Windows/Mac) or **Docker Engine** (Linux)
 - **Docker Compose** (usually included with Docker Desktop)
-- **Minimum 4GB RAM** allocated to Docker
-- **Ports Available**: 80, 443, 3000, 5170, 27017
+- **Minimum 4GB RAM** allocated to Docker (8GB+ for production)
+- **Ports Available**: 80, 443, 3000, 5170, 27017, 6379
 
 ---
 
@@ -90,6 +95,48 @@ docker-compose exec backend node scripts/seedSuperAdmin.js
 - **API via Nginx**: http://localhost:80
 - **Direct Backend**: http://localhost:5170 (for debugging)
 - **MongoDB**: mongodb://localhost:27017
+
+---
+
+## 📈 Scaling Commands
+
+### Quick Scaling Reference
+
+| Scale Level | Command | Workers |
+|-------------|---------|---------|
+| Development | `docker-compose up -d` | 2 |
+| Small Office | `PM2_INSTANCES=2 docker-compose up -d` | 2 |
+| City-wide | `docker-compose up -d --scale backend=2` | 4 |
+| Province | `docker-compose up -d --scale backend=4` | 8+ |
+| Enterprise | See [ENTERPRISE_SCALING_GUIDE.md](ENTERPRISE_SCALING_GUIDE.md) | 16+ |
+
+### Scale Backend Horizontally
+```bash
+# Scale to 2 backend containers
+docker-compose up -d --scale backend=2
+
+# Scale to 4 backend containers
+docker-compose up -d --scale backend=4
+
+# Check running containers
+docker-compose ps
+```
+
+### Adjust PM2 Workers (Vertical Scaling)
+```bash
+# Set in .env file
+PM2_INSTANCES=4      # Workers per container
+PM2_MAX_MEMORY=1G    # Memory per worker
+
+# Or pass at runtime
+PM2_INSTANCES=max docker-compose up -d
+```
+
+### Zero-Downtime Reload
+```bash
+# Reload PM2 without dropping connections
+docker-compose exec backend pm2 reload ecosystem.config.js
+```
 
 ---
 
@@ -352,74 +399,71 @@ Docker Compose automatically creates an internal network for container-to-contai
 
 **Location**: `CAPSTONE_TRC-V/server/ecosystem.config.js`
 
-**Purpose**: PM2 manages the Node.js process inside the Docker container, providing auto-restart, clustering, and logging.
+**Purpose**: PM2 manages Node.js processes inside Docker containers, providing:
+- Auto-restart on crash
+- Cluster mode (multiple workers)
+- Load balancing
+- Zero-downtime reloads
+- Logging and metrics
 
-**Default Configuration:**
+**✨ NEW: Environment-Based Configuration**
+
+PM2 settings are now controlled via environment variables in `.env` - no code editing needed!
+
+```env
+# In your .env file:
+PM2_INSTANCES=2           # Workers per container (1, 2, 4, or "max")
+PM2_MAX_MEMORY=512M       # Memory limit per worker
+```
+
+**Scaling Table:**
+
+| PM2_INSTANCES | PM2_MAX_MEMORY | Use Case |
+|---------------|----------------|----------|
+| `1` | `256M` | Development / Low-resource PC |
+| `2` | `512M` | Small office (default) |
+| `4` | `512M` | City-wide deployment |
+| `max` | `1G` | Production server |
+
+**How It Works:**
 
 ```javascript
+// ecosystem.config.js reads from environment
+const getInstanceCount = () => {
+  const envInstances = process.env.PM2_INSTANCES;
+  if (envInstances === 'max') return 0; // PM2 interprets 0 as "max"
+  if (envInstances && !isNaN(parseInt(envInstances))) {
+    return parseInt(envInstances);
+  }
+  return 2; // Default: 2 workers
+};
+
 module.exports = {
   apps: [{
     name: 'trc-v-api',
     script: 'index.js',
-    
-    // INSTANCES: How many Node.js processes to run
-    // Options:
-    //   1        = Single instance (recommended for low-traffic/development)
-    //   2, 4, 8  = Fixed number of instances
-    //   'max'    = Use all CPU cores (recommended for production)
-    instances: 1,
-    
-    // EXECUTION MODE
-    // 'cluster' = Multiple instances with load balancing
-    // 'fork'    = Single process (use with instances: 1)
+    instances: getInstanceCount(),
     exec_mode: 'cluster',
-    
-    // MEMORY LIMIT: Restart if process exceeds this
-    // Increase for heavy workloads, decrease for limited RAM
-    max_memory_restart: '500M',  // Options: '256M', '500M', '1G', '2G'
-    
-    // AUTO-RESTART SETTINGS
-    autorestart: true,           // Restart on crash
-    max_restarts: 10,            // Max restarts before giving up
-    min_uptime: '10s',           // Must run 10s to count as "started"
-    restart_delay: 1000,         // Wait 1s between restarts
-    
-    // LOGGING
-    log_file: './logs/combined.log',
-    error_file: './logs/error.log',
-    out_file: './logs/out.log',
-    merge_logs: true,            // Combine logs from all instances
-    
-    // GRACEFUL SHUTDOWN
-    kill_timeout: 5000,          // Wait 5s for graceful shutdown
-    wait_ready: true,            // Wait for 'ready' signal
-    listen_timeout: 10000,       // Max 10s to start listening
+    max_memory_restart: process.env.PM2_MAX_MEMORY || '512M',
+    // ... other settings
   }]
 };
 ```
 
-**Common Customizations:**
+**Configuration Examples:**
 
-| Setting | Low Resource PC | Standard Server | High Traffic Production |
-|---------|-----------------|-----------------|------------------------|
-| `instances` | `1` | `2` | `'max'` or `4+` |
-| `max_memory_restart` | `'256M'` | `'500M'` | `'1G'` |
-| `exec_mode` | `'fork'` | `'cluster'` | `'cluster'` |
+```bash
+# Low-resource development
+PM2_INSTANCES=1 PM2_MAX_MEMORY=256M docker-compose up -d
 
-**Example: Low Resource Configuration**
-```javascript
-// For development PCs with limited RAM
-instances: 1,
-exec_mode: 'fork',  // Single process mode
-max_memory_restart: '256M',
-```
+# Standard deployment (default)
+docker-compose up -d
 
-**Example: Production Server Configuration**
-```javascript
-// For dedicated servers with multiple cores
-instances: 'max',  // Use all CPU cores
-exec_mode: 'cluster',
-max_memory_restart: '1G',
+# High-traffic production
+PM2_INSTANCES=max PM2_MAX_MEMORY=1G docker-compose up -d
+
+# Multi-container scaling (4 containers × 4 workers = 16 total)
+PM2_INSTANCES=4 docker-compose up -d --scale backend=4
 ```
 
 **PM2 Commands (inside container):**
@@ -633,15 +677,29 @@ docker-compose exec mongo mongosh trc_v
 # Start services
 docker-compose up -d
 
+# Start with production overrides
+docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+# Scale backend containers
+docker-compose up -d --scale backend=2
+
 # Stop services
 docker-compose down
 
 # Rebuild specific service
 docker-compose up -d --build backend
 
+# Zero-downtime reload (no dropped connections)
+docker-compose exec backend pm2 reload ecosystem.config.js
+
 # View logs
 docker-compose logs -f backend
 docker-compose logs --tail 50 nginx
+
+# PM2 monitoring
+docker-compose exec backend pm2 status
+docker-compose exec backend pm2 monit
+docker-compose exec backend pm2 logs
 
 # Execute command in container
 docker-compose exec backend sh
@@ -650,9 +708,26 @@ docker-compose exec mongo mongosh
 # Check container stats
 docker stats
 
+# Prune unused resources
+docker system prune -f
+
 # Remove all data (DANGER!)
 docker-compose down -v  # Removes volumes/database
 ```
+
+---
+
+## 📈 Enterprise Scaling
+
+For deployments beyond a single server, see:
+
+- **[ENTERPRISE_SCALING_GUIDE.md](ENTERPRISE_SCALING_GUIDE.md)** - Complete guide for:
+  - Multi-server clusters
+  - Docker Swarm deployments
+  - Kubernetes configuration
+  - MongoDB replica sets
+  - Redis high availability
+  - Performance tuning
 
 ---
 
@@ -662,6 +737,12 @@ For issues or questions about this codebase:
 - Repository: ray-Gabs/CAPSTONE_TRC-V
 - Email: raygabs89@gmail.com
 
+**Documentation:**
+- Quick Start: [QUICKSTART.md](QUICKSTART.md)
+- Enterprise Scaling: [ENTERPRISE_SCALING_GUIDE.md](ENTERPRISE_SCALING_GUIDE.md)
+- Production Deployment: [PRODUCTION_DEPLOYMENT_GUIDE.md](PRODUCTION_DEPLOYMENT_GUIDE.md)
+
 ---
 
-**Last Updated**: December 18, 2025
+**Last Updated**: December 20, 2025
+**Version**: 1.0 (Enterprise Ready)

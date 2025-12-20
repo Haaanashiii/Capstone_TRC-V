@@ -4,12 +4,14 @@
 
 This guide will help you get TRC-V up and running quickly using Docker.
 
+> 📈 **Looking to scale?** See [ENTERPRISE_SCALING_GUIDE.md](ENTERPRISE_SCALING_GUIDE.md) for cluster deployments.
+
 ---
 
 ## Prerequisites
 
 - ✅ Docker Desktop installed and running
-- ✅ Minimum 4GB RAM available
+- ✅ Minimum 4GB RAM available (8GB+ recommended for production)
 - ✅ Ports 80, 3000, 5170, 27017 available
 
 ### Check Docker Installation
@@ -64,7 +66,20 @@ CORS_ORIGIN=http://localhost:3000,http://localhost:80,http://192.168.1.100:3000,
 #                                                      ↑ Add your server's IP
 ```
 
-### 1.5 Keep Production Settings
+### 1.5 Scaling Configuration (Optional)
+
+For better performance, configure PM2 workers:
+
+```env
+# PM2 Workers per container (default: 2)
+# Options: 1, 2, 4, or "max" (all CPUs)
+PM2_INSTANCES=2
+
+# Memory limit per worker
+PM2_MAX_MEMORY=512M
+```
+
+### 1.6 Keep Production Settings
 
 **DON'T CHANGE THESE:**
 ```env
@@ -88,11 +103,18 @@ docker-compose up -d --build
 
 **What this does:**
 - Builds the dashboard (React/Vite)
-- Builds the backend (Node.js/Express)
+- Builds the backend (Node.js/Express + PM2 cluster)
 - Starts MongoDB database
-- Starts Nginx reverse proxy
+- Starts Redis (for Socket.IO clustering)
+- Starts Nginx reverse proxy with load balancing
 
 **Wait time:** 2-3 minutes for first build
+
+### 2.2.1 Scale for Higher Traffic (Optional)
+```bash
+# Scale to 2 backend containers (4 total workers with PM2_INSTANCES=2)
+docker-compose up -d --scale backend=2
+```
 
 ### 2.3 Check Container Status
 ```bash
@@ -102,10 +124,11 @@ docker-compose ps
 **Expected output:**
 ```
 NAME                IMAGE             STATUS
-trc-v-backend       trc-v-backend     Up (healthy)
-trc-v-dashboard     trc-v-dashboard   Up
+trc-v-backend-1     trc-v-backend     Up (healthy)
+trc-v-dashboard     trc-v-dashboard   Up (healthy)
 trc-v-mongodb       mongo:7           Up (healthy)
-trc-v-nginx         nginx:alpine      Up
+trc-v-redis         redis:7-alpine    Up (healthy)
+trc-v-nginx         nginx:alpine      Up (healthy)
 ```
 
 ### 2.4 View Logs (If Needed)
@@ -245,11 +268,26 @@ docker-compose up -d
 docker-compose down
 ```
 
+### Scale Backend (Enterprise)
+```bash
+# Scale to multiple backend containers
+docker-compose up -d --scale backend=2
+
+# Check PM2 workers inside container
+docker-compose exec backend pm2 status
+```
+
 ### Restart a Service
 ```bash
 docker-compose restart backend
 docker-compose restart dashboard
 docker-compose restart nginx
+```
+
+### Zero-Downtime Reload
+```bash
+# Reload PM2 workers without dropping connections
+docker-compose exec backend pm2 reload ecosystem.config.js
 ```
 
 ### Rebuild After Code Changes
@@ -279,6 +317,18 @@ docker-compose exec mongo mongosh trc_v
 ### Check Container Resources
 ```bash
 docker stats
+```
+
+### Monitor PM2 Processes
+```bash
+# Live dashboard
+docker-compose exec backend pm2 monit
+
+# View logs
+docker-compose exec backend pm2 logs
+
+# Detailed metrics
+docker-compose exec backend pm2 show trc-v-api
 ```
 
 ---
@@ -495,10 +545,16 @@ After logging in successfully:
    - Adjust based on expected traffic
 
 7. **Optimize PM2 for Your Server**
-   - Edit `server/ecosystem.config.js`
-   - For low-resource PCs: `instances: 1`, `max_memory_restart: '256M'`
-   - For production servers: `instances: 'max'`, `max_memory_restart: '1G'`
-   - See [DOCKER_SETUP.md](DOCKER_SETUP.md#pm2-process-manager-configuration) for details
+   - Set `PM2_INSTANCES` in `.env` file (no code editing needed)
+   - For low-resource PCs: `PM2_INSTANCES=1`, `PM2_MAX_MEMORY=256M`
+   - For production servers: `PM2_INSTANCES=max`, `PM2_MAX_MEMORY=1G`
+   - See [ENTERPRISE_SCALING_GUIDE.md](ENTERPRISE_SCALING_GUIDE.md) for cluster deployments
+
+8. **Scale for High Traffic**
+   - Single server: `docker-compose up -d` (default: 2 PM2 workers)
+   - City-wide: `docker-compose up -d --scale backend=2` (4 workers)
+   - Province: `docker-compose up -d --scale backend=4` (8+ workers)
+   - Enterprise: See [ENTERPRISE_SCALING_GUIDE.md](ENTERPRISE_SCALING_GUIDE.md)
 
 ---
 
@@ -510,9 +566,11 @@ After logging in successfully:
 
 **Documentation:**
 - Full Docker Setup: [DOCKER_SETUP.md](DOCKER_SETUP.md)
+- Enterprise Scaling: [ENTERPRISE_SCALING_GUIDE.md](ENTERPRISE_SCALING_GUIDE.md)
+- Production Deployment: [PRODUCTION_DEPLOYMENT_GUIDE.md](PRODUCTION_DEPLOYMENT_GUIDE.md)
 - Environment Config: See `.env` file comments
 
 ---
 
-**Last Updated:** December 18, 2025  
-**System Version:** TRC-V 1.0.0
+**Last Updated:** December 20, 2025  
+**System Version:** TRC-V 1.0.0 (Enterprise Ready)
