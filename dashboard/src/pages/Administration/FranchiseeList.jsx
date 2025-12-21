@@ -2611,7 +2611,6 @@ function FranchiseeList() {
         operatorContactNumber: editedData.contactNumber,
         operatorEmail: editedData.email,
         operatorBirthPlace: editedData.birthPlace,
-        operatorBirthDate: editedData.birthDate ? new Date(editedData.birthDate) : undefined, // Convert to Date object
         operatorCivilStatus: editedData.civilStatus,
         operatorCitizenship: editedData.citizenship,
         todaMembership: editedData.todaMembership,
@@ -2629,6 +2628,8 @@ function FranchiseeList() {
         mvPlateNo: editedData.mvPlate,
         motorEngineNo: editedData.motorEngineNumber,
         chasisNo: editedData.chassisNumber,
+        make: editedData.make,
+        plateNumber: editedData.plateNumber,
       };
 
       // Use the API service for update

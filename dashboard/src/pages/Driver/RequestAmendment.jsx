@@ -860,9 +860,9 @@ export default function RequestAmendment() {
         cRLTO: null
       });
       
-      // Redirect to operator home page after 2 seconds
+      // Redirect to franchisee list after 2 seconds
       setTimeout(() => {
-        navigate('/operator/franchise');
+        navigate('/operator/franchisee-list');
       }, 2000);
       
     } catch (error) {
@@ -993,7 +993,6 @@ export default function RequestAmendment() {
                   onChange={handleChange}
                   error={!!errors.fullName}
                   helperText={errors.fullName}
-                  disabled={amendmentType === 'motor'}
                 />
 
                 <TextField
@@ -1005,7 +1004,6 @@ export default function RequestAmendment() {
                   onChange={handleChange}
                   error={!!errors.contactNumber}
                   helperText={errors.contactNumber}
-                  disabled={amendmentType === 'motor'}
                 />
               </div>
 
@@ -1019,7 +1017,6 @@ export default function RequestAmendment() {
                   onChange={handleChange}
                   error={!!errors.birthPlace}
                   helperText={errors.birthPlace}
-                  disabled={amendmentType === 'motor'}
                 />
 
                 <LocalizationProvider dateAdapter={AdapterDayjs}>
@@ -1028,14 +1025,13 @@ export default function RequestAmendment() {
                     value={formData.birthDate}
                     onChange={(newValue) => setFormData({ ...formData, birthDate: newValue })}
                     disableFuture
-                    disabled={amendmentType === 'motor'}
                     slotProps={{ textField: { size: 'small', className: 'franchise-app-input' } }}
                   />
                 </LocalizationProvider>
               </div>
 
               <div className="franchise-app-grid-4">
-                <FormControl size="small" className="franchise-app-input" error={!!errors.civilStatus} disabled={amendmentType === 'motor'}>
+                <FormControl size="small" className="franchise-app-input" error={!!errors.civilStatus}>
                   <InputLabel>CIVIL STATUS</InputLabel>
                   <Select
                     label="CIVIL STATUS"
@@ -1061,7 +1057,6 @@ export default function RequestAmendment() {
                   onChange={handleChange}
                   error={!!errors.citizenship}
                   helperText={errors.citizenship}
-                  disabled={amendmentType === 'motor'}
                 />
               </div>
 
@@ -1075,10 +1070,9 @@ export default function RequestAmendment() {
                   onChange={handleChange}
                   error={!!errors.address}
                   helperText={errors.address}
-                  disabled={amendmentType === 'motor'}
                 />
 
-                <FormControl size="small" className="franchise-app-input" error={!!errors.barangay} disabled={amendmentType === 'motor'}>
+                <FormControl size="small" className="franchise-app-input" error={!!errors.barangay}>
                   <InputLabel>Barangay</InputLabel>
                   <Select
                     label="Barangay"
@@ -1104,7 +1098,6 @@ export default function RequestAmendment() {
                   name="todaMembership"
                   value={formData.todaMembership}
                   onChange={handleChange}
-                  disabled={amendmentType === 'motor'}
                   helperText="Optional - Leave blank if not applicable"
                 />
               </div>
@@ -1213,7 +1206,6 @@ export default function RequestAmendment() {
                   onChange={handleChange}
                   error={!!errors.driverName}
                   helperText={errors.driverName}
-                  disabled={amendmentType === 'owner'}
                 />
               </div>
 
@@ -1228,7 +1220,6 @@ export default function RequestAmendment() {
                   error={!!errors.make}
                   helperText={errors.make}
                   placeholder="e.g., Honda TMX 155"
-                  disabled={amendmentType === 'owner'}
                 />
 
                 <TextField
@@ -1240,7 +1231,6 @@ export default function RequestAmendment() {
                   onChange={handleChange}
                   error={!!errors.colorMotor}
                   helperText={errors.colorMotor}
-                  disabled={amendmentType === 'owner'}
                 />
               </div>
 
@@ -1255,7 +1245,6 @@ export default function RequestAmendment() {
                   error={!!errors.colorSidecar}
                   helperText={errors.colorSidecar || "Default: Blue and Yellow (B/Y)"}
                   placeholder="B/Y"
-                  disabled={amendmentType === 'owner'}
                 />
 
                 <TextField
@@ -1268,7 +1257,6 @@ export default function RequestAmendment() {
                   error={!!errors.plateNumber}
                   helperText={errors.plateNumber}
                   placeholder="e.g., ABC-1234"
-                  disabled={amendmentType === 'owner'}
                 />
               </div>
 
@@ -1283,7 +1271,6 @@ export default function RequestAmendment() {
                   error={!!errors.motorNumber}
                   helperText={errors.motorNumber}
                   placeholder="Enter motor/engine number"
-                  disabled={amendmentType === 'owner'}
                 />
 
                 <TextField
@@ -1291,7 +1278,6 @@ export default function RequestAmendment() {
                   size="small"
                   className="franchise-app-input"
                   name="chassisNumber"
-                  disabled={amendmentType === 'owner'}
                   value={formData.chassisNumber}
                   onChange={handleChange}
                   error={!!errors.chassisNumber}
@@ -1345,70 +1331,72 @@ export default function RequestAmendment() {
                 </div>
               </div>
 
-              {/* Documentary Requirements Section - Required for All Amendments */}
-              <div style={{ marginTop: 32 }}>
-                <div className="franchise-app-section">
-                  {t.documentaryReqs}
-                  <div className="franchise-app-section-line" />
-                </div>
+              {/* Documentary Requirements Section - Only for Owner Amendment */}
+              {amendmentType === 'owner' && (
+                <div style={{ marginTop: 32 }}>
+                  <div className="franchise-app-section">
+                    {t.documentaryReqs}
+                    <div className="franchise-app-section-line" />
+                  </div>
 
-                <div style={{ marginBottom: 24 }}>
-                  <p style={{ fontStyle: 'italic', marginBottom: 8 }}>
-                    {t.docInstructions}
-                  </p>
-                  <ul style={{ marginLeft: 24 }}>
-                    <li>{t.docFormat1}</li>
-                    <li>{t.docFormat2}</li>
-                    <li>{t.docFormat3}</li>
-                    <li>{t.docFormat4}</li>
-                  </ul>
-                </div>
+                  <div style={{ marginBottom: 24 }}>
+                    <p style={{ fontStyle: 'italic', marginBottom: 8 }}>
+                      {t.docInstructions}
+                    </p>
+                    <ul style={{ marginLeft: 24 }}>
+                      <li>{t.docFormat1}</li>
+                      <li>{t.docFormat2}</li>
+                      <li>{t.docFormat3}</li>
+                      <li>{t.docFormat4}</li>
+                    </ul>
+                  </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 'clamp(12px, 2.5vw, 18px)', marginBottom: 'clamp(20px, 4vw, 32px)' }}>
-                  {[
-                    { key: 'registration', label: 'PHOTOCOPY OF REGISTRATION' },
-                    { key: 'barangay', label: 'PHOTOCOPY OF BARANGAY CLEARANCE' },
-                    { key: 'cedula', label: 'PHOTOCOPY OF CEDULA' },
-                    { key: 'stencil', label: 'PHOTOCOPY OF MOTOR CHASSIS STENCIL' },
-                    { key: 'license', label: "PHOTOCOPY OF DRIVER'S LICENSE" },
-                    { key: 'affidavit', label: "PHOTOCOPY OF VOTER'S AFFIDAVIT" },
-                    { key: 'oRLTO', label: 'OR LTO (OFFICIAL RECEIPT)' },
-                    { key: 'cRLTO', label: 'CR (CERTIFICATE OF REGISTRATION)' },
-                    { key: 'picture', label: '1X1 PICTURE' }
-                  ].map((doc) => (
-                    <div key={doc.key} style={{ display: 'flex', alignItems: 'center', gap: 'clamp(12px, 3vw, 24px)', flexWrap: 'wrap' }}>
-                      <div style={{ flex: '1 1 200px', minWidth: '150px', fontWeight: 700, color: '#222', fontSize: 'clamp(14px, 2.2vw, 18px)', textTransform: 'uppercase', letterSpacing: 0.5 }}>{doc.label}</div>
-                      <div style={{ flex: '1 1 250px', minWidth: '200px', display: 'flex', alignItems: 'center' }}>
-                        <div
-                          style={{
-                            width: '100%',
-                            background: '#eaf1ff',
-                            borderRadius: 8,
-                            padding: 'clamp(10px, 1.5vw, 12px) clamp(8px, 1vw, 16px)',
-                            textAlign: 'center',
-                            fontWeight: 500,
-                            color: '#222',
-                            fontSize: 'clamp(14px, 2vw, 16px)',
-                            cursor: 'pointer',
-                            border: 'none',
-                            outline: 'none',
-                            transition: 'background 0.2s',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap'
-                          }}
-                          onClick={() => {
-                            setModalDocKey(doc.key);
-                            setModalFile(null);
-                          }}
-                        >
-                          {uploads[doc.key] ? truncateFilename(uploads[doc.key].name) : t.noFileSelected}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 'clamp(12px, 2.5vw, 18px)', marginBottom: 'clamp(20px, 4vw, 32px)' }}>
+                    {[
+                      { key: 'registration', label: 'PHOTOCOPY OF REGISTRATION' },
+                      { key: 'barangay', label: 'PHOTOCOPY OF BARANGAY CLEARANCE' },
+                      { key: 'cedula', label: 'PHOTOCOPY OF CEDULA' },
+                      { key: 'stencil', label: 'PHOTOCOPY OF MOTOR CHASSIS STENCIL' },
+                      { key: 'license', label: "PHOTOCOPY OF DRIVER'S LICENSE" },
+                      { key: 'affidavit', label: "PHOTOCOPY OF VOTER'S AFFIDAVIT" },
+                      { key: 'oRLTO', label: 'OR LTO (OFFICIAL RECEIPT)' },
+                      { key: 'cRLTO', label: 'CR (CERTIFICATE OF REGISTRATION)' },
+                      { key: 'picture', label: '1X1 PICTURE' }
+                    ].map((doc) => (
+                      <div key={doc.key} style={{ display: 'flex', alignItems: 'center', gap: 'clamp(12px, 3vw, 24px)', flexWrap: 'wrap' }}>
+                        <div style={{ flex: '1 1 200px', minWidth: '150px', fontWeight: 700, color: '#222', fontSize: 'clamp(14px, 2.2vw, 18px)', textTransform: 'uppercase', letterSpacing: 0.5 }}>{doc.label}</div>
+                        <div style={{ flex: '1 1 250px', minWidth: '200px', display: 'flex', alignItems: 'center' }}>
+                          <div
+                            style={{
+                              width: '100%',
+                              background: '#eaf1ff',
+                              borderRadius: 8,
+                              padding: 'clamp(10px, 1.5vw, 12px) clamp(8px, 1vw, 16px)',
+                              textAlign: 'center',
+                              fontWeight: 500,
+                              color: '#222',
+                              fontSize: 'clamp(14px, 2vw, 16px)',
+                              cursor: 'pointer',
+                              border: 'none',
+                              outline: 'none',
+                              transition: 'background 0.2s',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap'
+                            }}
+                            onClick={() => {
+                              setModalDocKey(doc.key);
+                              setModalFile(null);
+                            }}
+                          >
+                            {uploads[doc.key] ? truncateFilename(uploads[doc.key].name) : t.noFileSelected}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Agreement Section */}
               <div style={{ marginTop: 3, padding: '24px', background: '#fafbfd', borderRadius: '12px', boxShadow: '0 4px 12px rgba(23, 77, 122, 0.15)' }}>
@@ -1596,20 +1584,18 @@ export default function RequestAmendment() {
       {/* File Upload Modal */}
       {modalDocKey && (
         <div 
-          className="franchise-modal-bg"
           style={{
             position: 'fixed',
             top: 0,
             left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: isDragging ? 'rgba(2, 132, 199, 0.15)' : 'rgba(0, 0, 0, 0.6)',
-            backdropFilter: 'blur(4px)',
+            width: '100%',
+            height: '100%',
+            background: isDragging ? 'rgba(2, 132, 199, 0.15)' : 'rgba(0, 0, 0, 0.5)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             zIndex: 9999,
-            transition: 'background-color 0.3s ease'
+            transition: 'background 0.3s ease'
           }}
           onDragEnter={handleDragEnter}
           onDragLeave={handleDragLeave}

@@ -2316,7 +2316,7 @@ function FranchiseMgmt() {
                   <FileUploadField
                     name="documentPicture"
                     label="1x1 Picture of Driver"
-                    accept="image/jpeg,image/png,application/pdf"
+                    accept="image/jpeg,image/png"
                     formData={formData}
                     processingFiles={processingFiles}
                     compressionProgress={compressionProgress}
@@ -2326,7 +2326,7 @@ function FranchiseMgmt() {
                   <FileUploadField
                     name="documentOperatorPicture"
                     label="1x1 Picture of Operator"
-                    accept="image/jpeg,image/png,application/pdf"
+                    accept="image/jpeg,image/png"
                     formData={formData}
                     processingFiles={processingFiles}
                     compressionProgress={compressionProgress}
