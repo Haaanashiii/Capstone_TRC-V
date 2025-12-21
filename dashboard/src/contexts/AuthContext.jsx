@@ -1,13 +1,18 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import logger from '../utils/logger';
 
-const AuthContext = createContext();
+// Provide default value to prevent null context errors during initialization
+const AuthContext = createContext({
+  user: null,
+  login: () => {},
+  logout: () => {},
+  loading: true
+});
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {
-   
-    logger.warn('useAuth was called outside of an AuthProvider. Returning fallback auth object. Make sure your app is wrapped with <AuthProvider> in src/main.jsx');
+    logger.warn('useAuth was called outside of an AuthProvider. Returning fallback auth object.');
     return {
       user: null,
       login: () => {},

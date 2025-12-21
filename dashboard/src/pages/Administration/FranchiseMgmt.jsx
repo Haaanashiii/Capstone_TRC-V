@@ -1712,6 +1712,7 @@ function FranchiseMgmt() {
         aria-labelledby="add-franchise-modal"
         slotProps={{ backdrop: MODAL_BACKDROP_PROPS }}
       >
+        <Fade in={openAddModal} timeout={400}>
         <Box className="modal-container" sx={{ 
           maxWidth: '900px', 
           width: '90%',
@@ -2455,6 +2456,7 @@ function FranchiseMgmt() {
             </Button>
           </Box>
         </Box>
+        </Fade>
       </Modal>
       
       {/* View Application Modal */}
@@ -2465,24 +2467,63 @@ function FranchiseMgmt() {
           aria-labelledby="view-franchise-modal"
           slotProps={{ backdrop: MODAL_BACKDROP_PROPS }}
         >
-          <Box className="modal-container">
-            <div className="modal-header">
-              <Typography variant="h5" component="h2" sx={{ fontWeight: 700, color: '#0A356B' }}>
+          <Fade in={openViewModal} timeout={400}>
+          <Box 
+            className="franchise-mgmt-container"
+            sx={{
+              position: 'absolute',
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -50%)',
+              width: '90%',
+              maxWidth: '900px',
+              maxHeight: '80vh',
+              bgcolor: 'background.paper',
+              boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)',
+              borderRadius: '12px',
+              overflow: 'hidden',
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+          >
+            <Box className="modal-header" sx={{ 
+              p: 3, 
+              borderBottom: '2px solid #0A356B',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexShrink: 0
+            }}>
+              <Typography variant="h5" component="h2" sx={{ 
+                fontWeight: 700, 
+                color: '#0A356B',
+                m: 0
+              }}>
                 FRANCHISE APPLICATION DETAILS
               </Typography>
-              <IconButton onClick={handleCloseViewModal} sx={{ color: '#666' }}>
+              <IconButton 
+                onClick={handleCloseViewModal} 
+                sx={{ 
+                  color: '#0A356B',
+                  '&:hover': { bgcolor: 'rgba(10, 53, 107, 0.08)' }
+                }}
+              >
                 <CloseIcon />
               </IconButton>
-            </div>
+            </Box>
             
-            <div className="modal-body">
+            <Box className="modal-body" sx={{ 
+              flex: 1,
+              overflowY: 'auto',
+              p: 3
+            }}>
             {/* Approval Status Section */}
             <Box className="info-box" sx={{ mb: 2 }}>
-              <Typography variant="h6" sx={{ mb: 1.5, fontWeight: 600, color: 'text.primary' }}>
+              <Typography variant="h6" className="section-header" sx={{ mt: 0, pt: 0, borderBottom: 'none' }}>
                 Approval Status
               </Typography>
               <div className="info-grid">
-                <Typography variant="subtitle2" className="label">Current Status:</Typography>
+                <Typography className="label">Current Status:</Typography>
                 <Chip 
                   label={MODAL_STATUS_CONFIG[selectedApplication.statusOfBPLO]?.label ?? selectedApplication.statusOfBPLO}
                   color={MODAL_STATUS_CONFIG[selectedApplication.statusOfBPLO]?.color ?? 'default'}
@@ -2491,17 +2532,17 @@ function FranchiseMgmt() {
                 
                 {selectedApplication.bploApprovedBy && (
                   <>
-                    <Typography variant="subtitle2" className="label">BPLO Reviewed By:</Typography>
+                    <Typography className="label">BPLO Reviewed By:</Typography>
                     <Typography>{selectedApplication.bploApprovedBy}</Typography>
                     
-                    <Typography variant="subtitle2" className="label">BPLO Review Date:</Typography>
+                    <Typography className="label">BPLO Review Date:</Typography>
                     <Typography>{formatDate(selectedApplication.bploApprovedAt)}</Typography>
                   </>
                 )}
                 
                 {selectedApplication.bploDisapprovedReason && (
                   <>
-                    <Typography variant="subtitle2" className="label" sx={{ color: 'error.main' }}>
+                    <Typography className="label" sx={{ color: 'error.main' }}>
                       Disapproval Reason:
                     </Typography>
                     <Typography className="error-box">
@@ -2514,7 +2555,7 @@ function FranchiseMgmt() {
                   selectedApplication.statusOfBPLO === 'awaiting-sb' ||
                   selectedApplication.statusOfBPLO === 'sb-approved') && (
                   <>
-                    <Typography variant="subtitle2" className="label">Inspection Required:</Typography>
+                    <Typography className="label">Inspection Required:</Typography>
                     <Chip 
                       label={selectedApplication.bploInspectionRequired ? 'Yes - Visit BPLO' : 'Not Required'} 
                       color={selectedApplication.bploInspectionRequired ? 'warning' : 'default'}
@@ -2524,7 +2565,7 @@ function FranchiseMgmt() {
                 )}
                 
                 {/* OR Number and Document - Always show for BPLO/SB */}
-                <Typography variant="subtitle2" className="label">OR Number:</Typography>
+                <Typography className="label">OR Number:</Typography>
                 <Typography sx={{ 
                   fontWeight: selectedApplication.officialReceiptNumber ? 'bold' : 'normal', 
                   color: selectedApplication.officialReceiptNumber ? 'primary.main' : 'text.secondary',
@@ -2533,15 +2574,11 @@ function FranchiseMgmt() {
                   {selectedApplication.officialReceiptNumber || 'To be uploaded by the client'}
                 </Typography>
                 
-                <Typography variant="subtitle2" className="label">OR Document:</Typography>
+                <Typography className="label">OR Document:</Typography>
                 {selectedApplication.documents?.oRTreasurerOfficeObj ? (
                   <Link 
                     className="document-link" 
-                    onClick={() => handleOpenFilePreview({
-                      name: 'OR Document',
-                      type: 'application/pdf',
-                      path: selectedApplication.documents.oRTreasurerOfficeObj
-                    })}
+                    onClick={() => handleOpenFilePreview(selectedApplication.documents.oRTreasurerOfficeObj)}
                     sx={{ cursor: 'pointer', textDecoration: 'underline', color: 'primary.main' }}
                   >
                     View OR Document
@@ -2554,20 +2591,20 @@ function FranchiseMgmt() {
                 
                 {selectedApplication.orSubmittedAt && (
                   <>
-                    <Typography variant="subtitle2" className="label">OR Submitted:</Typography>
+                    <Typography className="label">OR Submitted:</Typography>
                     <Typography>{formatDate(selectedApplication.orSubmittedAt)}</Typography>
                   </>
                 )}
                 
                 {selectedApplication.sbApprovedBy && (
                   <>
-                    <Typography variant="subtitle2" className="label">SB Approved By:</Typography>
+                    <Typography className="label">SB Approved By:</Typography>
                     <Typography>{selectedApplication.sbApprovedBy}</Typography>
                     
-                    <Typography variant="subtitle2" className="label">SB Approval Date:</Typography>
+                    <Typography className="label">SB Approval Date:</Typography>
                     <Typography>{formatDate(selectedApplication.sbApprovedAt)}</Typography>
                     
-                    <Typography variant="subtitle2" className="label">Resolution Number:</Typography>
+                    <Typography className="label">Resolution Number:</Typography>
                     <Typography sx={{ 
                       fontWeight: 'bold', 
                       color: 'success.main',
@@ -2576,15 +2613,11 @@ function FranchiseMgmt() {
                       {selectedApplication.sbResolutionNumber}
                     </Typography>
                     
-                    <Typography variant="subtitle2" className="label">Resolution Document:</Typography>
+                    <Typography className="label">Resolution Document:</Typography>
                     {selectedApplication.sbResolutionDocument ? (
                       <Link 
                         className="document-link" 
-                        onClick={() => handleOpenFilePreview({
-                          name: 'Resolution Document',
-                          type: 'application/pdf',
-                          path: selectedApplication.sbResolutionDocument
-                        })}
+                        onClick={() => handleOpenFilePreview(selectedApplication.sbResolutionDocument)}
                         sx={{ cursor: 'pointer', textDecoration: 'underline', color: 'success.main' }}
                       >
                         View Resolution Document
@@ -2604,45 +2637,45 @@ function FranchiseMgmt() {
             </Typography>
             
             <div className="info-grid">
-              <Typography variant="subtitle2" className="label">Franchise Number:</Typography>
+              <Typography className="label">Franchise Number:</Typography>
               <Typography>{selectedApplication.franchiseNumber}</Typography>
               
-              <Typography variant="subtitle2" className="label">Name:</Typography>
+              <Typography className="label">Name:</Typography>
               <Typography>{selectedApplication.name}</Typography>
               
-              <Typography variant="subtitle2" className="label">Contact Number:</Typography>
+              <Typography className="label">Contact Number:</Typography>
               <Typography>{selectedApplication.contactNumber}</Typography>
               
-              <Typography variant="subtitle2" className="label">Email:</Typography>
+              <Typography className="label">Email:</Typography>
               <Typography>{selectedApplication.email || 'N/A'}</Typography>
               
-              <Typography variant="subtitle2" className="label">Barangay:</Typography>
+              <Typography className="label">Barangay:</Typography>
               <Typography>{selectedApplication.barangay || 'N/A'}</Typography>
               
-              <Typography variant="subtitle2" className="label">Birth Place:</Typography>
+              <Typography className="label">Birth Place:</Typography>
               <Typography>{selectedApplication.birthPlace}</Typography>
               
-              <Typography variant="subtitle2" className="label">Birth Date:</Typography>
+              <Typography className="label">Birth Date:</Typography>
               <Typography>{selectedApplication.birthDate}</Typography>
               
-              <Typography variant="subtitle2" className="label">Civil Status:</Typography>
+              <Typography className="label">Civil Status:</Typography>
               <Typography>{selectedApplication.civilStatus}</Typography>
               
-              <Typography variant="subtitle2" className="label">Citizenship:</Typography>
+              <Typography className="label">Citizenship:</Typography>
               <Typography>{selectedApplication.citizenship}</Typography>
               
-              <Typography variant="subtitle2" className="label">TODA Membership:</Typography>
+              <Typography className="label">TODA Membership:</Typography>
               <Typography>{selectedApplication.todaMembership}</Typography>
               
-              <Typography variant="subtitle2" className="label">Address:</Typography>
+              <Typography className="label">Address:</Typography>
               <Typography>{selectedApplication.address}</Typography>
               
               {(selectedApplication.coOwnerName || selectedApplication.coOwnerAddress) && (
                 <>
-                  <Typography variant="subtitle2" className="label">Co-Owner Name:</Typography>
+                  <Typography className="label">Co-Owner Name:</Typography>
                   <Typography>{selectedApplication.coOwnerName || 'N/A'}</Typography>
                   
-                  <Typography variant="subtitle2" className="label">Co-Owner Address:</Typography>
+                  <Typography className="label">Co-Owner Address:</Typography>
                   <Typography>{selectedApplication.coOwnerAddress || 'N/A'}</Typography>
                 </>
               )}
@@ -2653,10 +2686,10 @@ function FranchiseMgmt() {
             </Typography>
             
             <div className="info-grid">
-              <Typography variant="subtitle2" className="label">Driver Name:</Typography>
+              <Typography className="label">Driver Name:</Typography>
               <Typography>{selectedApplication.driverName}</Typography>
               
-              <Typography variant="subtitle2" className="label">Driver Address:</Typography>
+              <Typography className="label">Driver Address:</Typography>
               <Typography>{selectedApplication.driverAddress}</Typography>
             </div>
             
@@ -2665,25 +2698,25 @@ function FranchiseMgmt() {
             </Typography>
             
             <div className="info-grid">
-              <Typography variant="subtitle2" className="label">Unit Model:</Typography>
+              <Typography className="label">Unit Model:</Typography>
               <Typography>{selectedApplication.unitModel}</Typography>
               
-              <Typography variant="subtitle2" className="label">Color (Motor):</Typography>
+              <Typography className="label">Color (Motor):</Typography>
               <Typography>{selectedApplication.colorMotor}</Typography>
               
-              <Typography variant="subtitle2" className="label">Color (Sidecar):</Typography>
+              <Typography className="label">Color (Sidecar):</Typography>
               <Typography>{selectedApplication.colorSidecar}</Typography>
               
-              <Typography variant="subtitle2" className="label">MV Plate:</Typography>
+              <Typography className="label">MV Plate:</Typography>
               <Typography>{selectedApplication.mvPlate}</Typography>
               
-              <Typography variant="subtitle2" className="label">Motor/Engine Number:</Typography>
+              <Typography className="label">Motor/Engine Number:</Typography>
               <Typography>{selectedApplication.motorEngineNumber}</Typography>
               
-              <Typography variant="subtitle2" className="label">Chassis Number:</Typography>
+              <Typography className="label">Chassis Number:</Typography>
               <Typography>{selectedApplication.chassisNumber}</Typography>
               
-              <Typography variant="subtitle2" className="label">Sidecar Plate Number:</Typography>
+              <Typography className="label">Sidecar Plate Number:</Typography>
               <Typography>{selectedApplication.sidecarPlateNumber || 'N/A'}</Typography>
             </div>
             
@@ -2735,10 +2768,17 @@ function FranchiseMgmt() {
               </Box>
             )}
 
-            </div>
+            </Box>
             
             {/* Action Buttons - Role Based */}
-            <div className="modal-footer">
+            <Box className="modal-footer" sx={{
+              p: 3,
+              borderTop: '1px solid #e5e7eb',
+              display: 'flex',
+              justifyContent: 'flex-end',
+              gap: 2,
+              flexShrink: 0
+            }}>
               {userRole === 'bplo-admin' && selectedApplication.statusOfBPLO === 'pending' && (
                 <>
                   <Button
@@ -2842,8 +2882,9 @@ function FranchiseMgmt() {
                     'Disapproved by BPLO. Applicant has been notified.'}
                 </Typography>
               )}
-            </div>
+            </Box>
           </Box>
+          </Fade>
         </Modal>
       )}
       
@@ -2862,6 +2903,7 @@ function FranchiseMgmt() {
           },
         }}
       >
+        <Fade in={openFilePreview} timeout={400}>
         <Box 
           sx={{
             position: 'absolute',
@@ -3040,6 +3082,7 @@ function FranchiseMgmt() {
             )}
           </Box>
         </Box>
+        </Fade>
       </Modal>
       
       {/* BPLO Disapproval Reason Modal */}
@@ -3049,42 +3092,82 @@ function FranchiseMgmt() {
         aria-labelledby="rejection-modal"
         slotProps={{ backdrop: MODAL_BACKDROP_PROPS }}
       >
-        <Box className="modal-container rejection-modal">
-          <div className="modal-header">
-            <Typography variant="h5" component="h2">
+        <Fade in={openRejectModal} timeout={400}>
+        <Box 
+          className="franchise-mgmt-container"
+          sx={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            width: '90%',
+            maxWidth: '600px',
+            bgcolor: 'background.paper',
+            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)',
+            borderRadius: '12px',
+            p: 0,
+          }}
+        >
+          <Box className="modal-header" sx={{ 
+            p: 3, 
+            borderBottom: '2px solid #0A356B',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between'
+          }}>
+            <Typography variant="h5" component="h2" sx={{ fontWeight: 600, color: '#0A356B', m: 0 }}>
               Disapproval Reason
             </Typography>
-            <IconButton onClick={handleCloseRejectModal}>
+            <IconButton 
+              onClick={handleCloseRejectModal}
+              sx={{ color: '#0A356B', '&:hover': { bgcolor: 'rgba(10, 53, 107, 0.08)' } }}
+            >
               <CloseIcon />
             </IconButton>
-          </div>
+          </Box>
           
-          <Typography variant="body1" className="mb-2">
-            Please provide a reason for disapproving this franchise application:
-          </Typography>
-          
-          <TextField
-            label="Reason for Disapproval"
-            className="textfield-multiline"
-            multiline
-            rows={4}
-            value={rejectionReason}
-            onChange={(e) => setRejectionReason(e.target.value)}
-            fullWidth
-            required
-            placeholder="E.g., Documents incomplete, tricycle does not meet safety standards, etc."
-          />
-          
-          <div className="action-buttons">
-            <Button
-              className="button-primary"
-              onClick={handleSubmitRejection}
-              disabled={!rejectionReason.trim() || isLoading}
-            >
-              {isLoading ? <CircularProgress className="circular-progress-small" /> : 'Submit Disapproval'}
-            </Button>
-          </div>
+          <Box sx={{ p: 3 }}>
+            <Typography variant="body1" sx={{ mb: 2 }}>
+              Please provide a reason for disapproving this franchise application:
+            </Typography>
+            
+            <TextField
+              label="Reason for Disapproval"
+              multiline
+              rows={4}
+              value={rejectionReason}
+              onChange={(e) => setRejectionReason(e.target.value)}
+              fullWidth
+              required
+              placeholder="E.g., Documents incomplete, tricycle does not meet safety standards, etc."
+              sx={{ mb: 3 }}
+            />
+            
+            <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
+              <Button
+                variant="outlined"
+                onClick={handleCloseRejectModal}
+                disabled={isLoading}
+                sx={{ minWidth: '120px' }}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="contained"
+                onClick={handleSubmitRejection}
+                disabled={!rejectionReason.trim() || isLoading}
+                sx={{ 
+                  minWidth: '180px',
+                  bgcolor: '#d32f2f',
+                  '&:hover': { bgcolor: '#c62828' }
+                }}
+              >
+                {isLoading ? <CircularProgress size={20} sx={{ color: 'white' }} /> : 'Submit Disapproval'}
+              </Button>
+            </Box>
+          </Box>
         </Box>
+        </Fade>
       </Modal>
       
       {/* SB Admin Final Approval Modal */}
@@ -3092,98 +3175,124 @@ function FranchiseMgmt() {
         open={openSBApprovalModal}
         onClose={() => setOpenSBApprovalModal(false)}
         aria-labelledby="sb-approval-modal"
-        slotProps={{
-          backdrop: {
-            sx: {
-              backgroundColor: 'rgba(0, 0, 0, 0.5)',
-              backdropFilter: 'blur(3px)',
-            },
-          },
-        }}
+        slotProps={{ backdrop: MODAL_BACKDROP_PROPS }}
       >
-        <Box className="modal-container rejection-modal">
-          <div className="modal-header">
-            <Typography variant="h5" component="h2">
+        <Fade in={openSBApprovalModal} timeout={400}>
+        <Box 
+          className="franchise-mgmt-container"
+          sx={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            width: '90%',
+            maxWidth: '600px',
+            bgcolor: 'background.paper',
+            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)',
+            borderRadius: '12px',
+            p: 0,
+          }}
+        >
+          <Box className="modal-header" sx={{ 
+            p: 3, 
+            borderBottom: '2px solid #0A356B',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between'
+          }}>
+            <Typography variant="h5" component="h2" sx={{ fontWeight: 600, color: '#0A356B', m: 0 }}>
               Final Approval - Resolution Number
             </Typography>
-            <IconButton onClick={() => setOpenSBApprovalModal(false)}>
+            <IconButton 
+              onClick={() => setOpenSBApprovalModal(false)}
+              sx={{ color: '#0A356B', '&:hover': { bgcolor: 'rgba(10, 53, 107, 0.08)' } }}
+            >
               <CloseIcon />
             </IconButton>
-          </div>
-          
-          <Typography variant="body1" sx={{ mb: 2, color: 'text.secondary' }}>
-            Enter the Sangguniang Bayan resolution number to finalize approval of this franchise application.
-          </Typography>
-          
-          {selectedApplication && (
-            <Box className="info-box" sx={{ mb: 3 }}>
-              <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1, color: 'text.primary' }}>
-                Application Details
-              </Typography>
-              <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                Applicant: <strong>{selectedApplication.name}</strong>
-              </Typography>
-              <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                OR Number: <strong>{selectedApplication.officialReceiptNumber || 'Not submitted'}</strong>
-              </Typography>
-              <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                Plate Number: <strong>{selectedApplication.plateNumber}</strong>
-              </Typography>
-            </Box>
-          )}
-          
-          <TextField
-            label="Resolution Number"
-            value={resolutionNumber}
-            onChange={(e) => setResolutionNumber(e.target.value)}
-            fullWidth
-            required
-            placeholder="E.g., Resolution No. 2025-123"
-            helperText="This will appear on the certificate of approval"
-            sx={{ mb: 2 }}
-          />
-          
-          <Box sx={{ mb: 2 }}>
-            <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
-              Resolution Document (Optional)
-            </Typography>
-            <TextField
-              type="file"
-              fullWidth
-              onChange={(e) => setResolutionFile(e.target.files[0])}
-              inputProps={{ 
-                accept: "application/pdf,image/jpeg,image/png"
-              }}
-              helperText="Upload the official resolution document (PDF, JPG, or PNG)"
-            />
-            {resolutionFile && (
-              <Typography variant="caption" sx={{ mt: 1, display: 'block', color: 'success.main' }}>
-                Selected: {resolutionFile.name}
-              </Typography>
-            )}
           </Box>
           
-          <div className="action-buttons">
-            <Button
-              variant="outlined"
-              onClick={() => {
-                setOpenSBApprovalModal(false)
-                setResolutionNumber('')
-                setResolutionFile(null)
-              }}
-              disabled={isLoading}
-            >
-              Cancel
-            </Button>
-            <Button
-              className="button-success"
-              onClick={handleSBApproval}
-              disabled={!resolutionNumber.trim() || isLoading}
-            >
-              {isLoading ? <CircularProgress className="circular-progress-small circular-progress-inherit" /> : 'Approve & Issue Certificate'}
-            </Button>
-          </div>
+          <Box sx={{ p: 3 }}>
+            <Typography variant="body1" sx={{ mb: 2, color: 'text.secondary' }}>
+              Enter the Sangguniang Bayan resolution number to finalize approval of this franchise application.
+            </Typography>
+            
+            {selectedApplication && (
+              <Box className="info-box" sx={{ mb: 3, p: 2, bgcolor: '#f9fafb', borderRadius: 1, border: '1px solid #e5e7eb' }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1, color: 'text.primary' }}>
+                  Application Details
+                </Typography>
+                <Typography variant="body2" sx={{ color: 'text.secondary', mb: 0.5 }}>
+                  Applicant: <strong>{selectedApplication.name}</strong>
+                </Typography>
+                <Typography variant="body2" sx={{ color: 'text.secondary', mb: 0.5 }}>
+                  OR Number: <strong>{selectedApplication.officialReceiptNumber || 'Not submitted'}</strong>
+                </Typography>
+                <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                  Plate Number: <strong>{selectedApplication.mvPlate || selectedApplication.plateNumber}</strong>
+                </Typography>
+              </Box>
+            )}
+            
+            <TextField
+              label="Resolution Number"
+              value={resolutionNumber}
+              onChange={(e) => setResolutionNumber(e.target.value)}
+              fullWidth
+              required
+              placeholder="E.g., Resolution No. 2025-123"
+              helperText="This will appear on the certificate of approval"
+              sx={{ mb: 2 }}
+            />
+            
+            <Box sx={{ mb: 3 }}>
+              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
+                Resolution Document (Optional)
+              </Typography>
+              <TextField
+                type="file"
+                fullWidth
+                onChange={(e) => setResolutionFile(e.target.files[0])}
+                inputProps={{ 
+                  accept: "application/pdf,image/jpeg,image/png"
+                }}
+                helperText="Upload the official resolution document (PDF, JPG, or PNG)"
+              />
+              {resolutionFile && (
+                <Typography variant="caption" sx={{ mt: 1, display: 'block', color: 'success.main' }}>
+                  Selected: {resolutionFile.name}
+                </Typography>
+              )}
+            </Box>
+            
+            <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
+              <Button
+                variant="outlined"
+                onClick={() => {
+                  setOpenSBApprovalModal(false)
+                  setResolutionNumber('')
+                  setResolutionFile(null)
+                }}
+                disabled={isLoading}
+                sx={{ minWidth: '120px' }}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="contained"
+                onClick={handleSBApproval}
+                disabled={!resolutionNumber.trim() || isLoading}
+                sx={{ 
+                  minWidth: '200px',
+                  bgcolor: '#2e7d32',
+                  '&:hover': { bgcolor: '#1b5e20' }
+                }}
+              >
+                {isLoading ? <CircularProgress size={20} sx={{ color: 'white' }} /> : 'Approve & Issue Certificate'}
+              </Button>
+            </Box>
+          </Box>
         </Box>
+        </Fade>
       </Modal>
       
       {/* PDF Preview Modal */}
@@ -3200,6 +3309,7 @@ function FranchiseMgmt() {
           },
         }}
       >
+        <Fade in={openPdfPreview} timeout={400}>
         <Box 
           sx={{
             position: 'absolute',
@@ -3214,22 +3324,37 @@ function FranchiseMgmt() {
             boxShadow: 24,
             display: 'flex',
             flexDirection: 'column',
+            overflow: 'hidden',
           }}
         >
-          <div className="modal-header">
-            <Typography variant="h6">
+          <Box sx={{ 
+            p: 2.5,
+            borderBottom: '1px solid #e0e0e0',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            bgcolor: '#f8f9fa',
+            flexShrink: 0,
+          }}>
+            <Typography variant="h6" sx={{ fontWeight: 600, color: '#0A356B', m: 0 }}>
               Franchise Application Form Preview
             </Typography>
-            <IconButton onClick={handleClosePdfPreview}>
+            <IconButton 
+              onClick={handleClosePdfPreview}
+              sx={{ color: '#0A356B', '&:hover': { bgcolor: 'rgba(10, 53, 107, 0.08)' } }}
+            >
               <CloseIcon />
             </IconButton>
-          </div>
+          </Box>
           
           <Box sx={{ 
             flex: 1, 
             overflow: 'hidden',
             p: 0,
-            bgcolor: 'grey.800'
+            bgcolor: '#525252',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
           }}>
             {pdfPreviewUrl && (
               <iframe
@@ -3238,6 +3363,7 @@ function FranchiseMgmt() {
                   width: '100%',
                   height: '100%',
                   border: 'none',
+                  display: 'block',
                 }}
                 title="PDF Preview"
               />
@@ -3249,7 +3375,9 @@ function FranchiseMgmt() {
             borderTop: '1px solid #e0e0e0',
             display: 'flex',
             justifyContent: 'flex-end',
-            gap: 2
+            gap: 2,
+            bgcolor: 'background.paper',
+            flexShrink: 0,
           }}>
             <Button
               variant="outlined"
@@ -3267,6 +3395,7 @@ function FranchiseMgmt() {
             </Button>
           </Box>
         </Box>
+        </Fade>
       </Modal>
       
       <Snackbar 

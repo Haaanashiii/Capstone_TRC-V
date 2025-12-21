@@ -234,21 +234,24 @@
 
 .franchise-mgmt-container .info-grid {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 20px;
+    grid-template-columns: 200px 1fr;
+    gap: 16px 24px;
     margin-bottom: 20px;
-    padding: 16px;
-    background-color: #fafbfc;
-    border-radius: 8px;
-    border: 1px solid rgba(10, 53, 107, 0.08);
+    padding: 0;
+    background-color: transparent;
+    border-radius: 0;
+    border: none;
+    align-items: center;
 }
 
 .franchise-mgmt-container .label {
     font-weight: 600;
     color: #5f6368;
-    font-size: 13px;
+    font-size: 14px;
     text-transform: none;
     letter-spacing: 0;
+    margin: 0;
+    padding: 0;
 }
 
 .franchise-mgmt-container .document-link {
@@ -347,13 +350,23 @@
 /* Info Grid for Modal Details */
 .info-grid {
     display: grid;
-    grid-template-columns: 180px 1fr;
-    gap: 12px 20px;
-    align-items: start;
+    grid-template-columns: 200px 1fr;
+    gap: 16px 24px;
+    align-items: center;
 }
 
 .info-grid .label {
-    padding-top: 4px;
+    padding: 0 !important;
+    margin: 0 !important;
+}
+
+.info-grid .MuiTypography-root {
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+.info-grid > * {
+    margin: 0 !important;
 }
 
 /* Section Header for Modal Sections */
@@ -364,6 +377,10 @@
     margin: 24px 0 16px 0 !important;
     padding-bottom: 8px !important;
     border-bottom: 2px solid rgba(10, 53, 107, 0.1) !important;
+}
+
+.section-header:first-child {
+    margin-top: 0 !important;
 }
 
 /* Modal styles - Isolated */
@@ -396,6 +413,19 @@
     padding: 24px 32px;
     overflow-y: auto;
     flex: 1;
+}
+
+/* Reset any global MUI Typography styles in modal */
+.franchise-mgmt-container .modal-body .MuiTypography-root {
+    margin: 0 !important;
+}
+
+.franchise-mgmt-container .modal-body .MuiTypography-root.section-header {
+    margin: 24px 0 16px 0 !important;
+}
+
+.franchise-mgmt-container .modal-body .info-box .section-header {
+    margin-top: 0 !important;
 }
 
 .franchise-mgmt-container .modal-footer {
@@ -651,9 +681,23 @@
 /* Standardized Info Boxes */
 .info-box {
     background-color: #f9fafb;
-    padding: 16px;
+    padding: 20px 24px;
     border-radius: 8px;
     border: 1px solid #e5e7eb;
+}
+
+.info-box .section-header {
+    margin-top: 0 !important;
+    padding-top: 0 !important;
+    margin-bottom: 16px !important;
+    border-bottom: 2px solid rgba(10, 53, 107, 0.1) !important;
+    padding-bottom: 8px !important;
+}
+
+.info-box .info-grid {
+    padding: 0;
+    background-color: transparent;
+    border: none;
 }
 
 .success-box {
@@ -676,9 +720,10 @@
 
 .error-box {
     background-color: #ffebee;
-    padding: 8px 12px;
+    padding: 12px 16px;
     border-radius: 8px;
     border: 1px solid #ffcdd2;
+    color: #d32f2f;
 }
 
 .info-message-box {

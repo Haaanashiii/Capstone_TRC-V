@@ -208,14 +208,14 @@
   background-color: #082548 !important;
 }
 
-/* Make form labels stand out */
-.MuiTypography-subtitle2 {
+/* Make form labels stand out - scoped to franchisee-list only */
+.franchisee-list-container .MuiTypography-subtitle2 {
   margin-bottom: 6px !important;
   color: #555;
 }
 
-/* Additional spacing for form fields */
-.MuiTextField-root {
+/* Additional spacing for form fields - scoped to franchisee-list only */
+.franchisee-list-container .MuiTextField-root {
   margin-bottom: 8px !important;
 }
 

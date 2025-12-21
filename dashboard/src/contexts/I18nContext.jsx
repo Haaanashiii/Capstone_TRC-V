@@ -1,7 +1,24 @@
-import React, { createContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useState, useEffect, useCallback, useContext } from 'react';
 import logger from '../utils/logger';
 
-export const I18nContext = createContext();
+// Provide default value to prevent null context errors during initialization
+export const I18nContext = createContext({
+  language: 'en',
+  translations: {},
+  loading: false,
+  error: null,
+  toggleLanguage: () => {},
+  changeLanguage: () => {},
+  t: (key, defaultValue = '') => defaultValue || key
+});
+
+/**
+ * Hook to use I18n context safely
+ */
+export const useI18n = () => {
+  const context = useContext(I18nContext);
+  return context;
+};
 
 /**
  * I18nProvider - Global internationalization provider
