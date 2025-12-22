@@ -819,10 +819,17 @@ const OperatorHomePage = () => {
                 severity="error"
                 icon={<EventBusyIcon />}
                 sx={{ 
-                  bgcolor: '#fee',
-                  borderLeft: '4px solid #dc2626',
+                  bgcolor: '#fef2f2',
+                  borderLeft: '6px solid #dc2626',
+                  borderRadius: '8px',
+                  boxShadow: '0 2px 8px rgba(220, 38, 38, 0.15)',
+                  py: 1.5,
                   '& .MuiAlert-icon': {
-                    color: '#dc2626'
+                    color: '#dc2626',
+                    fontSize: '1.5rem'
+                  },
+                  '& .MuiAlert-message': {
+                    width: '100%'
                   }
                 }}
                 action={
@@ -883,15 +890,22 @@ const OperatorHomePage = () => {
                   </Button>
                 }
               >
-                <AlertTitle sx={{ fontWeight: 700, fontSize: '1.1rem' }}>
+                <AlertTitle sx={{ 
+                  fontWeight: 700, 
+                  fontSize: '1rem',
+                  mb: 0.5,
+                  color: '#991b1b'
+                }}>
                   ⚠️ Franchise Expired
                 </AlertTitle>
-                <Typography sx={{ fontSize: '0.95rem' }}>
-                  You have {expiryAlerts.expired.length} expired franchise{expiryAlerts.expired.length > 1 ? 's' : ''}. 
-                  Immediate renewal is required to continue operations.
-                  {expiryAlerts.expired.length === 1 && expiryAlerts.expired[0].status && (
-                    <> Expired {Math.abs(expiryAlerts.expired[0].status.daysUntilExpiry)} days ago on {expiryAlerts.expired[0].status.expiryDate}.</>
-                  )}
+                <Typography sx={{ 
+                  fontSize: '0.9rem',
+                  color: '#7f1d1d',
+                  lineHeight: 1.5
+                }}>
+                  Your franchise expired {expiryAlerts.expired.length === 1 && expiryAlerts.expired[0].status && (
+                    <><strong>{Math.abs(expiryAlerts.expired[0].status.daysUntilExpiry)} days ago</strong> on <strong>{expiryAlerts.expired[0].status.expiryDate}</strong></>
+                  )}. Immediate renewal is required to continue operations.
                 </Typography>
               </Alert>
             </Box>

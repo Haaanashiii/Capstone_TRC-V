@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { flushSync } from "react-dom";
 import Swal from 'sweetalert2';
 import { 
   TextField, 
@@ -42,7 +43,12 @@ const alertStyle = {
     didOpen: (modal) => {
       modal.style.borderRadius = '12px';
       modal.style.boxShadow = '0 10px 40px rgba(0, 0, 0, 0.15)';
-      modal.style.zIndex = '9999';
+      modal.style.zIndex = '10001';
+      // Ensure the container (parent) also has higher z-index
+      const container = modal.parentElement;
+      if (container) {
+        container.style.zIndex = '10000';
+      }
     }
   },
   errorAlert: {
@@ -61,7 +67,12 @@ const alertStyle = {
     didOpen: (modal) => {
       modal.style.borderRadius = '12px';
       modal.style.boxShadow = '0 10px 40px rgba(0, 0, 0, 0.15)';
-      modal.style.zIndex = '9999';
+      modal.style.zIndex = '10001';
+      // Ensure the container (parent) also has higher z-index
+      const container = modal.parentElement;
+      if (container) {
+        container.style.zIndex = '10000';
+      }
     }
   },
   warningAlert: {
@@ -80,7 +91,12 @@ const alertStyle = {
     didOpen: (modal) => {
       modal.style.borderRadius = '12px';
       modal.style.boxShadow = '0 10px 40px rgba(0, 0, 0, 0.15)';
-      modal.style.zIndex = '9999';
+      modal.style.zIndex = '10001';
+      // Ensure the container (parent) also has higher z-index
+      const container = modal.parentElement;
+      if (container) {
+        container.style.zIndex = '10000';
+      }
     }
   }
 };
@@ -161,6 +177,9 @@ export default function RequestAmendment() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [formData, setFormData] = useState(INITIAL_FORM_STATE);
+  
+  // Track the franchise ID being amended
+  const [franchiseId, setFranchiseId] = useState(null);
   
   // Get amendment type from navigation state
   const amendmentType = location.state?.amendmentType || 'motor'; // 'owner' or 'motor'
@@ -329,41 +348,70 @@ export default function RequestAmendment() {
   const processFile = async (file) => {
     if (!file) return;
     
-    // Validate file
-    const validation = validateFile(file);
+    // Check if file needs compression first to show loader immediately
+    const willCompress = file.size > 300 * 1024;
+    
+    // Show loading state immediately for large files
+    if (willCompress) {
+      setModalLoading(true);
+      setCompressionProgress(10);
+      // Small delay to ensure UI updates before compression starts
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
+    
+    // Determine if this is an image-only field (Operator Picture or Driver Picture)
+    const isImageOnlyField = modalDocKey === 'operatorPicture' || modalDocKey === 'picture';
+    
+    // Validate file with imageOnly option for picture fields
+    const validation = validateFile(file, { imageOnly: isImageOnlyField });
     if (!validation.success) {
+      setModalLoading(false);
+      setCompressionProgress(0);
+      // Show toast notification for each invalid attempt
       Swal.fire({
-        ...alertStyle.errorAlert,
+        icon: 'error',
         title: 'Invalid File',
-        text: validation.message
+        text: validation.message,
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: 5000,
+        timerProgressBar: true,
+        showClass: {
+          popup: 'swal2-show',
+          backdrop: 'swal2-backdrop-show',
+          icon: 'swal2-icon-show'
+        },
+        didOpen: (toast) => {
+          toast.style.borderRadius = '8px';
+          toast.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.15)';
+          toast.style.marginBottom = '10px';
+          // Set extremely high z-index to appear above modal backdrop (modal has z-index: 9999)
+          const container = toast.parentElement;
+          if (container) {
+            container.style.setProperty('z-index', '999999', 'important');
+          }
+        }
       });
       return;
     }
     
-    // Check if file needs compression
-    const willCompress = file.size > 300 * 1024;
-    
-    // Show loading state if file will be compressed
-    if (willCompress) {
-      setModalLoading(true);
-      setCompressionProgress(0);
-    }
-    
     try {
-      // Simulate progressive compression steps
+      // Compress the file with real-time progress updates
+      const processedFile = await compressFile(file, (progress) => {
+        if (willCompress) {
+          // Force immediate render for each progress update
+          flushSync(() => {
+            setCompressionProgress(progress);
+          });
+        }
+      });
+      
       if (willCompress) {
-        setCompressionProgress(30);
-        await new Promise(resolve => setTimeout(resolve, 300));
-        setCompressionProgress(60);
+        setCompressionProgress(100);
+        // Keep showing completion for a moment
+        await new Promise(resolve => setTimeout(resolve, 800));
       }
-      
-      // Compress the file (images and PDFs)
-      const processedFile = await compressFile(file);
-      
-      setCompressionProgress(100);
-      
-      // Brief delay to show completion before closing
-      await new Promise(resolve => setTimeout(resolve, 300));
       
       // Show compression success message only if file was compressed
       if (willCompress) {
@@ -388,8 +436,11 @@ export default function RequestAmendment() {
       logger.error('[RequestAmendment] File compression error:', error);
       setModalFile(file);
     } finally {
-      setModalLoading(false);
-      setCompressionProgress(0);
+      if (willCompress) {
+        // Clear loading state after showing completion
+        setModalLoading(false);
+        setCompressionProgress(0);
+      }
     }
   };
 
@@ -570,6 +621,10 @@ export default function RequestAmendment() {
               if (chainData.data && chainData.data.length > 0) {
                 const latestFranchise = chainData.data[chainData.data.length - 1];
                 
+                // Store the franchise ID
+                setFranchiseId(latestFranchise._id);
+                logger.log('[RequestAmendment] Stored franchise ID:', latestFranchise._id);
+                
                 logger.log('[RequestAmendment] Latest franchise version:', {
                   version: latestFranchise.version,
                   operatorName: latestFranchise.operatorName,
@@ -616,6 +671,8 @@ export default function RequestAmendment() {
             } else {
               logger.warn('[RequestAmendment] Failed to fetch franchise chain:', chainResponse.status);
               // Fallback: populate with basic franchise data
+              setFranchiseId(userFranchise._id);
+              logger.log('[RequestAmendment] Stored franchise ID (fallback):', userFranchise._id);
               setFormData({
                 date: dayjs(),
                 fullName: userFranchise.operatorName || '',
@@ -651,6 +708,8 @@ export default function RequestAmendment() {
           } catch (chainError) {
             logger.error('[RequestAmendment] Error fetching franchise chain:', chainError);
             // Fallback: use franchise data from /auth/me
+            setFranchiseId(userFranchise._id);
+            logger.log('[RequestAmendment] Stored franchise ID (error fallback):', userFranchise._id);
             setFormData({
               date: dayjs(),
               fullName: userFranchise.operatorName || '',
@@ -685,6 +744,8 @@ export default function RequestAmendment() {
           }
         } else {
           // No franchiseChainId, use basic franchise data
+          setFranchiseId(userFranchise._id);
+          logger.log('[RequestAmendment] Stored franchise ID (no chain):', userFranchise._id);
           setFormData({
             date: dayjs(),
             fullName: userFranchise.operatorName || '',
@@ -776,6 +837,12 @@ export default function RequestAmendment() {
       // Add application type
       formDataToSend.append('applicationType', applicationType);
       
+      // Add the specific franchise ID being amended
+      if (franchiseId) {
+        formDataToSend.append('previousFranchiseId', franchiseId);
+        logger.log('[RequestAmendment] Including previousFranchiseId:', franchiseId);
+      }
+      
       // Personal/Operator Information - ALL FIELDS
       formDataToSend.append('operatorName', formData.fullName || '');
       formDataToSend.append('operatorContactNumber', formData.contactNumber || '');
@@ -860,9 +927,9 @@ export default function RequestAmendment() {
         cRLTO: null
       });
       
-      // Redirect to franchisee list after 2 seconds
+      // Redirect to Operator Home Page after 2 seconds
       setTimeout(() => {
-        navigate('/operator/franchisee-list');
+        navigate('/operator/franchise');
       }, 2000);
       
     } catch (error) {
@@ -980,7 +1047,23 @@ export default function RequestAmendment() {
             <form onSubmit={handleSubmit}>
               {/* Personal Information Section */}
               <div className="franchise-app-section">
-                {t.personalInfo}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  {t.personalInfo}
+                  {amendmentType === 'motor' && (
+                    <span style={{
+                      fontSize: '0.75rem',
+                      fontWeight: 600,
+                      color: '#666',
+                      background: '#f5f5f5',
+                      padding: '4px 12px',
+                      borderRadius: '12px',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.5px'
+                    }}>
+                      Read-Only
+                    </span>
+                  )}
+                </div>
                 <div className="franchise-app-section-line" />
               </div>
               <div className="franchise-app-grid">
@@ -993,6 +1076,10 @@ export default function RequestAmendment() {
                   onChange={handleChange}
                   error={!!errors.fullName}
                   helperText={errors.fullName}
+                  InputProps={{
+                    readOnly: amendmentType === 'motor',
+                  }}
+                  disabled={amendmentType === 'motor'}
                 />
 
                 <TextField
@@ -1004,6 +1091,10 @@ export default function RequestAmendment() {
                   onChange={handleChange}
                   error={!!errors.contactNumber}
                   helperText={errors.contactNumber}
+                  InputProps={{
+                    readOnly: amendmentType === 'motor',
+                  }}
+                  disabled={amendmentType === 'motor'}
                 />
               </div>
 
@@ -1017,6 +1108,10 @@ export default function RequestAmendment() {
                   onChange={handleChange}
                   error={!!errors.birthPlace}
                   helperText={errors.birthPlace}
+                  InputProps={{
+                    readOnly: amendmentType === 'motor',
+                  }}
+                  disabled={amendmentType === 'motor'}
                 />
 
                 <LocalizationProvider dateAdapter={AdapterDayjs}>
@@ -1025,19 +1120,21 @@ export default function RequestAmendment() {
                     value={formData.birthDate}
                     onChange={(newValue) => setFormData({ ...formData, birthDate: newValue })}
                     disableFuture
-                    slotProps={{ textField: { size: 'small', className: 'franchise-app-input' } }}
+                    disabled={amendmentType === 'motor'}
+                    slotProps={{ textField: { size: 'small', className: 'franchise-app-input', disabled: amendmentType === 'motor' } }}
                   />
                 </LocalizationProvider>
               </div>
 
               <div className="franchise-app-grid-4">
-                <FormControl size="small" className="franchise-app-input" error={!!errors.civilStatus}>
+                <FormControl size="small" className="franchise-app-input" error={!!errors.civilStatus} disabled={amendmentType === 'motor'}>
                   <InputLabel>CIVIL STATUS</InputLabel>
                   <Select
                     label="CIVIL STATUS"
                     name="civilStatus"
                     value={formData.civilStatus || ''}
                     onChange={handleChange}
+                    disabled={amendmentType === 'motor'}
                   >
                     {CIVIL_STATUS_OPTIONS.map(status => (
                       <MenuItem key={status} value={status}>{status}</MenuItem>
@@ -1057,6 +1154,10 @@ export default function RequestAmendment() {
                   onChange={handleChange}
                   error={!!errors.citizenship}
                   helperText={errors.citizenship}
+                  InputProps={{
+                    readOnly: amendmentType === 'motor',
+                  }}
+                  disabled={amendmentType === 'motor'}
                 />
               </div>
 
@@ -1070,15 +1171,20 @@ export default function RequestAmendment() {
                   onChange={handleChange}
                   error={!!errors.address}
                   helperText={errors.address}
+                  InputProps={{
+                    readOnly: amendmentType === 'motor',
+                  }}
+                  disabled={amendmentType === 'motor'}
                 />
 
-                <FormControl size="small" className="franchise-app-input" error={!!errors.barangay}>
+                <FormControl size="small" className="franchise-app-input" error={!!errors.barangay} disabled={amendmentType === 'motor'}>
                   <InputLabel>Barangay</InputLabel>
                   <Select
                     label="Barangay"
                     name="barangay"
                     value={formData.barangay || ''}
                     onChange={handleChange}
+                    disabled={amendmentType === 'motor'}
                   >
                     {BARANGAYS.map((b) => (
                       <MenuItem key={b} value={b}>{b}</MenuItem>
@@ -1099,6 +1205,10 @@ export default function RequestAmendment() {
                   value={formData.todaMembership}
                   onChange={handleChange}
                   helperText="Optional - Leave blank if not applicable"
+                  InputProps={{
+                    readOnly: amendmentType === 'motor',
+                  }}
+                  disabled={amendmentType === 'motor'}
                 />
               </div>
 
@@ -1114,6 +1224,10 @@ export default function RequestAmendment() {
                     onChange={handleChange}
                     error={!!errors.coOwner}
                     helperText={errors.coOwner}
+                    InputProps={{
+                      readOnly: amendmentType === 'motor',
+                    }}
+                    disabled={amendmentType === 'motor'}
                   />
                 </div>
               )}
@@ -1192,7 +1306,23 @@ export default function RequestAmendment() {
 
               {/* Motorcycle Information Section */}
               <div className="franchise-app-section" style={{ marginTop: 32 }}>
-                {t.motorcycleInfo}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  {t.motorcycleInfo}
+                  {amendmentType === 'owner' && (
+                    <span style={{
+                      fontSize: '0.75rem',
+                      fontWeight: 600,
+                      color: '#666',
+                      background: '#f5f5f5',
+                      padding: '4px 12px',
+                      borderRadius: '12px',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.5px'
+                    }}>
+                      Read-Only
+                    </span>
+                  )}
+                </div>
                 <div className="franchise-app-section-line" />
               </div>
 
@@ -1206,6 +1336,10 @@ export default function RequestAmendment() {
                   onChange={handleChange}
                   error={!!errors.driverName}
                   helperText={errors.driverName}
+                  InputProps={{
+                    readOnly: amendmentType === 'owner',
+                  }}
+                  disabled={amendmentType === 'owner'}
                 />
               </div>
 
@@ -1220,6 +1354,10 @@ export default function RequestAmendment() {
                   error={!!errors.make}
                   helperText={errors.make}
                   placeholder="e.g., Honda TMX 155"
+                  InputProps={{
+                    readOnly: amendmentType === 'owner',
+                  }}
+                  disabled={amendmentType === 'owner'}
                 />
 
                 <TextField
@@ -1231,6 +1369,10 @@ export default function RequestAmendment() {
                   onChange={handleChange}
                   error={!!errors.colorMotor}
                   helperText={errors.colorMotor}
+                  InputProps={{
+                    readOnly: amendmentType === 'owner',
+                  }}
+                  disabled={amendmentType === 'owner'}
                 />
               </div>
 
@@ -1245,6 +1387,10 @@ export default function RequestAmendment() {
                   error={!!errors.colorSidecar}
                   helperText={errors.colorSidecar || "Default: Blue and Yellow (B/Y)"}
                   placeholder="B/Y"
+                  InputProps={{
+                    readOnly: amendmentType === 'owner',
+                  }}
+                  disabled={amendmentType === 'owner'}
                 />
 
                 <TextField
@@ -1257,6 +1403,10 @@ export default function RequestAmendment() {
                   error={!!errors.plateNumber}
                   helperText={errors.plateNumber}
                   placeholder="e.g., ABC-1234"
+                  InputProps={{
+                    readOnly: amendmentType === 'owner',
+                  }}
+                  disabled={amendmentType === 'owner'}
                 />
               </div>
 
@@ -1271,6 +1421,10 @@ export default function RequestAmendment() {
                   error={!!errors.motorNumber}
                   helperText={errors.motorNumber}
                   placeholder="Enter motor/engine number"
+                  InputProps={{
+                    readOnly: amendmentType === 'owner',
+                  }}
+                  disabled={amendmentType === 'owner'}
                 />
 
                 <TextField
@@ -1283,6 +1437,10 @@ export default function RequestAmendment() {
                   error={!!errors.chassisNumber}
                   helperText={errors.chassisNumber}
                   placeholder="Enter chassis number"
+                  InputProps={{
+                    readOnly: amendmentType === 'owner',
+                  }}
+                  disabled={amendmentType === 'owner'}
                 />
               </div>
 
@@ -1296,6 +1454,10 @@ export default function RequestAmendment() {
                   onChange={handleChange}
                   error={!!errors.driverAddress}
                   helperText={errors.driverAddress}
+                  InputProps={{
+                    readOnly: amendmentType === 'owner',
+                  }}
+                  disabled={amendmentType === 'owner'}
                 />
               </div>
 
@@ -1331,9 +1493,8 @@ export default function RequestAmendment() {
                 </div>
               </div>
 
-              {/* Documentary Requirements Section - Only for Owner Amendment */}
-              {amendmentType === 'owner' && (
-                <div style={{ marginTop: 32 }}>
+              {/* Documentary Requirements Section - Required for ALL amendments */}
+              <div style={{ marginTop: 32 }}>
                   <div className="franchise-app-section">
                     {t.documentaryReqs}
                     <div className="franchise-app-section-line" />
@@ -1396,7 +1557,6 @@ export default function RequestAmendment() {
                     ))}
                   </div>
                 </div>
-              )}
 
               {/* Agreement Section */}
               <div style={{ marginTop: 3, padding: '24px', background: '#fafbfd', borderRadius: '12px', boxShadow: '0 4px 12px rgba(23, 77, 122, 0.15)' }}>
@@ -1521,7 +1681,7 @@ export default function RequestAmendment() {
                     >
                       privacy policy
                     </span>
-                    {' '}and understand that my personal information will be used for franchise amendment processing.
+                    {' '}and understand that my personal information will be used for franchise application processing.
                   </label>
                 </div>
               </div>
@@ -1540,30 +1700,12 @@ export default function RequestAmendment() {
                 }}
               />
 
-              {/* Submit Buttons - Matching FranchiseApplication style */}
-              <div style={{ display: 'flex', justifyContent: 'center', margin: 'clamp(24px, 5vw, 40px) 0 0 0', gap: 'clamp(8px, 2vw, 16px)', flexWrap: 'wrap' }}>
+              {/* Submit Button - At the bottom */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', margin: '32px 0' }}>
                 <Button
                   variant="contained"
                   disabled={isSubmitting}
-                  sx={{ 
-                    bgcolor: '#174D7A', 
-                    color: '#fff', 
-                    fontWeight: 700, 
-                    borderRadius: 2, 
-                    fontSize: { xs: '20px', sm: '20px', md: '22px' },
-                    px: { xs: 6, sm: 5, md: 6 },
-                    py: { xs: 2.5, sm: 2.25, md: 2.5 },
-                    minWidth: { xs: '100%', sm: '200px', md: '240px' },
-                    minHeight: { xs: '64px', sm: '56px', md: '62px' },
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.5px',
-                    '&:hover': {
-                      bgcolor: '#0d3a5f',
-                      transform: 'translateY(-2px)',
-                      boxShadow: '0 4px 12px rgba(23, 77, 122, 0.3)'
-                    },
-                    transition: 'all 0.2s ease'
-                  }}
+                  sx={{ bgcolor: '#174D7A', color: '#fff', fontWeight: 700, borderRadius: 2, fontSize: 18, px: 4, py: 1 }}
                   type="submit"
                 >
                   {isSubmitting ? (
@@ -1611,10 +1753,59 @@ export default function RequestAmendment() {
             padding: '48px', 
             position: 'relative',
             margin: '20px',
-            animation: 'slideUp 0.3s ease-out'
+            animation: 'slideUp 0.3s ease-out',
+            pointerEvents: modalLoading ? 'none' : 'auto',
+            opacity: modalLoading ? 0.95 : 1
           }}>
+            {/* Processing Overlay */}
+            {modalLoading && (
+              <div style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                background: 'rgba(255, 255, 255, 0.85)',
+                backdropFilter: 'blur(2px)',
+                zIndex: 10,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderRadius: '24px',
+                cursor: 'wait'
+              }}>
+                <div style={{
+                  textAlign: 'center',
+                  padding: '24px'
+                }}>
+                  <div style={{
+                    width: '60px',
+                    height: '60px',
+                    border: '4px solid #e0e0e0',
+                    borderTop: '4px solid #174D7A',
+                    borderRadius: '50%',
+                    animation: 'spin 1s linear infinite',
+                    margin: '0 auto 16px'
+                  }} />
+                  <div style={{
+                    fontSize: '16px',
+                    fontWeight: 600,
+                    color: '#174D7A',
+                    marginBottom: '8px'
+                  }}>
+                    Processing File...
+                  </div>
+                  <div style={{
+                    fontSize: '14px',
+                    color: '#666'
+                  }}>
+                    Please wait while we compress your file
+                  </div>
+                </div>
+              </div>
+            )}
             <div style={{ fontWeight: 900, fontSize: '2rem', marginBottom: 12, letterSpacing: '-0.5px', color: '#0A356B' }}>{t.selectFile || 'Select a File'}</div>
-            <div style={{ fontWeight: 600, fontSize: '16px', marginBottom: '32px', color: '#666', letterSpacing: '0.3px' }}>
+            <div style={{ fontWeight: 600, fontSize: '16px', marginBottom: '8px', color: '#666', letterSpacing: '0.3px' }}>
               {t.upload || 'Upload'} {(() => {
                 const docLabels = {
                   registration: t.photoRegistration || 'Photocopy of Registration',
@@ -1630,6 +1821,22 @@ export default function RequestAmendment() {
                 };
                 return docLabels[modalDocKey] || 'Document';
               })()}
+            </div>
+            {/* Show accepted file types indicator */}
+            <div style={{ 
+              fontWeight: 500, 
+              fontSize: '13px', 
+              marginBottom: '24px', 
+              color: (modalDocKey === 'operatorPicture' || modalDocKey === 'picture') ? '#059669' : '#6366f1',
+              backgroundColor: (modalDocKey === 'operatorPicture' || modalDocKey === 'picture') ? '#d1fae5' : '#e0e7ff',
+              padding: '8px 16px',
+              borderRadius: '8px',
+              textAlign: 'center',
+              border: `1px solid ${(modalDocKey === 'operatorPicture' || modalDocKey === 'picture') ? '#86efac' : '#c7d2fe'}`
+            }}>
+              {(modalDocKey === 'operatorPicture' || modalDocKey === 'picture') 
+                ? '📸 Images only: JPG or PNG' 
+                : '📄 Accepted: JPG, PNG, or PDF'}
             </div>
             <div style={{ marginBottom: '32px' }}>
               <div

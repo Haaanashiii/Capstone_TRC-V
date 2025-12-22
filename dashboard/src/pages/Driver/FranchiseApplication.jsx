@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
+import { flushSync } from "react-dom";
 import Swal from 'sweetalert2';
 import { useNavigate, useLocation } from 'react-router-dom';
 import UnifiedNavbar from "../../components/UnifiedNavbar";
@@ -32,7 +33,12 @@ const alertStyle = {
     didOpen: (modal) => {
       modal.style.borderRadius = '12px';
       modal.style.boxShadow = '0 10px 40px rgba(0, 0, 0, 0.15)';
-      modal.style.zIndex = '9999';
+      modal.style.zIndex = '10001';
+      // Ensure the container (parent) also has higher z-index
+      const container = modal.parentElement;
+      if (container) {
+        container.style.zIndex = '10000';
+      }
     }
   },
   errorAlert: {
@@ -51,7 +57,12 @@ const alertStyle = {
     didOpen: (modal) => {
       modal.style.borderRadius = '12px';
       modal.style.boxShadow = '0 10px 40px rgba(0, 0, 0, 0.15)';
-      modal.style.zIndex = '9999';
+      modal.style.zIndex = '10001';
+      // Ensure the container (parent) also has higher z-index
+      const container = modal.parentElement;
+      if (container) {
+        container.style.zIndex = '10000';
+      }
     }
   },
   warningAlert: {
@@ -70,7 +81,12 @@ const alertStyle = {
     didOpen: (modal) => {
       modal.style.borderRadius = '12px';
       modal.style.boxShadow = '0 10px 40px rgba(0, 0, 0, 0.15)';
-      modal.style.zIndex = '9999';
+      modal.style.zIndex = '10001';
+      // Ensure the container (parent) also has higher z-index
+      const container = modal.parentElement;
+      if (container) {
+        container.style.zIndex = '10000';
+      }
     }
   }
 };
@@ -232,6 +248,12 @@ export default function FranchiseApplication() {
       const renewalData = location.state;
       logger.log('[FranchiseApplication] Renewal mode - pre-filling data:', renewalData);
       setApplicationType('renewal');
+      
+      // Store the specific franchise ID being renewed
+      if (renewalData.previousFranchiseId) {
+        setPreviousFranchiseId(renewalData.previousFranchiseId);
+        logger.log('[FranchiseApplication] Setting previousFranchiseId:', renewalData.previousFranchiseId);
+      }
       
       setFields({
         date: dayjs(),
@@ -403,41 +425,70 @@ export default function FranchiseApplication() {
   const processFile = async (file) => {
     if (!file) return;
     
-    // Validate file
-    const validation = validateFile(file);
+    // Check if file needs compression first to show loader immediately
+    const willCompress = file.size > 300 * 1024;
+    
+    // Show loading state immediately for large files
+    if (willCompress) {
+      setModalLoading(true);
+      setCompressionProgress(10);
+      // Small delay to ensure UI updates before compression starts
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
+    
+    // Determine if this is an image-only field (Operator Picture or Driver Picture)
+    const isImageOnlyField = modalDocKey === 'operatorPicture' || modalDocKey === 'picture';
+    
+    // Validate file with imageOnly option for picture fields
+    const validation = validateFile(file, { imageOnly: isImageOnlyField });
     if (!validation.success) {
+      setModalLoading(false);
+      setCompressionProgress(0);
+      // Show toast notification for each invalid attempt
       Swal.fire({
-        ...alertStyle.errorAlert,
+        icon: 'error',
         title: 'Invalid File',
-        text: validation.message
+        text: validation.message,
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: 5000,
+        timerProgressBar: true,
+        showClass: {
+          popup: 'swal2-show',
+          backdrop: 'swal2-backdrop-show',
+          icon: 'swal2-icon-show'
+        },
+        didOpen: (toast) => {
+          toast.style.borderRadius = '8px';
+          toast.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.15)';
+          toast.style.marginBottom = '10px';
+          // Set extremely high z-index to appear above modal backdrop (modal has z-index: 9999)
+          const container = toast.parentElement;
+          if (container) {
+            container.style.setProperty('z-index', '999999', 'important');
+          }
+        }
       });
       return;
     }
     
-    // Check if file needs compression
-    const willCompress = file.size > 300 * 1024;
-    
-    // Show loading state if file will be compressed
-    if (willCompress) {
-      setModalLoading(true);
-      setCompressionProgress(0);
-    }
-    
     try {
-      // Simulate progressive compression steps
+      // Compress the file with real-time progress updates
+      const processedFile = await compressFile(file, (progress) => {
+        if (willCompress) {
+          // Force immediate render for each progress update
+          flushSync(() => {
+            setCompressionProgress(progress);
+          });
+        }
+      });
+      
       if (willCompress) {
-        setCompressionProgress(30);
-        await new Promise(resolve => setTimeout(resolve, 300));
-        setCompressionProgress(60);
+        setCompressionProgress(100);
+        // Keep showing completion for a moment
+        await new Promise(resolve => setTimeout(resolve, 800));
       }
-      
-      // Compress the file (images and PDFs)
-      const processedFile = await compressFile(file);
-      
-      setCompressionProgress(100);
-      
-      // Brief delay to show completion before closing
-      await new Promise(resolve => setTimeout(resolve, 300));
       
       // Show compression success message only if file was compressed
       if (willCompress && processedFile.size !== file.size) {
@@ -467,8 +518,11 @@ export default function FranchiseApplication() {
       });
       setModalFile(file);
     } finally {
-      setModalLoading(false);
-      setCompressionProgress(0);
+      if (willCompress) {
+        // Clear loading state after showing completion
+        setModalLoading(false);
+        setCompressionProgress(0);
+      }
     }
   };
 
@@ -550,6 +604,9 @@ export default function FranchiseApplication() {
   
   // Track application type (new, renewal, amendment, change_unit)
   const [applicationType, setApplicationType] = useState('new');
+  
+  // Track the specific franchise ID being renewed/amended
+  const [previousFranchiseId, setPreviousFranchiseId] = useState(null);
 
   // Co-owner state
   const [coOwners, setCoOwners] = useState([]);
@@ -853,10 +910,59 @@ export default function FranchiseApplication() {
               padding: '48px', 
               position: 'relative',
               margin: '20px',
-              animation: 'slideUp 0.3s ease-out'
+              animation: 'slideUp 0.3s ease-out',
+              pointerEvents: modalLoading ? 'none' : 'auto',
+              opacity: modalLoading ? 0.95 : 1
             }}>
+              {/* Processing Overlay */}
+              {modalLoading && (
+                <div style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  background: 'rgba(255, 255, 255, 0.85)',
+                  backdropFilter: 'blur(2px)',
+                  zIndex: 10,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderRadius: '24px',
+                  cursor: 'wait'
+                }}>
+                  <div style={{
+                    textAlign: 'center',
+                    padding: '24px'
+                  }}>
+                    <div style={{
+                      width: '60px',
+                      height: '60px',
+                      border: '4px solid #e0e0e0',
+                      borderTop: '4px solid #174D7A',
+                      borderRadius: '50%',
+                      animation: 'spin 1s linear infinite',
+                      margin: '0 auto 16px'
+                    }} />
+                    <div style={{
+                      fontSize: '16px',
+                      fontWeight: 600,
+                      color: '#174D7A',
+                      marginBottom: '8px'
+                    }}>
+                      Processing File...
+                    </div>
+                    <div style={{
+                      fontSize: '14px',
+                      color: '#666'
+                    }}>
+                      Please wait while we compress your file
+                    </div>
+                  </div>
+                </div>
+              )}
               <div style={{ fontWeight: 900, fontSize: '2rem', marginBottom: 12, letterSpacing: '-0.5px', color: '#0A356B' }}>{t.selectFile}</div>
-              <div style={{ fontWeight: 600, fontSize: '16px', marginBottom: '32px', color: '#666', letterSpacing: '0.3px' }}>
+              <div style={{ fontWeight: 600, fontSize: '16px', marginBottom: '8px', color: '#666', letterSpacing: '0.3px' }}>
                 {t.upload} {[
                   { key: 'registration', label: t.photoRegistration },
                   { key: 'barangay', label: t.photoBarangay },
@@ -864,7 +970,24 @@ export default function FranchiseApplication() {
                   { key: 'license', label: t.photoLicense },
                   { key: 'affidavit', label: t.photoAffidavit },
                   { key: 'picture', label: t.picture },
+                  { key: 'operatorPicture', label: '1x1 Picture of Operator' },
                 ].find(d => d.key === modalDocKey)?.label}
+              </div>
+              {/* Show accepted file types indicator */}
+              <div style={{ 
+                fontWeight: 500, 
+                fontSize: '13px', 
+                marginBottom: '24px', 
+                color: (modalDocKey === 'operatorPicture' || modalDocKey === 'picture') ? '#059669' : '#6366f1',
+                backgroundColor: (modalDocKey === 'operatorPicture' || modalDocKey === 'picture') ? '#d1fae5' : '#e0e7ff',
+                padding: '8px 16px',
+                borderRadius: '8px',
+                textAlign: 'center',
+                border: `1px solid ${(modalDocKey === 'operatorPicture' || modalDocKey === 'picture') ? '#86efac' : '#c7d2fe'}`
+              }}>
+                {(modalDocKey === 'operatorPicture' || modalDocKey === 'picture') 
+                  ? '📸 Images only: JPG or PNG' 
+                  : '📄 Accepted: JPG, PNG, or PDF'}
               </div>
               <div style={{ marginBottom: '32px' }}>
                 <div
@@ -1107,6 +1230,10 @@ export default function FranchiseApplication() {
                       // If uploading driver picture from modal, also set it in fields
                       if (modalDocKey === 'picture') {
                         setFields(f => ({ ...f, driverPicture: modalFile }));
+                      }
+                      // If uploading operator picture from modal, also set it in fields
+                      if (modalDocKey === 'operatorPicture') {
+                        setFields(f => ({ ...f, operatorPicture: modalFile }));
                       }
                     }
                     setModalDocKey(null);
@@ -1413,33 +1540,11 @@ export default function FranchiseApplication() {
                 whiteSpace: 'nowrap'
               }}
               onClick={() => {
-                const input = document.createElement('input');
-                input.type = 'file';
-                input.accept = 'image/*';
-                input.onchange = async (e) => {
-                  const file = e.target.files[0];
-                  if (file) {
-                    const validation = validateFile(file);
-                    if (!validation.success) {
-                      Swal.fire({
-                        ...alertStyle.errorAlert,
-                        title: 'Invalid File',
-                        text: validation.message
-                      });
-                      return;
-                    }
-                    try {
-                      const processedFile = await compressFile(file);
-                      setFields({ ...fields, operatorPicture: processedFile });
-                    } catch {
-                      setFields({ ...fields, operatorPicture: file });
-                    }
-                  }
-                };
-                input.click();
+                setModalDocKey('operatorPicture');
+                setModalFile(null);
               }}
             >
-              {fields.operatorPicture ? truncateFilename(fields.operatorPicture.name) : t.noFileSelected + ' Click to upload'}
+              {fields.operatorPicture ? truncateFilename(fields.operatorPicture.name) : t.noFileSelected}
             </div>
           </div>
 
@@ -1747,6 +1852,12 @@ export default function FranchiseApplication() {
                       
                       // Application Type (new, renewal, amendment, change_unit)
                       formDataToSend.append('applicationType', applicationType);
+                      
+                      // Include the specific franchise ID for renewal/amendment (if available)
+                      if (previousFranchiseId && (applicationType === 'renewal' || applicationType === 'amendment' || applicationType === 'change_unit')) {
+                        formDataToSend.append('previousFranchiseId', previousFranchiseId);
+                        logger.log('[FranchiseApplication] Including previousFranchiseId in FormData:', previousFranchiseId);
+                      }
                       
                       // Documents - EXACT field names backend expects (with 'Obj' suffix)
                       // Only upload new files if provided, otherwise keep existing documents

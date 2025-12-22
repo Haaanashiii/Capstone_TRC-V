@@ -5,9 +5,10 @@ import logger from './logger';
 /**
  * Compresses images and PDFs for upload.
  * @param {File} file - The file to compress.
+ * @param {Function} onProgress - Optional callback for compression progress (0-100).
  * @returns {Promise<File>} - The compressed file (or original if not compressible).
  */
-export async function compressFile(file) {
+export async function compressFile(file, onProgress = null) {
   const maxSize = 300 * 1024; // 300KB target
   const type = file.type;
 
@@ -18,6 +19,10 @@ export async function compressFile(file) {
         maxSizeMB: 0.3, // 300KB
         maxWidthOrHeight: 1024,
         useWebWorker: true,
+        onProgress: onProgress ? (progress) => {
+          // browser-image-compression returns progress as 0-100
+          onProgress(Math.round(progress));
+        } : undefined
       };
       const compressedBlob = await imageCompression(file, options);
       // Convert Blob to File
@@ -31,10 +36,14 @@ export async function compressFile(file) {
   // Compress PDFs (basic: re-save, not true compression)
   if (type === 'application/pdf') {
     try {
+      if (onProgress) onProgress(20);
       const arrayBuffer = await file.arrayBuffer();
+      if (onProgress) onProgress(50);
       const pdfDoc = await PDFDocument.load(arrayBuffer);
+      if (onProgress) onProgress(70);
       // Remove unused objects, re-save (does not compress images inside PDF)
       const pdfBytes = await pdfDoc.save();
+      if (onProgress) onProgress(100);
       if (pdfBytes.byteLength < file.size) {
         return new File([pdfBytes], file.name, { type: 'application/pdf' });
       }
@@ -46,5 +55,6 @@ export async function compressFile(file) {
   }
 
   // Other file types: return as-is
+  if (onProgress) onProgress(100);
   return file;
 }

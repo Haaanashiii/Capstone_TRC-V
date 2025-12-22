@@ -76,9 +76,11 @@ export const AuthProvider = ({ children }) => {
           const decoded = decodeToken(token);
           if (decoded && decoded.exp * 1000 > Date.now()) {
             // Token is valid - JWT contains minimal user data
-            // Set user from JWT (contains: id, role, name, accountType, hasOperator)
+            // Set user from JWT (contains: id, _id, userId, role, name, accountType, hasOperator)
             setUser({
               id: decoded.id,
+              _id: decoded._id, // MongoDB ObjectId - needed for franchise lookups
+              userId: decoded.userId, // UUID string - for legacy compatibility
               role: decoded.role,
               name: decoded.name,
               accountType: decoded.accountType,

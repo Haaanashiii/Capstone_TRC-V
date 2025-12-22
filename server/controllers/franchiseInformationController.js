@@ -607,9 +607,22 @@ exports.getFranchisesByUser = async (req, res, next) => {
     
     const FranchiseInformation = require('../models/franchiseInformationModel');
     const UserAccount = require('../models/userAccountModel');
+    const mongoose = require('mongoose');
     
-    // First, find the user by their UUID userId to get their MongoDB _id
-    const user = await UserAccount.findOne({ userId: userId.trim() });
+    // Find the user by either UUID userId or MongoDB _id
+    let user;
+    
+    // Try MongoDB ObjectId first if the format matches
+    if (mongoose.Types.ObjectId.isValid(userId.trim())) {
+      user = await UserAccount.findById(userId.trim());
+      console.log('[getFranchisesByUser] Lookup by MongoDB _id:', userId.trim(), 'Found:', !!user);
+    }
+    
+    // If not found or not ObjectId format, try UUID userId
+    if (!user) {
+      user = await UserAccount.findOne({ userId: userId.trim() });
+      console.log('[getFranchisesByUser] Lookup by UUID userId:', userId.trim(), 'Found:', !!user);
+    }
     
     if (!user) {
       console.log('[getFranchisesByUser] User not found for userId:', userId);

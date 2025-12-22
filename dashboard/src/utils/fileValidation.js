@@ -60,9 +60,13 @@ export function formatFileSize(bytes) {
 /**
  * Validate file before upload
  * @param {File} file - File object from input
+ * @param {Object} options - Validation options
+ * @param {boolean} options.imageOnly - If true, only allow image files (no PDFs)
  * @returns {Object} Validation result with success flag and message
  */
-export function validateFile(file) {
+export function validateFile(file, options = {}) {
+  const { imageOnly = false } = options;
+  
   if (!file) {
     return {
       success: false,
@@ -70,11 +74,21 @@ export function validateFile(file) {
     };
   }
   
+  // Check if image-only and file is PDF
+  if (imageOnly && file.type === 'application/pdf') {
+    return {
+      success: false,
+      message: 'Invalid file type. Only JPG and PNG image files are allowed for this field.'
+    };
+  }
+  
   // Check file type
   if (!isValidFileType(file)) {
     return {
       success: false,
-      message: 'Invalid file type. Only JPG, PNG, and PDF files are allowed.'
+      message: imageOnly 
+        ? 'Invalid file type. Only JPG and PNG image files are allowed.'
+        : 'Invalid file type. Only JPG, PNG, and PDF files are allowed.'
     };
   }
   

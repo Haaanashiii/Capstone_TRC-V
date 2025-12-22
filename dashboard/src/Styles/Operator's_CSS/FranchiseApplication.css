@@ -37,6 +37,15 @@ html, body {
   }
 }
 
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .franchise-app-bg {
   min-height: 100vh;
   background: #083d77;

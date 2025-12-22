@@ -883,12 +883,18 @@ exports.createRenewOrAmendment = async (req, res, next) => {
       operatorName: body.operatorName,
       driverName: body.driverName,
       unitModel: body.unitModel,
-      mvPlateNo: body.mvPlateNo
+      mvPlateNo: body.mvPlateNo,
+      previousFranchiseId: body.previousFranchiseId
     });
     
     if (!appType) {
       return res.status(400).json({ error: 'applicationType is required' });
     }
+    
+    // Determine which franchise to use:
+    // 1. If previousFranchiseId is provided in body, use that specific franchise (PREFERRED)
+    // 2. Otherwise, fall back to auto-lookup for backwards compatibility
+    const specificFranchiseId = body.previousFranchiseId;
     
     // Fetch user email from database (run in parallel with franchise lookup)
     const [userEmailResult, existingFranchise] = await Promise.all([
@@ -904,10 +910,16 @@ exports.createRenewOrAmendment = async (req, res, next) => {
           return '';
         }
       })(),
-      FranchiseInformation.findOne({
-        linkedUser: userId,
-        isCurrentVersion: true
-      }).sort({ createdAt: -1 }).lean()
+      // Use specific franchise if provided, otherwise auto-lookup
+      specificFranchiseId ? 
+        FranchiseInformation.findOne({
+          _id: specificFranchiseId,
+          linkedUser: userId
+        }).lean() :
+        FranchiseInformation.findOne({
+          linkedUser: userId,
+          isCurrentVersion: true
+        }).sort({ createdAt: -1 }).lean()
     ]);
     
     const userEmail = userEmailResult;
@@ -917,7 +929,14 @@ exports.createRenewOrAmendment = async (req, res, next) => {
       return res.status(404).json({ error: 'No active franchise found. Please apply for a franchise first.' });
     }
     
-    console.log('[createRenewOrAmendment] Found franchise:', existingFranchise.franchiseNumber);
+    console.log('[createRenewOrAmendment] Found franchise:', existingFranchise.franchiseNumber, '(ID:', existingFranchise._id, ')');
+    console.log('[createRenewOrAmendment] Franchise details:', {
+      franchiseNumber: existingFranchise.franchiseNumber,
+      mvPlateNo: existingFranchise.mvPlateNo,
+      operatorName: existingFranchise.operatorName,
+      franchiseStatus: existingFranchise.franchiseStatus,
+      specificIdProvided: !!specificFranchiseId
+    });
     
     if (!validateFranchiseStatus(existingFranchise, appType)) {
       return res.status(400).json({ error: `Cannot ${appType} this franchise (status: ${existingFranchise.franchiseStatus})` });
