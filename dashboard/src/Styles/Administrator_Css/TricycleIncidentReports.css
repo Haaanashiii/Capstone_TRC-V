@@ -14,7 +14,7 @@
 
 .incident-reports-container {
   display: flex;
-  min-height: 100vh;
+  min-height: 0vh;
   background-color: #f5f7fa;
   position: relative;
 }
@@ -196,40 +196,53 @@
    MODAL STYLES
    ======================================== */
 
-.modal-container {
+.incident-reports-container .modal-container {
   position: absolute;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: calc(100% - 32px);
-  max-width: 650px;
   background-color: white;
   border-radius: 16px;
-  box-shadow: 0 20px 60px rgba(10, 53, 107, 0.25);
-  padding: 24px;
-  max-height: calc(100vh - 64px);
-  overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  max-width: 900px;
+  width: 90%;
+  max-height: 90vh;
+  overflow: hidden;
+  outline: none;
+  display: flex;
+  flex-direction: column;
+  border: none;
   box-sizing: border-box;
 }
 
-.modal-header {
+.incident-reports-container .modal-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
-  padding-bottom: 16px;
-  border-bottom: 2px solid #0A356B;
-  gap: 16px;
+  background-color: #FFFFFF !important;
+  color: #0A356B !important;
+  padding: 24px 32px !important;
+  margin: 0 !important;
+  border-bottom: 2px solid #0A356B !important;
+  flex-shrink: 0;
 }
 
-.modal-header h2 {
-  color: #0A356B;
-  font-weight: 700;
-  font-size: clamp(1rem, 3vw, 1.25rem);
+.incident-reports-container .modal-header h2,
+.incident-reports-container .modal-header .MuiTypography-h5 {
   margin: 0;
+  color: #0A356B !important;
+  font-size: 20px;
+  font-weight: 700 !important;
 }
 
-.section-header {
+.incident-reports-container .modal-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px 28px;
+  background-color: #ffffff;
+}
+
+.incident-reports-container .section-header {
   color: #0A356B;
   font-weight: 600;
   margin-bottom: 16px;
@@ -238,20 +251,20 @@
   border-bottom: 1px solid rgba(10, 53, 107, 0.1);
 }
 
-.info-grid {
+.incident-reports-container .info-grid {
   display: grid;
   grid-template-columns: minmax(100px, 120px) 1fr;
   gap: 12px 16px;
   align-items: start;
 }
 
-.info-grid .label {
+.incident-reports-container .info-grid .label {
   color: #666;
   font-weight: 500;
   font-size: 0.875rem;
 }
 
-.info-grid .MuiTypography-root:not(.label) {
+.incident-reports-container .info-grid .MuiTypography-root:not(.label) {
   color: #333;
   font-size: 0.9rem;
   word-break: break-word;
@@ -369,10 +382,9 @@
     min-width: 100%;
   }
   
-  .modal-container {
-    width: calc(100% - 24px);
-    padding: 20px;
-    margin: 12px;
+  .incident-reports-container .modal-container {
+    width: 95% !important;
+    max-width: 95% !important;
   }
   
   .info-grid {
@@ -410,8 +422,9 @@
     font-size: 20px;
   }
   
-  .modal-container {
-    padding: 16px;
+  .incident-reports-container .modal-container {
+    width: 95% !important;
+    max-width: 95% !important;
   }
   
   .modal-header h2 {

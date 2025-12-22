@@ -2135,36 +2135,35 @@ exports.sbAdminAcceptRenewOrAmendment = async (req, res, next) => {
     };
     
     // Update specific sections based on type
-    // Handle all amendment subtypes: amendment, amend-update_ownership, update_ownership
-    if (application.applicationType === 'amendment' || 
-        application.applicationType === 'amend-update_ownership' || 
-        application.applicationType === 'update_ownership') {
+    // Handle all amendment subtypes: update_ownership (normalized from amend-update_ownership)
+    if (application.applicationType === 'update_ownership') {
       // Amendment/Ownership Update: Update operator information only, keep franchise number
-      newVersionData.operatorName = application.operatorName;
-      newVersionData.operatorContactNumber = application.operatorContactNumber;
-      newVersionData.operatorAddress = application.operatorAddress;
-      newVersionData.operatorBarangay = application.operatorBarangay;
-      newVersionData.operatorCivilStatus = application.operatorCivilStatus;
-      newVersionData.operatorBirthPlace = application.operatorBirthPlace;
-      newVersionData.operatorBirthDate = application.operatorBirthDate;
-      newVersionData.operatorCitizenship = application.operatorCitizenship;
-      newVersionData.operatorEmail = application.operatorEmail;
-      newVersionData.coOwnerName = application.coOwnerName;
-      newVersionData.coOwnerAddress = application.coOwnerAddress;
+      // IMPORTANT: Ensure we use values from application (amended data), not from existingFranchise
+      newVersionData.operatorName = application.operatorName || existingFranchise.operatorName;
+      newVersionData.operatorContactNumber = application.operatorContactNumber || existingFranchise.operatorContactNumber;
+      newVersionData.operatorAddress = application.operatorAddress || existingFranchise.operatorAddress;
+      newVersionData.operatorBarangay = application.operatorBarangay || existingFranchise.operatorBarangay;
+      newVersionData.operatorCivilStatus = application.operatorCivilStatus || existingFranchise.operatorCivilStatus;
+      newVersionData.operatorBirthPlace = application.operatorBirthPlace || existingFranchise.operatorBirthPlace;
+      newVersionData.operatorBirthDate = application.operatorBirthDate || existingFranchise.operatorBirthDate;
+      newVersionData.operatorCitizenship = application.operatorCitizenship || existingFranchise.operatorCitizenship;
+      newVersionData.operatorEmail = application.operatorEmail || existingFranchise.operatorEmail;
+      newVersionData.coOwnerName = application.coOwnerName || existingFranchise.coOwnerName;
+      newVersionData.coOwnerAddress = application.coOwnerAddress || existingFranchise.coOwnerAddress;
       // Keep existing motor/driver info and franchise number
       console.log('[sbAdminAcceptRenewOrAmendment] Amendment/Ownership - updated operator info, retained franchise number:', franchiseNo);
-    } else if (application.applicationType === 'change_unit' || 
-               application.applicationType === 'amend-change_unit') {
+    } else if (application.applicationType === 'change_unit') {
       // Change Unit: Update motor/driver info, keep operator
-      newVersionData.unitModel = application.unitModel;
-      newVersionData.colorMotor = application.colorMotor;
-      newVersionData.sideCarColor = application.sideCarColor;
-      newVersionData.mvPlateNo = application.mvPlateNo;
-      newVersionData.motorEngineNo = application.motorEngineNo;
-      newVersionData.chasisNo = application.chasisNo;
-      newVersionData.driverName = application.driverName;
-      newVersionData.driversAddress = application.driversAddress;
-      newVersionData.todaMembership = application.todaMembership;
+      // IMPORTANT: Ensure we use values from application (amended data), not from existingFranchise
+      newVersionData.unitModel = application.unitModel || existingFranchise.unitModel;
+      newVersionData.colorMotor = application.colorMotor || existingFranchise.colorMotor;
+      newVersionData.sideCarColor = application.sideCarColor || existingFranchise.sideCarColor;
+      newVersionData.mvPlateNo = application.mvPlateNo || existingFranchise.mvPlateNo;
+      newVersionData.motorEngineNo = application.motorEngineNo || existingFranchise.motorEngineNo;
+      newVersionData.chasisNo = application.chasisNo || existingFranchise.chasisNo;
+      newVersionData.driverName = application.driverName || existingFranchise.driverName;
+      newVersionData.driversAddress = application.driversAddress || existingFranchise.driversAddress;
+      newVersionData.todaMembership = application.todaMembership || existingFranchise.todaMembership;
       console.log('[sbAdminAcceptRenewOrAmendment] Change Unit - updated motor/driver info, retained franchise number:', franchiseNo);
     } else if (application.applicationType === 'renewal') {
       // Renewal: Keep all information, just extend expiry

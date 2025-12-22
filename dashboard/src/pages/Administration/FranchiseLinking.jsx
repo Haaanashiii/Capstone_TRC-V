@@ -7,6 +7,7 @@ import { franchiseLinkRequestAPI, API_BASE_URL } from '../Services/api';
 import { useIsMounted } from '../../hooks/useIsMounted';
 import { useDebounce } from '../../hooks/useDebounce';
 import PageLoader from '../../components/PageLoader';
+import AnimatedPage, { AnimatedSection } from '../../components/AnimatedPage';
 import { 
   Typography, 
   TextField, 
@@ -57,11 +58,6 @@ import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFile';
 import { logger } from '../../utils/logger';
 import { getToken } from '../Services/api';
 
-// ============================================================================
-// CONSTANTS
-// ============================================================================
-
-/** Status configuration */
 const STATUS_CONFIG = Object.freeze({
   pending: { label: 'Pending', color: '#ff9800', icon: PendingIcon },
   approved: { label: 'Approved', color: '#4caf50', icon: CheckCircleIcon },
@@ -543,18 +539,19 @@ function FranchiseLinking() {
   return (
     <div className="franchise-linking-container">
       <Sidebar />
-      <div className="content-container">
-        {/* Header */}
-        <div className="header-container">
-          <Typography variant="h4" className="page-title">
-            Franchise Linking Requests
-          </Typography>
-          <Tooltip title="Refresh">
-            <IconButton onClick={() => { fetchRequests(); fetchStatistics(); }} disabled={loading}>
-              <RefreshIcon />
-            </IconButton>
-          </Tooltip>
-        </div>
+      <AnimatedPage className="content-container">
+        <AnimatedSection index={0}>
+          <div className="header-container">
+            <Typography variant="h4" className="page-title">
+              Franchise Linking Requests
+            </Typography>
+            <Tooltip title="Refresh">
+              <IconButton onClick={() => { fetchRequests(); fetchStatistics(); }} disabled={loading}>
+                <RefreshIcon />
+              </IconButton>
+            </Tooltip>
+          </div>
+        </AnimatedSection>
         
         {/* Error Alert */}
         {error && (
@@ -563,8 +560,8 @@ function FranchiseLinking() {
           </Alert>
         )}
         
-        {/* Statistics Cards */}
-        <div className="stats-grid">
+        <AnimatedSection index={1}>
+          <div className="stats-grid">
           <StatCard 
             title="Pending Requests" 
             value={statistics.pending} 
@@ -594,8 +591,9 @@ function FranchiseLinking() {
             onClick={() => handleFilterByStatus('')}
           />
         </div>
+        </AnimatedSection>
         
-        {/* Controls Row */}
+        <AnimatedSection index={2}>
         <div className="controls-row">
           {/* Search */}
           <div className="search-container">
@@ -736,6 +734,7 @@ function FranchiseLinking() {
             </div>
           </Paper>
         </Fade>
+        </AnimatedSection>
         
         {/* Advanced Filter Dialog */}
         <Dialog 
@@ -810,7 +809,25 @@ function FranchiseLinking() {
         
         {/* Request Details Modal */}
         <Modal open={detailsModalOpen} onClose={handleCloseDetails} aria-labelledby="request-details-modal">
-          <Box className="modal-container">
+          <Box 
+            className="franchise-linking-container modal-container"
+            sx={{
+              position: 'absolute',
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -50%)',
+              width: '90%',
+              maxWidth: '900px',
+              maxHeight: '75vh',
+              bgcolor: 'background.paper',
+              borderRadius: '16px',
+              boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)',
+              overflow: 'hidden',
+              display: 'flex',
+              flexDirection: 'column',
+              outline: 'none'
+            }}
+          >
             <div className="modal-header">
               <Typography variant="h5" component="h2" id="request-details-modal">
                 LINK REQUEST DETAILS
@@ -820,6 +837,7 @@ function FranchiseLinking() {
               </IconButton>
             </div>
             
+            <div className="modal-body">
             {selectedRequest && (
               <>
                 {/* Request Info */}
@@ -961,6 +979,7 @@ function FranchiseLinking() {
                 )}
               </>
             )}
+            </div>
           </Box>
         </Modal>
         
@@ -1233,7 +1252,7 @@ function FranchiseLinking() {
             {snackbar.message}
           </Alert>
         </Snackbar>
-      </div>
+      </AnimatedPage>
     </div>
   );
 }

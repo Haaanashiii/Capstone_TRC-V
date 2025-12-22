@@ -366,7 +366,7 @@
 }
 
 /* Modal Styles */
-.modal-container {
+.audit-trail-container .modal-container {
     position: absolute;
     top: 50%;
     left: 50%;
@@ -381,7 +381,7 @@
     outline: none;
 }
 
-.modal-header {
+.audit-trail-container .modal-header {
     background-color: #0A356B;
     color: white;
     padding: 20px 24px;
@@ -392,7 +392,7 @@
     border-top-right-radius: 12px;
 }
 
-.modal-header h2 {
+.audit-trail-container .modal-header h2 {
     margin: 0;
     font-size: 18px;
     font-weight: 700;
@@ -400,16 +400,16 @@
     font-family: 'Poppins', sans-serif !important;
 }
 
-.modal-header button {
+.audit-trail-container .modal-header button {
     color: white;
     padding: 4px;
 }
 
-.modal-header button:hover {
+.audit-trail-container .modal-header button:hover {
     background-color: rgba(255, 255, 255, 0.1);
 }
 
-.section-header {
+.audit-trail-container .section-header {
     font-size: 14px !important;
     font-weight: 700 !important;
     color: #0A356B !important;
@@ -421,7 +421,7 @@
     padding-bottom: 8px;
 }
 
-.info-grid {
+.audit-trail-container .info-grid {
     display: grid;
     grid-template-columns: 140px 1fr;
     gap: 16px 24px;
@@ -429,50 +429,50 @@
     font-family: 'Poppins', sans-serif;
 }
 
-.info-grid .label {
+.audit-trail-container .info-grid .label {
     font-weight: 600 !important;
     color: #555 !important;
     font-size: 13px !important;
     font-family: 'Poppins', sans-serif !important;
 }
 
-.info-grid > :nth-child(2n) {
+.audit-trail-container .info-grid > :nth-child(2n) {
     color: #333;
     font-size: 14px;
 }
 
 /* Modal Scrollbar */
-.modal-container::-webkit-scrollbar {
+.audit-trail-container .modal-container::-webkit-scrollbar {
     width: 8px;
 }
 
-.modal-container::-webkit-scrollbar-track {
+.audit-trail-container .modal-container::-webkit-scrollbar-track {
     background: #f1f1f1;
     border-radius: 4px;
 }
 
-.modal-container::-webkit-scrollbar-thumb {
+.audit-trail-container .modal-container::-webkit-scrollbar-thumb {
     background: #888;
     border-radius: 4px;
 }
 
-.modal-container::-webkit-scrollbar-thumb:hover {
+.audit-trail-container .modal-container::-webkit-scrollbar-thumb:hover {
     background: #555;
 }
 
 /* Responsive Modal */
 @media (max-width: 768px) {
-    .modal-container {
+    .audit-trail-container .modal-container {
         width: 95%;
         max-height: 90vh;
     }
     
-    .info-grid {
+    .audit-trail-container .info-grid {
         grid-template-columns: 1fr;
         gap: 12px;
     }
     
-    .info-grid .label {
+    .audit-trail-container .info-grid .label {
         margin-bottom: -8px;
     }
 }

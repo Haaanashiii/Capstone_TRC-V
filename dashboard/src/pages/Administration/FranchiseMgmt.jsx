@@ -7,6 +7,7 @@ import '../../Styles/Administrator_Css/SharedTable.css'
 // Components
 import Sidebar from './Sidebar'
 import PageLoader from '../../components/PageLoader'
+import AnimatedPage, { AnimatedSection } from '../../components/AnimatedPage'
 import { FileUploadField, DocumentLink } from './components/FranchiseFormComponents'
 
 // Services & Context
@@ -1602,13 +1603,15 @@ function FranchiseMgmt() {
   return (
     <div className="franchise-mgmt-container">
       <Sidebar />
-      <div className="franchise-mgmt-content">
-        <Typography variant="h4" className="page-title">
-          {userRole === 'sb-admin' ? 'SB Final Approval' : 'Franchise Management'}
-        </Typography>
+      <AnimatedPage className="franchise-mgmt-content">
+        <AnimatedSection index={0}>
+          <Typography variant="h4" className="page-title">
+            {userRole === 'sb-admin' ? 'SB Final Approval' : 'Franchise Management'}
+          </Typography>
+        </AnimatedSection>
         
-        {/* Search bar and Add button */}
-        <div className="search-bar">
+        <AnimatedSection index={1}>
+          <div className="search-bar">
           <TextField
             placeholder="Search Franchisee"
             variant="outlined"
@@ -1632,9 +1635,10 @@ function FranchiseMgmt() {
             
           </Button>
         </div>
+        </AnimatedSection>
         
-        {/* Status Filter */}
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+        <AnimatedSection index={2}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
           <Typography variant="body1" sx={{ fontWeight: 600 }}>
             Filter by Status:
           </Typography>
@@ -1658,11 +1662,12 @@ function FranchiseMgmt() {
             Total: {filteredApplications.length} application(s)
           </Typography>
         </Box>
+        </AnimatedSection>
         
-        {/* Pending Applications Table */}
-        <Typography variant="h6" className="pending-header">
-          PENDING FRANCHISE APPLICATIONS
-        </Typography>
+        <AnimatedSection index={3}>
+          <Typography variant="h6" className="pending-header">
+            PENDING FRANCHISE APPLICATIONS
+          </Typography>
         
         {isLoading && !pendingApplications.length ? (
           <PageLoader 
@@ -1703,7 +1708,8 @@ function FranchiseMgmt() {
           </Paper>
           </Fade>
         )}
-      </div>
+        </AnimatedSection>
+      </AnimatedPage>
       
       {/* Add New Franchise Modal */}
       <Modal
@@ -1713,23 +1719,29 @@ function FranchiseMgmt() {
         slotProps={{ backdrop: MODAL_BACKDROP_PROPS }}
       >
         <Fade in={openAddModal} timeout={400}>
-        <Box className="modal-container" sx={{ 
+        <Box className="franchise-mgmt-container modal-container" sx={{ 
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
           maxWidth: '900px', 
           width: '90%',
           maxHeight: '90vh',
+          bgcolor: 'background.paper',
           overflow: 'hidden',
           display: 'flex',
           flexDirection: 'column',
           borderRadius: '16px',
-          boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)'
+          boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)',
+          outline: 'none'
         }}>
           <Box className="modal-header" sx={{ 
-            p: 3, 
+            p: 2.5, 
             borderBottom: '2px solid #0A356B',
             background: '#FFFFFF !important',
             display: 'flex',
             flexDirection: 'column',
-            gap: 2
+            gap: 1.5
           }}>
             <Box sx={{ 
               display: 'flex',
@@ -1793,9 +1805,9 @@ function FranchiseMgmt() {
           </Box>
           
           <Box className="modal-body" sx={{ 
-            maxHeight: 'calc(90vh - 180px)', 
+            flex: 1,
             overflowY: 'auto', 
-            p: 3,
+            p: 2.5,
             background: '#FAFBFC',
             ...SCROLLBAR_STYLES,
           }}>
@@ -2469,25 +2481,27 @@ function FranchiseMgmt() {
         >
           <Fade in={openViewModal} timeout={400}>
           <Box 
-            className="franchise-mgmt-container"
+            className="franchise-mgmt-container modal-container"
             sx={{
               position: 'absolute',
               top: '50%',
               left: '50%',
               transform: 'translate(-50%, -50%)',
               width: '90%',
-              maxWidth: '900px',
-              maxHeight: '80vh',
+              maxWidth: '1200px',
+              maxHeight: '90vh !important',
+              height: '90vh',
               bgcolor: 'background.paper',
               boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)',
               borderRadius: '12px',
               overflow: 'hidden',
               display: 'flex',
               flexDirection: 'column',
+              outline: 'none'
             }}
           >
             <Box className="modal-header" sx={{ 
-              p: 3, 
+              p: 2.5, 
               borderBottom: '2px solid #0A356B',
               display: 'flex',
               alignItems: 'center',
@@ -3109,7 +3123,7 @@ function FranchiseMgmt() {
           }}
         >
           <Box className="modal-header" sx={{ 
-            p: 3, 
+            p: 2.5, 
             borderBottom: '2px solid #0A356B',
             display: 'flex',
             alignItems: 'center',
@@ -3186,7 +3200,7 @@ function FranchiseMgmt() {
             left: '50%',
             transform: 'translate(-50%, -50%)',
             width: '90%',
-            maxWidth: '600px',
+            maxWidth: '750px',
             bgcolor: 'background.paper',
             boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)',
             borderRadius: '12px',
@@ -3194,7 +3208,7 @@ function FranchiseMgmt() {
           }}
         >
           <Box className="modal-header" sx={{ 
-            p: 3, 
+            p: 2.5, 
             borderBottom: '2px solid #0A356B',
             display: 'flex',
             alignItems: 'center',
@@ -3241,7 +3255,12 @@ function FranchiseMgmt() {
               required
               placeholder="E.g., Resolution No. 2025-123"
               helperText="This will appear on the certificate of approval"
-              sx={{ mb: 2 }}
+              sx={{ 
+                mb: 2,
+                '& .MuiOutlinedInput-root': {
+                  borderRadius: '8px'
+                }
+              }}
             />
             
             <Box sx={{ mb: 3 }}>
@@ -3256,6 +3275,11 @@ function FranchiseMgmt() {
                   accept: "application/pdf,image/jpeg,image/png"
                 }}
                 helperText="Upload the official resolution document (PDF, JPG, or PNG)"
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    borderRadius: '8px'
+                  }
+                }}
               />
               {resolutionFile && (
                 <Typography variant="caption" sx={{ mt: 1, display: 'block', color: 'success.main' }}>
@@ -3318,7 +3342,7 @@ function FranchiseMgmt() {
             transform: 'translate(-50%, -50%)',
             width: '90%',
             maxWidth: '900px',
-            height: '90vh',
+            height: '85vh',
             bgcolor: 'background.paper',
             borderRadius: 2,
             boxShadow: 24,
@@ -3409,7 +3433,7 @@ function FranchiseMgmt() {
         </Alert>
       </Snackbar>
     </div>
-  )
+  );
 }
 
-export default FranchiseMgmt
+export default FranchiseMgmt;

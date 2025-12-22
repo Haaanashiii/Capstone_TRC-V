@@ -47,8 +47,6 @@ import FilterListIcon from '@mui/icons-material/FilterList';
 import DateRangeIcon from '@mui/icons-material/DateRange';
 import { logger } from '../../utils/logger';
 
-// Constants
-/** Incident category labels - synced with backend */
 const INCIDENT_CATEGORIES = Object.freeze({
   'fare-related': 'Fare-Related Issues',
   'driver-conduct': 'Driver Conduct & Behavior',
@@ -58,7 +56,6 @@ const INCIDENT_CATEGORIES = Object.freeze({
   'other': 'Other Concerns'
 });
 
-/** Category color mapping for visual badges */
 const CATEGORY_COLORS = Object.freeze({
   'fare-related': '#e53935',
   'driver-conduct': '#fb8c00',
@@ -76,7 +73,6 @@ const STATUS_COLORS = Object.freeze({
   dismissed: '#757575'
 });
 
-/** Status options for dropdowns */
 const STATUS_OPTIONS = Object.freeze([
   { value: 'pending', label: 'Pending' },
   { value: 'investigating', label: 'Investigating' },
@@ -782,7 +778,25 @@ function TricycleIncidentReports() {
         
         {/* Report Details Modal */}
         <Modal open={detailsOpen} onClose={handleCloseDetails} aria-labelledby="report-details-modal">
-          <Box className="modal-container">
+          <Box 
+            className="incident-reports-container modal-container"
+            sx={{
+              position: 'absolute',
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -50%)',
+              width: '90%',
+              maxWidth: '900px',
+              maxHeight: '75vh',
+              bgcolor: 'background.paper',
+              borderRadius: '16px',
+              boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)',
+              overflow: 'hidden',
+              display: 'flex',
+              flexDirection: 'column',
+              outline: 'none'
+            }}
+          >
             <div className="modal-header">
               <Typography variant="h5" component="h2" id="report-details-modal">
                 INCIDENT REPORT DETAILS
@@ -792,6 +806,7 @@ function TricycleIncidentReports() {
               </IconButton>
             </div>
             
+            <div className="modal-body">
             {selectedReport && (
               <>
                 <Typography variant="h6" className="section-header">
@@ -854,6 +869,7 @@ function TricycleIncidentReports() {
                 </div>
               </>
             )}
+            </div>
           </Box>
         </Modal>
         

@@ -1,25 +1,3 @@
-/**
- * Certificate Component - Certificate Generation System
- * 
- * This component provides comprehensive certificate generation capabilities for franchise management.
- * 
- * CERTIFICATE TYPES SUPPORTED:
- * 1. C.001 - Certificate of Approval (Fillable PDF)
- *    - Template: C.001 - CERT APPROVED - FILLABLE.pdf
- * 2. C.001 - Certificate of Cancellation (Fillable PDF)
- *    - Template: C.001 - CERT CANCELLED - FILLABLE.pdf
- * 3. F.008 - Certificate of Existing Franchise (Fillable PDF)
- *    - Template: F.008 - CERT EXISTING - FILLABLE.pdf
- * 4. F.008 - MTOF Date Report (Word Document)
- *    - Template: F.008 - MTOF - DATE.docx
- * 5. F.008 - MTOF Summary Report (Word Document)
- *    - Template: F.008 - MTOF DATE SUMMARY.docx
- * 
- * @component
- * @requires useAuth - For current administrator information
- * @requires websocketService - For real-time franchise updates
- */
-
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import '../../Styles/Administrator_Css/Certificate.css';
 import '../../Styles/Administrator_Css/SharedTable.css';
@@ -60,6 +38,7 @@ import {
 } from '@mui/material';
 import { styled } from '@mui/material/styles';
 import PageLoader from '../../components/PageLoader';
+import AnimatedPage, { AnimatedSection } from '../../components/AnimatedPage';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
@@ -676,14 +655,14 @@ function Certificate() {
   return (
     <div className="certificate-container">
       <Sidebar />
-      <div className="content-container">
-        {/* Header */}
-        <Box className="header-container" sx={{ mb: 3 }}>
-          <Typography variant="h4" className="page-title">
-            Certificate Management
-          </Typography>
-        
-        </Box>
+      <AnimatedPage className="content-container">
+        <AnimatedSection index={0}>
+          <Box className="header-container" sx={{ mb: 3 }}>
+            <Typography variant="h4" className="page-title">
+              Certificate Management
+            </Typography>
+          </Box>
+        </AnimatedSection>
 
         {/* Global Loading Overlay */}
         {generating && (
@@ -720,8 +699,8 @@ function Certificate() {
           </Alert>
         )}
 
-        {/* Controls Section */}
-        <Paper className="controls-section" elevation={0} sx={{ mb: 3, p: 3, border: '1px solid #e0e0e0', borderRadius: '12px' }}>
+        <AnimatedSection index={1}>
+          <Paper className="controls-section" elevation={0} sx={{ mb: 3, p: 3, border: '1px solid #e0e0e0', borderRadius: '12px' }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
             <Box sx={{ width: 40, height: 40, borderRadius: '8px', bgcolor: '#0A356B', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <DescriptionIcon sx={{ color: 'white', fontSize: 24 }} />
@@ -814,10 +793,10 @@ function Certificate() {
             )}
           </Box>
         </Paper>
+        </AnimatedSection>
 
-        {/* Show appropriate content based on mode */}
-        {startDate && endDate ? (
-          /* MTOF Mode - Show applications for report generation */
+        <AnimatedSection index={2}>
+          {startDate && endDate ? (
           <Paper className="admin-table-container">
             <Box sx={{ p: 2, borderBottom: '1px solid #e0e0e0', bgcolor: '#f5f8fc' }}>
               <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#0A356B' }}>
@@ -966,6 +945,7 @@ function Certificate() {
             )}
           </Paper>
         )}
+        </AnimatedSection>
 
         {/* MTOF Report Menu */}
         <Menu
@@ -1553,7 +1533,7 @@ function Certificate() {
             </ModalContent>
           </Fade>
         </StyledModal>
-      </div>
+      </AnimatedPage>
     </div>
   );
 }

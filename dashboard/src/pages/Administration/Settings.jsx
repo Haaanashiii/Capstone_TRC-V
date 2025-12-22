@@ -34,6 +34,7 @@ import {
   Radio,
 } from '@mui/material';
 import PageLoader from '../../components/PageLoader';
+import AnimatedPage, { AnimatedSection } from '../../components/AnimatedPage';
 import { styled } from '@mui/material/styles';
 import SaveIcon from '@mui/icons-material/Save';
 import CancelIcon from '@mui/icons-material/Cancel';
@@ -1405,13 +1406,14 @@ function Settings() {
     <div className="settings-container">
       <Sidebar />
       
-      <main className="settings-content">
-        {/* Header */}
-        <header className="settings-header">
-          <Typography variant="h4" className="page-title">
-            System Settings
-          </Typography>
-        </header>
+      <AnimatedPage component="main" className="settings-content">
+        <AnimatedSection index={0}>
+          <header className="settings-header">
+            <Typography variant="h4" className="page-title">
+              System Settings
+            </Typography>
+          </header>
+        </AnimatedSection>
 
         {error && (
           <Alert severity="error" className="error-alert" onClose={() => setError('')}>
@@ -1419,8 +1421,8 @@ function Settings() {
           </Alert>
         )}
 
-        {/* Tabs */}
-        <Paper className="settings-tabs-container" elevation={0}>
+        <AnimatedSection index={1}>
+          <Paper className="settings-tabs-container" elevation={0}>
           <Tabs
             value={activeTab}
             onChange={handleTabChange}
@@ -1445,9 +1447,10 @@ function Settings() {
             />
           </Tabs>
         </Paper>
+        </AnimatedSection>
 
-        {/* Tab Content */}
-        <Box className="tab-content">
+        <AnimatedSection index={2}>
+          <Box className="tab-content">
           {/* Fare Matrix Tab */}
           {activeTab === 0 && (
             <div className="fare-matrix-tab">
@@ -2149,7 +2152,8 @@ function Settings() {
             </div>
           )}
         </Box>
-      </main>
+        </AnimatedSection>
+      </AnimatedPage>
 
       {/* Download Backup Selection Dialog */}
       <Dialog 

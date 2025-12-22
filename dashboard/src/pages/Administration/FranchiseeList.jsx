@@ -48,6 +48,7 @@ import {
   Tooltip,
 } from '@mui/material';
 import PageLoader from '../../components/PageLoader';
+import AnimatedPage, { AnimatedSection } from '../../components/AnimatedPage';
 import SearchIcon from '@mui/icons-material/Search';
 import SaveIcon from '@mui/icons-material/Save';
 import EditIcon from '@mui/icons-material/Edit';
@@ -762,10 +763,28 @@ const FranchiseeDetailsModal = ({
       }}
     >
       <Fade in={open}>
-        <Box className="modal-container">
+        <Box 
+          className="franchisee-list-container modal-container"
+          sx={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            width: '90%',
+            maxWidth: '900px',
+            maxHeight: '90vh',
+            bgcolor: 'background.paper',
+            borderRadius: '16px',
+            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)',
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column',
+            outline: 'none',
+          }}
+        >
           <div className="modal-header">
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              <Typography variant="h5" component="h2">
+              <Typography variant="h5" component="h2" sx={{ color: '#0A356B', fontWeight: 700 }}>
                 {isEditing ? 'EDIT FRANCHISEE' : 'FRANCHISEE DETAILS'}
               </Typography>
               {isPreviousOwner && !isEditing && (
@@ -784,7 +803,7 @@ const FranchiseeDetailsModal = ({
             <Box sx={{ display: 'flex', gap: 1 }}>
               {!isEditing && canEdit ? (
                 <Tooltip title="Edit Franchisee">
-                  <IconButton onClick={onEdit} sx={{ color: 'white' }}>
+                  <IconButton onClick={onEdit} sx={{ color: '#5f6368' }}>
                     <EditIcon />
                   </IconButton>
                 </Tooltip>
@@ -806,7 +825,7 @@ const FranchiseeDetailsModal = ({
                   </Tooltip>
                 </>
               ) : null}
-              <IconButton onClick={onClose} sx={{ color: 'white' }}>
+              <IconButton onClick={onClose} sx={{ color: '#5f6368' }}>
                 <CloseIcon />
               </IconButton>
             </Box>
@@ -1387,7 +1406,25 @@ const FranchiseeDetailsModal = ({
               sx={{ zIndex: (theme) => theme.zIndex.modal + 1 }}
             >
               <Fade in={historyItemModalOpen}>
-                <Box className="modal-container" sx={{ maxWidth: '850px' }}>
+                <Box 
+                  className="franchisee-list-container modal-container" 
+                  sx={{ 
+                    position: 'absolute',
+                    top: '50%',
+                    left: '50%',
+                    transform: 'translate(-50%, -50%)',
+                    width: '90%',
+                    maxWidth: '850px',
+                    maxHeight: '70vh',
+                    bgcolor: 'background.paper',
+                    borderRadius: '16px',
+                    boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)',
+                    overflow: 'hidden',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    outline: 'none',
+                  }}
+                >
                   <div className="modal-header">
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                       <HistoryIcon />
@@ -3240,12 +3277,14 @@ function FranchiseeList() {
   return (
     <div className="franchisee-list-container">
       <Sidebar />
-      <div className="content-container">
-        <div className="header-container">
-          <Typography variant="h4" className="page-title">
-            Franchisee List
-          </Typography>
-        </div>
+      <AnimatedPage className="content-container">
+        <AnimatedSection index={0}>
+          <div className="header-container">
+            <Typography variant="h4" className="page-title">
+              Franchisee List
+            </Typography>
+          </div>
+        </AnimatedSection>
 
         {/* Error Alert */}
         {error && (
@@ -3254,8 +3293,8 @@ function FranchiseeList() {
           </Alert>
         )}
 
-        {/* Search Bar and Filters */}
-        <Box sx={{ mb: 3, display: 'flex', gap: 2, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+        <AnimatedSection index={1}>
+          <Box sx={{ mb: 3, display: 'flex', gap: 2, alignItems: 'flex-start', flexWrap: 'wrap' }}>
           <Box sx={{ flex: '1 1 400px', display: 'flex', gap: 1 }}>
             <TextField
               placeholder="Search by name, franchise number, plate number, or record number..."
@@ -3445,6 +3484,7 @@ function FranchiseeList() {
             </Box>
           </Fade>
         )}
+        </AnimatedSection>
 
         {/* Franchisee Details Modal */}
         <FranchiseeDetailsModal
@@ -3478,13 +3518,13 @@ function FranchiseeList() {
           onClose={handleCloseFilePreview}
           aria-labelledby="file-preview-modal"
           sx={{ zIndex: (theme) => theme.zIndex.modal + 2 }}
-          slotProps={{
-            backdrop: {
-              sx: {
-                backgroundColor: 'rgba(0, 0, 0, 0.75)',
-                backdropFilter: 'blur(4px)',
-              },
-            },
+          BackdropProps={{
+            timeout: 500,
+            sx: {
+              backgroundColor: 'rgba(0, 0, 0, 0.7)',
+              backdropFilter: 'blur(8px)',
+              WebkitBackdropFilter: 'blur(8px)'
+            }
           }}
         >
           <Box 
@@ -3692,7 +3732,7 @@ function FranchiseeList() {
             {notification.message}
           </Alert>
         </Snackbar>
-      </div>
+      </AnimatedPage>
     </div>
   );
 }

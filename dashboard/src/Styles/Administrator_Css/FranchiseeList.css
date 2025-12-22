@@ -2,14 +2,15 @@
   font-family: 'Poppins', sans-serif !important;
 }
 
-.franchisee-list-container {
+/* Page container styles - only for non-modal containers */
+.franchisee-list-container:not(.modal-container) {
   display: flex;
   min-height: 100vh;
   background-color: #f5f7fa;
   position: relative;
 }
 
-.franchisee-list-container .content-container {
+.franchisee-list-container:not(.modal-container) .content-container {
   flex: 1;
   padding: 32px;
   margin-left: 240px;
@@ -33,14 +34,14 @@
 
 /* Responsive Styles */
 @media (max-width: 1024px) {
-  .franchisee-list-container .content-container {
+  .franchisee-list-container:not(.modal-container) .content-container {
     padding: 24px;
     max-width: calc(100% - 260px);
   }
 }
 
 @media (max-width: 768px) {
-  .franchisee-list-container .content-container {
+  .franchisee-list-container:not(.modal-container) .content-container {
     padding: 16px;
     margin-left: 0;
     max-width: 100%;
@@ -66,7 +67,7 @@
 }
 
 @media (max-width: 480px) {
-  .franchisee-list-container .content-container {
+  .franchisee-list-container:not(.modal-container) .content-container {
     padding: 12px;
   }
   
@@ -329,47 +330,47 @@
   transform: translate(-50%, -50%);
   background-color: white;
   border-radius: 16px;
-  box-shadow: 0 8px 32px rgba(10, 53, 107, 0.2);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
   max-width: 900px;
   width: 90%;
-  max-height: 90vh;
+  max-height: 70vh;
   overflow: hidden;
   outline: none;
   display: flex;
   flex-direction: column;
-  border: 1px solid rgba(10, 53, 107, 0.08);
+  border: none;
 }
 
 .franchisee-list-container .modal-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background-color: #0A356B !important;
-  color: white !important;
+  background-color: #FFFFFF !important;
+  color: #0A356B !important;
   padding: 24px 32px !important;
   margin: 0 !important;
-  border-top-left-radius: 16px;
-  border-top-right-radius: 16px;
+  border-bottom: 2px solid #0A356B !important;
   flex-shrink: 0;
 }
 
 .franchisee-list-container .modal-header h2,
 .franchisee-list-container .modal-header .MuiTypography-h5 {
   margin: 0;
-  color: white !important;
-  font-size: 22px;
+  color: #0A356B !important;
+  font-size: 20px;
   font-weight: 700;
-  letter-spacing: 0.5px;
+  letter-spacing: -0.3px;
   text-transform: uppercase;
 }
 
 .franchisee-list-container .modal-header .MuiIconButton-root {
-  color: white !important;
+  color: #5f6368 !important;
   transition: all 0.2s ease;
 }
 
 .franchisee-list-container .modal-header .MuiIconButton-root:hover {
-  background-color: rgba(255, 255, 255, 0.15) !important;
+  background-color: rgba(10, 53, 107, 0.08) !important;
+  color: #0A356B !important;
 }
 
 /* Edit mode styles */
@@ -416,19 +417,19 @@
 .franchisee-list-container .modal-body {
   flex: 1;
   overflow-y: auto;
-  padding: 32px;
-  background-color: #fafbfc;
+  padding: 20px 28px;
+  background-color: #ffffff;
 }
 
 .franchisee-list-container .section-header {
   color: #0A356B !important;
-  font-weight: 700 !important;
+  font-weight: 600 !important;
   font-size: 16px !important;
   margin: 24px 0 16px 0 !important;
   padding-bottom: 8px;
-  border-bottom: 2px solid #0A356B;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+  border-bottom: 2px solid rgba(10, 53, 107, 0.1);
+  text-transform: none;
+  letter-spacing: 0;
 }
 
 .franchisee-list-container .section-header:first-of-type {
@@ -437,27 +438,28 @@
 
 .franchisee-list-container .info-grid {
   display: grid;
-  grid-template-columns: auto 1fr;
+  grid-template-columns: 200px 1fr;
   gap: 16px 24px;
-  padding: 16px 0;
-  background-color: white;
-  padding: 20px;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(10, 53, 107, 0.05);
-  margin-bottom: 16px;
+  padding: 0;
+  background-color: transparent;
+  border-radius: 0;
+  box-shadow: none;
+  margin-bottom: 20px;
+  align-items: center;
 }
 
 .franchisee-list-container .info-grid .label {
-  color: #666;
+  color: #333;
   font-weight: 600 !important;
   font-size: 14px !important;
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
+  text-transform: none;
+  letter-spacing: 0;
 }
 
 .franchisee-list-container .info-grid .MuiTypography-root:not(.label) {
-  color: #333;
+  color: #0A356B;
   font-size: 14px;
+  font-weight: 500;
 }
 
 .franchisee-list-container .document-link {

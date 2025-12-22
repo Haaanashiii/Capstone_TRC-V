@@ -70,18 +70,8 @@ const BARANGAY_FILTER_OPTIONS = {
   HIGHEST_EXPIRED: 'highest_expired',
 };
 
-// Utility Functions
-/**
- * Get the current month index (0-11)
- */
 const getCurrentMonthIndex = () => new Date().getMonth();
-
-/**
- * Get the current year
- */
 const getCurrentYear = () => new Date().getFullYear();
-
-// CSV export is now handled by secure csvExport utility
 
 function Analytics() {
   const [loading, setLoading] = useState(true);

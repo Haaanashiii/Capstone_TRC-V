@@ -613,7 +613,7 @@
 }
 
 /* Modal Header Styling */
-.modal-header {
+.user-management-container .modal-header {
   background-color: #ffffff !important;
   color: #0A356B !important;
   font-weight: bold !important;

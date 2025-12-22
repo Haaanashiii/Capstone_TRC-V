@@ -1,8 +1,7 @@
 /* FranchiseMgmt Component Styles - Isolated */
-.franchise-mgmt-container {
+.franchise-mgmt-container:not(.MuiBox-root) {
     display: flex;
     background-color: #f5f7fa;
-    min-height: 100vh;
     position: relative;
     font-family: 'Poppins', sans-serif;
 }
@@ -18,23 +17,10 @@
     width: calc(100% - 260px);
     max-width: 100%;
     box-sizing: border-box;
-    animation: pageContentFadeIn 0.4s ease-out;
-    min-height: calc(100vh - 64px);
     overflow-y: auto;
 }
 
-@keyframes pageContentFadeIn {
-    from {
-        opacity: 0;
-        transform: translateY(20px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-/* Responsive Styles */
+/* Responsive Design */
 @media (max-width: 1024px) {
     .franchise-mgmt-content {
         padding: 24px;
@@ -138,7 +124,6 @@
 .franchise-mgmt-container .table-container {
     margin-bottom: 24px;
     background-color: #ffffff;
-    max-height: 600px;
     overflow-y: auto;
     border-radius: 12px !important;
     box-shadow: 0 2px 8px rgba(10, 53, 107, 0.08) !important;
@@ -149,7 +134,6 @@
     min-width: 100%;
 }
 
-/* Table Cell Styles */
 .franchise-mgmt-container .table-cell-head {
     background-color: #0A356B !important;
     color: #ffffff !important;
@@ -272,19 +256,19 @@
     transform: translateX(4px);
 }
 
-.file-preview-content {
+.franchise-mgmt-container .file-preview-content {
     display: flex;
     justify-content: center;
     align-items: center;
     flex-grow: 1;
 }
 
-.file-preview-fallback {
+.franchise-mgmt-container .file-preview-fallback {
     padding: 24px;
     text-align: center;
 }
 
-.modal-header {
+.franchise-mgmt-container .modal-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -294,8 +278,8 @@
     border-bottom: 2px solid rgba(10, 53, 107, 0.1);
 }
 
-.modal-header h2,
-.modal-header h5 {
+.franchise-mgmt-container .modal-header h2,
+.franchise-mgmt-container .modal-header h5 {
     color: #0A356B;
     font-weight: 600;
     margin: 0;
@@ -303,18 +287,18 @@
     letter-spacing: -0.3px;
 }
 
-.modal-header .MuiIconButton-root {
+.franchise-mgmt-container .modal-header .MuiIconButton-root {
     color: #5f6368 !important;
     transition: all 0.2s ease;
 }
 
-.modal-header .MuiIconButton-root:hover {
+.franchise-mgmt-container .modal-header .MuiIconButton-root:hover {
     background-color: rgba(10, 53, 107, 0.08) !important;
     color: #0A356B !important;
 }
 
 /* Modal Footer - Ensure buttons have proper spacing */
-.modal-footer {
+.franchise-mgmt-container .modal-footer {
     display: flex;
     justify-content: flex-end;
     gap: 16px;
@@ -323,54 +307,54 @@
     background: white;
 }
 
-.modal-footer > button,
-.modal-footer > .MuiButton-root {
+.franchise-mgmt-container .modal-footer > button,
+.franchise-mgmt-container .modal-footer > .MuiButton-root {
     margin: 0 !important;
 }
 
-.pending-header {
+.franchise-mgmt-container .pending-header {
     margin-top: 24px;
     margin-bottom: 8px;
 }
 
-.clickable-row:hover {
+.franchise-mgmt-container .clickable-row:hover {
     background-color: #f0f7ff;
     cursor: pointer;
 }
 
-.table-header-row {
+.franchise-mgmt-container .table-header-row {
     background-color: #f5f5f5;
 }
 
-.add-button {
+.franchise-mgmt-container .add-button {
     background-color: #0d47a1;
     color: white;
 }
 
 /* Info Grid for Modal Details */
-.info-grid {
+.franchise-mgmt-container .info-grid {
     display: grid;
     grid-template-columns: 200px 1fr;
     gap: 16px 24px;
     align-items: center;
 }
 
-.info-grid .label {
+.franchise-mgmt-container .info-grid .label {
     padding: 0 !important;
     margin: 0 !important;
 }
 
-.info-grid .MuiTypography-root {
+.franchise-mgmt-container .info-grid .MuiTypography-root {
     margin: 0 !important;
     padding: 0 !important;
 }
 
-.info-grid > * {
+.franchise-mgmt-container .info-grid > * {
     margin: 0 !important;
 }
 
 /* Section Header for Modal Sections */
-.section-header {
+.franchise-mgmt-container .section-header {
     font-weight: 600 !important;
     color: #0A356B !important;
     font-size: 16px !important;
@@ -379,7 +363,7 @@
     border-bottom: 2px solid rgba(10, 53, 107, 0.1) !important;
 }
 
-.section-header:first-child {
+.franchise-mgmt-container .section-header:first-child {
     margin-top: 0 !important;
 }
 
@@ -390,11 +374,12 @@
     left: 50%;
     transform: translate(-50%, -50%);
     width: 90%;
-    max-width: 900px;
+    max-width: 1200px;
     max-height: 90vh;
+    height: 90vh;
     overflow: hidden;
     background-color: white;
-    box-shadow: 0 24px 48px rgba(0, 0, 0, 0.16);
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
     border-radius: 16px;
     border: none;
     outline: none;
@@ -403,14 +388,14 @@
 }
 
 .franchise-mgmt-container .modal-header {
-    padding: 24px 32px;
+    padding: 20px 32px;
     border-bottom: 2px solid #0A356B;
     background: white;
     flex-shrink: 0;
 }
 
 .franchise-mgmt-container .modal-body {
-    padding: 24px 32px;
+    padding: 20px 28px;
     overflow-y: auto;
     flex: 1;
 }
@@ -447,7 +432,7 @@
     max-width: 1000px;
     max-height: 90vh;
     background-color: white;
-    box-shadow: 0 24px 48px rgba(0, 0, 0, 0.16);
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
     border-radius: 16px;
     display: flex;
     flex-direction: column;
@@ -459,30 +444,30 @@
     max-width: 600px;
 }
 
-.preview-image {
+.franchise-mgmt-container .preview-image {
     max-width: 100%;
     max-height: 70vh;
     object-fit: contain;
 }
 
-.preview-iframe {
+.franchise-mgmt-container .preview-iframe {
     width: 100%;
     height: 70vh;
     border: none;
 }
 
-.file-icon-large {
+.franchise-mgmt-container .file-icon-large {
     font-size: 60px;
     color: #1976d2;
 }
 
 /* Content container */
-.content-container {
+.franchise-mgmt-container .content-container {
     padding: 20px;
 }
 
 /* Loading spinner container */
-.loading-container {
+.franchise-mgmt-container .loading-container {
     display: flex;
     justify-content: center;
     align-items: center;
@@ -491,17 +476,17 @@
     gap: 16px;
 }
 
-.loading-container .MuiCircularProgress-root {
+.franchise-mgmt-container .loading-container .MuiCircularProgress-root {
     color: #0A356B !important;
 }
 
 /* Table styles */
-.pending-table {
+.franchise-mgmt-container .pending-table {
     min-width: 650px;
 }
 
 /* Chip styles for application types */
-.chip-new {
+.franchise-mgmt-container .chip-new {
     background: linear-gradient(135deg, #4caf50 0%, #388e3c 100%) !important;
     color: white !important;
     font-weight: 600 !important;
@@ -510,7 +495,7 @@
     padding: 6px 12px !important;
 }
 
-.chip-renewal {
+.franchise-mgmt-container .chip-renewal {
     background: linear-gradient(135deg, #2196f3 0%, #1565c0 100%) !important;
     color: white !important;
     font-weight: 600 !important;
@@ -519,7 +504,7 @@
     padding: 6px 12px !important;
 }
 
-.chip-transfer {
+.franchise-mgmt-container .franchise-mgmt-container .chip-transfer {
     background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%) !important;
     color: white !important;
     font-weight: 600 !important;
@@ -529,48 +514,48 @@
 }
 
 /* Icon button styles */
-.view-icon-button {
+.franchise-mgmt-container .view-icon-button {
     color: #0A356B !important;
     transition: all 0.3s ease !important;
     border-radius: 8px !important;
 }
 
-.view-icon-button:hover {
+.franchise-mgmt-container .franchise-mgmt-container .view-icon-button:hover {
     background-color: rgba(10, 53, 107, 0.08) !important;
     transform: scale(1.1);
 }
 
 /* Typography spacing */
-.mb-2 {
+.franchise-mgmt-container .mb-2 {
     margin-bottom: 16px;
 }
 
-.mb-3 {
+.franchise-mgmt-container .mb-3 {
     margin-bottom: 24px;
 }
 
-.mt-2 {
+.franchise-mgmt-container .mt-2 {
     margin-top: 16px;
 }
 
 /* Document requirements info text */
-.document-requirements-info {
+.franchise-mgmt-container .document-requirements-info {
     margin-bottom: 16px;
     color: rgba(0, 0, 0, 0.6);
 }
 
 /* Alert full width */
-.alert-full-width {
+.franchise-mgmt-container .alert-full-width {
     width: 100%;
 }
 
 /* TODA membership field */
-.toda-membership-field {
+.franchise-mgmt-container .franchise-mgmt-container .toda-membership-field {
     margin-bottom: 16px;
 }
 
 /* Button Styles */
-.button-primary {
+.franchise-mgmt-container .button-primary {
     background-color: #0A356B !important;
     color: white !important;
     padding: 10px 24px !important;
@@ -581,25 +566,25 @@
     transition: all 0.3s ease !important;
 }
 
-.button-primary:hover {
+.franchise-mgmt-container .button-primary:hover {
     background-color: #083057 !important;
     box-shadow: 0 6px 16px rgba(10, 53, 107, 0.4) !important;
     transform: translateY(-2px);
 }
 
-.button-primary:disabled {
+.franchise-mgmt-container .button-primary:disabled {
     background-color: #9e9e9e !important;
     opacity: 0.6;
     box-shadow: none !important;
     transform: none !important;
 }
 
-.circular-progress-small {
+.franchise-mgmt-container .franchise-mgmt-container .circular-progress-small {
     width: 20px !important;
     height: 20px !important;
 }
 
-.button-error {
+.franchise-mgmt-container .button-error {
     background-color: #d32f2f !important;
     color: white !important;
     padding: 10px 24px !important;
@@ -610,83 +595,88 @@
     transition: all 0.3s ease !important;
 }
 
-.button-error:hover {
+.franchise-mgmt-container .button-error:hover {
     background-color: #c62828 !important;
     box-shadow: 0 6px 16px rgba(211, 47, 47, 0.4) !important;
     transform: translateY(-2px);
 }
 
-.button-error:disabled {
+.franchise-mgmt-container .button-error:disabled {
     background-color: #9e9e9e !important;
     opacity: 0.6;
     box-shadow: none !important;
     transform: none !important;
 }
 
-.button-success {
+.franchise-mgmt-container .franchise-mgmt-container .button-success {
     background-color: #2e7d32 !important;
-    color: white !important;
+    color: #ffffff !important;
     padding: 10px 24px !important;
     border-radius: 8px !important;
-    font-weight: 600 !important;
-    text-transform: none !important;
+    font-weight: 700 !important;
+    font-size: 14px !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.8px !important;
     box-shadow: 0 4px 12px rgba(46, 125, 50, 0.3) !important;
     transition: all 0.3s ease !important;
+    min-height: 48px !important;
 }
 
-.button-success:hover {
-    background-color: #1b5e20 !important;
+.franchise-mgmt-container .button-success:hover {
+    background-color: #0A356B !important;
+    color: white;
     box-shadow: 0 6px 16px rgba(46, 125, 50, 0.4) !important;
     transform: translateY(-2px);
 }
 
-.button-success:disabled {
+.franchise-mgmt-container .button-success:disabled {
     background-color: #9e9e9e !important;
+    color: #ffffff !important;
+    font-weight: bold !important;
     opacity: 0.6;
     box-shadow: none !important;
     transform: none !important;
 }
 
 /* CircularProgress Styles */
-.circular-progress-small {
+.franchise-mgmt-container .circular-progress-small {
     width: 24px !important;
     height: 24px !important;
 }
 
-.circular-progress-inherit {
+.franchise-mgmt-container .circular-progress-inherit {
     color: inherit;
 }
 
 /* Table Cell Alignment */
-.table-cell-center {
+.franchise-mgmt-container .table-cell-center {
     text-align: center !important;
 }
 
 /* Snackbar Position */
-.snackbar-bottom-right {
+.franchise-mgmt-container .snackbar-bottom-right {
     bottom: 24px;
     right: 24px;
 }
 
 /* TextField multiline styles */
-.textfield-multiline {
+.franchise-mgmt-container .textfield-multiline {
     margin-bottom: 24px;
 }
 
-.textfield-multiline textarea {
-    min-height: 100px;
+.franchise-mgmt-container .franchise-mgmt-container .textfield-multiline textarea {
     resize: vertical;
 }
 
 /* Standardized Info Boxes */
-.info-box {
+.franchise-mgmt-container .info-box {
     background-color: #f9fafb;
     padding: 20px 24px;
     border-radius: 8px;
     border: 1px solid #e5e7eb;
 }
 
-.info-box .section-header {
+.franchise-mgmt-container .info-box .section-header {
     margin-top: 0 !important;
     padding-top: 0 !important;
     margin-bottom: 16px !important;
@@ -694,13 +684,13 @@
     padding-bottom: 8px !important;
 }
 
-.info-box .info-grid {
+.franchise-mgmt-container .info-box .info-grid {
     padding: 0;
     background-color: transparent;
     border: none;
 }
 
-.success-box {
+.franchise-mgmt-container .success-box {
     background-color: #e8f5e9;
     padding: 12px 16px;
     border-radius: 8px;
@@ -709,7 +699,7 @@
     border: 1px solid #4caf50;
 }
 
-.warning-box {
+.franchise-mgmt-container .warning-box {
     background-color: #FFF4E6;
     padding: 12px 16px;
     border-radius: 8px;
@@ -718,7 +708,7 @@
     border: 1px solid #FBBF24;
 }
 
-.error-box {
+.franchise-mgmt-container .error-box {
     background-color: #ffebee;
     padding: 12px 16px;
     border-radius: 8px;
@@ -726,7 +716,7 @@
     color: #d32f2f;
 }
 
-.info-message-box {
+.franchise-mgmt-container .info-message-box {
     background-color: #e3f2fd;
     padding: 16px;
     border-radius: 8px;

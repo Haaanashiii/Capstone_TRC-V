@@ -149,7 +149,7 @@
 }
 
 /* Modal Styles */
-.modal-container {
+.certificate-container .modal-container {
   position: absolute;
   top: 50%;
   left: 50%;
@@ -165,7 +165,7 @@
   outline: none;
 }
 
-.modal-header {
+.certificate-container .modal-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -177,7 +177,7 @@
   margin-bottom: 0 !important;
 }
 
-.modal-header h2 {
+.certificate-container .modal-header h2 {
   margin: 0;
   color: #0A356B;
   font-size: 20px;
@@ -185,34 +185,34 @@
   letter-spacing: -0.3px;
 }
 
-.modal-header .MuiIconButton-root {
+.certificate-container .modal-header .MuiIconButton-root {
   color: #5f6368 !important;
   transition: all 0.2s ease;
 }
 
-.modal-header .MuiIconButton-root:hover {
+.certificate-container .modal-header .MuiIconButton-root:hover {
   background-color: rgba(10, 53, 107, 0.08) !important;
   color: #0A356B !important;
 }
 
-.modal-content {
+.certificate-container .modal-content {
   margin-top: 16px;
 }
 
-.info-grid {
+.certificate-container .info-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
   gap: 20px;
   margin-top: 16px;
 }
 
-.info-item {
+.certificate-container .info-item {
   display: flex;
   flex-direction: column;
   gap: 4px;
 }
 
-.info-item .label {
+.certificate-container .info-item .label {
   color: #666;
   font-weight: 500;
   font-size: 13px;

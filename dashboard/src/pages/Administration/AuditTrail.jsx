@@ -7,6 +7,7 @@ import websocketService from '../../services/websocket';
 import { useIsMounted } from '../../hooks/useIsMounted';
 import { useDebounce } from '../../hooks/useDebounce';
 import PageLoader from '../../components/PageLoader';
+import AnimatedPage, { AnimatedSection } from '../../components/AnimatedPage';
 import {
   Typography,
   Paper,
@@ -339,14 +340,14 @@ function AuditTrail() {
   return (
     <div className="audit-trail-container">
       <Sidebar />
-      <div className="content-container">
-        {/* Header */}
-        <header className="audit-header">
-          <Typography variant="h4" className="page-title">
-            Audit Trail
-          </Typography>
-          
-        </header>
+      <AnimatedPage className="content-container">
+        <AnimatedSection index={0}>
+          <header className="audit-header">
+            <Typography variant="h4" className="page-title">
+              Audit Trail
+            </Typography>
+          </header>
+        </AnimatedSection>
 
         {error && (
           <Alert severity="error" className="error-alert" onClose={() => setError('')}>
@@ -354,8 +355,8 @@ function AuditTrail() {
           </Alert>
         )}
 
-        {/* Search and Filters - Separated from table */}
-        <div className="filters-section">
+        <AnimatedSection index={1}>
+          <div className="filters-section">
           <div className="filters-row">
             <TextField
               placeholder="Search by username, email, action, route, or IP..."
@@ -442,8 +443,10 @@ function AuditTrail() {
             </Button>
           </div>
         </div>
+        </AnimatedSection>
 
-        <Fade in={!loading} timeout={400}>
+        <AnimatedSection index={2}>
+          <Fade in={!loading} timeout={400}>
         <Paper elevation={2} className="admin-table-container">
           {/* Audit Logs Table */}
           {loading ? (
@@ -578,15 +581,14 @@ function AuditTrail() {
             </>
           )}
         </Paper>
-        </Fade>
-
+        </Fade>        </AnimatedSection>
         {/* View Audit Log Details Modal */}
         <Modal
           open={viewModalOpen}
           onClose={handleCloseViewModal}
           aria-labelledby="audit-log-details-modal"
         >
-          <Box className="modal-container">
+          <Box className="audit-trail-container modal-container">
             <div className="modal-header">
               <Typography variant="h5" component="h2">
                 AUDIT LOG DETAILS
@@ -747,7 +749,7 @@ function AuditTrail() {
             )}
           </Box>
         </Modal>
-      </div>
+      </AnimatedPage>
     </div>
   );
 }
