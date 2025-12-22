@@ -375,8 +375,8 @@
     transform: translate(-50%, -50%);
     width: 90%;
     max-width: 1200px;
-    max-height: 90vh;
-    height: 90vh;
+    max-height: 95vh;
+    height: 95vh;
     overflow: hidden;
     background-color: white;
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
