@@ -943,9 +943,10 @@ exports.createRenewOrAmendment = async (req, res, next) => {
     }
     
     // ========== NORMALIZE APPLICATION TYPE ==========
-    // Frontend sends: 'amend-update_ownership', 'amend-change_unit', 'renewal', etc.
+    // Frontend sends: 'amendment', 'amend-update_ownership', 'amend-change_unit', 'renewal', etc.
     const normalizeAppType = (type) => {
-      if (type === 'amend-update_ownership' || type === 'update_ownership') return 'update_ownership';
+      // Generic 'amendment' defaults to 'update_ownership' (most common case)
+      if (type === 'amendment' || type === 'amend-update_ownership' || type === 'update_ownership') return 'update_ownership';
       if (type === 'amend-change_unit' || type === 'change_unit') return 'change_unit';
       if (type === 'renewal' || type === 'renew') return 'renewal';
       return type;
@@ -2138,7 +2139,8 @@ exports.sbAdminAcceptRenewOrAmendment = async (req, res, next) => {
     // Handle all amendment subtypes: update_ownership (normalized from amend-update_ownership)
     if (application.applicationType === 'update_ownership') {
       // Amendment/Ownership Update: Update operator information only, keep franchise number
-      // IMPORTANT: Ensure we use values from application (amended data), not from existingFranchise
+      // IMPORTANT: Use values from application (amended data) as primary source
+      // Only fall back to existing franchise if application doesn't have the field (shouldn't happen)
       newVersionData.operatorName = application.operatorName || existingFranchise.operatorName;
       newVersionData.operatorContactNumber = application.operatorContactNumber || existingFranchise.operatorContactNumber;
       newVersionData.operatorAddress = application.operatorAddress || existingFranchise.operatorAddress;
@@ -2150,11 +2152,24 @@ exports.sbAdminAcceptRenewOrAmendment = async (req, res, next) => {
       newVersionData.operatorEmail = application.operatorEmail || existingFranchise.operatorEmail;
       newVersionData.coOwnerName = application.coOwnerName || existingFranchise.coOwnerName;
       newVersionData.coOwnerAddress = application.coOwnerAddress || existingFranchise.coOwnerAddress;
-      // Keep existing motor/driver info and franchise number
-      console.log('[sbAdminAcceptRenewOrAmendment] Amendment/Ownership - updated operator info, retained franchise number:', franchiseNo);
+      // Keep existing motor/driver info from existing franchise (not changed in update_ownership)
+      newVersionData.driverName = existingFranchise.driverName;
+      newVersionData.driversAddress = existingFranchise.driversAddress;
+      newVersionData.todaMembership = existingFranchise.todaMembership;
+      newVersionData.unitModel = existingFranchise.unitModel;
+      newVersionData.colorMotor = existingFranchise.colorMotor;
+      newVersionData.sideCarColor = existingFranchise.sideCarColor;
+      newVersionData.mvPlateNo = existingFranchise.mvPlateNo;
+      newVersionData.motorEngineNo = existingFranchise.motorEngineNo;
+      newVersionData.chasisNo = existingFranchise.chasisNo;
+      console.log('[sbAdminAcceptRenewOrAmendment] Amendment/Ownership - updated operator info from application:', {
+        operatorName: application.operatorName,
+        operatorContactNumber: application.operatorContactNumber,
+        operatorEmail: application.operatorEmail
+      });
     } else if (application.applicationType === 'change_unit') {
       // Change Unit: Update motor/driver info, keep operator
-      // IMPORTANT: Ensure we use values from application (amended data), not from existingFranchise
+      // IMPORTANT: Use values from application (amended data) as primary source
       newVersionData.unitModel = application.unitModel || existingFranchise.unitModel;
       newVersionData.colorMotor = application.colorMotor || existingFranchise.colorMotor;
       newVersionData.sideCarColor = application.sideCarColor || existingFranchise.sideCarColor;
@@ -2164,10 +2179,47 @@ exports.sbAdminAcceptRenewOrAmendment = async (req, res, next) => {
       newVersionData.driverName = application.driverName || existingFranchise.driverName;
       newVersionData.driversAddress = application.driversAddress || existingFranchise.driversAddress;
       newVersionData.todaMembership = application.todaMembership || existingFranchise.todaMembership;
-      console.log('[sbAdminAcceptRenewOrAmendment] Change Unit - updated motor/driver info, retained franchise number:', franchiseNo);
+      // Keep existing operator info from existing franchise (not changed in change_unit)
+      newVersionData.operatorName = existingFranchise.operatorName;
+      newVersionData.operatorContactNumber = existingFranchise.operatorContactNumber;
+      newVersionData.operatorAddress = existingFranchise.operatorAddress;
+      newVersionData.operatorBarangay = existingFranchise.operatorBarangay;
+      newVersionData.operatorCivilStatus = existingFranchise.operatorCivilStatus;
+      newVersionData.operatorBirthPlace = existingFranchise.operatorBirthPlace;
+      newVersionData.operatorBirthDate = existingFranchise.operatorBirthDate;
+      newVersionData.operatorCitizenship = existingFranchise.operatorCitizenship;
+      newVersionData.operatorEmail = existingFranchise.operatorEmail;
+      newVersionData.coOwnerName = existingFranchise.coOwnerName;
+      newVersionData.coOwnerAddress = existingFranchise.coOwnerAddress;
+      console.log('[sbAdminAcceptRenewOrAmendment] Change Unit - updated motor/driver info from application:', {
+        mvPlateNo: application.mvPlateNo,
+        motorEngineNo: application.motorEngineNo,
+        unitModel: application.unitModel
+      });
     } else if (application.applicationType === 'renewal') {
-      // Renewal: Keep all information, just extend expiry
-      console.log('[sbAdminAcceptRenewOrAmendment] Renewal - extended expiry date, retained all information and franchise number:', franchiseNo);
+      // Renewal: Copy ALL data from application to preserve any updates made during renewal
+      // This ensures if operator updated their contact info during renewal, it gets saved
+      newVersionData.operatorName = application.operatorName || existingFranchise.operatorName;
+      newVersionData.operatorContactNumber = application.operatorContactNumber || existingFranchise.operatorContactNumber;
+      newVersionData.operatorAddress = application.operatorAddress || existingFranchise.operatorAddress;
+      newVersionData.operatorBarangay = application.operatorBarangay || existingFranchise.operatorBarangay;
+      newVersionData.operatorCivilStatus = application.operatorCivilStatus || existingFranchise.operatorCivilStatus;
+      newVersionData.operatorBirthPlace = application.operatorBirthPlace || existingFranchise.operatorBirthPlace;
+      newVersionData.operatorBirthDate = application.operatorBirthDate || existingFranchise.operatorBirthDate;
+      newVersionData.operatorCitizenship = application.operatorCitizenship || existingFranchise.operatorCitizenship;
+      newVersionData.operatorEmail = application.operatorEmail || existingFranchise.operatorEmail;
+      newVersionData.coOwnerName = application.coOwnerName || existingFranchise.coOwnerName;
+      newVersionData.coOwnerAddress = application.coOwnerAddress || existingFranchise.coOwnerAddress;
+      newVersionData.driverName = application.driverName || existingFranchise.driverName;
+      newVersionData.driversAddress = application.driversAddress || existingFranchise.driversAddress;
+      newVersionData.todaMembership = application.todaMembership || existingFranchise.todaMembership;
+      newVersionData.unitModel = application.unitModel || existingFranchise.unitModel;
+      newVersionData.colorMotor = application.colorMotor || existingFranchise.colorMotor;
+      newVersionData.sideCarColor = application.sideCarColor || existingFranchise.sideCarColor;
+      newVersionData.mvPlateNo = application.mvPlateNo || existingFranchise.mvPlateNo;
+      newVersionData.motorEngineNo = application.motorEngineNo || existingFranchise.motorEngineNo;
+      newVersionData.chasisNo = application.chasisNo || existingFranchise.chasisNo;
+      console.log('[sbAdminAcceptRenewOrAmendment] Renewal - extended expiry date, copied all data from application to preserve updates');
     }
     
     // Link franchise chain ID to new owner BEFORE creating franchise (for ownership updates)
