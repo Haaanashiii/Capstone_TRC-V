@@ -503,20 +503,35 @@ export default function RequestAmendment() {
         // First check if franchise data was passed via navigation state
         const passedFranchiseChainId = location.state?.franchiseChainId;
         const passedFranchise = location.state?.franchise;
+        const passedFranchiseId = location.state?.previousFranchiseId; // The specific franchise ID being amended
         
         logger.log('[RequestAmendment] Navigation state:', { 
           amendmentType: location.state?.amendmentType,
           hasPassedFranchise: !!passedFranchise,
-          franchiseChainId: passedFranchiseChainId
+          franchiseChainId: passedFranchiseChainId,
+          franchiseId: passedFranchiseId
         });
+        
+        // PRIORITY 1: If a specific franchise ID was passed, use that franchise
+        if (passedFranchiseId) {
+          logger.log('[RequestAmendment] Using specific franchise ID from navigation:', passedFranchiseId);
+          setFranchiseId(passedFranchiseId);
+        }
         
         // If franchise data was passed from navigation, use it as immediate fallback
         if (passedFranchise && passedFranchise.franchiseNumber) {
           logger.log('[RequestAmendment] Using franchise from navigation state:', {
             franchiseNumber: passedFranchise.franchiseNumber,
             operatorName: passedFranchise.operatorName || passedFranchise.fullName,
-            franchiseChainId: passedFranchiseChainId
+            franchiseChainId: passedFranchiseChainId,
+            franchiseId: passedFranchiseId || passedFranchise._id
           });
+          
+          // If we don't have franchiseId set yet, use the one from passedFranchise
+          if (!passedFranchiseId && passedFranchise._id) {
+            setFranchiseId(passedFranchise._id);
+            logger.log('[RequestAmendment] Set franchise ID from passed franchise:', passedFranchise._id);
+          }
           
           // Populate form immediately with passed franchise data
           setFormData({
@@ -560,51 +575,64 @@ export default function RequestAmendment() {
           return;
         }
 
-        logger.log('[RequestAmendment] Fetching user data from /auth/me');
+        // DECISION POINT: Use passed franchise chain ID if available, otherwise fetch from /auth/me
+        let franchiseChainIdToUse = passedFranchiseChainId;
+        let franchiseToUse = passedFranchise;
         
-        // Fetch user data with franchise information from /auth/me
-        const userResponse = await fetch(`${API_BASE_URL}/auth/me`, {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
-          credentials: 'include'
-        });
+        // Only fetch from /auth/me if no franchise data was passed via navigation
+        if (!passedFranchiseChainId && !passedFranchise) {
+          logger.log('[RequestAmendment] No franchise passed in navigation, fetching from /auth/me');
+          
+          const userResponse = await fetch(`${API_BASE_URL}/auth/me`, {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            },
+            credentials: 'include'
+          });
 
-        if (!userResponse.ok) {
-          logger.error('[RequestAmendment] Failed to fetch user data:', userResponse.status);
-          logger.log('[RequestAmendment] Will use data from navigation state');
-          setIsLoading(false);
-          return;
+          if (!userResponse.ok) {
+            logger.error('[RequestAmendment] Failed to fetch user data:', userResponse.status);
+            setIsLoading(false);
+            return;
+          }
+
+          const userData = await userResponse.json();
+          logger.log('[RequestAmendment] User data received:', userData);
+          
+          const userFranchise = userData.user?.franchise;
+          
+          if (!userFranchise) {
+            logger.warn('[RequestAmendment] No franchise found in user data');
+            setIsLoading(false);
+            return;
+          }
+
+          logger.log('[RequestAmendment] Found franchise from /auth/me:', {
+            franchiseChainId: userFranchise.franchiseChainId,
+            franchiseNumber: userFranchise.franchiseNumber,
+            operatorName: userFranchise.operatorName,
+            status: userFranchise.franchiseStatus
+          });
+          
+          franchiseChainIdToUse = userFranchise.franchiseChainId;
+          franchiseToUse = userFranchise;
+        } else {
+          logger.log('[RequestAmendment] Using franchise from navigation state:', {
+            franchiseChainId: passedFranchiseChainId,
+            franchiseNumber: passedFranchise?.franchiseNumber,
+            franchiseId: passedFranchiseId
+          });
         }
 
-        const userData = await userResponse.json();
-        logger.log('[RequestAmendment] User data received:', userData);
-        
-        // Get franchise information from user data
-        const userFranchise = userData.user?.franchise;
-        
-        if (!userFranchise) {
-          logger.warn('[RequestAmendment] No franchise found in user data');
-          setIsLoading(false);
-          return;
-        }
-
-        logger.log('[RequestAmendment] Found franchise:', {
-          franchiseChainId: userFranchise.franchiseChainId,
-          franchiseNumber: userFranchise.franchiseNumber,
-          operatorName: userFranchise.operatorName,
-          status: userFranchise.franchiseStatus
-        });
-
-        // If we have a franchiseChainId, fetch the complete franchise history to get the latest version
-        if (userFranchise.franchiseChainId) {
+        // Now fetch the franchise chain using the determined franchiseChainId
+        if (franchiseChainIdToUse) {
           try {
-            logger.log('[RequestAmendment] Fetching franchise chain history:', userFranchise.franchiseChainId);
+            logger.log('[RequestAmendment] Fetching franchise chain history:', franchiseChainIdToUse);
             
             const chainResponse = await fetch(
-              `${API_BASE_URL}/api/franchise-information/chain/${userFranchise.franchiseChainId}`,
+              `${API_BASE_URL}/api/franchise-information/chain/${franchiseChainIdToUse}`,
               {
                 headers: {
                   'Authorization': `Bearer ${token}`,
@@ -617,166 +645,200 @@ export default function RequestAmendment() {
               const chainData = await chainResponse.json();
               logger.log('[RequestAmendment] Chain data received:', chainData);
               
-              // Get the latest version (last item in the data array)
+              // Get the franchise to use for pre-filling
+              let franchiseToPopulate;
+              
               if (chainData.data && chainData.data.length > 0) {
-                const latestFranchise = chainData.data[chainData.data.length - 1];
+                // IMPORTANT: If a specific franchise ID was passed, find and use that specific version
+                if (passedFranchiseId) {
+                  franchiseToPopulate = chainData.data.find(f => f._id === passedFranchiseId);
+                  if (franchiseToPopulate) {
+                    logger.log('[RequestAmendment] Found specific franchise by ID:', {
+                      id: franchiseToPopulate._id,
+                      version: franchiseToPopulate.version,
+                      operatorName: franchiseToPopulate.operatorName
+                    });
+                  } else {
+                    logger.warn('[RequestAmendment] Specific franchise ID not found in chain, using latest');
+                    franchiseToPopulate = chainData.data[chainData.data.length - 1];
+                  }
+                } else {
+                  // No specific ID passed, use the latest version
+                  franchiseToPopulate = chainData.data[chainData.data.length - 1];
+                  logger.log('[RequestAmendment] Using latest franchise version:', {
+                    id: franchiseToPopulate._id,
+                    version: franchiseToPopulate.version
+                  });
+                }
                 
-                // Store the franchise ID
-                setFranchiseId(latestFranchise._id);
-                logger.log('[RequestAmendment] Stored franchise ID:', latestFranchise._id);
+                // Set the franchise ID (only if not already set from passedFranchiseId)
+                if (!franchiseId) {
+                  setFranchiseId(franchiseToPopulate._id);
+                  logger.log('[RequestAmendment] Stored franchise ID:', franchiseToPopulate._id);
+                }
                 
-                logger.log('[RequestAmendment] Latest franchise version:', {
-                  version: latestFranchise.version,
-                  operatorName: latestFranchise.operatorName,
-                  operatorAddress: latestFranchise.operatorAddress,
-                  driverName: latestFranchise.driverName,
-                  franchiseStatus: latestFranchise.franchiseStatus
+                logger.log('[RequestAmendment] Franchise to populate:', {
+                  version: franchiseToPopulate.version,
+                  operatorName: franchiseToPopulate.operatorName,
+                  operatorAddress: franchiseToPopulate.operatorAddress,
+                  driverName: franchiseToPopulate.driverName,
+                  franchiseStatus: franchiseToPopulate.franchiseStatus
                 });
 
-                // Pre-populate form with latest franchise data
+                // Pre-populate form with franchise data
                 setFormData({
                   date: dayjs(),
-                  fullName: latestFranchise.operatorName || '',
-                  contactNumber: latestFranchise.operatorContactNumber || '',
-                  birthPlace: latestFranchise.operatorBirthPlace || '',
-                  birthDate: latestFranchise.operatorBirthDate ? dayjs(latestFranchise.operatorBirthDate) : null,
-                  address: latestFranchise.operatorAddress || '',
-                  barangay: latestFranchise.operatorBarangay || '',
-                  civilStatus: latestFranchise.operatorCivilStatus || '',
-                  citizenship: latestFranchise.operatorCitizenship || '',
-                  todaMembership: latestFranchise.todaMembership || '',
-                  coOwner: latestFranchise.coOwnerName || '',
-                  orNumber: latestFranchise.franchiseNumber || '',
-                  franchiseNumber: latestFranchise.franchiseNumber || '',
-                  dateApproved: latestFranchise.approvedAt 
-                    ? new Date(latestFranchise.approvedAt).toISOString().split('T')[0]
+                  fullName: franchiseToPopulate.operatorName || '',
+                  contactNumber: franchiseToPopulate.operatorContactNumber || '',
+                  birthPlace: franchiseToPopulate.operatorBirthPlace || '',
+                  birthDate: franchiseToPopulate.operatorBirthDate ? dayjs(franchiseToPopulate.operatorBirthDate) : null,
+                  address: franchiseToPopulate.operatorAddress || '',
+                  barangay: franchiseToPopulate.operatorBarangay || '',
+                  civilStatus: franchiseToPopulate.operatorCivilStatus || '',
+                  citizenship: franchiseToPopulate.operatorCitizenship || '',
+                  todaMembership: franchiseToPopulate.todaMembership || '',
+                  coOwner: franchiseToPopulate.coOwnerName || '',
+                  orNumber: franchiseToPopulate.franchiseNumber || '',
+                  franchiseNumber: franchiseToPopulate.franchiseNumber || '',
+                  dateApproved: franchiseToPopulate.approvedAt 
+                    ? new Date(franchiseToPopulate.approvedAt).toISOString().split('T')[0]
                     : '',
-                  expiryDate: latestFranchise.expiryDate 
-                    ? new Date(latestFranchise.expiryDate).toISOString().split('T')[0]
+                  expiryDate: franchiseToPopulate.expiryDate 
+                    ? new Date(franchiseToPopulate.expiryDate).toISOString().split('T')[0]
                     : '',
-                  franchiseStatus: latestFranchise.franchiseStatus || 'Active',
-                  driverName: latestFranchise.driverName || '',
-                  driverAddress: latestFranchise.driversAddress || '',
-                  make: latestFranchise.unitModel || '',
-                  colorMotor: latestFranchise.colorMotor || '',
-                  colorSidecar: latestFranchise.sideCarColor || 'B/Y',
-                  sidecarNumber: latestFranchise.sideCarPlateNumber || '',
-                  plateNumber: latestFranchise.mvPlateNo || '',
-                  chassisNumber: latestFranchise.chasisNo || '',
-                  motorNumber: latestFranchise.motorEngineNo || ''
+                  franchiseStatus: franchiseToPopulate.franchiseStatus || 'Active',
+                  driverName: franchiseToPopulate.driverName || '',
+                  driverAddress: franchiseToPopulate.driversAddress || '',
+                  make: franchiseToPopulate.unitModel || '',
+                  colorMotor: franchiseToPopulate.colorMotor || '',
+                  colorSidecar: franchiseToPopulate.sideCarColor || 'B/Y',
+                  sidecarNumber: franchiseToPopulate.sideCarPlateNumber || '',
+                  plateNumber: franchiseToPopulate.mvPlateNo || '',
+                  chassisNumber: franchiseToPopulate.chasisNo || '',
+                  motorNumber: franchiseToPopulate.motorEngineNo || ''
                 });
                 
                 logger.log('[RequestAmendment] Form populated successfully');
               }
             } else {
               logger.warn('[RequestAmendment] Failed to fetch franchise chain:', chainResponse.status);
-              // Fallback: populate with basic franchise data
-              setFranchiseId(userFranchise._id);
-              logger.log('[RequestAmendment] Stored franchise ID (fallback):', userFranchise._id);
-              setFormData({
-                date: dayjs(),
-                fullName: userFranchise.operatorName || '',
-                contactNumber: userFranchise.operatorContactNumber || '',
-                birthPlace: userFranchise.operatorBirthPlace || '',
-                birthDate: userFranchise.operatorBirthDate ? dayjs(userFranchise.operatorBirthDate) : null,
-                address: userFranchise.operatorAddress || '',
-                barangay: userFranchise.operatorBarangay || '',
-                civilStatus: userFranchise.operatorCivilStatus || '',
-                citizenship: userFranchise.operatorCitizenship || '',
-                todaMembership: userFranchise.todaMembership || '',
-                coOwner: userFranchise.coOwnerName || '',
-                orNumber: userFranchise.franchiseNumber || '',
-                franchiseNumber: userFranchise.franchiseNumber || '',
-                dateApproved: userFranchise.approvedAt 
-                  ? new Date(userFranchise.approvedAt).toISOString().split('T')[0]
-                  : '',
-                expiryDate: userFranchise.expiryDate 
-                  ? new Date(userFranchise.expiryDate).toISOString().split('T')[0]
-                  : '',
-                franchiseStatus: userFranchise.franchiseStatus || 'Active',
-                driverName: userFranchise.driverName || '',
-                driverAddress: userFranchise.driversAddress || '',
-                make: userFranchise.unitModel || '',
-                colorMotor: userFranchise.colorMotor || '',
-                colorSidecar: userFranchise.sideCarColor || 'B/Y',
-                sidecarNumber: userFranchise.sideCarPlateNumber || '',
-                plateNumber: userFranchise.mvPlateNo || '',
-                chassisNumber: userFranchise.chasisNo || '',
-                motorNumber: userFranchise.motorEngineNo || ''
-              });
+              // Fallback: Use passed franchise data or basic franchise data
+              if (franchiseToUse) {
+                if (!franchiseId) {
+                  setFranchiseId(franchiseToUse._id);
+                  logger.log('[RequestAmendment] Stored franchise ID (fallback):', franchiseToUse._id);
+                }
+                setFormData({
+                  date: dayjs(),
+                  fullName: franchiseToUse.operatorName || '',
+                  contactNumber: franchiseToUse.operatorContactNumber || '',
+                  birthPlace: franchiseToUse.operatorBirthPlace || '',
+                  birthDate: franchiseToUse.operatorBirthDate ? dayjs(franchiseToUse.operatorBirthDate) : null,
+                  address: franchiseToUse.operatorAddress || '',
+                  barangay: franchiseToUse.operatorBarangay || '',
+                  civilStatus: franchiseToUse.operatorCivilStatus || '',
+                  citizenship: franchiseToUse.operatorCitizenship || '',
+                  todaMembership: franchiseToUse.todaMembership || '',
+                  coOwner: franchiseToUse.coOwnerName || '',
+                  orNumber: franchiseToUse.franchiseNumber || '',
+                  franchiseNumber: franchiseToUse.franchiseNumber || '',
+                  dateApproved: franchiseToUse.approvedAt 
+                    ? new Date(franchiseToUse.approvedAt).toISOString().split('T')[0]
+                    : '',
+                  expiryDate: franchiseToUse.expiryDate 
+                    ? new Date(franchiseToUse.expiryDate).toISOString().split('T')[0]
+                    : '',
+                  franchiseStatus: franchiseToUse.franchiseStatus || 'Active',
+                  driverName: franchiseToUse.driverName || '',
+                  driverAddress: franchiseToUse.driversAddress || '',
+                  make: franchiseToUse.unitModel || '',
+                  colorMotor: franchiseToUse.colorMotor || '',
+                  colorSidecar: franchiseToUse.sideCarColor || 'B/Y',
+                  sidecarNumber: franchiseToUse.sideCarPlateNumber || '',
+                  plateNumber: franchiseToUse.mvPlateNo || '',
+                  chassisNumber: franchiseToUse.chasisNo || '',
+                  motorNumber: franchiseToUse.motorEngineNo || ''
+                });
+              }
             }
           } catch (chainError) {
             logger.error('[RequestAmendment] Error fetching franchise chain:', chainError);
-            // Fallback: use franchise data from /auth/me
-            setFranchiseId(userFranchise._id);
-            logger.log('[RequestAmendment] Stored franchise ID (error fallback):', userFranchise._id);
-            setFormData({
-              date: dayjs(),
-              fullName: userFranchise.operatorName || '',
-              contactNumber: userFranchise.operatorContactNumber || '',
-              birthPlace: userFranchise.operatorBirthPlace || '',
-              birthDate: userFranchise.operatorBirthDate ? dayjs(userFranchise.operatorBirthDate) : null,
-              address: userFranchise.operatorAddress || '',
-              barangay: userFranchise.operatorBarangay || '',
-              civilStatus: userFranchise.operatorCivilStatus || '',
-              citizenship: userFranchise.operatorCitizenship || '',
-              todaMembership: userFranchise.todaMembership || '',
-              coOwner: userFranchise.coOwnerName || '',
-              orNumber: userFranchise.franchiseNumber || '',
-              franchiseNumber: userFranchise.franchiseNumber || '',
-              dateApproved: userFranchise.approvedAt 
-                ? new Date(userFranchise.approvedAt).toISOString().split('T')[0]
-                : '',
-              expiryDate: userFranchise.expiryDate 
-                ? new Date(userFranchise.expiryDate).toISOString().split('T')[0]
-                : '',
-              franchiseStatus: userFranchise.franchiseStatus || 'Active',
-              driverName: userFranchise.driverName || '',
-              driverAddress: userFranchise.driversAddress || '',
-              make: userFranchise.unitModel || '',
-              colorMotor: userFranchise.colorMotor || '',
-              colorSidecar: userFranchise.sideCarColor || 'B/Y',
-              sidecarNumber: userFranchise.sideCarPlateNumber || '',
-              plateNumber: userFranchise.mvPlateNo || '',
-              chassisNumber: userFranchise.chasisNo || '',
-              motorNumber: userFranchise.motorEngineNo || ''
-            });
+            // Fallback: use franchise data that we have
+            if (franchiseToUse) {
+              if (!franchiseId) {
+                setFranchiseId(franchiseToUse._id);
+                logger.log('[RequestAmendment] Stored franchise ID (error fallback):', franchiseToUse._id);
+              }
+              setFormData({
+                date: dayjs(),
+                fullName: franchiseToUse.operatorName || '',
+                contactNumber: franchiseToUse.operatorContactNumber || '',
+                birthPlace: franchiseToUse.operatorBirthPlace || '',
+                birthDate: franchiseToUse.operatorBirthDate ? dayjs(franchiseToUse.operatorBirthDate) : null,
+                address: franchiseToUse.operatorAddress || '',
+                barangay: franchiseToUse.operatorBarangay || '',
+                civilStatus: franchiseToUse.operatorCivilStatus || '',
+                citizenship: franchiseToUse.operatorCitizenship || '',
+                todaMembership: franchiseToUse.todaMembership || '',
+                coOwner: franchiseToUse.coOwnerName || '',
+                orNumber: franchiseToUse.franchiseNumber || '',
+                franchiseNumber: franchiseToUse.franchiseNumber || '',
+                dateApproved: franchiseToUse.approvedAt 
+                  ? new Date(franchiseToUse.approvedAt).toISOString().split('T')[0]
+                  : '',
+                expiryDate: franchiseToUse.expiryDate 
+                  ? new Date(franchiseToUse.expiryDate).toISOString().split('T')[0]
+                  : '',
+                franchiseStatus: franchiseToUse.franchiseStatus || 'Active',
+                driverName: franchiseToUse.driverName || '',
+                driverAddress: franchiseToUse.driversAddress || '',
+                make: franchiseToUse.unitModel || '',
+                colorMotor: franchiseToUse.colorMotor || '',
+                colorSidecar: franchiseToUse.sideCarColor || 'B/Y',
+                sidecarNumber: franchiseToUse.sideCarPlateNumber || '',
+                plateNumber: franchiseToUse.mvPlateNo || '',
+                chassisNumber: franchiseToUse.chasisNo || '',
+                motorNumber: franchiseToUse.motorEngineNo || ''
+              });
+            }
           }
         } else {
-          // No franchiseChainId, use basic franchise data
-          setFranchiseId(userFranchise._id);
-          logger.log('[RequestAmendment] Stored franchise ID (no chain):', userFranchise._id);
-          setFormData({
-            date: dayjs(),
-            fullName: userFranchise.operatorName || '',
-            contactNumber: userFranchise.operatorContactNumber || '',
-            birthPlace: userFranchise.operatorBirthPlace || '',
-            birthDate: userFranchise.operatorBirthDate ? dayjs(userFranchise.operatorBirthDate) : null,
-            address: userFranchise.operatorAddress || '',
-            barangay: userFranchise.operatorBarangay || '',
-            civilStatus: userFranchise.operatorCivilStatus || '',
-            citizenship: userFranchise.operatorCitizenship || '',
-            todaMembership: userFranchise.todaMembership || '',
-            coOwner: userFranchise.coOwnerName || '',
-            orNumber: userFranchise.franchiseNumber || '',
-            franchiseNumber: userFranchise.franchiseNumber || '',
-            dateApproved: userFranchise.approvedAt 
-              ? new Date(userFranchise.approvedAt).toISOString().split('T')[0]
-              : '',
-            expiryDate: userFranchise.expiryDate 
-              ? new Date(userFranchise.expiryDate).toISOString().split('T')[0]
-              : '',
-            franchiseStatus: userFranchise.franchiseStatus || 'Active',
-            driverName: userFranchise.driverName || '',
-            driverAddress: userFranchise.driversAddress || '',
-            make: userFranchise.unitModel || '',
-            colorMotor: userFranchise.colorMotor || '',
-            colorSidecar: userFranchise.sideCarColor || 'B/Y',
-            sidecarNumber: userFranchise.sideCarPlateNumber || '',
-            plateNumber: userFranchise.mvPlateNo || '',
-            chassisNumber: userFranchise.chasisNo || '',
-            motorNumber: userFranchise.motorEngineNo || ''
-          });
+          // No franchiseChainId available
+          if (franchiseToUse && !franchiseId) {
+            setFranchiseId(franchiseToUse._id);
+            logger.log('[RequestAmendment] Stored franchise ID (no chain):', franchiseToUse._id);
+            setFormData({
+              date: dayjs(),
+              fullName: franchiseToUse.operatorName || '',
+              contactNumber: franchiseToUse.operatorContactNumber || '',
+              birthPlace: franchiseToUse.operatorBirthPlace || '',
+              birthDate: franchiseToUse.operatorBirthDate ? dayjs(franchiseToUse.operatorBirthDate) : null,
+              address: franchiseToUse.operatorAddress || '',
+              barangay: franchiseToUse.operatorBarangay || '',
+              civilStatus: franchiseToUse.operatorCivilStatus || '',
+              citizenship: franchiseToUse.operatorCitizenship || '',
+              todaMembership: franchiseToUse.todaMembership || '',
+              coOwner: franchiseToUse.coOwnerName || '',
+              orNumber: franchiseToUse.franchiseNumber || '',
+              franchiseNumber: franchiseToUse.franchiseNumber || '',
+              dateApproved: franchiseToUse.approvedAt 
+                ? new Date(franchiseToUse.approvedAt).toISOString().split('T')[0]
+                : '',
+              expiryDate: franchiseToUse.expiryDate 
+                ? new Date(franchiseToUse.expiryDate).toISOString().split('T')[0]
+                : '',
+              franchiseStatus: franchiseToUse.franchiseStatus || 'Active',
+              driverName: franchiseToUse.driverName || '',
+              driverAddress: franchiseToUse.driversAddress || '',
+              make: franchiseToUse.unitModel || '',
+              colorMotor: franchiseToUse.colorMotor || '',
+              colorSidecar: franchiseToUse.sideCarColor || 'B/Y',
+              sidecarNumber: franchiseToUse.sideCarPlateNumber || '',
+              plateNumber: franchiseToUse.mvPlateNo || '',
+              chassisNumber: franchiseToUse.chasisNo || '',
+              motorNumber: franchiseToUse.motorEngineNo || ''
+            });
+          }
         }
       } catch (error) {
         logger.error('[RequestAmendment] Error fetching franchise data:', error);
