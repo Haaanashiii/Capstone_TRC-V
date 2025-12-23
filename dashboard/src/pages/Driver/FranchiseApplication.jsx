@@ -242,49 +242,52 @@ export default function FranchiseApplication() {
     checkResubmission();
   }, []);
 
-  // Pre-fill form data when coming from renewal
+  // Pre-fill form data when coming from renewal, amendment, or change_unit
   useEffect(() => {
-    if (location.state && location.state.applicationType === 'renewal') {
-      const renewalData = location.state;
-      logger.log('[FranchiseApplication] Renewal mode - pre-filling data:', renewalData);
-      setApplicationType('renewal');
+    if (location.state && (location.state.applicationType === 'renewal' || location.state.applicationType === 'amendment' || location.state.applicationType === 'change_unit')) {
+      const franchiseData = location.state;
+      const appType = location.state.applicationType;
       
-      // Store the specific franchise ID being renewed
-      if (renewalData.previousFranchiseId) {
-        setPreviousFranchiseId(renewalData.previousFranchiseId);
-        logger.log('[FranchiseApplication] Setting previousFranchiseId:', renewalData.previousFranchiseId);
+      logger.log(`[FranchiseApplication] ${appType} mode - pre-filling data:`, franchiseData);
+      setApplicationType(appType);
+      
+      // Store the specific franchise ID being renewed/amended
+      // IMPORTANT: Always use previousFranchiseId from location.state to ensure correct franchise is linked
+      if (franchiseData.previousFranchiseId) {
+        setPreviousFranchiseId(franchiseData.previousFranchiseId);
+        logger.log('[FranchiseApplication] Setting previousFranchiseId:', franchiseData.previousFranchiseId);
       }
       
       setFields({
         date: dayjs(),
-        operatorName: renewalData.operatorName || "",
-        contact: renewalData.operatorContactNumber || "",
-        birthPlace: renewalData.operatorBirthPlace || "Municipality / Province",
-        birthDate: renewalData.operatorBirthDate ? dayjs(renewalData.operatorBirthDate) : null,
-        civilStatus: renewalData.operatorCivilStatus || "",
-        citizenship: renewalData.operatorCitizenship || "",
-        todaMembership: renewalData.todaMembership || "",
-        address: renewalData.operatorAddress || "",
-        barangay: renewalData.operatorBarangay || "",
-        hasCoOwner: renewalData.coOwnerName ? "Yes" : "No",
-        driverName: renewalData.driverName || "",
-        driverAddress: renewalData.driversAddress || "",
-        unitModel: renewalData.unitModel || "",
-        colorMotor: renewalData.colorMotor || "",
-        colorSidecar: renewalData.sideCarColor || "B/Y",
-        mvPlateNo: renewalData.mvPlateNo || "",
-        motorEngineNumber: renewalData.motorEngineNo || "",
-        chassisNumber: renewalData.chasisNo || "",
+        operatorName: franchiseData.operatorName || "",
+        contact: franchiseData.operatorContactNumber || "",
+        birthPlace: franchiseData.operatorBirthPlace || "Municipality / Province",
+        birthDate: franchiseData.operatorBirthDate ? dayjs(franchiseData.operatorBirthDate) : null,
+        civilStatus: franchiseData.operatorCivilStatus || "",
+        citizenship: franchiseData.operatorCitizenship || "",
+        todaMembership: franchiseData.todaMembership || "",
+        address: franchiseData.operatorAddress || "",
+        barangay: franchiseData.operatorBarangay || "",
+        hasCoOwner: franchiseData.coOwnerName ? "Yes" : "No",
+        driverName: franchiseData.driverName || "",
+        driverAddress: franchiseData.driversAddress || "",
+        unitModel: franchiseData.unitModel || "",
+        colorMotor: franchiseData.colorMotor || "",
+        colorSidecar: franchiseData.sideCarColor || "B/Y",
+        mvPlateNo: franchiseData.mvPlateNo || "",
+        motorEngineNumber: franchiseData.motorEngineNo || "",
+        chassisNumber: franchiseData.chasisNo || "",
         operatorPicture: null,
         driverPicture: null
       });
       
       // Set co-owners array if there's co-owner data
-      if (renewalData.coOwnerName) {
+      if (franchiseData.coOwnerName) {
         setCoOwners([{
-          name: renewalData.coOwnerName,
-          address: renewalData.coOwnerAddress || '',
-          relationship: renewalData.coOwnerRelationship || ''
+          name: franchiseData.coOwnerName,
+          address: franchiseData.coOwnerAddress || '',
+          relationship: franchiseData.coOwnerRelationship || ''
         }]);
       }
     }
