@@ -812,13 +812,13 @@ function Settings() {
         try {
           toast.info('Restoring from backup... Please wait.');
           
-          console.log('[Settings] Calling restoreBackup with:', backupId);
+          logger.log('[Settings] Calling restoreBackup with:', backupId);
           const response = await backupService.restoreBackup(backupId, {
             dropExisting: false,
             dryRun: false
           });
           
-          console.log('[Settings] Restore response:', response);
+          logger.log('[Settings] Restore response:', response);
           clearInterval(progressInterval);
           if (isMountedRef.current) {
             setRestoreProgress(100);

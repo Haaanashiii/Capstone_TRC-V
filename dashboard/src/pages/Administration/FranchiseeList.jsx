@@ -691,7 +691,7 @@ const FranchiseeDetailsModal = ({
       // Fetch QR code if available
       if (data.qrCode) {
         try {
-          const apiBase = API_BASE_URL || 'http://localhost:5170';
+          const apiBase = API_BASE_URL || window.location.origin;
           const qrUrl = data.qrCode.startsWith('gridfs://') 
             ? `${apiBase}/api/files/${data.qrCode.substring(9)}`
             : data.qrCode.startsWith('/') 
@@ -2574,7 +2574,7 @@ function FranchiseeList() {
       }
 
       try {
-        const apiBase = API_BASE_URL || 'http://localhost:5170';
+        const apiBase = API_BASE_URL || window.location.origin;
         const token = getAuthToken();
         
         const qrPath = selectedFranchisee.qrCode;
