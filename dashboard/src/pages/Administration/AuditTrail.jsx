@@ -588,16 +588,33 @@ function AuditTrail() {
           onClose={handleCloseViewModal}
           aria-labelledby="audit-log-details-modal"
         >
-          <Box className="audit-trail-container modal-container">
+          <Fade in={viewModalOpen} timeout={400}>
+          <Box className="audit-trail-container modal-container" sx={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            maxWidth: '900px',
+            width: '90%',
+            maxHeight: '75vh',
+            bgcolor: 'background.paper',
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column',
+            borderRadius: '16px',
+            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)',
+            outline: 'none'
+          }}>
             <div className="modal-header">
-              <Typography variant="h5" component="h2">
+              <Typography variant="h5" component="h2" id="audit-log-details-modal">
                 AUDIT LOG DETAILS
               </Typography>
-              <IconButton onClick={handleCloseViewModal}>
+              <IconButton onClick={handleCloseViewModal} aria-label="Close modal">
                 <CloseIcon />
               </IconButton>
             </div>
             
+            <div className="modal-body">
             {selectedLog && (
               <>
                 <Typography variant="h6" className="section-header">
@@ -747,7 +764,9 @@ function AuditTrail() {
                 )}
               </>
             )}
+            </div>
           </Box>
+          </Fade>
         </Modal>
       </AnimatedPage>
     </div>
