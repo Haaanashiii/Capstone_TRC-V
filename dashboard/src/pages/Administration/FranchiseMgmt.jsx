@@ -1995,7 +1995,7 @@ function FranchiseMgmt() {
                 )}
               </Typography>
             
-            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2, mb: 2 }}>
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2, mb: 2, marginTop: 1.5 }}>
               <TextField
                 label="Name of Operator"
                 name="name"
@@ -2136,7 +2136,7 @@ function FranchiseMgmt() {
               fullWidth
               required
               size="small"
-              sx={{ mb: 2 }}
+              sx={{ mb: 2, mt: 1.5 }}
             />
             
             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)' }, gap: 2, mb: 2 }}>
@@ -2232,9 +2232,10 @@ function FranchiseMgmt() {
               p: 2, 
               background: '#FFF7ED',
               borderRadius: 2,
-              border: '1px solid #FDBA74'
+              border: '1px solid #FDBA74',
+              mt: 2
             }}>
-              <Typography variant="body2" sx={{ fontWeight: 600, color: '#EA580C', mb: 0.5 }}>
+              <Typography variant="body2" sx={{ fontWeight: 600, color: '#EA580C', mb: 0.5}}>
                 Upload Instructions:
               </Typography>
               <Typography variant="body2" sx={{ color: '#9A3412', fontSize: '0.85rem' }}>
@@ -2357,7 +2358,7 @@ function FranchiseMgmt() {
                   border: '1px solid #BAE6FD'
                 }}>
                   <Typography variant="body2" sx={{ fontWeight: 600, color: '#0369A1', mb: 0.5 }}>
-                    📸 Existing Photos Retained
+                    Existing Photos Retained
                   </Typography>
                   <Typography variant="body2" sx={{ color: '#075985', fontSize: '0.85rem' }}>
                     For renewal applications, the existing 1x1 pictures of the driver and operator will be automatically retained from the original franchise record. No need to re-upload.
@@ -2376,7 +2377,8 @@ function FranchiseMgmt() {
               p: 2, 
               background: '#EFF6FF',
               borderRadius: 2,
-              border: '1px solid #93C5FD'
+              border: '1px solid #93C5FD',
+              mt:1.5
             }}>
               <Typography variant="body2" sx={{ fontWeight: 600, color: '#1E40AF', mb: 0.5 }}>
                 Optional OR Submission:
