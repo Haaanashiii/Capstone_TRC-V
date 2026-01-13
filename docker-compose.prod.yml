@@ -106,17 +106,16 @@ services:
   # REDIS - Production Configuration
   # ===========================================
   redis:
-    command: >
-      redis-server 
-      --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD is required in production}
-      --appendonly yes
-      --maxmemory 1gb
-      --maxmemory-policy allkeys-lru
-      --tcp-keepalive 300
-      --tcp-backlog 511
-      --save 900 1
-      --save 300 10
-      --save 60 10000
+    # Production override - use config file with mandatory password and higher memory
+    command: sh -c "redis-server /usr/local/etc/redis/redis.conf --requirepass \"${REDIS_PASSWORD:?REDIS_PASSWORD is required in production}\" --maxmemory 1gb --io-threads 4"
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD:?REDIS_PASSWORD is required in production}
+    healthcheck:
+      test: ["CMD", "sh", "-c", "redis-cli -a \"$$REDIS_PASSWORD\" ping | grep PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     deploy:
       resources:
         limits:

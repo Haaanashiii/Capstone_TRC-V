@@ -207,8 +207,8 @@ services:
       - ./redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
     networks:
       - trcv-network
-    # Redis configuration - use config file and optionally add password
-    command: sh -c "redis-server /usr/local/etc/redis/redis.conf $${REDIS_PASSWORD:+--requirepass \"$$REDIS_PASSWORD\"}"
+    # Load config file + conditionally set password from environment
+    command: sh -c "redis-server /usr/local/etc/redis/redis.conf $${REDIS_PASSWORD:+--requirepass \"$$REDIS_PASSWORD\"} --maxmemory 512mb"
     environment:
       - REDIS_PASSWORD=${REDIS_PASSWORD:-}
     healthcheck:
