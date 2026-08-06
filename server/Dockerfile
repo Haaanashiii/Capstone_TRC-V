@@ -1,7 +1,7 @@
 # TRC-V Backend - Production Dockerfile
 # Scalable from single instance to cluster
 
-FROM node:20-alpine AS base
+FROM node:25-alpine AS base
 
 # Install PM2 globally
 RUN npm install -g pm2
